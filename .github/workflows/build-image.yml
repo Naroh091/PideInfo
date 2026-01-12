@@ -51,7 +51,7 @@ jobs:
 
           # Install frontend dependencies
           COPY package.json pnpm-lock.yaml ./
-          RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+          RUN npm install -g pnpm && pnpm install --frozen-lockfile
 
           # Remove auth.json
           RUN if [ -f "/usr/app/auth.json" ]; then rm -f /usr/app/auth.json; fi
