@@ -1,0 +1,86 @@
+{% extends 'layouts/auth.html.twig' %}
+
+{% block title %}Registro - VIGIA{% endblock %}
+
+{% block auth_content %}
+    <h2 class="text-xl font-semibold text-slate-800 text-center mb-6">Crear cuenta</h2>
+
+    {{ form_start(registrationForm, {'attr': {'class': 'space-y-5'}}) }}
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <label for="{{ registrationForm.firstName.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                    Nombre
+                </label>
+                {{ form_widget(registrationForm.firstName, {'attr': {'class': 'input', 'placeholder': 'Juan'}}) }}
+                {{ form_errors(registrationForm.firstName) }}
+            </div>
+            <div>
+                <label for="{{ registrationForm.lastName.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                    Apellidos
+                </label>
+                {{ form_widget(registrationForm.lastName, {'attr': {'class': 'input', 'placeholder': 'Garcia'}}) }}
+                {{ form_errors(registrationForm.lastName) }}
+            </div>
+        </div>
+
+        <div>
+            <label for="{{ registrationForm.email.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                Correo electronico
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="mail" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                {{ form_widget(registrationForm.email, {'attr': {'class': 'input input-icon-left', 'placeholder': 'tu@email.com'}}) }}
+            </div>
+            {{ form_errors(registrationForm.email) }}
+        </div>
+
+        <div>
+            <label for="{{ registrationForm.plainPassword.first.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                Contrasena
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="lock" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                {{ form_widget(registrationForm.plainPassword.first, {'attr': {'class': 'input input-icon-left', 'placeholder': 'Minimo 8 caracteres'}}) }}
+            </div>
+        </div>
+
+        <div>
+            <label for="{{ registrationForm.plainPassword.second.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                Confirmar contrasena
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="lock" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                {{ form_widget(registrationForm.plainPassword.second, {'attr': {'class': 'input input-icon-left', 'placeholder': 'Repite tu contrasena'}}) }}
+            </div>
+            {{ form_errors(registrationForm.plainPassword) }}
+        </div>
+
+        <div class="flex items-start gap-2">
+            {{ form_widget(registrationForm.agreeTerms, {'attr': {'class': 'w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 mt-0.5'}}) }}
+            <label for="{{ registrationForm.agreeTerms.vars.id }}" class="text-sm text-slate-600">
+                Acepto los terminos y condiciones de uso
+            </label>
+        </div>
+        {{ form_errors(registrationForm.agreeTerms) }}
+
+        <button type="submit" class="btn btn-primary w-full">
+            <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i>
+            Crear cuenta
+        </button>
+    {{ form_end(registrationForm) }}
+{% endblock %}
+
+{% block auth_footer %}
+    <p class="text-slate-500">
+        Ya tienes cuenta?
+        <a href="{{ path('app_login') }}" class="text-primary-600 font-medium hover:text-primary-700">
+            Inicia sesion
+        </a>
+    </p>
+{% endblock %}

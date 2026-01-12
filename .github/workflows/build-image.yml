@@ -1,0 +1,114 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Generate Dockerfile
+        run: |
+          cat > Dockerfile << 'EOF'
+          FROM ghcr.io/malditaes/php8.2-base:v1.0.5 AS app-runtime
+
+          # Install Caddy, Supervisor, qpdf, and PHP calendar extension
+          RUN apt-get update && apt-get install -y \
+              debian-keyring debian-archive-keyring apt-transport-https supervisor qpdf tmux \
+              && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg \
+              && curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list \
+              && apt-get update && apt-get install -y caddy ca-certificates \
+              && docker-php-ext-install calendar \
+              && update-ca-certificates && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+          WORKDIR /usr/app
+
+          ARG GITHUB_TOKEN
+          ARG RELEASE_VERSION
+
+          ENV DATABASE_URL="mysql://buildprocess:buildpass@localhost:3306/buildprocess"
+          ENV RELEASE_VERSION=$RELEASE_VERSION
+
+          # Create auth.json for Composer
+          RUN if [ ! -z "$GITHUB_TOKEN" ]; then \
+              echo '{"github-oauth": {"github.com": "'$GITHUB_TOKEN'"}}' > /usr/app/auth.json; \
+              fi
+
+          # Install PHP dependencies
+          COPY composer.json composer.lock ./
+          RUN composer install --no-scripts --no-progress --prefer-dist --optimize-autoloader
+
+          # Install frontend dependencies
+          COPY package.json pnpm-lock.yaml ./
+          RUN corepack enable && corepack prepare pnpm@latest --activate && pnpm install --frozen-lockfile
+
+          # Remove auth.json
+          RUN if [ -f "/usr/app/auth.json" ]; then rm -f /usr/app/auth.json; fi
+
+          # Copy application code
+          COPY . .
+
+          # Build assets
+          RUN php bin/console assets:install
+          RUN php bin/console importmap:install
+          RUN php bin/console tailwind:build --minify
+          RUN php bin/console asset-map:compile
+          # Cache warmup is done at container startup (requires database connection)
+
+          # Copy configuration files
+          COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+          RUN chmod +x /usr/local/bin/entrypoint.sh
+          COPY docker/Caddyfile /etc/caddy/Caddyfile
+          COPY docker/php-fpm.conf /etc/php-fpm.conf
+          COPY docker/supervisord.conf /etc/supervisor/conf.d/app.conf
+          COPY docker/memory-limit.ini /usr/local/etc/php/conf.d/memory-limit.ini
+
+          EXPOSE 80
+          ENTRYPOINT ["entrypoint.sh"]
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to GitHub Container Registry (for private base image)
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/naroh091/vigia:${{ steps.tag_version.outputs.new_tag }}
+            ghcr.io/naroh091/vigia:latest
+          cache-from: type=registry,ref=ghcr.io/naroh091/vigia:buildcache
+          cache-to: type=registry,ref=ghcr.io/naroh091/vigia:buildcache,mode=max
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GHCR_PAT }}
+            RELEASE_VERSION=${{ steps.tag_version.outputs.new_tag }}
+
+      - name: Verify image was pushed
+        run: |
+          echo "Successfully built and pushed image: ghcr.io/naroh091/vigia:${{ steps.tag_version.outputs.new_tag }}"
+          echo "Image is also tagged as 'latest'"

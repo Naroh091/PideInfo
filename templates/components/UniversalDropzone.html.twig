@@ -1,0 +1,76 @@
+<div {{ attributes.defaults({class: 'universal-dropzone'}) }}>
+    <div class="card"
+         data-controller="file-uploader"
+         data-file-uploader-url-value="{{ path('app_document_upload') }}"
+         {% if accessRequestId %}data-file-uploader-access-request-id-value="{{ accessRequestId }}"{% endif %}
+    >
+        <div class="card-header">
+            <h6 class="card-title mb-0">
+                <i class="bi bi-cloud-upload me-2"></i>Subir documentos
+            </h6>
+        </div>
+        <div class="card-body">
+            <div data-file-uploader-target="status"></div>
+
+            <div class="dropzone-area border border-2 border-dashed rounded p-4 text-center mb-3">
+                <div class="dropzone-content">
+                    <i class="bi bi-file-earmark-arrow-up fs-1 text-muted mb-3 d-block"></i>
+                    <p class="mb-2">Arrastra documentos aquí o</p>
+                    <label class="btn btn-primary btn-sm">
+                        <i class="bi bi-folder2-open me-1"></i>Seleccionar archivos
+                        <input
+                            type="file"
+                            class="d-none"
+                            multiple
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+                            data-file-uploader-target="input"
+                            data-action="change->file-uploader#selectFiles"
+                        >
+                    </label>
+                    <p class="small text-muted mt-2 mb-0">PDF, Word, o imágenes (máx. 10MB)</p>
+                </div>
+            </div>
+
+            <ul class="list-group list-group-flush" data-file-uploader-target="preview"></ul>
+
+            {% set recentDocs = this.recentDocuments %}
+            {% if recentDocs|length > 0 %}
+                <hr>
+                <h6 class="small text-muted mb-2">Documentos pendientes de procesar</h6>
+                <ul class="list-group list-group-flush">
+                    {% for doc in recentDocs %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <div>
+                                <i class="bi bi-file-earmark me-2"></i>
+                                {{ doc.name }}
+                                <br>
+                                <small class="text-muted">{{ doc.uploadedAt }}</small>
+                            </div>
+                            <span class="badge bg-{{ doc.processed ? 'success' : 'warning' }}">
+                                {{ doc.processed ? 'Procesado' : 'Pendiente' }}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .dropzone-area {
+        border-color: #dee2e6 !important;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .dropzone-area:hover,
+    .dropzone-area.dragover {
+        border-color: #0d6efd !important;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+
+    .dropzone-area.dragover .dropzone-content {
+        opacity: 0.5;
+    }
+</style>

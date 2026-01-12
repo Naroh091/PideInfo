@@ -1,0 +1,42 @@
+{
+    # Global options
+    servers {
+        timeouts {
+            read_body 30s
+            read_header 10s
+            write 60s
+            idle 120s
+        }
+        trusted_proxies static 127.0.0.1/24 172.16.0.0/12 10.0.0.0/8 192.168.0.0/16
+    }
+}
+
+:80 {
+    root * /usr/app/public
+
+    # Block sensitive paths
+    @blocked {
+        path *.env* *.git* /config/* /var/*
+    }
+    respond @blocked 404
+
+    # Health check endpoint (useful for load balancers)
+    respond /health 200
+
+    php_fastcgi 127.0.0.1:9000 {
+        read_timeout 65s
+        write_timeout 10s
+        dial_timeout 5s
+        env HTTPS on
+    }
+
+    file_server
+    encode gzip
+
+    # Logging
+    log {
+        output stderr
+        format console
+        level ERROR
+    }
+}

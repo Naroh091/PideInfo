@@ -1,0 +1,71 @@
+{% extends 'layouts/auth.html.twig' %}
+
+{% block title %}Iniciar sesion - VIGIA{% endblock %}
+
+{% block auth_content %}
+    <h2 class="text-xl font-semibold text-slate-800 text-center mb-6">Iniciar sesion</h2>
+
+    {% if error %}
+        <div class="alert alert-danger mb-6">
+            <i data-lucide="alert-circle" class="w-5 h-5 flex-shrink-0"></i>
+            <span>{{ error.messageKey|trans(error.messageData, 'security') }}</span>
+        </div>
+    {% endif %}
+
+    <form method="post" class="space-y-5">
+        <div>
+            <label for="inputEmail" class="block text-sm font-medium text-slate-700 mb-1.5">
+                Correo electronico
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="mail" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                <input type="email" name="_username" id="inputEmail"
+                       class="input input-icon-left"
+                       value="{{ last_username }}"
+                       required autofocus
+                       placeholder="tu@email.com">
+            </div>
+        </div>
+
+        <div>
+            <label for="inputPassword" class="block text-sm font-medium text-slate-700 mb-1.5">
+                Contrasena
+            </label>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i data-lucide="lock" class="w-5 h-5 text-slate-400"></i>
+                </div>
+                <input type="password" name="_password" id="inputPassword"
+                       class="input input-icon-left"
+                       required
+                       placeholder="Tu contrasena">
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" name="_remember_me" id="rememberMe"
+                       class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                <span class="text-sm text-slate-600">Recordarme</span>
+            </label>
+        </div>
+
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+        <button type="submit" class="btn btn-primary w-full">
+            <i data-lucide="log-in" class="w-4 h-4 mr-2"></i>
+            Iniciar sesion
+        </button>
+    </form>
+{% endblock %}
+
+{% block auth_footer %}
+    <p class="text-slate-500">
+        No tienes cuenta?
+        <a href="{{ path('app_register') }}" class="text-primary-600 font-medium hover:text-primary-700">
+            Registrate aqui
+        </a>
+    </p>
+{% endblock %}

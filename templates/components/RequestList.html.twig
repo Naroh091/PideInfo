@@ -1,0 +1,187 @@
+<div {{ attributes.defaults({class: 'request-list'}) }}>
+    {# Filters #}
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input
+                            type="text"
+                            class="form-control"
+                            placeholder="Buscar por título, descripción, organismo..."
+                            data-model="search"
+                            value="{{ search }}"
+                        >
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select" data-model="status">
+                        <option value="">Todos los estados</option>
+                        {% for value, label in this.statusOptions %}
+                            <option value="{{ value }}" {{ status == value ? 'selected' }}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary w-100"
+                        data-action="live#action"
+                        data-live-action-param="resetFilters"
+                    >
+                        <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Results #}
+    {% set requests = this.requests %}
+    {% set totalCount = this.totalCount %}
+    {% set totalPages = this.totalPages %}
+
+    {% if requests|length > 0 %}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <p class="text-muted mb-0">
+                Mostrando {{ requests|length }} de {{ totalCount }} solicitudes
+            </p>
+            <div class="btn-group btn-group-sm">
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary {{ sortBy == 'createdAt' ? 'active' }}"
+                    data-model="sortBy"
+                    data-value="createdAt"
+                >
+                    Fecha creación
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary {{ sortBy == 'deadlineAt' ? 'active' }}"
+                    data-model="sortBy"
+                    data-value="deadlineAt"
+                >
+                    Plazo
+                </button>
+            </div>
+        </div>
+
+        <div class="list-group mb-4">
+            {% for request in requests %}
+                <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="list-group-item list-group-item-action">
+                    <div class="d-flex w-100 justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">{{ request.title }}</h6>
+                            <p class="mb-1 text-muted small">
+                                <i class="bi bi-building me-1"></i>{{ request.publicBody.name }}
+                                {% if request.externalId %}
+                                    <span class="mx-2">|</span>
+                                    <i class="bi bi-hash me-1"></i>{{ request.externalId }}
+                                {% endif %}
+                            </p>
+                            <p class="mb-0 small">
+                                <span class="text-muted">Enviada:</span> {{ request.sentAt|date('d/m/Y') }}
+                                <span class="mx-2">|</span>
+                                <span class="text-muted">Plazo:</span>
+                                <span class="{{ request.isDeadlinePassed ? 'text-danger fw-bold' : '' }}">
+                                    {{ request.deadlineAt|date('d/m/Y') }}
+                                </span>
+                                {% if request.isDeadlinePassed %}
+                                    <span class="badge bg-danger ms-1">Vencido</span>
+                                {% elseif request.daysUntilDeadline <= 7 %}
+                                    <span class="badge bg-warning text-dark ms-1">{{ request.daysUntilDeadline }} días</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="text-end ms-3">
+                            <span class="badge bg-{{
+                                request.status == 'granted' ? 'success' :
+                                (request.status == 'denied' ? 'danger' :
+                                (request.status == 'delayed' ? 'warning' :
+                                (request.status == 'pending' ? 'info' : 'primary')))
+                            }} fs-6">
+                                {{ request.statusLabel }}
+                            </span>
+                            {% if request.complaintStatus != 'none' %}
+                                <br>
+                                <span class="badge bg-secondary mt-1">{{ request.complaintStatusLabel }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </a>
+            {% endfor %}
+        </div>
+
+        {# Pagination #}
+        {% if totalPages > 1 %}
+            <nav aria-label="Paginación">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item {{ page <= 1 ? 'disabled' }}">
+                        <button
+                            type="button"
+                            class="page-link"
+                            data-action="live#action"
+                            data-live-action-param="previousPage"
+                            {{ page <= 1 ? 'disabled' }}
+                        >
+                            <i class="bi bi-chevron-left"></i>
+                        </button>
+                    </li>
+
+                    {% for p in 1..totalPages %}
+                        {% if p == 1 or p == totalPages or (p >= page - 2 and p <= page + 2) %}
+                            <li class="page-item {{ p == page ? 'active' }}">
+                                <button
+                                    type="button"
+                                    class="page-link"
+                                    data-action="live#action"
+                                    data-live-action-param="goToPage"
+                                    data-live-page-param="{{ p }}"
+                                >
+                                    {{ p }}
+                                </button>
+                            </li>
+                        {% elseif p == 2 or p == totalPages - 1 %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    <li class="page-item {{ page >= totalPages ? 'disabled' }}">
+                        <button
+                            type="button"
+                            class="page-link"
+                            data-action="live#action"
+                            data-live-action-param="nextPage"
+                            {{ page >= totalPages ? 'disabled' }}
+                        >
+                            <i class="bi bi-chevron-right"></i>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
+        {% endif %}
+    {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+            {% if search or status %}
+                <p class="text-muted mb-3">No se encontraron solicitudes con los filtros aplicados</p>
+                <button
+                    type="button"
+                    class="btn btn-outline-primary"
+                    data-action="live#action"
+                    data-live-action-param="resetFilters"
+                >
+                    Limpiar filtros
+                </button>
+            {% else %}
+                <p class="text-muted mb-3">No tienes solicitudes registradas</p>
+                <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-lg me-2"></i>Crear primera solicitud
+                </a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>

@@ -1,0 +1,149 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Panel principal - VIGIA{% endblock %}
+
+{% block content %}
+{# Mercure subscription wrapper - all LiveComponents inside will auto-refresh #}
+<div data-controller="mercure-subscriber"
+     data-mercure-subscriber-topic-value="{{ mercureTopic }}"
+     data-mercure-subscriber-hub-value="{{ app.request.getSchemeAndHttpHost() ~ ':3000/.well-known/mercure' }}">
+
+    {# Page Header #}
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Panel principal</h1>
+            <p class="text-slate-500 mt-1">Resumen de tus solicitudes de acceso a informacion</p>
+        </div>
+        <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
+            <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+            Nueva solicitud
+        </a>
+    </div>
+
+    {# Main Layout: Content + Sidebar #}
+    <div class="grid lg:grid-cols-3 gap-6">
+        {# Left Column: Stats and Lists #}
+        <div class="lg:col-span-2 space-y-6">
+            {# Statistics Cards - LiveComponent #}
+            {{ component('StatusStats') }}
+
+            {# Deadline Alerts - LiveComponent #}
+            {{ component('DeadlineAlerts') }}
+
+            {# Recent Requests - LiveComponent #}
+            {{ component('RecentRequests') }}
+        </div>
+
+        {# Right Column: Dropzone (sticky) #}
+        <div class="lg:col-span-1">
+            <div class="lg:sticky lg:top-24"
+                 data-controller="file-uploader"
+                 data-file-uploader-url-value="{{ path('app_document_upload') }}">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                                <i data-lucide="upload-cloud" class="w-5 h-5 text-primary-600"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">Subir documentos</h2>
+                                <p class="text-sm text-slate-500">Arrastra o haz clic</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {# Status messages #}
+                        <div data-file-uploader-target="status" class="mb-4"></div>
+
+                        {# Dropzone #}
+                        <div class="dropzone-area py-8"
+                             data-file-uploader-target="dropzone"
+                             data-action="dragover->file-uploader#dragOver dragenter->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop click->file-uploader#clickToUpload">
+                            <div class="flex flex-col items-center">
+                                <div class="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center mb-3">
+                                    <i data-lucide="file-up" class="w-6 h-6 text-primary-500"></i>
+                                </div>
+                                <p class="text-slate-700 font-medium text-sm mb-1">Arrastra documentos</p>
+                                <p class="text-slate-500 text-xs mb-3">PDF, Word, imagenes</p>
+                                <span class="btn btn-outline btn-sm">
+                                    <i data-lucide="folder-open" class="w-4 h-4 mr-1"></i>
+                                    Seleccionar
+                                </span>
+                                <input
+                                    type="file"
+                                    class="hidden"
+                                    multiple
+                                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+                                    data-file-uploader-target="input"
+                                    data-action="change->file-uploader#selectFiles"
+                                >
+                            </div>
+                        </div>
+
+                        {# File preview list #}
+                        <div data-file-uploader-target="preview" class="mt-4 space-y-2"></div>
+                    </div>
+                </div>
+
+                {# Quick tip #}
+                <div class="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                    <div class="flex items-start gap-3">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            <p class="text-sm font-medium text-slate-700">Analisis automatico con IA</p>
+                            <p class="text-xs text-slate-500 mt-1">Los documentos se analizan y asocian automaticamente a solicitudes.</p>
+                        </div>
+                    </div>
+                </div>
+
+                {# Modal for related documents - must be inside controller #}
+                <div id="relatedDocsModal"
+                     class="modal-backdrop hidden"
+                     data-file-uploader-target="modal">
+                    <div class="modal-content max-w-md">
+                        <div class="modal-header">
+                            <h3 class="text-lg font-semibold text-slate-800">Documentos relacionados</h3>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-slate-600 mb-4">Has subido varios documentos. Selecciona como quieres procesarlos:</p>
+                            <div class="space-y-3">
+                                <button type="button"
+                                        class="w-full p-4 rounded-xl border-2 border-slate-200 hover:border-primary-500 hover:bg-primary-50 transition-all text-left group"
+                                        data-action="click->file-uploader#processAsRelated">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0 group-hover:bg-primary-200 transition-colors">
+                                            <i data-lucide="link" class="w-5 h-5 text-primary-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-800">Son documentos relacionados</p>
+                                            <p class="text-sm text-slate-500 mt-1">Pertenecen a la misma solicitud</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <button type="button"
+                                        class="w-full p-4 rounded-xl border-2 border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all text-left group"
+                                        data-action="click->file-uploader#processAsSeparate">
+                                    <div class="flex items-start gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-slate-200 transition-colors">
+                                            <i data-lucide="files" class="w-5 h-5 text-slate-600"></i>
+                                        </div>
+                                        <div>
+                                            <p class="font-medium text-slate-800">Son documentos separados</p>
+                                            <p class="text-sm text-slate-500 mt-1">Se analizaran de forma independiente</p>
+                                        </div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-action="click->file-uploader#closeModal">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
