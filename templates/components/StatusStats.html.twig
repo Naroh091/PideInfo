@@ -1,0 +1,53 @@
+<div {{ attributes.defaults({class: 'status-stats'}) }}>
+    {% set stats = this.stats %}
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card stat-card-primary animate-slide-up" style="animation-delay: 0ms;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-white/70 text-sm font-medium">Enviadas</p>
+                    <p class="text-3xl font-bold mt-1">{{ stats.sent }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                    <i data-lucide="send" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card stat-card-info animate-slide-up" style="animation-delay: 50ms;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-white/70 text-sm font-medium">En tramite</p>
+                    <p class="text-3xl font-bold mt-1">{{ stats.processing }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                    <i data-lucide="loader" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card stat-card-success animate-slide-up" style="animation-delay: 100ms;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-white/70 text-sm font-medium">Concedidas</p>
+                    <p class="text-3xl font-bold mt-1">{{ stats.granted }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                    <i data-lucide="check-circle" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="stat-card stat-card-accent animate-slide-up" style="animation-delay: 150ms;">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-white/70 text-sm font-medium">Silencio</p>
+                    <p class="text-3xl font-bold mt-1">{{ stats.delayed }}</p>
+                </div>
+                <div class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                    <i data-lucide="clock" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

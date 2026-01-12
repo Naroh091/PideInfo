@@ -1,0 +1,266 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}{{ request.title }} - VIGIA{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_solicitudes_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Solicitudes
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <span class="text-slate-800 font-medium truncate max-w-xs">{{ request.title|u.truncate(30) }}</span>
+</nav>
+
+{# Header #}
+<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
+    <div class="min-w-0">
+        <h1 class="text-2xl font-bold text-slate-800">{{ request.title }}</h1>
+        <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
+            <span class="flex items-center gap-1">
+                <i data-lucide="building" class="w-4 h-4"></i>
+                {{ request.publicBody.name }}
+            </span>
+            {% if request.externalId %}
+                <span class="flex items-center gap-1 text-primary-600">
+                    <i data-lucide="hash" class="w-4 h-4"></i>
+                    {{ request.externalId }}
+                </span>
+            {% endif %}
+        </div>
+    </div>
+    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="btn btn-secondary flex-shrink-0">
+        <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
+        Editar
+    </a>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        {# Main Info #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                    </div>
+                    <h2 class="font-semibold text-slate-800">Informacion de la solicitud</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                <h3 class="text-sm font-medium text-slate-700 mb-2">Descripcion</h3>
+                <p class="text-slate-600 whitespace-pre-line">{{ request.description }}</p>
+
+                <div class="border-t border-slate-100 mt-6 pt-6 grid sm:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Ley aplicable</h4>
+                        <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envio</h4>
+                        <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Documents #}
+        <div class="card"
+             data-controller="file-uploader"
+             data-file-uploader-url-value="{{ path('app_document_upload') }}"
+             data-file-uploader-access-request-id-value="{{ request.id }}">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                            <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
+                        </div>
+                        <h2 class="font-semibold text-slate-800">Documentos</h2>
+                    </div>
+                    <label class="btn btn-primary btn-sm cursor-pointer">
+                        <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
+                        Subir
+                        <input type="file" class="hidden" multiple
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+                               data-file-uploader-target="input"
+                               data-action="change->file-uploader#selectFiles">
+                    </label>
+                </div>
+            </div>
+            <div class="card-body">
+                <div data-file-uploader-target="status"></div>
+
+                {% if request.documents|length > 0 %}
+                    <div class="space-y-3">
+                        {% for doc in request.documents %}
+                            <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="w-10 h-10 rounded-lg {{ doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200') }} flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="{{ doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file') }}"
+                                           class="w-5 h-5 {{ doc.isPdf ? 'text-red-600' : (doc.isImage ? 'text-blue-600' : 'text-slate-600') }}"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="font-medium text-slate-800 truncate">{{ doc.originalFilename }}</p>
+                                        <p class="text-sm text-slate-500">{{ doc.typeLabel }} - {{ doc.fileSizeFormatted }}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="badge {{ doc.processed ? 'badge-success' : 'badge-warning' }}">
+                                        {{ doc.processed ? 'Procesado' : 'Pendiente' }}
+                                    </span>
+                                    <a href="{{ path('app_document_download', {id: doc.id}) }}"
+                                       class="btn btn-ghost btn-sm"
+                                       title="Descargar">
+                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                    </a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="empty-state py-8">
+                        <div class="empty-state-icon">
+                            <i data-lucide="file" class="w-full h-full"></i>
+                        </div>
+                        <p class="empty-state-title">Sin documentos</p>
+                        <p class="empty-state-description">No hay documentos adjuntos a esta solicitud</p>
+                    </div>
+                {% endif %}
+
+                <div data-file-uploader-target="preview" class="mt-4 space-y-2"></div>
+            </div>
+        </div>
+
+        {# Timeline #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="history" class="w-5 h-5 text-primary-600"></i>
+                    </div>
+                    <h2 class="font-semibold text-slate-800">Historial</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if request.statusHistory|length > 0 %}
+                    <div class="space-y-4">
+                        {% for history in request.statusHistory %}
+                            <div class="relative pl-6 pb-4 {{ not loop.last ? 'border-l-2 border-slate-200' : '' }}">
+                                <div class="absolute -left-1.5 top-0 w-3 h-3 rounded-full bg-primary-500"></div>
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                    <div>
+                                        <span class="font-medium text-slate-800">{{ history.statusTypeLabel }}</span>
+                                        <span class="text-slate-400 mx-2">→</span>
+                                        <span class="badge badge-secondary">{{ history.toStatus }}</span>
+                                    </div>
+                                    <span class="text-sm text-slate-500">{{ history.createdAt|date('d/m/Y H:i') }}</span>
+                                </div>
+                                {% if history.notes %}
+                                    <p class="text-sm text-slate-500 mt-1">{{ history.notes }}</p>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-slate-500 text-center py-4">Sin cambios de estado registrados</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1 space-y-6">
+        {# Status Card #}
+        <div class="card">
+            <div class="card-header">
+                <h2 class="font-semibold text-slate-800">Estado actual</h2>
+            </div>
+            <div class="card-body space-y-4">
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Estado principal</h4>
+                    {% set statusClass = {
+                        'sent': 'status-sent',
+                        'processing': 'status-processing',
+                        'granted': 'status-granted',
+                        'denied': 'status-denied',
+                        'delayed': 'status-delayed',
+                        'pending': 'status-pending'
+                    } %}
+                    <span class="badge {{ statusClass[request.status]|default('badge-secondary') }} text-sm px-3 py-1">
+                        {{ request.statusLabel }}
+                    </span>
+                </div>
+
+                {% if request.complaintStatus != 'none' %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamacion</h4>
+                        <span class="badge badge-info text-sm px-3 py-1">{{ request.complaintStatusLabel }}</span>
+                    </div>
+                {% endif %}
+
+                {% if request.courtStatus != 'none' %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Via judicial</h4>
+                        <span class="badge badge-secondary text-sm px-3 py-1">{{ request.courtStatusLabel }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Deadlines Card #}
+        <div class="card">
+            <div class="card-header">
+                <h2 class="font-semibold text-slate-800">Plazos</h2>
+            </div>
+            <div class="card-body space-y-4">
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de respuesta</h4>
+                    <div class="flex items-center gap-2">
+                        <span class="font-semibold {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
+                            {{ request.deadlineAt|date('d/m/Y') }}
+                        </span>
+                        {% if request.isDeadlinePassed %}
+                            <span class="badge badge-danger">Vencido</span>
+                        {% else %}
+                            <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if request.extensionCount > 0 %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Prorroga</h4>
+                        <span class="badge badge-info">{{ request.extensionCount }} aplicada(s)</span>
+                    </div>
+                {% endif %}
+
+                {% if request.complianceDeadlineAt %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de cumplimiento</h4>
+                        <span class="font-semibold text-slate-800">{{ request.complianceDeadlineAt|date('d/m/Y') }}</span>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Actions Card #}
+        <div class="card">
+            <div class="card-header">
+                <h2 class="font-semibold text-slate-800">Acciones</h2>
+            </div>
+            <div class="card-body space-y-3">
+                {% if request.status in ['denied', 'delayed'] and request.complaintStatus == 'none' %}
+                    <a href="#" class="btn btn-accent w-full">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
+                        Generar reclamacion
+                    </a>
+                {% endif %}
+
+                <a href="#" class="btn btn-secondary w-full">
+                    <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+                    Exportar historial
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

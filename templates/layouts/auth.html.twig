@@ -1,0 +1,47 @@
+{% extends 'base.html.twig' %}
+
+{% block body_class %}min-h-screen{% endblock %}
+
+{% block body %}
+<div class="min-h-screen flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full mx-auto">
+        {# Logo and branding #}
+        <div class="text-center mb-8">
+            <a href="/" class="inline-flex items-center gap-2 text-primary-600 font-bold text-3xl">
+                <i data-lucide="search" class="w-8 h-8"></i>
+                <span>VIGIA</span>
+            </a>
+            <p class="mt-3 text-slate-500">Sistema de seguimiento de solicitudes de acceso a informacion publica</p>
+        </div>
+
+        {# Flash messages #}
+        {% for label, messages in app.flashes %}
+            {% for message in messages %}
+                <div class="alert alert-{{ label == 'error' ? 'danger' : label }} animate-fade-in mb-4">
+                    <i data-lucide="{{ label == 'success' ? 'check-circle' : (label == 'error' ? 'alert-circle' : 'info') }}" class="w-5 h-5 flex-shrink-0"></i>
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        {% endfor %}
+
+        {# Main card #}
+        <div class="card">
+            <div class="card-body p-8">
+                {% block auth_content %}{% endblock %}
+            </div>
+        </div>
+
+        {# Footer links #}
+        <div class="text-center mt-6">
+            {% block auth_footer %}{% endblock %}
+        </div>
+
+        {# Legal reference #}
+        <div class="text-center mt-8">
+            <p class="text-xs text-slate-400">
+                Ley 19/2013, de 9 de diciembre, de transparencia, acceso a la informacion publica y buen gobierno
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Solicitudes - VIGIA{% endblock %}
+
+{% block content %}
+{# Page Header #}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">Mis solicitudes</h1>
+        <p class="text-slate-500 mt-1">Gestiona tus solicitudes de acceso a informacion</p>
+    </div>
+    <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Nueva solicitud
+    </a>
+</div>
+
+{# Filters #}
+<div class="card mb-6">
+    <div class="card-body">
+        <form method="get" class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i data-lucide="search" class="w-5 h-5 text-slate-400"></i>
+                    </div>
+                    <input type="text" name="q" class="input input-icon-left" placeholder="Buscar solicitudes..." value="{{ search }}">
+                </div>
+            </div>
+            <div class="w-full md:w-64">
+                <select name="status" class="input">
+                    <option value="">Todos los estados</option>
+                    <option value="sent" {{ status == 'sent' ? 'selected' }}>Enviadas</option>
+                    <option value="processing" {{ status == 'processing' ? 'selected' }}>En tramite</option>
+                    <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas</option>
+                    <option value="denied" {{ status == 'denied' ? 'selected' }}>Denegadas</option>
+                    <option value="delayed" {{ status == 'delayed' ? 'selected' }}>Silencio administrativo</option>
+                    <option value="pending" {{ status == 'pending' ? 'selected' }}>Pendientes</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-secondary">
+                <i data-lucide="filter" class="w-4 h-4 mr-2"></i>
+                Filtrar
+            </button>
+        </form>
+    </div>
+</div>
+
+{# Results #}
+{% if requests|length > 0 %}
+    <div class="card overflow-hidden">
+        <div class="table-container border-0">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Solicitud</th>
+                        <th class="hidden md:table-cell">Organismo</th>
+                        <th>Estado</th>
+                        <th class="hidden sm:table-cell">Plazo</th>
+                        <th class="text-right">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for request in requests %}
+                        <tr class="group">
+                            <td>
+                                <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
+                                    {{ request.title|u.truncate(50) }}
+                                </a>
+                                {% if request.externalId %}
+                                    <p class="text-xs text-slate-400 mt-0.5">{{ request.externalId }}</p>
+                                {% endif %}
+                                <p class="text-xs text-slate-500 mt-0.5 md:hidden">{{ request.publicBody.name|u.truncate(30) }}</p>
+                            </td>
+                            <td class="hidden md:table-cell">
+                                <span class="text-slate-600">{{ request.publicBody.name|u.truncate(35) }}</span>
+                            </td>
+                            <td>
+                                {% set statusClass = {
+                                    'sent': 'status-sent',
+                                    'processing': 'status-processing',
+                                    'granted': 'status-granted',
+                                    'denied': 'status-denied',
+                                    'delayed': 'status-delayed',
+                                    'pending': 'status-pending'
+                                } %}
+                                <span class="badge {{ statusClass[request.status]|default('badge-secondary') }}">
+                                    {{ request.statusLabel }}
+                                </span>
+                                {% if request.complaintStatus != 'none' %}
+                                    <span class="badge badge-info mt-1">{{ request.complaintStatusLabel }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="hidden sm:table-cell">
+                                {% if request.isDeadlinePassed %}
+                                    <div class="flex items-center gap-1 text-red-600">
+                                        <i data-lucide="alert-circle" class="w-4 h-4"></i>
+                                        <span class="text-sm font-medium">Vencido</span>
+                                    </div>
+                                {% else %}
+                                    <span class="text-slate-700">{{ request.deadlineAt|date('d/m/Y') }}</span>
+                                    <p class="text-xs {{ request.daysUntilDeadline <= 3 ? 'text-red-500' : (request.daysUntilDeadline <= 7 ? 'text-amber-500' : 'text-slate-400') }} mt-0.5">
+                                        {{ request.daysUntilDeadline }} dias
+                                    </p>
+                                {% endif %}
+                            </td>
+                            <td class="text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}"
+                                       class="btn btn-ghost btn-sm"
+                                       title="Ver detalle">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </a>
+                                    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}"
+                                       class="btn btn-ghost btn-sm"
+                                       title="Editar">
+                                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# Pagination #}
+    {% if pages > 1 %}
+        <nav class="flex justify-center mt-6">
+            <div class="flex items-center gap-1">
+                {% for p in 1..pages %}
+                    <a href="{{ path('app_solicitudes_index', {page: p, status: status, q: search}) }}"
+                       class="w-10 h-10 flex items-center justify-center rounded-lg text-sm font-medium transition-colors
+                              {{ p == page ? 'bg-primary-500 text-white' : 'text-slate-600 hover:bg-slate-100' }}">
+                        {{ p }}
+                    </a>
+                {% endfor %}
+            </div>
+        </nav>
+    {% endif %}
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <div class="empty-state py-12">
+                <div class="empty-state-icon">
+                    <i data-lucide="folder-open" class="w-full h-full"></i>
+                </div>
+                <p class="empty-state-title">No se encontraron solicitudes</p>
+                <p class="empty-state-description mb-6">
+                    {% if search or status %}
+                        Prueba a cambiar los filtros de busqueda
+                    {% else %}
+                        Crea tu primera solicitud para empezar a hacer seguimiento
+                    {% endif %}
+                </p>
+                <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                    Nueva solicitud
+                </a>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

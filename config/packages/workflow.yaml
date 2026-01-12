@@ -1,0 +1,114 @@
+framework:
+    workflows:
+        access_request_status:
+            type: state_machine
+            audit_trail:
+                enabled: true
+            marking_store:
+                type: method
+                property: status
+            supports:
+                - App\Entity\AccessRequest
+            initial_marking: sent
+            places:
+                - sent
+                - processing
+                - granted
+                - denied
+                - delayed
+                - pending
+            transitions:
+                acknowledge:
+                    from: sent
+                    to: processing
+                    metadata:
+                        label: Acusar recibo
+                grant:
+                    from: [processing, delayed, pending]
+                    to: granted
+                    metadata:
+                        label: Conceder acceso
+                deny:
+                    from: [processing, delayed]
+                    to: denied
+                    metadata:
+                        label: Denegar acceso
+                delay:
+                    from: [sent, processing]
+                    to: delayed
+                    metadata:
+                        label: Marcar como silencio
+                mark_pending:
+                    from: [processing, delayed]
+                    to: pending
+                    metadata:
+                        label: Marcar como pendiente
+                receive_info:
+                    from: pending
+                    to: granted
+                    metadata:
+                        label: Información recibida
+
+        access_request_complaint:
+            type: state_machine
+            audit_trail:
+                enabled: true
+            marking_store:
+                type: method
+                property: complaintStatus
+            supports:
+                - App\Entity\AccessRequest
+            initial_marking: none
+            places:
+                - none
+                - reclaimed
+                - reclaim_granted
+                - reclaim_denied
+            transitions:
+                file_complaint:
+                    from: none
+                    to: reclaimed
+                    metadata:
+                        label: Presentar reclamación
+                complaint_granted:
+                    from: reclaimed
+                    to: reclaim_granted
+                    metadata:
+                        label: Reclamación estimada
+                complaint_denied:
+                    from: reclaimed
+                    to: reclaim_denied
+                    metadata:
+                        label: Reclamación desestimada
+
+        access_request_court:
+            type: state_machine
+            audit_trail:
+                enabled: true
+            marking_store:
+                type: method
+                property: courtStatus
+            supports:
+                - App\Entity\AccessRequest
+            initial_marking: none
+            places:
+                - none
+                - in_court
+                - court_granted
+                - court_denied
+            transitions:
+                go_to_court:
+                    from: none
+                    to: in_court
+                    metadata:
+                        label: Recurrir en vía judicial
+                court_wins:
+                    from: in_court
+                    to: court_granted
+                    metadata:
+                        label: Sentencia favorable
+                court_loses:
+                    from: in_court
+                    to: court_denied
+                    metadata:
+                        label: Sentencia desfavorable

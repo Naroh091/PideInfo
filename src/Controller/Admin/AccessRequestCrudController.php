@@ -1,0 +1,114 @@
+<?php
+
+namespace App\Controller\Admin;
+
+use App\Entity\AccessRequest;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
+use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
+use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\DateField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\IntegerField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\DateTimeFilter;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\EntityFilter;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\TextFilter;
+
+class AccessRequestCrudController extends AbstractCrudController
+{
+    public static function getEntityFqcn(): string
+    {
+        return AccessRequest::class;
+    }
+
+    public function configureCrud(Crud $crud): Crud
+    {
+        return $crud
+            ->setEntityLabelInSingular('Solicitud')
+            ->setEntityLabelInPlural('Solicitudes')
+            ->setSearchFields(['title', 'description', 'externalId'])
+            ->setDefaultSort(['createdAt' => 'DESC'])
+            ->setPaginatorPageSize(30);
+    }
+
+    public function configureFilters(Filters $filters): Filters
+    {
+        return $filters
+            ->add(TextFilter::new('title', 'Título'))
+            ->add(ChoiceFilter::new('status', 'Estado')->setChoices([
+                'Enviada' => 'sent',
+                'En trámite' => 'processing',
+                'Concedida' => 'granted',
+                'Denegada' => 'denied',
+                'Silencio' => 'delayed',
+                'Pendiente' => 'pending',
+            ]))
+            ->add(EntityFilter::new('publicBody', 'Organismo'))
+            ->add(EntityFilter::new('user', 'Usuario'))
+            ->add(DateTimeFilter::new('sentAt', 'Fecha de envío'))
+            ->add(DateTimeFilter::new('deadlineAt', 'Plazo'));
+    }
+
+    public function configureFields(string $pageName): iterable
+    {
+        yield IdField::new('id')->hideOnForm();
+        yield TextField::new('title', 'Título');
+        yield TextareaField::new('description', 'Descripción')->hideOnIndex();
+        yield TextField::new('externalId', 'Nº Expediente');
+
+        yield AssociationField::new('publicBody', 'Organismo');
+        yield AssociationField::new('applicableLaw', 'Ley aplicable');
+        yield AssociationField::new('user', 'Usuario');
+
+        yield ChoiceField::new('status', 'Estado')
+            ->setChoices([
+                'Enviada' => 'sent',
+                'En trámite' => 'processing',
+                'Concedida' => 'granted',
+                'Denegada' => 'denied',
+                'Silencio' => 'delayed',
+                'Pendiente' => 'pending',
+            ])
+            ->renderAsBadges([
+                'sent' => 'primary',
+                'processing' => 'info',
+                'granted' => 'success',
+                'denied' => 'danger',
+                'delayed' => 'warning',
+                'pending' => 'secondary',
+            ]);
+
+        yield ChoiceField::new('complaintStatus', 'Estado reclamación')
+            ->setChoices([
+                'Sin reclamación' => 'none',
+                'Reclamada' => 'reclaimed',
+                'Estimada' => 'reclaim_granted',
+                'Desestimada' => 'reclaim_denied',
+            ])
+            ->hideOnIndex();
+
+        yield ChoiceField::new('courtStatus', 'Vía judicial')
+            ->setChoices([
+                'Sin recurso' => 'none',
+                'En tribunal' => 'in_court',
+                'Favorable' => 'court_granted',
+                'Desfavorable' => 'court_denied',
+            ])
+            ->hideOnIndex();
+
+        yield DateField::new('sentAt', 'Fecha de envío');
+        yield DateField::new('deadlineAt', 'Plazo de respuesta');
+        yield DateField::new('acknowledgedAt', 'Fecha acuse')->hideOnIndex();
+        yield DateField::new('resolvedAt', 'Fecha resolución')->hideOnIndex();
+
+        yield IntegerField::new('extensionCount', 'Prórrogas')->hideOnIndex();
+
+        yield DateTimeField::new('createdAt', 'Creada')->hideOnForm();
+        yield DateTimeField::new('updatedAt', 'Actualizada')->hideOnForm()->hideOnIndex();
+    }
+}

@@ -418,7 +418,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: true
  *     },
  *     lock?: bool|string|array{ // Lock configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *         resources?: array<string, string|list<scalar|null|Param>>,
  *     },
  *     semaphore?: bool|string|array{ // Semaphore configuration
@@ -468,7 +468,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *     },
  *     scheduler?: bool|array{ // Scheduler configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *     },
  *     disallow_search_engine_index?: bool|Param, // Enabled by default when debug is enabled. // Default: true
  *     http_client?: bool|array{ // HTTP Client configuration
@@ -645,7 +645,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *     },
  *     uid?: bool|array{ // Uid configuration
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *         default_uuid_version?: 7|6|4|1|Param, // Default: 7
  *         name_based_uuid_version?: 5|3|Param, // Default: 5
  *         name_based_uuid_namespace?: scalar|null|Param,
@@ -1010,7 +1010,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: false
  *     },
  *     html?: bool|array{
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *     },
  *     markdown?: bool|array{
  *         enabled?: bool|Param, // Default: false
@@ -1025,7 +1025,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         enabled?: bool|Param, // Default: false
  *     },
  *     string?: bool|array{
- *         enabled?: bool|Param, // Default: false
+ *         enabled?: bool|Param, // Default: true
  *     },
  *     commonmark?: array{
  *         renderer?: array{ // Array of options for rendering HTML.
@@ -1511,6 +1511,468 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     generate_final_classes?: bool|Param, // Default: true
  *     generate_final_entities?: bool|Param, // Default: false
  * }
+ * @psalm-type SymfonycastsVerifyEmailConfig = array{
+ *     lifetime?: int|Param, // The length of time in seconds that a signed URI is valid for after it is created. // Default: 3600
+ * }
+ * @psalm-type TwigComponentConfig = array{
+ *     defaults?: array<string, string|array{ // Default: ["__deprecated__use_old_naming_behavior"]
+ *         template_directory?: scalar|null|Param, // Default: "components"
+ *         name_prefix?: scalar|null|Param, // Default: ""
+ *     }>,
+ *     anonymous_template_directory?: scalar|null|Param, // Defaults to `components`
+ *     profiler?: bool|array{ // Enables the profiler for Twig Component
+ *         enabled?: bool|Param, // Default: "%kernel.debug%"
+ *         collect_components?: bool|Param, // Collect components instances // Default: true
+ *     },
+ *     controllers_json?: scalar|null|Param, // Deprecated: The "twig_component.controllers_json" config option is deprecated, and will be removed in 3.0. // Default: null
+ * }
+ * @psalm-type LiveComponentConfig = array{
+ *     secret?: scalar|null|Param, // The secret used to compute fingerprints and checksums // Default: "%kernel.secret%"
+ * }
+ * @psalm-type FlysystemConfig = array{
+ *     storages?: array<string, array{ // Default: []
+ *         adapter: scalar|null|Param,
+ *         options?: list<mixed>,
+ *         visibility?: scalar|null|Param, // Default: null
+ *         directory_visibility?: scalar|null|Param, // Default: null
+ *         retain_visibility?: bool|null|Param, // Default: null
+ *         case_sensitive?: bool|Param, // Default: true
+ *         disable_asserts?: bool|Param, // Default: false
+ *         public_url?: list<scalar|null|Param>,
+ *         path_normalizer?: scalar|null|Param, // Default: null
+ *         public_url_generator?: scalar|null|Param, // Default: null
+ *         temporary_url_generator?: scalar|null|Param, // Default: null
+ *         read_only?: bool|Param, // Default: false
+ *     }>,
+ * }
+ * @psalm-type AiConfig = array{
+ *     platform?: array{
+ *         albert?: array{
+ *             api_key: string|Param,
+ *             base_url: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         anthropic?: array{
+ *             api_key: string|Param,
+ *             version?: string|Param, // Default: null
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         azure?: array<string, array{ // Default: []
+ *             api_key: string|Param,
+ *             base_url: string|Param,
+ *             deployment: string|Param,
+ *             api_version?: string|Param, // The used API version
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         }>,
+ *         bedrock?: array<string, array{ // Default: []
+ *             bedrock_runtime_client?: string|Param, // Service ID of the Bedrock runtime client to use // Default: null
+ *             model_catalog?: string|Param, // Default: null
+ *         }>,
+ *         cache?: array<string, array{ // Default: []
+ *             platform: string|Param,
+ *             service: string|Param, // The cache service id as defined under the "cache" configuration key
+ *             cache_key?: string|Param, // Key used to store platform results, if not set, the current platform name will be used, the "prompt_cache_key" can be set during platform call to override this value
+ *         }>,
+ *         cartesia?: array{
+ *             api_key: string|Param,
+ *             version: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         decart?: array{
+ *             api_key: string|Param,
+ *             host?: string|Param, // Default: "https://api.decart.ai/v1"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         elevenlabs?: array{
+ *             api_key: string|Param,
+ *             host?: string|Param, // Default: "https://api.elevenlabs.io/v1"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *             api_catalog?: bool|Param, // If set, the ElevenLabs API will be used to build the catalog and retrieve models information, using this option leads to additional HTTP calls
+ *         },
+ *         failover?: array<string, array{ // Default: []
+ *             platforms?: list<scalar|null|Param>,
+ *             rate_limiter?: string|Param,
+ *         }>,
+ *         gemini?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         generic?: array<string, array{ // Default: []
+ *             base_url: string|Param,
+ *             api_key?: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *             model_catalog?: string|Param, // Service ID of the model catalog to use
+ *             supports_completions?: bool|Param, // Default: true
+ *             supports_embeddings?: bool|Param, // Default: true
+ *             completions_path?: string|Param, // Default: "/v1/chat/completions"
+ *             embeddings_path?: string|Param, // Default: "/v1/embeddings"
+ *         }>,
+ *         huggingface?: array{
+ *             api_key: string|Param,
+ *             provider?: string|Param, // Default: "hf-inference"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         vertexai?: array{
+ *             location: string|Param,
+ *             project_id: string|Param,
+ *             api_key?: string|Param, // Default: null
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         openai?: array{
+ *             api_key: string|Param,
+ *             region?: scalar|null|Param, // The region for OpenAI API (EU, US, or null for default) // Default: null
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         mistral?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         openrouter?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         lmstudio?: array{
+ *             host_url?: string|Param, // Default: "http://127.0.0.1:1234"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         ollama?: array{
+ *             host_url?: string|Param, // Default: "http://127.0.0.1:11434"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *             api_catalog?: bool|Param, // If set, the Ollama API will be used to build the catalog and retrieve models information, using this option leads to additional HTTP calls
+ *         },
+ *         cerebras?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         voyage?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         perplexity?: array{
+ *             api_key: string|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         dockermodelrunner?: array{
+ *             host_url?: string|Param, // Default: "http://127.0.0.1:12434"
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         scaleway?: array{
+ *             api_key: scalar|null|Param,
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *         },
+ *         transformersphp?: array<mixed>,
+ *     },
+ *     model?: array<string, array<string, array{ // Default: []
+ *             class?: string|Param, // The fully qualified class name of the model (must extend Symfony\AI\Platform\Model) // Default: "Symfony\\AI\\Platform\\Model"
+ *             capabilities?: list<value-of<\Symfony\AI\Platform\Capability>|\Symfony\AI\Platform\Capability|Param>,
+ *         }>>,
+ *     agent?: array<string, array{ // Default: []
+ *         platform?: string|Param, // Service name of platform // Default: "Symfony\\AI\\Platform\\PlatformInterface"
+ *         model?: mixed,
+ *         memory?: mixed, // Memory configuration: string for static memory, or array with "service" key for service reference // Default: null
+ *         prompt?: string|array{ // The system prompt configuration
+ *             text?: string|Param, // The system prompt text
+ *             file?: string|Param, // Path to file containing the system prompt
+ *             include_tools?: bool|Param, // Include tool definitions at the end of the system prompt // Default: false
+ *             enable_translation?: bool|Param, // Enable translation for the system prompt // Default: false
+ *             translation_domain?: string|Param, // The translation domain for the system prompt // Default: null
+ *         },
+ *         tools?: bool|array{
+ *             enabled?: bool|Param, // Default: true
+ *             services?: list<string|array{ // Default: []
+ *                 service?: string|Param,
+ *                 agent?: string|Param,
+ *                 name?: string|Param,
+ *                 description?: string|Param,
+ *                 method?: string|Param,
+ *             }>,
+ *         },
+ *         keep_tool_messages?: bool|Param, // Keep tool messages in the conversation history // Default: false
+ *         include_sources?: bool|Param, // Include sources exposed by tools as part of the tool result metadata // Default: false
+ *         fault_tolerant_toolbox?: bool|Param, // Continue the agent run even if a tool call fails // Default: true
+ *     }>,
+ *     multi_agent?: array<string, array{ // Default: []
+ *         orchestrator: string|Param, // Service ID of the orchestrator agent
+ *         handoffs: array<string, list<scalar|null|Param>>,
+ *         fallback: string|Param, // Service ID of the fallback agent for unmatched requests
+ *     }>,
+ *     store?: array{
+ *         azuresearch?: array<string, array{ // Default: []
+ *             endpoint: string|Param,
+ *             api_key: string|Param,
+ *             index_name: string|Param,
+ *             api_version: string|Param,
+ *             vector_field?: string|Param,
+ *         }>,
+ *         cache?: array<string, array{ // Default: []
+ *             service?: string|Param, // Default: "cache.app"
+ *             cache_key?: string|Param, // The name of the store will be used if the key is not set
+ *             strategy?: string|Param,
+ *         }>,
+ *         chromadb?: array<string, array{ // Default: []
+ *             client?: string|Param, // Default: "Codewithkyrian\\ChromaDB\\Client"
+ *             collection: string|Param,
+ *         }>,
+ *         clickhouse?: array<string, array{ // Default: []
+ *             dsn?: string|Param,
+ *             http_client?: string|Param,
+ *             database: string|Param,
+ *             table: string|Param,
+ *         }>,
+ *         cloudflare?: array<string, array{ // Default: []
+ *             account_id?: string|Param,
+ *             api_key?: string|Param,
+ *             index_name?: string|Param,
+ *             dimensions?: int|Param, // Default: 1536
+ *             metric?: string|Param, // Default: "cosine"
+ *             endpoint?: string|Param,
+ *         }>,
+ *         manticoresearch?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             table?: string|Param,
+ *             field?: string|Param, // Default: "_vectors"
+ *             type?: string|Param, // Default: "hnsw"
+ *             similarity?: string|Param, // Default: "cosine"
+ *             dimensions?: int|Param, // Default: 1536
+ *             quantization?: string|Param,
+ *         }>,
+ *         mariadb?: array<string, array{ // Default: []
+ *             connection?: string|Param,
+ *             table_name?: string|Param,
+ *             index_name?: string|Param,
+ *             vector_field_name?: string|Param,
+ *             setup_options?: array{
+ *                 dimensions?: int|Param,
+ *             },
+ *         }>,
+ *         meilisearch?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key?: string|Param,
+ *             index_name?: string|Param,
+ *             embedder?: string|Param, // Default: "default"
+ *             vector_field?: string|Param, // Default: "_vectors"
+ *             dimensions?: int|Param, // Default: 1536
+ *             semantic_ratio?: float|Param, // The ratio between semantic (vector) and full-text search (0.0 to 1.0). Default: 1.0 (100% semantic) // Default: 1.0
+ *         }>,
+ *         memory?: array<string, array{ // Default: []
+ *             strategy?: string|Param,
+ *         }>,
+ *         milvus?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key: string|Param,
+ *             database?: string|Param,
+ *             collection: string|Param,
+ *             vector_field?: string|Param, // Default: "_vectors"
+ *             dimensions?: int|Param, // Default: 1536
+ *             metric_type?: string|Param, // Default: "COSINE"
+ *         }>,
+ *         mongodb?: array<string, array{ // Default: []
+ *             client?: string|Param, // Default: "MongoDB\\Client"
+ *             database: string|Param,
+ *             collection?: string|Param,
+ *             index_name: string|Param,
+ *             vector_field?: string|Param, // Default: "vector"
+ *             bulk_write?: bool|Param, // Default: false
+ *         }>,
+ *         neo4j?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             username?: string|Param,
+ *             password?: string|Param,
+ *             database?: string|Param,
+ *             vector_index_name?: string|Param,
+ *             node_name?: string|Param,
+ *             vector_field?: string|Param, // Default: "embeddings"
+ *             dimensions?: int|Param, // Default: 1536
+ *             distance?: string|Param, // Default: "cosine"
+ *             quantization?: bool|Param,
+ *         }>,
+ *         elasticsearch?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             index_name?: string|Param,
+ *             vectors_field?: string|Param, // Default: "_vectors"
+ *             dimensions?: int|Param, // Default: 1536
+ *             similarity?: string|Param, // Default: "cosine"
+ *             http_client?: string|Param, // Default: "http_client"
+ *         }>,
+ *         opensearch?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             index_name?: string|Param,
+ *             vectors_field?: string|Param, // Default: "_vectors"
+ *             dimensions?: int|Param, // Default: 1536
+ *             space_type?: string|Param, // Default: "l2"
+ *             http_client?: string|Param, // Default: "http_client"
+ *         }>,
+ *         pinecone?: array<string, array{ // Default: []
+ *             client?: string|Param, // Default: "Probots\\Pinecone\\Client"
+ *             index_name: string|Param,
+ *             namespace?: string|Param,
+ *             filter?: list<scalar|null|Param>,
+ *             top_k?: int|Param,
+ *         }>,
+ *         postgres?: array<string, array{ // Default: []
+ *             dsn?: string|Param,
+ *             username?: string|Param,
+ *             password?: string|Param,
+ *             table_name?: string|Param,
+ *             vector_field?: string|Param, // Default: "embedding"
+ *             distance?: "cosine"|"inner_product"|"l1"|"l2"|Param, // Distance metric to use for vector similarity search // Default: "l2"
+ *             dbal_connection?: string|Param,
+ *         }>,
+ *         qdrant?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key?: string|Param,
+ *             collection_name?: string|Param,
+ *             dimensions?: int|Param, // Default: 1536
+ *             distance?: string|Param, // Default: "Cosine"
+ *             async?: bool|Param,
+ *         }>,
+ *         redis?: array<string, array{ // Default: []
+ *             connection_parameters?: mixed, // see https://github.com/phpredis/phpredis?tab=readme-ov-file#example-1
+ *             client?: string|Param, // a service id of a Redis client
+ *             index_name?: string|Param,
+ *             key_prefix?: string|Param, // Default: "vector:"
+ *             distance?: "COSINE"|"L2"|"IP"|Param, // Distance metric to use for vector similarity search // Default: "COSINE"
+ *         }>,
+ *         supabase?: array<string, array{ // Default: []
+ *             http_client?: string|Param, // Service ID of the HTTP client to use // Default: "http_client"
+ *             url: string|Param,
+ *             api_key: string|Param,
+ *             table?: string|Param,
+ *             vector_field?: string|Param, // Default: "embedding"
+ *             vector_dimension?: int|Param, // Default: 1536
+ *             function_name?: string|Param, // Default: "match_documents"
+ *         }>,
+ *         surrealdb?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             username?: string|Param,
+ *             password?: string|Param,
+ *             namespace?: string|Param,
+ *             database?: string|Param,
+ *             table?: string|Param,
+ *             vector_field?: string|Param, // Default: "_vectors"
+ *             strategy?: string|Param, // Default: "cosine"
+ *             dimensions?: int|Param, // Default: 1536
+ *             namespaced_user?: bool|Param,
+ *         }>,
+ *         typesense?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key: string|Param,
+ *             collection?: string|Param,
+ *             vector_field?: string|Param, // Default: "_vectors"
+ *             dimensions?: int|Param, // Default: 1536
+ *         }>,
+ *         weaviate?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key: string|Param,
+ *             collection?: string|Param,
+ *         }>,
+ *     },
+ *     message_store?: array{
+ *         cache?: array<string, array{ // Default: []
+ *             service?: string|Param, // Default: "cache.app"
+ *             key?: string|Param, // The name of the message store will be used if the key is not set
+ *             ttl?: int|Param,
+ *         }>,
+ *         cloudflare?: array<string, array{ // Default: []
+ *             account_id?: string|Param,
+ *             api_key?: string|Param,
+ *             namespace?: string|Param,
+ *             endpoint_url?: string|Param, // If the version of the Cloudflare API is updated, use this key to support it.
+ *         }>,
+ *         doctrine?: array{
+ *             dbal?: array<string, array{ // Default: []
+ *                 connection?: string|Param,
+ *                 table_name?: string|Param, // The name of the message store will be used if the table_name is not set
+ *             }>,
+ *         },
+ *         meilisearch?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             api_key?: string|Param,
+ *             index_name?: string|Param,
+ *         }>,
+ *         memory?: array<string, array{ // Default: []
+ *             identifier?: string|Param,
+ *         }>,
+ *         mongodb?: array<string, array{ // Default: []
+ *             client?: string|Param, // Default: "MongoDB\\Client"
+ *             database: string|Param,
+ *             collection: string|Param,
+ *         }>,
+ *         pogocache?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             password?: string|Param,
+ *             key?: string|Param,
+ *         }>,
+ *         redis?: array<string, array{ // Default: []
+ *             connection_parameters?: mixed, // see https://github.com/phpredis/phpredis?tab=readme-ov-file#example-1
+ *             client?: string|Param, // a service id of a Redis client
+ *             endpoint?: string|Param,
+ *             index_name?: string|Param,
+ *         }>,
+ *         session?: array<string, array{ // Default: []
+ *             identifier?: string|Param,
+ *         }>,
+ *         surrealdb?: array<string, array{ // Default: []
+ *             endpoint?: string|Param,
+ *             username?: string|Param,
+ *             password?: string|Param,
+ *             namespace?: string|Param,
+ *             database?: string|Param,
+ *             table?: string|Param,
+ *             namespaced_user?: bool|Param, // Using a namespaced user is a good practice to prevent any undesired access to a specific table, see https://surrealdb.com/docs/surrealdb/reference-guide/security-best-practices
+ *         }>,
+ *     },
+ *     chat?: array<string, array{ // Default: []
+ *         agent?: string|Param,
+ *         message_store?: string|Param,
+ *     }>,
+ *     vectorizer?: array<string, array{ // Default: []
+ *         platform?: string|Param, // Service name of platform // Default: "Symfony\\AI\\Platform\\PlatformInterface"
+ *         model?: mixed,
+ *     }>,
+ *     indexer?: array<string, array{ // Default: []
+ *         loader: string|Param, // Service name of loader
+ *         source?: mixed, // Source identifier (file path, URL, etc.) or array of sources // Default: null
+ *         transformers?: list<scalar|null|Param>,
+ *         filters?: list<scalar|null|Param>,
+ *         vectorizer?: scalar|null|Param, // Service name of vectorizer // Default: "Symfony\\AI\\Store\\Document\\VectorizerInterface"
+ *         store?: string|Param, // Service name of store // Default: "Symfony\\AI\\Store\\StoreInterface"
+ *     }>,
+ *     retriever?: array<string, array{ // Default: []
+ *         vectorizer?: scalar|null|Param, // Service name of vectorizer // Default: "Symfony\\AI\\Store\\Document\\VectorizerInterface"
+ *         store?: string|Param, // Service name of store // Default: "Symfony\\AI\\Store\\StoreInterface"
+ *     }>,
+ * }
+ * @psalm-type SymfonycastsTailwindConfig = array{
+ *     input_css?: list<scalar|null|Param>,
+ *     config_file?: scalar|null|Param, // Path to the tailwind.config.js file // Default: "%kernel.project_dir%/tailwind.config.js"
+ *     binary?: scalar|null|Param, // The tailwind binary to use instead of downloading a new one // Default: null
+ *     binary_version?: scalar|null|Param, // Tailwind CLI version to download - null means the latest version // Default: null
+ *     binary_platform?: "auto"|"linux-arm64"|"linux-arm64-musl"|"linux-x64"|"linux-x64-musl"|"macos-arm64"|"macos-x64"|"windows-x64"|Param, // Tailwind CLI platform to download - "auto" will try to detect the platform automatically // Default: "auto"
+ *     postcss_config_file?: scalar|null|Param, // Path to PostCSS config file which is passed to the Tailwind CLI // Default: null
+ *     strict_mode?: bool|null|Param, // When enabled, an exception will be thrown if there are no built assets (default: false in `test` env, true otherwise) // Default: null
+ * }
+ * @psalm-type MercureConfig = array{
+ *     hubs?: array<string, array{ // Default: []
+ *         url?: scalar|null|Param, // URL of the hub's publish endpoint
+ *         public_url?: scalar|null|Param, // URL of the hub's public endpoint // Default: null
+ *         jwt?: string|array{ // JSON Web Token configuration.
+ *             value?: scalar|null|Param, // JSON Web Token to use to publish to this hub.
+ *             provider?: scalar|null|Param, // The ID of a service to call to provide the JSON Web Token.
+ *             factory?: scalar|null|Param, // The ID of a service to call to create the JSON Web Token.
+ *             publish?: list<scalar|null|Param>,
+ *             subscribe?: list<scalar|null|Param>,
+ *             secret?: scalar|null|Param, // The JWT Secret to use.
+ *             passphrase?: scalar|null|Param, // The JWT secret passphrase. // Default: ""
+ *             algorithm?: scalar|null|Param, // The algorithm to use to sign the JWT // Default: "hmac.sha256"
+ *         },
+ *         jwt_provider?: scalar|null|Param, // Deprecated: The child node "jwt_provider" at path "mercure.hubs..jwt_provider" is deprecated, use "jwt.provider" instead. // The ID of a service to call to generate the JSON Web Token.
+ *         bus?: scalar|null|Param, // Name of the Messenger bus where the handler for this hub must be registered. Default to the default bus if Messenger is enabled.
+ *     }>,
+ *     default_hub?: scalar|null|Param,
+ *     default_cookie_lifetime?: int|Param, // Default lifetime of the cookie containing the JWT, in seconds. Defaults to the value of "framework.session.cookie_lifetime". // Default: null
+ *     enable_profiler?: bool|Param, // Deprecated: The child node "enable_profiler" at path "mercure.enable_profiler" is deprecated. // Enable Symfony Web Profiler integration.
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
@@ -1524,6 +1986,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     twig_extra?: TwigExtraConfig,
  *     security?: SecurityConfig,
  *     monolog?: MonologConfig,
+ *     symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
+ *     twig_component?: TwigComponentConfig,
+ *     live_component?: LiveComponentConfig,
+ *     flysystem?: FlysystemConfig,
+ *     ai?: AiConfig,
+ *     symfonycasts_tailwind?: SymfonycastsTailwindConfig,
+ *     mercure?: MercureConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
@@ -1540,6 +2009,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         security?: SecurityConfig,
  *         monolog?: MonologConfig,
  *         maker?: MakerConfig,
+ *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
+ *         twig_component?: TwigComponentConfig,
+ *         live_component?: LiveComponentConfig,
+ *         flysystem?: FlysystemConfig,
+ *         ai?: AiConfig,
+ *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
+ *         mercure?: MercureConfig,
  *     },
  *     "when@prod"?: array{
  *         imports?: ImportsConfig,
@@ -1554,6 +2030,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         twig_extra?: TwigExtraConfig,
  *         security?: SecurityConfig,
  *         monolog?: MonologConfig,
+ *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
+ *         twig_component?: TwigComponentConfig,
+ *         live_component?: LiveComponentConfig,
+ *         flysystem?: FlysystemConfig,
+ *         ai?: AiConfig,
+ *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
+ *         mercure?: MercureConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -1569,6 +2052,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         twig_extra?: TwigExtraConfig,
  *         security?: SecurityConfig,
  *         monolog?: MonologConfig,
+ *         symfonycasts_verify_email?: SymfonycastsVerifyEmailConfig,
+ *         twig_component?: TwigComponentConfig,
+ *         live_component?: LiveComponentConfig,
+ *         flysystem?: FlysystemConfig,
+ *         ai?: AiConfig,
+ *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
+ *         mercure?: MercureConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

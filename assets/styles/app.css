@@ -1,3 +1,397 @@
+@import "tailwindcss";
+
+/* Custom CSS Variables for the theme */
+@theme {
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-200: #bae6fd;
+  --color-primary-300: #7dd3fc;
+  --color-primary-400: #38bdf8;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-700: #0369a1;
+  --color-primary-800: #075985;
+  --color-primary-900: #0c4a6e;
+
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+  --color-accent-800: #92400e;
+  --color-accent-900: #78350f;
+}
+
+/* Base styles */
 body {
-    background-color: skyblue;
+  @apply bg-gradient-to-br from-slate-50 to-primary-50 min-h-screen;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Modern card styles */
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden transition-shadow duration-200;
+}
+
+.card:hover {
+  @apply shadow-md;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-slate-100 bg-slate-50/50;
+}
+
+.card-body {
+  @apply p-6;
+}
+
+/* Button styles */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.btn-primary {
+  @apply bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500 shadow-sm shadow-primary-500/25;
+}
+
+.btn-secondary {
+  @apply bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500;
+}
+
+.btn-accent {
+  @apply bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500 shadow-sm shadow-accent-500/25;
+}
+
+.btn-outline {
+  @apply border-2 border-primary-500 text-primary-600 hover:bg-primary-50 focus:ring-primary-500;
+}
+
+.btn-ghost {
+  @apply text-slate-600 hover:bg-slate-100 focus:ring-slate-500;
+}
+
+.btn-danger {
+  @apply bg-red-500 text-white hover:bg-red-600 focus:ring-red-500;
+}
+
+.btn-sm {
+  @apply px-3 py-1.5 text-xs;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-base;
+}
+
+/* Input styles */
+.input {
+  @apply w-full py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.input-error {
+  @apply border-red-300 focus:ring-red-500/20 focus:border-red-500;
+}
+
+/* Input with icon on the left */
+.input-icon-left {
+  padding-left: 2.75rem !important;
+}
+
+/* Input with icon on the right */
+.input-icon-right {
+  padding-right: 2.75rem !important;
+}
+
+/* Badge styles */
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-primary {
+  @apply bg-primary-100 text-primary-700;
+}
+
+.badge-success {
+  @apply bg-emerald-100 text-emerald-700;
+}
+
+.badge-warning {
+  @apply bg-amber-100 text-amber-700;
+}
+
+.badge-danger {
+  @apply bg-red-100 text-red-700;
+}
+
+.badge-info {
+  @apply bg-sky-100 text-sky-700;
+}
+
+.badge-secondary {
+  @apply bg-slate-100 text-slate-600;
+}
+
+/* Stat card styles */
+.stat-card {
+  @apply bg-white rounded-2xl p-6 border border-slate-100 shadow-sm;
+}
+
+.stat-card-primary {
+  @apply bg-gradient-to-br from-primary-500 to-primary-600 text-white border-0;
+}
+
+.stat-card-accent {
+  @apply bg-gradient-to-br from-accent-400 to-accent-500 text-white border-0;
+}
+
+.stat-card-success {
+  @apply bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0;
+}
+
+.stat-card-info {
+  @apply bg-gradient-to-br from-sky-400 to-sky-500 text-white border-0;
+}
+
+/* Alert styles */
+.alert {
+  @apply p-4 rounded-xl border flex items-start gap-3;
+}
+
+.alert-success {
+  @apply bg-emerald-50 border-emerald-200 text-emerald-800;
+}
+
+.alert-warning {
+  @apply bg-amber-50 border-amber-200 text-amber-800;
+}
+
+.alert-danger {
+  @apply bg-red-50 border-red-200 text-red-800;
+}
+
+.alert-info {
+  @apply bg-sky-50 border-sky-200 text-sky-800;
+}
+
+/* Dropzone styles */
+.dropzone-area {
+  @apply border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer;
+  @apply hover:border-primary-400 hover:bg-primary-50/50;
+}
+
+.dropzone-area.dragover {
+  @apply border-primary-500 bg-primary-50 scale-[1.02];
+}
+
+/* Navigation styles */
+.nav-link {
+  @apply flex items-center gap-2 px-4 py-2 rounded-xl text-slate-600 font-medium text-sm transition-all duration-200;
+  @apply hover:bg-primary-50 hover:text-primary-600;
+}
+
+.nav-link.active {
+  @apply bg-primary-100 text-primary-700;
+}
+
+/* List styles */
+.list-item {
+  @apply flex items-center justify-between p-4 rounded-xl transition-all duration-200;
+  @apply hover:bg-slate-50;
+}
+
+.list-item-clickable {
+  @apply cursor-pointer hover:bg-primary-50;
+}
+
+/* Modal styles for the document upload */
+.modal-backdrop {
+  @apply fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center;
+  z-index: 9999;
+}
+
+.modal-content {
+  @apply bg-white rounded-2xl shadow-xl overflow-hidden relative;
+  z-index: 10000;
+}
+
+.modal-header {
+  @apply px-6 py-4 border-b border-slate-100;
+}
+
+.modal-body {
+  @apply p-6;
+}
+
+.modal-footer {
+  @apply px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3;
+}
+
+/* Table styles */
+.table-container {
+  @apply overflow-x-auto rounded-xl border border-slate-200;
+}
+
+.table {
+  @apply w-full text-sm;
+}
+
+.table th {
+  @apply px-4 py-3 text-left font-medium text-slate-500 bg-slate-50 border-b border-slate-200;
+}
+
+.table td {
+  @apply px-4 py-3 border-b border-slate-100;
+}
+
+.table tr:last-child td {
+  @apply border-b-0;
+}
+
+.table tr:hover td {
+  @apply bg-slate-50;
+}
+
+/* Empty state */
+.empty-state {
+  @apply text-center py-12;
+}
+
+.empty-state-icon {
+  @apply w-16 h-16 mx-auto mb-4 text-slate-300;
+}
+
+.empty-state-title {
+  @apply text-lg font-medium text-slate-600 mb-2;
+}
+
+.empty-state-description {
+  @apply text-slate-400;
+}
+
+/* Animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}
+
+/* Glassmorphism effects */
+.glass {
+  @apply bg-white/80 backdrop-blur-lg;
+}
+
+/* Status-specific colors for requests */
+.status-sent {
+  @apply bg-primary-100 text-primary-700;
+}
+
+.status-processing {
+  @apply bg-sky-100 text-sky-700;
+}
+
+.status-granted {
+  @apply bg-emerald-100 text-emerald-700;
+}
+
+.status-denied {
+  @apply bg-red-100 text-red-700;
+}
+
+.status-delayed {
+  @apply bg-amber-100 text-amber-700;
+}
+
+.status-pending {
+  @apply bg-slate-100 text-slate-600;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  @apply w-2;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full hover:bg-slate-400;
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+}
+
+/* Tom Select custom styles */
+.ts-wrapper {
+  @apply w-full;
+}
+
+.ts-wrapper .ts-control {
+  @apply bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm transition-all duration-200;
+  @apply focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+  box-shadow: none !important;
+}
+
+.ts-wrapper.focus .ts-control {
+  @apply border-primary-500 ring-2 ring-primary-500/20;
+}
+
+.ts-wrapper .ts-control input {
+  @apply text-slate-800;
+}
+
+.ts-wrapper .ts-control input::placeholder {
+  @apply text-slate-400;
+}
+
+.ts-dropdown {
+  @apply bg-white border border-slate-200 rounded-xl shadow-lg mt-1 overflow-hidden;
+}
+
+.ts-dropdown .ts-dropdown-content {
+  @apply max-h-60;
+}
+
+.ts-dropdown .option {
+  @apply px-4 py-2.5 text-sm text-slate-700 cursor-pointer transition-colors;
+}
+
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+  @apply bg-primary-50 text-primary-700;
+}
+
+.ts-dropdown .create {
+  @apply px-4 py-2.5 text-sm text-primary-600 border-t border-slate-100 cursor-pointer;
+}
+
+.ts-dropdown .create:hover {
+  @apply bg-primary-50;
+}
+
+.ts-wrapper .ts-control .item {
+  @apply bg-transparent text-slate-800;
+}
+
+.ts-wrapper .clear-button {
+  @apply text-slate-400 hover:text-slate-600;
 }

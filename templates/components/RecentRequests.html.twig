@@ -1,0 +1,59 @@
+<div {{ attributes.defaults({class: 'recent-requests'}) }}>
+    {% set requests = this.requests %}
+
+    <div class="card animate-fade-in" style="animation-delay: 100ms;">
+        <div class="card-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="history" class="w-5 h-5 text-primary-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold text-slate-800">Solicitudes recientes</h2>
+                        <p class="text-sm text-slate-500">Ultimas actualizaciones</p>
+                    </div>
+                </div>
+                <a href="{{ path('app_solicitudes_index') }}" class="btn btn-ghost btn-sm">
+                    Ver todas
+                    <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if requests|length > 0 %}
+                <div class="space-y-3">
+                    {% for request in requests %}
+                        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}"
+                           class="list-item list-item-clickable group">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="font-medium text-slate-800 truncate group-hover:text-primary-600 transition-colors">
+                                    {{ request.title|u.truncate(45) }}
+                                </h3>
+                                <p class="text-sm text-slate-500 truncate mt-0.5">{{ request.publicBody.name }}</p>
+                            </div>
+                            {% set statusClass = {
+                                'sent': 'status-sent',
+                                'processing': 'status-processing',
+                                'granted': 'status-granted',
+                                'denied': 'status-denied',
+                                'delayed': 'status-delayed',
+                                'pending': 'status-pending'
+                            } %}
+                            <span class="badge {{ statusClass[request.status]|default('badge-secondary') }} flex-shrink-0">
+                                {{ request.statusLabel }}
+                            </span>
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state py-8">
+                    <div class="empty-state-icon">
+                        <i data-lucide="folder" class="w-full h-full"></i>
+                    </div>
+                    <p class="empty-state-title">Sin solicitudes</p>
+                    <p class="empty-state-description">No tienes solicitudes aun</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

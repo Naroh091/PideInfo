@@ -1,0 +1,151 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Editar solicitud - VIGIA{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_solicitudes_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Solicitudes
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="text-slate-500 hover:text-primary-600 transition-colors truncate max-w-[150px]">
+        {{ request.title|u.truncate(30) }}
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <span class="text-slate-800 font-medium">Editar</span>
+</nav>
+
+<div class="grid lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="edit" class="w-5 h-5 text-primary-600"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-semibold text-slate-800">Editar solicitud</h1>
+                        <p class="text-sm text-slate-500">Modifica los datos de tu solicitud</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                {{ form_start(form, {'attr': {'class': 'space-y-6'}}) }}
+                    <div>
+                        <label for="{{ form.title.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                            {{ form_label(form.title) }}
+                        </label>
+                        {{ form_widget(form.title, {'attr': {'class': 'input'}}) }}
+                        {{ form_errors(form.title) }}
+                    </div>
+
+                    <div>
+                        <label for="{{ form.description.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                            {{ form_label(form.description) }}
+                        </label>
+                        {{ form_widget(form.description, {'attr': {'class': 'input min-h-[120px]'}}) }}
+                        {{ form_errors(form.description) }}
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="{{ form.publicBody.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.publicBody) }}
+                            </label>
+                            {{ form_widget(form.publicBody) }}
+                            {{ form_errors(form.publicBody) }}
+                        </div>
+                        <div>
+                            <label for="{{ form.applicableLaw.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.applicableLaw) }}
+                            </label>
+                            {{ form_widget(form.applicableLaw, {'attr': {'class': 'input'}}) }}
+                            {{ form_errors(form.applicableLaw) }}
+                        </div>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="{{ form.sentAt.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.sentAt) }}
+                            </label>
+                            {{ form_widget(form.sentAt, {'attr': {'class': 'input'}}) }}
+                            {{ form_errors(form.sentAt) }}
+                        </div>
+                        <div>
+                            <label for="{{ form.externalId.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.externalId) }}
+                            </label>
+                            {{ form_widget(form.externalId, {'attr': {'class': 'input'}}) }}
+                            <p class="text-xs text-slate-500 mt-1">{{ form_help(form.externalId) }}</p>
+                            {{ form_errors(form.externalId) }}
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-between gap-4">
+                        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary order-2 sm:order-1">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary order-1 sm:order-2">
+                            <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+                            Guardar cambios
+                        </button>
+                    </div>
+                {{ form_end(form) }}
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1">
+        {# Status summary #}
+        <div class="card sticky top-24">
+            <div class="card-header">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="info" class="w-5 h-5 text-primary-500"></i>
+                    <h2 class="font-semibold text-slate-800">Resumen</h2>
+                </div>
+            </div>
+            <div class="card-body space-y-4">
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Estado</h4>
+                    {% set statusClass = {
+                        'sent': 'status-sent',
+                        'processing': 'status-processing',
+                        'granted': 'status-granted',
+                        'denied': 'status-denied',
+                        'delayed': 'status-delayed',
+                        'pending': 'status-pending'
+                    } %}
+                    <span class="badge {{ statusClass[request.status]|default('badge-secondary') }}">
+                        {{ request.statusLabel }}
+                    </span>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Plazo</h4>
+                    <p class="text-sm {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
+                        {{ request.deadlineAt|date('d/m/Y') }}
+                        {% if not request.isDeadlinePassed %}
+                            <span class="text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
+                        {% endif %}
+                    </p>
+                </div>
+
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Documentos</h4>
+                    <p class="text-sm text-slate-800">{{ request.documents|length }} adjunto(s)</p>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4">
+                    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-ghost w-full text-sm">
+                        <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
+                        Ver detalle completo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
