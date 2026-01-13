@@ -214,6 +214,10 @@ body {
   z-index: 9999;
 }
 
+.modal-backdrop.hidden {
+  display: none;
+}
+
 .modal-content {
   @apply bg-white rounded-2xl shadow-xl overflow-hidden relative;
   z-index: 10000;
