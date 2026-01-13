@@ -16,6 +16,7 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -188,10 +189,17 @@ class DocumentController extends AbstractController
             throw $this->createNotFoundException('Documento no encontrado');
         }
 
-        $stream = $this->documentsStorage->readStream($document->getStoredFilename());
+        $storedFilename = $document->getStoredFilename();
+        $documentsStorage = $this->documentsStorage;
 
-        return new Response(
-            stream_get_contents($stream),
+        return new StreamedResponse(
+            function () use ($documentsStorage, $storedFilename): void {
+                $stream = $documentsStorage->readStream($storedFilename);
+                fpassthru($stream);
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            },
             Response::HTTP_OK,
             [
                 'Content-Type' => $document->getMimeType(),

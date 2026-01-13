@@ -82,9 +82,9 @@ class SecurityController extends AbstractController
             );
 
             $email = (new TemplatedEmail())
-                ->from(new Address('noreply@vigia.es', 'VIGIA'))
+                ->from(new Address('noreply@pideinfo.es', 'PideInfo'))
                 ->to($user->getEmail())
-                ->subject('Confirma tu cuenta en VIGIA')
+                ->subject('Confirma tu cuenta en PideInfo')
                 ->htmlTemplate('email/verification.html.twig')
                 ->context([
                     'signedUrl' => $signatureComponents->getSignedUrl(),

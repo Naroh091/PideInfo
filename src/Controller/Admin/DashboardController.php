@@ -32,7 +32,7 @@ class DashboardController extends AbstractDashboardController
     public function configureDashboard(): Dashboard
     {
         return Dashboard::new()
-            ->setTitle('VIGIA - Administración')
+            ->setTitle('PideInfo - Administración')
             ->setFaviconPath('favicon.ico')
             ->setTranslationDomain('admin');
     }
