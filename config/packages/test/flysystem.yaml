@@ -1,0 +1,6 @@
+flysystem:
+    storages:
+        default.storage:
+            adapter: 'memory'
+        documents.storage:
+            adapter: 'memory'
