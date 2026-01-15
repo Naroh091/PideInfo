@@ -65,6 +65,24 @@ class DeadlineCalculator
         return $deadline;
     }
 
+    /**
+     * Count business days between two dates (excluding weekends and holidays).
+     */
+    public function countBusinessDays(\DateTimeImmutable $startDate, \DateTimeImmutable $endDate): int
+    {
+        $count = 0;
+        $current = $startDate;
+
+        while ($current < $endDate) {
+            $current = $current->modify('+1 day');
+            if (!$this->isHoliday($current) && !$this->isWeekend($current)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
     private function isWeekend(\DateTimeImmutable $date): bool
     {
         return in_array($date->format('N'), ['6', '7'], true);

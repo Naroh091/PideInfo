@@ -15,10 +15,14 @@ class DeadlineHistory
     public const TYPE_RESPONSE = 'response';
     public const TYPE_COMPLAINT = 'complaint';
     public const TYPE_COMPLIANCE = 'compliance';
+    public const TYPE_THIRD_PARTY_ALLEGATIONS = 'third_party_allegations';
 
     public const REASON_INITIAL = 'initial';
     public const REASON_EXTENSION = 'extension';
     public const REASON_COMPLAINT_RESOLUTION = 'complaint_resolution';
+    public const REASON_THIRD_PARTY_SUSPENSION = 'third_party_suspension';
+    public const REASON_THIRD_PARTY_RESUMED = 'third_party_resumed';
+    public const REASON_PROCESSING_START = 'processing_start';
     public const REASON_MANUAL = 'manual';
 
     #[ORM\Id]
@@ -90,6 +94,7 @@ class DeadlineHistory
             self::TYPE_RESPONSE => 'Plazo de respuesta',
             self::TYPE_COMPLAINT => 'Plazo de reclamación',
             self::TYPE_COMPLIANCE => 'Plazo de cumplimiento',
+            self::TYPE_THIRD_PARTY_ALLEGATIONS => 'Plazo alegaciones terceros',
             default => $this->deadlineType,
         };
     }
@@ -133,6 +138,9 @@ class DeadlineHistory
             self::REASON_INITIAL => 'Plazo inicial',
             self::REASON_EXTENSION => 'Prórroga',
             self::REASON_COMPLAINT_RESOLUTION => 'Resolución de reclamación',
+            self::REASON_THIRD_PARTY_SUSPENSION => 'Suspensión por alegaciones de terceros',
+            self::REASON_THIRD_PARTY_RESUMED => 'Reanudación tras alegaciones de terceros',
+            self::REASON_PROCESSING_START => 'Inicio de tramitación',
             self::REASON_MANUAL => 'Ajuste manual',
             default => $this->reason,
         };

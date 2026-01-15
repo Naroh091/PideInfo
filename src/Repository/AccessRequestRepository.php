@@ -168,6 +168,35 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
+     * Find an access request by searching for keywords in title and description.
+     * Used to match related documents that may have different reference numbers.
+     *
+     * @param string[] $keywords Keywords to search for (e.g., contract IDs, identifiers)
+     */
+    public function findByKeywords(array $keywords, User $user): ?AccessRequest
+    {
+        if (empty($keywords)) {
+            return null;
+        }
+
+        $qb = $this->createQueryBuilderForUser($user);
+
+        // Build OR conditions for each keyword
+        $orConditions = [];
+        foreach ($keywords as $index => $keyword) {
+            $param = 'keyword' . $index;
+            $orConditions[] = "ar.title LIKE :$param OR ar.description LIKE :$param";
+            $qb->setParameter($param, '%' . $keyword . '%');
+        }
+
+        $qb->andWhere('(' . implode(') OR (', $orConditions) . ')')
+           ->orderBy('ar.createdAt', 'DESC')
+           ->setMaxResults(1);
+
+        return $qb->getQuery()->getOneOrNullResult();
+    }
+
+    /**
      * @return AccessRequest[]
      */
     public function findRecentByUser(User $user, int $limit = 5): array

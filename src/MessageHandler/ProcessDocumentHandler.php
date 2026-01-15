@@ -11,7 +11,6 @@ use App\Repository\ApplicableLawRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
-use App\Service\Mercure\DashboardUpdatePublisher;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -26,7 +25,6 @@ final class ProcessDocumentHandler
         private readonly PublicBodyRepository $publicBodyRepository,
         private readonly ApplicableLawRepository $applicableLawRepository,
         private readonly AccessRequestManager $accessRequestManager,
-        private readonly DashboardUpdatePublisher $dashboardPublisher,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -87,12 +85,6 @@ final class ProcessDocumentHandler
                 'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
             ]);
 
-            // Publish Mercure update for real-time dashboard refresh
-            $this->dashboardPublisher->publishDocumentProcessed(
-                $document->getUploadedBy(),
-                $accessRequest ? (string) $accessRequest->getId() : null
-            );
-
         } catch (\Exception $e) {
             $this->logger->error('Error processing document', [
                 'documentId' => (string) $document->getId(),
@@ -121,6 +113,25 @@ final class ProcessDocumentHandler
         if ($referenceNumber) {
             $existing = $this->accessRequestRepository->findByExternalId($referenceNumber, $user);
             if ($existing) {
+                $this->logger->info('Matched request by reference number', [
+                    'referenceNumber' => $referenceNumber,
+                    'accessRequestId' => (string) $existing->getId(),
+                ]);
+                $document->setMatchMethod(Document::MATCH_REFERENCE);
+                return $existing;
+            }
+        }
+
+        // Try to find by keywords in title/description (for related documents with different reference numbers)
+        $keywords = $this->extractKeywords($analysis);
+        if (!empty($keywords)) {
+            $existing = $this->accessRequestRepository->findByKeywords($keywords, $user);
+            if ($existing) {
+                $this->logger->info('Matched request by keywords', [
+                    'keywords' => $keywords,
+                    'accessRequestId' => (string) $existing->getId(),
+                ]);
+                $document->setMatchMethod(Document::MATCH_KEYWORDS);
                 return $existing;
             }
         }
@@ -196,6 +207,7 @@ final class ProcessDocumentHandler
                 'title' => $accessRequest->getTitle(),
             ]);
 
+            $document->setMatchMethod(Document::MATCH_CREATED);
             return $accessRequest;
         }
 
@@ -265,6 +277,123 @@ final class ProcessDocumentHandler
                 }
                 break;
 
+            case Document::TYPE_REDIRECTION:
+                // Handle redirection to another public body (traslado)
+                // According to Art. 19.1 Ley 19/2013, when the information is not held by the
+                // body receiving the request, it must be redirected to the competent body
+                if (($analysis['isRedirection'] ?? false) && !empty($analysis['redirectedToPublicBody'])) {
+                    $newPublicBodyName = $analysis['redirectedToPublicBody'];
+                    $newPublicBody = $this->publicBodyRepository->findOneByNameLike($newPublicBodyName);
+
+                    // Auto-create public body if not found
+                    if (!$newPublicBody) {
+                        $newPublicBody = new \App\Entity\PublicBody();
+                        $newPublicBody->setName($newPublicBodyName);
+                        $newPublicBody->setLevel('other');
+                        $this->entityManager->persist($newPublicBody);
+                        $this->logger->info('Created new public body for redirection', ['name' => $newPublicBodyName]);
+                    }
+
+                    if ($newPublicBody->getId() !== $accessRequest->getPublicBody()->getId()) {
+                        // Store the original public body if not already redirected
+                        if (!$accessRequest->wasRedirected()) {
+                            $accessRequest->setOriginalPublicBody($accessRequest->getPublicBody());
+                        }
+
+                        // Update to the new public body
+                        $accessRequest->setPublicBody($newPublicBody);
+
+                        // Record the redirection date
+                        $redirectedAt = new \DateTimeImmutable();
+                        if (!empty($analysis['documentDate'])) {
+                            try {
+                                $redirectedAt = new \DateTimeImmutable($analysis['documentDate']);
+                            } catch (\Exception) {}
+                        }
+                        $accessRequest->setRedirectedAt($redirectedAt);
+
+                        $this->recordStatusChange(
+                            $accessRequest,
+                            'status',
+                            AccessRequest::STATUS_PROCESSING,
+                            sprintf(
+                                'Solicitud trasladada a %s (art. 19.1 Ley 19/2013). Órgano original: %s',
+                                $newPublicBody->getName(),
+                                $accessRequest->getOriginalPublicBody()->getName()
+                            )
+                        );
+
+                        $this->logger->info('Request redirected to new public body', [
+                            'accessRequestId' => (string) $accessRequest->getId(),
+                            'originalPublicBody' => $accessRequest->getOriginalPublicBody()->getName(),
+                            'newPublicBody' => $newPublicBody->getName(),
+                        ]);
+                    }
+                }
+                break;
+
+            case Document::TYPE_THIRD_PARTY_RIGHTS:
+                // Handle third party rights notification (afectación derechos terceros)
+                // According to Art. 19.3 Ley 19/2013, the deadline is suspended for 15 days
+                if (($analysis['isThirdPartyRights'] ?? false) ||
+                    $accessRequest->getThirdPartyStatus() === AccessRequest::THIRD_PARTY_NONE) {
+
+                    $notificationDate = new \DateTimeImmutable();
+                    if (!empty($analysis['documentDate'])) {
+                        try {
+                            $notificationDate = new \DateTimeImmutable($analysis['documentDate']);
+                        } catch (\Exception) {}
+                    }
+
+                    $this->accessRequestManager->suspendForThirdPartyAllegations(
+                        $accessRequest,
+                        $notificationDate,
+                        $document,
+                        15 // 15 business days for third party allegations
+                    );
+
+                    $this->recordStatusChange(
+                        $accessRequest,
+                        'status',
+                        AccessRequest::STATUS_PROCESSING,
+                        'Plazo suspendido por afectación a derechos de terceros (art. 19.3 Ley 19/2013)'
+                    );
+                }
+                break;
+
+            case Document::TYPE_PROCESSING_START:
+                // Handle processing start notification (art. 20.1 Ley 19/2013)
+                // The 1-month deadline starts from the date indicated in the document
+                if (($analysis['isProcessingStart'] ?? false) || !empty($analysis['processingStartDate'])) {
+                    $processingStartDate = new \DateTimeImmutable();
+                    if (!empty($analysis['processingStartDate'])) {
+                        try {
+                            $processingStartDate = new \DateTimeImmutable($analysis['processingStartDate']);
+                        } catch (\Exception) {}
+                    } elseif (!empty($analysis['documentDate'])) {
+                        try {
+                            $processingStartDate = new \DateTimeImmutable($analysis['documentDate']);
+                        } catch (\Exception) {}
+                    }
+
+                    $this->accessRequestManager->startProcessing(
+                        $accessRequest,
+                        $processingStartDate,
+                        $document
+                    );
+
+                    $this->recordStatusChange(
+                        $accessRequest,
+                        'status',
+                        AccessRequest::STATUS_PROCESSING,
+                        sprintf(
+                            'Inicio de tramitación notificado. Plazo de 1 mes desde %s (art. 20.1 Ley 19/2013)',
+                            $processingStartDate->format('d/m/Y')
+                        )
+                    );
+                }
+                break;
+
             case Document::TYPE_COMPLAINT_RESOLUTION:
                 // Handle CTBG resolution
                 $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
@@ -303,12 +432,56 @@ final class ProcessDocumentHandler
         string $toStatus,
         string $notes
     ): void {
+        // Get the current status based on status type
+        $fromStatus = match ($statusType) {
+            'status' => $accessRequest->getStatus(),
+            'complaintStatus' => $accessRequest->getComplaintStatus(),
+            'courtStatus' => $accessRequest->getCourtStatus(),
+            default => 'unknown',
+        };
+
         $history = new StatusHistory();
         $history->setAccessRequest($accessRequest);
         $history->setStatusType($statusType);
+        $history->setFromStatus($fromStatus);
         $history->setToStatus($toStatus);
         $history->setNotes($notes);
 
         $this->entityManager->persist($history);
+    }
+
+    /**
+     * Extract keywords from AI analysis that can be used to match related documents.
+     * Looks for contract IDs, platform identifiers, and other unique references.
+     *
+     * @param array<string, mixed> $analysis
+     * @return string[]
+     */
+    private function extractKeywords(array $analysis): array
+    {
+        $keywords = [];
+        $text = ($analysis['requestDescription'] ?? '') . ' ' . ($analysis['requestTitle'] ?? '');
+
+        // Extract contract/platform identifiers (e.g., "2020/011739", "VCM-036")
+        if (preg_match_all('/\b\d{4}\/\d{5,}\b/', $text, $matches)) {
+            $keywords = array_merge($keywords, $matches[0]);
+        }
+
+        // Extract line/route codes (e.g., "VCM-036", "DIV-123")
+        if (preg_match_all('/\b[A-Z]{2,4}-\d{2,4}\b/', $text, $matches)) {
+            $keywords = array_merge($keywords, $matches[0]);
+        }
+
+        // Extract expedition numbers (e.g., "AYTOZAM-SEIS-4420/2025")
+        if (preg_match_all('/\b[A-Z]+-[A-Z]+-\d+\/\d{4}\b/', $text, $matches)) {
+            $keywords = array_merge($keywords, $matches[0]);
+        }
+
+        // Extract NIF/CIF references
+        if (preg_match_all('/\b[A-Z]\d{7,8}[A-Z0-9]?\b/', $text, $matches)) {
+            $keywords = array_merge($keywords, $matches[0]);
+        }
+
+        return array_unique($keywords);
     }
 }

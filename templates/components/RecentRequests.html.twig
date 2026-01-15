@@ -1,4 +1,4 @@
-<div {{ attributes.defaults({class: 'recent-requests'}) }}>
+<div {{ attributes.defaults({class: 'recent-requests', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set requests = this.requests %}
 
     <div class="card animate-fade-in" style="animation-delay: 100ms;">

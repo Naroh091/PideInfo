@@ -77,6 +77,10 @@ body {
   @apply bg-red-500 text-white hover:bg-red-600 focus:ring-red-500;
 }
 
+.btn-success {
+  @apply bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-500;
+}
+
 .btn-sm {
   @apply px-3 py-1.5 text-xs;
 }
@@ -294,6 +298,39 @@ body {
 
 .animate-slide-up {
   animation: slide-up 0.4s ease-out;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.animate-fade-out {
+  animation: fade-out 0.3s ease-out forwards;
+}
+
+@keyframes processing-pulse {
+  0%, 100% {
+    border-color: transparent;
+    background-color: rgb(248 250 252); /* slate-50 */
+  }
+  50% {
+    border-color: rgb(14 165 233 / 0.3); /* primary-500/30 */
+    background-color: rgb(240 249 255); /* primary-50 */
+  }
+}
+
+.animate-processing {
+  animation: processing-pulse 2s ease-in-out infinite;
 }
 
 /* Glassmorphism effects */

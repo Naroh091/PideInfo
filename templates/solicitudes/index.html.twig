@@ -87,12 +87,20 @@
                                 <span class="badge {{ statusClass[request.status]|default('badge-secondary') }}">
                                     {{ request.statusLabel }}
                                 </span>
+                                {% if request.isDeadlineSuspended %}
+                                    <span class="badge badge-warning mt-1">Plazo suspendido</span>
+                                {% endif %}
                                 {% if request.complaintStatus != 'none' %}
                                     <span class="badge badge-info mt-1">{{ request.complaintStatusLabel }}</span>
                                 {% endif %}
                             </td>
                             <td class="hidden sm:table-cell">
-                                {% if request.isDeadlinePassed %}
+                                {% if request.isDeadlineSuspended %}
+                                    <div class="flex items-center gap-1 text-amber-600">
+                                        <i data-lucide="pause-circle" class="w-4 h-4"></i>
+                                        <span class="text-sm font-medium">Suspendido</span>
+                                    </div>
+                                {% elseif request.isDeadlinePassed %}
                                     <div class="flex items-center gap-1 text-red-600">
                                         <i data-lucide="alert-circle" class="w-4 h-4"></i>
                                         <span class="text-sm font-medium">Vencido</span>

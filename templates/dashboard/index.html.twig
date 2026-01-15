@@ -3,10 +3,11 @@
 {% block title %}Panel principal - PideInfo{% endblock %}
 
 {% block content %}
-{# Mercure subscription wrapper - all LiveComponents inside will auto-refresh #}
-<div data-controller="mercure-subscriber"
-     data-mercure-subscriber-topic-value="{{ mercureTopic }}"
-     data-mercure-subscriber-hub-value="{{ app.request.getSchemeAndHttpHost() ~ ':3000/.well-known/mercure' }}">
+{# Main content wrapper #}
+<div>
+
+    {# Global alerts container for document processing notifications #}
+    <div id="global-alerts-container" class="mb-6 space-y-3"></div>
 
     {# Page Header #}
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -138,6 +139,41 @@
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-action="click->file-uploader#closeModal">
                                 Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {# Modal for keyword-matched documents confirmation #}
+                <div id="keywordMatchModal"
+                     class="modal-backdrop hidden"
+                     data-file-uploader-target="keywordMatchModal">
+                    <div class="modal-content max-w-lg">
+                        <div class="modal-header">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-semibold text-slate-800">Verificar asociaciones</h3>
+                                    <p class="text-sm text-slate-500">Documentos asociados automaticamente por palabras clave</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-slate-600 mb-4">
+                                Los siguientes documentos han sido asociados automaticamente a solicitudes existentes
+                                basandose en palabras clave encontradas en el contenido. Por favor, verifica si las asociaciones son correctas.
+                            </p>
+                            <div id="keywordMatchList"
+                                 data-file-uploader-target="keywordMatchList"
+                                 class="space-y-3 max-h-80 overflow-y-auto">
+                                {# Documents will be inserted here dynamically #}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-action="click->file-uploader#closeKeywordMatchModal">
+                                Cerrar
                             </button>
                         </div>
                     </div>
