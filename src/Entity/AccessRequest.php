@@ -37,6 +37,11 @@ class AccessRequest
     public const COURT_GRANTED = 'court_granted';
     public const COURT_DENIED = 'court_denied';
 
+    // Third party allegations status constants
+    public const THIRD_PARTY_NONE = 'none';
+    public const THIRD_PARTY_PENDING = 'pending';
+    public const THIRD_PARTY_RECEIVED = 'received';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -59,6 +64,21 @@ class AccessRequest
     #[ORM\Column(length: 50)]
     private string $courtStatus = self::COURT_NONE;
 
+    #[ORM\Column(length: 50)]
+    private string $thirdPartyStatus = self::THIRD_PARTY_NONE;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $thirdPartyAllegationsStartedAt = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $thirdPartyAllegationsDeadlineAt = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $deadlineSuspendedAt = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $suspendedDaysRemaining = null;
+
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'accessRequests')]
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
@@ -71,6 +91,13 @@ class AccessRequest
     #[ORM\JoinColumn(nullable: false)]
     private PublicBody $publicBody;
 
+    #[ORM\ManyToOne(targetEntity: PublicBody::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?PublicBody $originalPublicBody = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $redirectedAt = null;
+
     #[ORM\ManyToOne(targetEntity: ApplicableLaw::class)]
     #[ORM\JoinColumn(nullable: false)]
     private ApplicableLaw $applicableLaw;
@@ -80,6 +107,9 @@ class AccessRequest
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $acknowledgedAt = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $processingStartedAt = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $resolvedAt = null;
@@ -247,6 +277,76 @@ class AccessRequest
         };
     }
 
+    public function getThirdPartyStatus(): string
+    {
+        return $this->thirdPartyStatus;
+    }
+
+    public function setThirdPartyStatus(string $thirdPartyStatus): static
+    {
+        $this->thirdPartyStatus = $thirdPartyStatus;
+        return $this;
+    }
+
+    public function getThirdPartyStatusLabel(): string
+    {
+        return match ($this->thirdPartyStatus) {
+            self::THIRD_PARTY_NONE => 'Sin afectación a terceros',
+            self::THIRD_PARTY_PENDING => 'Alegaciones de terceros pendientes',
+            self::THIRD_PARTY_RECEIVED => 'Alegaciones recibidas',
+            default => $this->thirdPartyStatus,
+        };
+    }
+
+    public function getThirdPartyAllegationsStartedAt(): ?\DateTimeImmutable
+    {
+        return $this->thirdPartyAllegationsStartedAt;
+    }
+
+    public function setThirdPartyAllegationsStartedAt(?\DateTimeImmutable $thirdPartyAllegationsStartedAt): static
+    {
+        $this->thirdPartyAllegationsStartedAt = $thirdPartyAllegationsStartedAt;
+        return $this;
+    }
+
+    public function getThirdPartyAllegationsDeadlineAt(): ?\DateTimeImmutable
+    {
+        return $this->thirdPartyAllegationsDeadlineAt;
+    }
+
+    public function setThirdPartyAllegationsDeadlineAt(?\DateTimeImmutable $thirdPartyAllegationsDeadlineAt): static
+    {
+        $this->thirdPartyAllegationsDeadlineAt = $thirdPartyAllegationsDeadlineAt;
+        return $this;
+    }
+
+    public function getDeadlineSuspendedAt(): ?\DateTimeImmutable
+    {
+        return $this->deadlineSuspendedAt;
+    }
+
+    public function setDeadlineSuspendedAt(?\DateTimeImmutable $deadlineSuspendedAt): static
+    {
+        $this->deadlineSuspendedAt = $deadlineSuspendedAt;
+        return $this;
+    }
+
+    public function getSuspendedDaysRemaining(): ?int
+    {
+        return $this->suspendedDaysRemaining;
+    }
+
+    public function setSuspendedDaysRemaining(?int $suspendedDaysRemaining): static
+    {
+        $this->suspendedDaysRemaining = $suspendedDaysRemaining;
+        return $this;
+    }
+
+    public function isDeadlineSuspended(): bool
+    {
+        return $this->deadlineSuspendedAt !== null && $this->thirdPartyStatus === self::THIRD_PARTY_PENDING;
+    }
+
     public function getUser(): User
     {
         return $this->user;
@@ -280,6 +380,33 @@ class AccessRequest
         return $this;
     }
 
+    public function getOriginalPublicBody(): ?PublicBody
+    {
+        return $this->originalPublicBody;
+    }
+
+    public function setOriginalPublicBody(?PublicBody $originalPublicBody): static
+    {
+        $this->originalPublicBody = $originalPublicBody;
+        return $this;
+    }
+
+    public function getRedirectedAt(): ?\DateTimeImmutable
+    {
+        return $this->redirectedAt;
+    }
+
+    public function setRedirectedAt(?\DateTimeImmutable $redirectedAt): static
+    {
+        $this->redirectedAt = $redirectedAt;
+        return $this;
+    }
+
+    public function wasRedirected(): bool
+    {
+        return $this->originalPublicBody !== null;
+    }
+
     public function getApplicableLaw(): ApplicableLaw
     {
         return $this->applicableLaw;
@@ -310,6 +437,17 @@ class AccessRequest
     public function setAcknowledgedAt(?\DateTimeImmutable $acknowledgedAt): static
     {
         $this->acknowledgedAt = $acknowledgedAt;
+        return $this;
+    }
+
+    public function getProcessingStartedAt(): ?\DateTimeImmutable
+    {
+        return $this->processingStartedAt;
+    }
+
+    public function setProcessingStartedAt(?\DateTimeImmutable $processingStartedAt): static
+    {
+        $this->processingStartedAt = $processingStartedAt;
         return $this;
     }
 

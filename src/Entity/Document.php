@@ -14,13 +14,20 @@ class Document
 {
     public const TYPE_REQUEST = 'request';
     public const TYPE_RECEIPT = 'receipt';
+    public const TYPE_PROCESSING_START = 'processing_start';
     public const TYPE_RESPONSE = 'response';
     public const TYPE_EXTENSION = 'extension';
+    public const TYPE_REDIRECTION = 'redirection';
+    public const TYPE_THIRD_PARTY_RIGHTS = 'third_party_rights';
     public const TYPE_COMPLAINT = 'complaint';
     public const TYPE_COMPLAINT_RESOLUTION = 'complaint_resolution';
     public const TYPE_COURT = 'court';
     public const TYPE_OTHER = 'other';
     public const TYPE_UNPROCESSED = 'unprocessed';
+
+    public const MATCH_REFERENCE = 'reference';
+    public const MATCH_KEYWORDS = 'keywords';
+    public const MATCH_CREATED = 'created';
 
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
@@ -61,6 +68,9 @@ class Document
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $processingError = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $matchMethod = null;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
@@ -151,8 +161,11 @@ class Document
         return match ($this->type) {
             self::TYPE_REQUEST => 'Solicitud',
             self::TYPE_RECEIPT => 'Acuse de recibo',
+            self::TYPE_PROCESSING_START => 'Inicio de tramitación',
             self::TYPE_RESPONSE => 'Respuesta',
             self::TYPE_EXTENSION => 'Prórroga',
+            self::TYPE_REDIRECTION => 'Traslado a otro órgano',
+            self::TYPE_THIRD_PARTY_RIGHTS => 'Afectación derechos terceros',
             self::TYPE_COMPLAINT => 'Reclamación',
             self::TYPE_COMPLAINT_RESOLUTION => 'Resolución CTBG',
             self::TYPE_COURT => 'Documento judicial',
@@ -231,6 +244,22 @@ class Document
     {
         $this->processingError = $processingError;
         return $this;
+    }
+
+    public function getMatchMethod(): ?string
+    {
+        return $this->matchMethod;
+    }
+
+    public function setMatchMethod(?string $matchMethod): static
+    {
+        $this->matchMethod = $matchMethod;
+        return $this;
+    }
+
+    public function isKeywordMatched(): bool
+    {
+        return $this->matchMethod === self::MATCH_KEYWORDS;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

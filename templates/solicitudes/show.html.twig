@@ -35,6 +35,39 @@
     </a>
 </div>
 
+{# Redirection notice #}
+{% if request.wasRedirected %}
+    <div class="alert alert-info mb-6">
+        <i data-lucide="arrow-right-circle" class="w-5 h-5 flex-shrink-0"></i>
+        <div class="flex-1">
+            <p class="font-medium">Solicitud trasladada</p>
+            <p class="text-sm mt-1">
+                Esta solicitud fue trasladada de <strong>{{ request.originalPublicBody.name }}</strong>
+                a <strong>{{ request.publicBody.name }}</strong>
+                {% if request.redirectedAt %}el {{ request.redirectedAt|date('d/m/Y') }}{% endif %}
+                (art. 19.1 Ley 19/2013).
+            </p>
+        </div>
+    </div>
+{% endif %}
+
+{# Third party allegations notice #}
+{% if request.isDeadlineSuspended %}
+    <div class="alert alert-warning mb-6">
+        <i data-lucide="pause-circle" class="w-5 h-5 flex-shrink-0"></i>
+        <div class="flex-1">
+            <p class="font-medium">Plazo suspendido</p>
+            <p class="text-sm mt-1">
+                El plazo está suspendido por afectación a derechos de terceros.
+                {% if request.thirdPartyAllegationsDeadlineAt %}
+                    Plazo de alegaciones hasta el {{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}.
+                {% endif %}
+                Quedan {{ request.suspendedDaysRemaining }} días hábiles cuando se reanude.
+            </p>
+        </div>
+    </div>
+{% endif %}
+
 <div class="grid lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 space-y-6">
         {# Main Info #}
@@ -145,19 +178,81 @@
                 {% if request.statusHistory|length > 0 %}
                     <div class="space-y-4">
                         {% for history in request.statusHistory %}
-                            <div class="relative pl-6 pb-4 {{ not loop.last ? 'border-l-2 border-slate-200' : '' }}">
-                                <div class="absolute -left-1.5 top-0 w-3 h-3 rounded-full bg-primary-500"></div>
-                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                    <div>
-                                        <span class="font-medium text-slate-800">{{ history.statusTypeLabel }}</span>
-                                        <span class="text-slate-400 mx-2">→</span>
-                                        <span class="badge badge-secondary">{{ history.toStatus }}</span>
-                                    </div>
-                                    <span class="text-sm text-slate-500">{{ history.createdAt|date('d/m/Y H:i') }}</span>
+                            {# Determine icon and color based on event type #}
+                            {% set isRedirection = 'trasladada' in (history.notes|default('')|lower) %}
+                            {% set isThirdParty = 'terceros' in (history.notes|default('')|lower) %}
+                            {% set isProcessingStart = 'inicio de tramitación' in (history.notes|default('')|lower) %}
+                            {% set isExtension = history.reason|default('') == 'extension' %}
+
+                            {% set dotColor = 'bg-primary-500' %}
+                            {% set icon = 'circle' %}
+                            {% if isRedirection %}
+                                {% set dotColor = 'bg-blue-500' %}
+                                {% set icon = 'arrow-right-circle' %}
+                            {% elseif isThirdParty %}
+                                {% set dotColor = 'bg-amber-500' %}
+                                {% set icon = 'users' %}
+                            {% elseif isProcessingStart %}
+                                {% set dotColor = 'bg-green-500' %}
+                                {% set icon = 'play-circle' %}
+                            {% elseif isExtension %}
+                                {% set dotColor = 'bg-orange-500' %}
+                                {% set icon = 'clock' %}
+                            {% elseif history.toStatus == 'granted' %}
+                                {% set dotColor = 'bg-emerald-500' %}
+                                {% set icon = 'check-circle' %}
+                            {% elseif history.toStatus == 'denied' %}
+                                {% set dotColor = 'bg-red-500' %}
+                                {% set icon = 'x-circle' %}
+                            {% endif %}
+
+                            {# Map status to Spanish labels #}
+                            {% set statusLabels = {
+                                'sent': 'Enviada',
+                                'processing': 'En trámite',
+                                'granted': 'Concedida',
+                                'denied': 'Denegada',
+                                'delayed': 'Silencio administrativo',
+                                'pending': 'Pendiente'
+                            } %}
+                            {% set statusLabel = statusLabels[history.toStatus]|default(history.toStatus) %}
+
+                            {# Map status to badge classes #}
+                            {% set statusBadgeClass = {
+                                'sent': 'status-sent',
+                                'processing': 'status-processing',
+                                'granted': 'status-granted',
+                                'denied': 'status-denied',
+                                'delayed': 'status-delayed',
+                                'pending': 'status-pending'
+                            } %}
+                            {% set badgeClass = statusBadgeClass[history.toStatus]|default('badge-secondary') %}
+
+                            <div class="flex gap-4 pb-4 {{ not loop.last ? 'border-b border-slate-100' : '' }}">
+                                <div class="w-8 h-8 rounded-full {{ dotColor }} flex items-center justify-center flex-shrink-0">
+                                    <i data-lucide="{{ icon }}" class="w-4 h-4 text-white"></i>
                                 </div>
-                                {% if history.notes %}
-                                    <p class="text-sm text-slate-500 mt-1">{{ history.notes }}</p>
-                                {% endif %}
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <div>
+                                            {% if isRedirection %}
+                                                <span class="font-medium text-blue-700">Solicitud trasladada</span>
+                                            {% elseif isThirdParty %}
+                                                <span class="font-medium text-amber-700">Afectación a terceros</span>
+                                            {% elseif isProcessingStart %}
+                                                <span class="font-medium text-green-700">Inicio de tramitación</span>
+                                            {% else %}
+                                                <span class="font-medium text-slate-800">{{ history.statusTypeLabel }}</span>
+                                                <span class="text-slate-400 mx-2">→</span>
+                                                <span class="badge {{ badgeClass }}">{{ statusLabel }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <span class="text-sm text-slate-500 flex-shrink-0">{{ history.createdAt|date('d/m/Y H:i') }}</span>
+                                    </div>
+                                    {% if history.notes %}
+                                        <p class="text-sm text-slate-600 mt-2">{{ history.notes }}</p>
+                                    {% endif %}
+                                </div>
                             </div>
                         {% endfor %}
                     </div>
@@ -190,6 +285,20 @@
                     </span>
                 </div>
 
+                {% if request.isDeadlineSuspended %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo</h4>
+                        <span class="badge badge-warning text-sm px-3 py-1">Plazo suspendido</span>
+                        <p class="text-sm text-slate-600 mt-2">
+                            El plazo está suspendido por afectación a derechos de terceros.
+                            {% if request.thirdPartyAllegationsDeadlineAt %}
+                                Plazo de alegaciones hasta el {{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}.
+                            {% endif %}
+                            Quedan {{ request.suspendedDaysRemaining }} días hábiles cuando se reanude.
+                        </p>
+                    </div>
+                {% endif %}
+
                 {% if request.complaintStatus != 'none' %}
                     <div>
                         <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamacion</h4>
@@ -214,16 +323,27 @@
             <div class="card-body space-y-4">
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de respuesta</h4>
-                    <div class="flex items-center gap-2">
-                        <span class="font-semibold {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
-                            {{ request.deadlineAt|date('d/m/Y') }}
-                        </span>
-                        {% if request.isDeadlinePassed %}
-                            <span class="badge badge-danger">Vencido</span>
-                        {% else %}
-                            <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
-                        {% endif %}
-                    </div>
+                    {% if request.isDeadlineSuspended %}
+                        <div class="flex items-center gap-2">
+                            <span class="badge badge-warning font-bold">PLAZO SUSPENDIDO</span>
+                        </div>
+                        <p class="text-sm text-slate-500 mt-2">
+                            {% if request.thirdPartyAllegationsDeadlineAt %}
+                                Alegaciones hasta {{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}
+                            {% endif %}
+                        </p>
+                    {% else %}
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
+                                {{ request.deadlineAt|date('d/m/Y') }}
+                            </span>
+                            {% if request.isDeadlinePassed %}
+                                <span class="badge badge-danger">Vencido</span>
+                            {% else %}
+                                <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
 
                 {% if request.extensionCount > 0 %}

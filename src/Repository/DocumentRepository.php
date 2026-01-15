@@ -61,4 +61,24 @@ class DocumentRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Find documents that were matched by keywords and need user confirmation.
+     *
+     * @return Document[]
+     */
+    public function findKeywordMatchedByUser(User $user, int $limit = 20): array
+    {
+        return $this->createQueryBuilder('d')
+            ->where('d.uploadedBy = :user')
+            ->andWhere('d.matchMethod = :matchMethod')
+            ->andWhere('d.processed = :processed')
+            ->setParameter('user', $user)
+            ->setParameter('matchMethod', Document::MATCH_KEYWORDS)
+            ->setParameter('processed', true)
+            ->orderBy('d.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
 }

@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
+use App\Repository\DocumentRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -28,6 +29,7 @@ class DocumentController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
         private readonly AccessRequestRepository $accessRequestRepository,
+        private readonly DocumentRepository $documentRepository,
         private readonly MessageBusInterface $messageBus,
     ) {
     }
@@ -246,5 +248,126 @@ class DocumentController extends AbstractController
         }
 
         return $this->redirectToRoute('app_dashboard');
+    }
+
+    #[Route('/keyword-matched', name: 'app_document_keyword_matched', methods: ['GET'])]
+    public function keywordMatched(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $documents = $this->documentRepository->findKeywordMatchedByUser($user);
+
+        $result = [];
+        foreach ($documents as $document) {
+            $accessRequest = $document->getAccessRequest();
+            $result[] = [
+                'id' => (string) $document->getId(),
+                'name' => $document->getOriginalFilename(),
+                'type' => $document->getType(),
+                'typeLabel' => $document->getTypeLabel(),
+                'accessRequest' => $accessRequest ? [
+                    'id' => (string) $accessRequest->getId(),
+                    'title' => $accessRequest->getTitle(),
+                ] : null,
+            ];
+        }
+
+        return new JsonResponse(['documents' => $result]);
+    }
+
+    #[Route('/{id}/confirm-match', name: 'app_document_confirm_match', methods: ['POST'])]
+    public function confirmMatch(Document $document): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if ($document->getUploadedBy() !== $user) {
+            return new JsonResponse(['error' => 'No tienes acceso a este documento'], Response::HTTP_FORBIDDEN);
+        }
+
+        // User confirms the keyword match - change to reference match (confirmed)
+        $document->setMatchMethod(Document::MATCH_REFERENCE);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true, 'message' => 'Asociacion confirmada']);
+    }
+
+    #[Route('/{id}/reject-match', name: 'app_document_reject_match', methods: ['POST'])]
+    public function rejectMatch(Document $document): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if ($document->getUploadedBy() !== $user) {
+            return new JsonResponse(['error' => 'No tienes acceso a este documento'], Response::HTTP_FORBIDDEN);
+        }
+
+        // User rejects the keyword match - unlink from access request
+        $document->setAccessRequest(null);
+        $document->setMatchMethod(null);
+        $this->entityManager->flush();
+
+        return new JsonResponse(['success' => true, 'message' => 'Asociacion rechazada. El documento queda sin asignar.']);
+    }
+
+    #[Route('/status', name: 'app_document_status', methods: ['POST'])]
+    public function checkStatus(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $data = json_decode($request->getContent(), true);
+        $documentIds = $data['documentIds'] ?? [];
+
+        if (empty($documentIds)) {
+            return new JsonResponse(['documents' => []]);
+        }
+
+        $result = [];
+        $hasProcessed = false;
+        $hasKeywordMatched = false;
+
+        foreach ($documentIds as $id) {
+            $document = $this->documentRepository->find($id);
+            if (!$document || $document->getUploadedBy() !== $user) {
+                continue;
+            }
+
+            $accessRequest = $document->getAccessRequest();
+            $isProcessed = $document->isProcessed();
+            $isKeywordMatched = $document->getMatchMethod() === Document::MATCH_KEYWORDS;
+
+            if ($isProcessed) {
+                $hasProcessed = true;
+            }
+            if ($isKeywordMatched) {
+                $hasKeywordMatched = true;
+            }
+
+            $result[] = [
+                'id' => (string) $document->getId(),
+                'name' => $document->getOriginalFilename(),
+                'processed' => $isProcessed,
+                'type' => $document->getType(),
+                'typeLabel' => $document->getTypeLabel(),
+                'matchMethod' => $document->getMatchMethod(),
+                'error' => $document->getProcessingError(),
+                'accessRequest' => $accessRequest ? [
+                    'id' => (string) $accessRequest->getId(),
+                    'title' => $accessRequest->getTitle(),
+                    'status' => $accessRequest->getStatus(),
+                    'statusLabel' => $accessRequest->getStatusLabel(),
+                    'url' => $this->generateUrl('app_solicitudes_show', ['id' => $accessRequest->getId()]),
+                    'isNew' => $document->getMatchMethod() === Document::MATCH_CREATED,
+                ] : null,
+            ];
+        }
+
+        return new JsonResponse([
+            'documents' => $result,
+            'hasProcessed' => $hasProcessed,
+            'hasKeywordMatched' => $hasKeywordMatched,
+        ]);
     }
 }

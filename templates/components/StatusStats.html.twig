@@ -1,4 +1,4 @@
-<div {{ attributes.defaults({class: 'status-stats'}) }}>
+<div {{ attributes.defaults({class: 'status-stats', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set stats = this.stats %}
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
