@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\DocumentType;
 use App\Repository\DocumentRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -12,19 +13,6 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\HasLifecycleCallbacks]
 class Document
 {
-    public const TYPE_REQUEST = 'request';
-    public const TYPE_RECEIPT = 'receipt';
-    public const TYPE_PROCESSING_START = 'processing_start';
-    public const TYPE_RESPONSE = 'response';
-    public const TYPE_EXTENSION = 'extension';
-    public const TYPE_REDIRECTION = 'redirection';
-    public const TYPE_THIRD_PARTY_RIGHTS = 'third_party_rights';
-    public const TYPE_COMPLAINT = 'complaint';
-    public const TYPE_COMPLAINT_RESOLUTION = 'complaint_resolution';
-    public const TYPE_COURT = 'court';
-    public const TYPE_OTHER = 'other';
-    public const TYPE_UNPROCESSED = 'unprocessed';
-
     public const MATCH_REFERENCE = 'reference';
     public const MATCH_KEYWORDS = 'keywords';
     public const MATCH_CREATED = 'created';
@@ -45,8 +33,8 @@ class Document
     #[ORM\Column]
     private int $fileSize;
 
-    #[ORM\Column(length: 50)]
-    private string $type = self::TYPE_UNPROCESSED;
+    #[ORM\Column(length: 50, enumType: DocumentType::class)]
+    private DocumentType $type = DocumentType::Unprocessed;
 
     #[ORM\ManyToOne(targetEntity: AccessRequest::class, inversedBy: 'documents')]
     #[ORM\JoinColumn(nullable: true)]
@@ -145,12 +133,12 @@ class Document
         return round($bytes, 2) . ' ' . $units[$i];
     }
 
-    public function getType(): string
+    public function getType(): DocumentType
     {
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(DocumentType $type): static
     {
         $this->type = $type;
         return $this;
@@ -158,21 +146,7 @@ class Document
 
     public function getTypeLabel(): string
     {
-        return match ($this->type) {
-            self::TYPE_REQUEST => 'Solicitud',
-            self::TYPE_RECEIPT => 'Acuse de recibo',
-            self::TYPE_PROCESSING_START => 'Inicio de tramitación',
-            self::TYPE_RESPONSE => 'Respuesta',
-            self::TYPE_EXTENSION => 'Prórroga',
-            self::TYPE_REDIRECTION => 'Traslado a otro órgano',
-            self::TYPE_THIRD_PARTY_RIGHTS => 'Afectación derechos terceros',
-            self::TYPE_COMPLAINT => 'Reclamación',
-            self::TYPE_COMPLAINT_RESOLUTION => 'Resolución CTBG',
-            self::TYPE_COURT => 'Documento judicial',
-            self::TYPE_OTHER => 'Otro',
-            self::TYPE_UNPROCESSED => 'Sin procesar',
-            default => $this->type,
-        };
+        return $this->type->label();
     }
 
     public function getAccessRequest(): ?AccessRequest

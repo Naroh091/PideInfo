@@ -5,6 +5,7 @@ namespace App\Twig\Components;
 use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -76,7 +77,7 @@ final class UniversalDropzone extends AbstractController
             $document->setOriginalFilename($file->getClientOriginalName());
             $document->setMimeType($file->getMimeType() ?? 'application/octet-stream');
             $document->setFileSize($file->getSize());
-            $document->setType('unprocessed');
+            $document->setType(DocumentType::Unprocessed);
             $document->setProcessed(false);
 
             // Generate storage path

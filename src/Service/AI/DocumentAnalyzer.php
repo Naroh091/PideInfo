@@ -3,6 +3,7 @@
 namespace App\Service\AI;
 
 use App\Entity\Document;
+use App\Enum\DocumentType;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -81,7 +82,7 @@ El justificante de registro suele tener el número de registro y la administraci
 Extrae la siguiente información en formato JSON:
 
 {
-    "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, resolucion_ctbg, otro)",
+    "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
     "documentDate": "fecha del documento o registro en formato YYYY-MM-DD",
@@ -156,7 +157,7 @@ Analiza este documento relacionado con una solicitud de acceso a información p�
 Extrae la siguiente información en formato JSON:
 
 {
-    "documentType": "tipo de documento (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, resolucion_ctbg, otro)",
+    "documentType": "tipo de documento (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
     "documentDate": "fecha del documento en formato YYYY-MM-DD",
@@ -286,35 +287,22 @@ PROMPT;
             throw new \RuntimeException('Failed to parse Gemini response as JSON: ' . $text);
         }
 
-        // Map document type to our constants
-        $typeMap = [
-            'solicitud' => Document::TYPE_REQUEST,
-            'acuse_recibo' => Document::TYPE_RECEIPT,
-            'inicio_tramitacion' => Document::TYPE_PROCESSING_START,
-            'resolucion' => Document::TYPE_RESPONSE,
-            'notificacion' => Document::TYPE_OTHER,
-            'prorroga' => Document::TYPE_EXTENSION,
-            'traslado' => Document::TYPE_REDIRECTION,
-            'afectacion_terceros' => Document::TYPE_THIRD_PARTY_RIGHTS,
-            'resolucion_ctbg' => Document::TYPE_COMPLAINT_RESOLUTION,
-            'otro' => Document::TYPE_OTHER,
-        ];
-
-        $data['documentType'] = $typeMap[$data['documentType'] ?? 'otro'] ?? Document::TYPE_OTHER;
+        // Map document type to enum
+        $data['documentType'] = DocumentType::fromAiValue($data['documentType'] ?? 'otro');
 
         // If isRedirection is true but documentType wasn't detected correctly, override it
-        if (($data['isRedirection'] ?? false) === true && $data['documentType'] === Document::TYPE_OTHER) {
-            $data['documentType'] = Document::TYPE_REDIRECTION;
+        if (($data['isRedirection'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::Redirection;
         }
 
         // If isThirdPartyRights is true but documentType wasn't detected correctly, override it
-        if (($data['isThirdPartyRights'] ?? false) === true && $data['documentType'] === Document::TYPE_OTHER) {
-            $data['documentType'] = Document::TYPE_THIRD_PARTY_RIGHTS;
+        if (($data['isThirdPartyRights'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::ThirdPartyRights;
         }
 
         // If isProcessingStart is true but documentType wasn't detected correctly, override it
-        if (($data['isProcessingStart'] ?? false) === true && $data['documentType'] === Document::TYPE_OTHER) {
-            $data['documentType'] = Document::TYPE_PROCESSING_START;
+        if (($data['isProcessingStart'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::ProcessingStart;
         }
 
         return $data;
