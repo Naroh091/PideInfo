@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reclamacion - {{ accessRequest.publicBody.name }}</title>
+    <style>
+        @page {
+            margin: 2.5cm;
+        }
+
+        body {
+            font-family: 'DejaVu Sans', sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #1a1a1a;
+        }
+
+        h1 {
+            font-size: 14pt;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 1.5em;
+            text-transform: uppercase;
+        }
+
+        h2 {
+            font-size: 12pt;
+            font-weight: bold;
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            text-transform: uppercase;
+        }
+
+        h3 {
+            font-size: 11pt;
+            font-weight: bold;
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        p {
+            text-align: justify;
+            margin-bottom: 0.8em;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2em;
+            padding-bottom: 1em;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .header h1 {
+            margin-bottom: 0.5em;
+        }
+
+        .header p {
+            text-align: center;
+            color: #666;
+            font-size: 10pt;
+        }
+
+        .content {
+            white-space: pre-wrap;
+        }
+
+        .metadata {
+            margin-top: 2em;
+            padding-top: 1em;
+            border-top: 1px solid #ccc;
+            font-size: 9pt;
+            color: #666;
+        }
+
+        .metadata h4 {
+            font-size: 10pt;
+            font-weight: bold;
+            margin-bottom: 0.5em;
+            color: #333;
+        }
+
+        .metadata ul {
+            margin: 0;
+            padding-left: 1.5em;
+        }
+
+        .metadata li {
+            margin-bottom: 0.3em;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 8pt;
+            color: #999;
+            padding-top: 0.5em;
+            border-top: 1px solid #eee;
+        }
+
+        .notice {
+            background-color: #fff8e1;
+            padding: 1em;
+            margin-top: 2em;
+            border: 1px solid #ffe082;
+            font-size: 10pt;
+        }
+
+        .notice strong {
+            color: #f57c00;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>RECLAMACION ANTE EL {{ draft.transparencyCouncil|upper }}</h1>
+        <p>
+            Solicitud de acceso a informacion publica<br>
+            {{ accessRequest.publicBody.name }}<br>
+            Referencia: {{ accessRequest.externalId|default('Sin numero de registro') }}
+        </p>
+    </div>
+
+    <div class="content">{{ draft.content|markdown_to_html }}</div>
+
+    {% if draft.hasCitedCriteria or draft.hasCitedResolutions %}
+    <div class="metadata">
+        <h4>Referencias documentales</h4>
+
+        {% if draft.hasCitedCriteria %}
+        <p><strong>Criterios interpretativos citados:</strong></p>
+        <ul>
+            {% for criterion in draft.citedCriteria %}
+            <li>{{ criterion }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if draft.hasCitedResolutions %}
+        <p><strong>Resoluciones citadas:</strong></p>
+        <ul>
+            {% for resolution in draft.citedResolutions %}
+            <li>{{ resolution.reference }}{% if resolution.date %} ({{ resolution.date }}){% endif %}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="notice">
+        <strong>IMPORTANTE:</strong> Este documento ha sido generado automaticamente.
+        Revise el contenido y complete sus datos personales antes de presentarlo.
+        Firmado y fechado en [LUGAR], a [DIA] de [MES] de [AÑO].
+    </div>
+
+    <div class="footer">
+        Documento generado con PideInfo - {{ "now"|date("d/m/Y H:i") }}
+    </div>
+</body>
+</html>

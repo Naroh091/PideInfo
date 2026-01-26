@@ -123,6 +123,18 @@
             "config/packages/ai.yaml"
         ]
     },
+    "symfony/ai-qdrant-store": {
+        "version": "0.2",
+        "recipe": {
+            "repo": "github.com/symfony/recipes",
+            "branch": "main",
+            "version": "0.1",
+            "ref": "649251ddc5dbb69f025b66a2db7e5652a9b8adf3"
+        },
+        "files": [
+            "config/packages/ai_qdrant_store.yaml"
+        ]
+    },
     "symfony/asset-mapper": {
         "version": "7.4",
         "recipe": {

@@ -126,7 +126,7 @@
                 {% if request.documents|length > 0 %}
                     <div class="space-y-3">
                         {% for doc in request.documents %}
-                            <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors">
+                            <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors" data-document-id="{{ doc.id }}">
                                 <div class="flex items-center gap-3 min-w-0">
                                     <div class="w-10 h-10 rounded-lg {{ doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200') }} flex items-center justify-center flex-shrink-0">
                                         <i data-lucide="{{ doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file') }}"
@@ -368,8 +368,9 @@
                 <h2 class="font-semibold text-slate-800">Acciones</h2>
             </div>
             <div class="card-body space-y-3">
-                {% if request.status in ['denied', 'delayed'] and request.complaintStatus == 'none' %}
-                    <a href="#" class="btn btn-accent w-full">
+                {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted']) %}
+                {% if canComplain and request.complaintStatus == 'none' %}
+                    <a href="{{ path('app_complaint_generate', {id: request.id}) }}" class="btn btn-accent w-full">
                         <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
                         Generar reclamacion
                     </a>

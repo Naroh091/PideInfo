@@ -5,6 +5,7 @@ namespace App\MessageHandler;
 use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\StatusHistory;
+use App\Enum\DocumentType;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\ApplicableLawRepository;
@@ -137,8 +138,8 @@ final class ProcessDocumentHandler
         }
 
         // For certain document types, we should create a new access request
-        if ($analysis['documentType'] === Document::TYPE_REQUEST ||
-            $analysis['documentType'] === Document::TYPE_RECEIPT) {
+        if ($analysis['documentType'] === DocumentType::Request ||
+            $analysis['documentType'] === DocumentType::Receipt) {
 
             // Find or create public body
             $publicBody = null;
@@ -231,7 +232,7 @@ final class ProcessDocumentHandler
 
         // Handle different document types
         switch ($documentType) {
-            case Document::TYPE_RECEIPT:
+            case DocumentType::Receipt:
                 // Mark as acknowledged
                 if ($accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
                     $accessRequest->setStatus(AccessRequest::STATUS_PROCESSING);
@@ -244,7 +245,7 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_RESPONSE:
+            case DocumentType::Response:
                 // Update status based on AI analysis
                 $status = $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
                 if ($status && $accessRequest->getStatus() !== $status) {
@@ -254,7 +255,7 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_EXTENSION:
+            case DocumentType::Extension:
                 // Handle extension (prórroga)
                 if ($analysis['isExtension'] ?? false) {
                     $extensionDays = $analysis['extensionDays'] ?? null;
@@ -277,7 +278,7 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_REDIRECTION:
+            case DocumentType::Redirection:
                 // Handle redirection to another public body (traslado)
                 // According to Art. 19.1 Ley 19/2013, when the information is not held by the
                 // body receiving the request, it must be redirected to the competent body
@@ -332,7 +333,7 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_THIRD_PARTY_RIGHTS:
+            case DocumentType::ThirdPartyRights:
                 // Handle third party rights notification (afectación derechos terceros)
                 // According to Art. 19.3 Ley 19/2013, the deadline is suspended for 15 days
                 if (($analysis['isThirdPartyRights'] ?? false) ||
@@ -361,7 +362,7 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_PROCESSING_START:
+            case DocumentType::ProcessingStart:
                 // Handle processing start notification (art. 20.1 Ley 19/2013)
                 // The 1-month deadline starts from the date indicated in the document
                 if (($analysis['isProcessingStart'] ?? false) || !empty($analysis['processingStartDate'])) {
@@ -394,7 +395,79 @@ final class ProcessDocumentHandler
                 }
                 break;
 
-            case Document::TYPE_COMPLAINT_RESOLUTION:
+            case DocumentType::Complaint:
+                // Handle complaint filing (reclamación)
+                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
+                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
+
+                    $complaintDate = new \DateTimeImmutable();
+                    if (!empty($analysis['documentDate'])) {
+                        try {
+                            $complaintDate = new \DateTimeImmutable($analysis['documentDate']);
+                        } catch (\Exception) {}
+                    }
+
+                    // CTBG has 3 months to resolve (art. 24.4 Ley 19/2013)
+                    $accessRequest->setComplaintDeadlineAt($complaintDate->modify('+3 months'));
+
+                    $this->recordStatusChange(
+                        $accessRequest,
+                        'complaint',
+                        AccessRequest::COMPLAINT_RECLAIMED,
+                        sprintf('Reclamación presentada el %s', $complaintDate->format('d/m/Y'))
+                    );
+                }
+                break;
+
+            case DocumentType::ComplaintReceipt:
+                // Handle complaint receipt (acuse de recibo de reclamación)
+                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
+                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
+                }
+
+                $receiptDate = new \DateTimeImmutable();
+                if (!empty($analysis['documentDate'])) {
+                    try {
+                        $receiptDate = new \DateTimeImmutable($analysis['documentDate']);
+                    } catch (\Exception) {}
+                }
+
+                // Update deadline from receipt date (3 months)
+                $accessRequest->setComplaintDeadlineAt($receiptDate->modify('+3 months'));
+
+                $this->recordStatusChange(
+                    $accessRequest,
+                    'complaint',
+                    AccessRequest::COMPLAINT_RECLAIMED,
+                    sprintf('Acuse de recibo de reclamación recibido el %s', $receiptDate->format('d/m/Y'))
+                );
+                break;
+
+            case DocumentType::ComplaintProcessingStart:
+                // Handle complaint processing start (inicio de tramitación de reclamación)
+                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
+                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
+                }
+
+                $processingDate = new \DateTimeImmutable();
+                if (!empty($analysis['documentDate'])) {
+                    try {
+                        $processingDate = new \DateTimeImmutable($analysis['documentDate']);
+                    } catch (\Exception) {}
+                }
+
+                // Deadline starts from processing start (3 months)
+                $accessRequest->setComplaintDeadlineAt($processingDate->modify('+3 months'));
+
+                $this->recordStatusChange(
+                    $accessRequest,
+                    'complaint',
+                    AccessRequest::COMPLAINT_RECLAIMED,
+                    sprintf('Inicio de tramitación de reclamación notificado el %s. Plazo de 3 meses.', $processingDate->format('d/m/Y'))
+                );
+                break;
+
+            case DocumentType::ComplaintResolution:
                 // Handle CTBG resolution
                 $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
                 if ($status) {
