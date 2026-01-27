@@ -59,6 +59,10 @@ class ApplicableLaw
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $officialUrl = null;
 
+    #[ORM\ManyToOne(targetEntity: ComplaintOrganism::class, inversedBy: 'applicableLaws')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?ComplaintOrganism $complaintOrganism = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -257,6 +261,17 @@ class ApplicableLaw
     public function setOfficialUrl(?string $officialUrl): static
     {
         $this->officialUrl = $officialUrl;
+        return $this;
+    }
+
+    public function getComplaintOrganism(): ?ComplaintOrganism
+    {
+        return $this->complaintOrganism;
+    }
+
+    public function setComplaintOrganism(?ComplaintOrganism $complaintOrganism): static
+    {
+        $this->complaintOrganism = $complaintOrganism;
         return $this;
     }
 

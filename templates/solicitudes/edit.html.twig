@@ -128,7 +128,7 @@
                     <p class="text-sm {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
                         {{ request.deadlineAt|date('d/m/Y') }}
                         {% if not request.isDeadlinePassed %}
-                            <span class="text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
+                            <span class="text-slate-500">({{ request.daysUntilDeadline }} días)</span>
                         {% endif %}
                     </p>
                 </div>

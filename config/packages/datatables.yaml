@@ -1,0 +1,17 @@
+# Latest documentation available at https://omines.github.io/datatables-bundle/#configuration
+datatables:
+    # Set options, as documented at https://datatables.net/reference/option/
+    options:
+        lengthMenu: [10, 25, 50, 100]
+        pageLength: 25
+        dom: "lfrtip"
+        stateSave: false
+        processing: true
+        serverSide: true
+
+    template_parameters:
+        # Tailwind-compatible table classes
+        className: 'table w-full'
+
+    # Keep translation domains separated
+    translation_domain: 'messages'

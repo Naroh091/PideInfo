@@ -264,4 +264,52 @@ class AccessRequestManager
 
         $this->em->flush();
     }
+
+    /**
+     * Recalculate the deadline when the applicable law changes.
+     * Uses processingStartedAt if set, otherwise sentAt as the base date.
+     */
+    public function recalculateDeadlineForLawChange(
+        AccessRequest $request,
+        ApplicableLaw $previousLaw
+    ): void {
+        $newLaw = $request->getApplicableLaw();
+
+        // Skip if law hasn't actually changed
+        if ($previousLaw->getId() === $newLaw->getId()) {
+            return;
+        }
+
+        // Determine the base date for calculation
+        // Use processingStartedAt if available (art. 20.1), otherwise sentAt
+        $baseDate = $request->getProcessingStartedAt() ?? $request->getSentAt();
+
+        $previousDeadline = $request->getDeadlineAt();
+        $newDeadline = $this->deadlineCalculator->calculate($baseDate, $newLaw);
+
+        // Update the deadline
+        $request->setDeadlineAt($newDeadline);
+
+        // Also update original deadline if no extensions have been applied
+        if ($request->getExtensionCount() === 0) {
+            $request->setOriginalDeadlineAt($newDeadline);
+        }
+
+        // Record in deadline history
+        $deadlineHistory = new DeadlineHistory();
+        $deadlineHistory->setAccessRequest($request);
+        $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_RESPONSE);
+        $deadlineHistory->setPreviousDeadline($previousDeadline);
+        $deadlineHistory->setNewDeadline($newDeadline);
+        $deadlineHistory->setReason(DeadlineHistory::REASON_LAW_CHANGE);
+        $deadlineHistory->setNotes(sprintf(
+            'Ley aplicable cambiada de %s a %s. Plazo recalculado desde %s.',
+            $previousLaw->getShortCode(),
+            $newLaw->getShortCode(),
+            $baseDate->format('d/m/Y')
+        ));
+        $request->addDeadlineHistory($deadlineHistory);
+
+        $this->em->flush();
+    }
 }

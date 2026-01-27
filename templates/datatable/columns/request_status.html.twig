@@ -1,0 +1,17 @@
+{% set statusClass = {
+    'sent': 'status-sent',
+    'processing': 'status-processing',
+    'granted': 'status-granted',
+    'denied': 'status-denied',
+    'delayed': 'status-delayed',
+    'pending': 'status-pending'
+} %}
+<span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
+    {{ row.statusLabel }}
+</span>
+{% if row.isDeadlineSuspended %}
+    <span class="badge badge-warning mt-1">Plazo suspendido</span>
+{% endif %}
+{% if row.complaintStatus != 'none' %}
+    <span class="badge badge-info mt-1">{{ row.complaintStatusLabel }}</span>
+{% endif %}

@@ -10,7 +10,7 @@
                     </div>
                     <div>
                         <h2 class="font-semibold text-slate-800">Solicitudes recientes</h2>
-                        <p class="text-sm text-slate-500">Ultimas actualizaciones</p>
+                        <p class="text-sm text-slate-500">Últimas actualizaciones</p>
                     </div>
                 </div>
                 <a href="{{ path('app_solicitudes_index') }}" class="btn btn-ghost btn-sm">
@@ -26,8 +26,8 @@
                         <a href="{{ path('app_solicitudes_show', {id: request.id}) }}"
                            class="list-item list-item-clickable group">
                             <div class="flex-1 min-w-0">
-                                <h3 class="font-medium text-slate-800 truncate group-hover:text-primary-600 transition-colors">
-                                    {{ request.title|u.truncate(45) }}
+                                <h3 class="font-medium text-slate-800 group-hover:text-primary-600 transition-colors">
+                                    {{ request.title }}
                                 </h3>
                                 <p class="text-sm text-slate-500 truncate mt-0.5">{{ request.publicBody.name }}</p>
                             </div>
@@ -51,7 +51,7 @@
                         <i data-lucide="folder" class="w-full h-full"></i>
                     </div>
                     <p class="empty-state-title">Sin solicitudes</p>
-                    <p class="empty-state-description">No tienes solicitudes aun</p>
+                    <p class="empty-state-description">No tienes solicitudes aún</p>
                 </div>
             {% endif %}
         </div>

@@ -40,6 +40,7 @@ final class StatusStats extends AbstractController
             'denied' => $counts[AccessRequest::STATUS_DENIED] ?? 0,
             'delayed' => $counts[AccessRequest::STATUS_DELAYED] ?? 0,
             'pending' => $counts[AccessRequest::STATUS_PENDING] ?? 0,
+            'appealed' => $this->repository->countAppealed($user),
         ];
     }
 
@@ -75,6 +76,7 @@ final class StatusStats extends AbstractController
             'denied' => 0,
             'delayed' => 0,
             'pending' => 0,
+            'appealed' => 0,
         ];
     }
 }

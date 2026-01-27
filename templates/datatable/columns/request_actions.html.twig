@@ -1,0 +1,12 @@
+<div class="flex items-center justify-end gap-2">
+    <a href="{{ path('app_solicitudes_show', {id: row.id}) }}"
+       class="btn btn-ghost btn-sm"
+       title="Ver detalle">
+        <i data-lucide="eye" class="w-4 h-4"></i>
+    </a>
+    <a href="{{ path('app_solicitudes_edit', {id: row.id}) }}"
+       class="btn btn-ghost btn-sm"
+       title="Editar">
+        <i data-lucide="pencil" class="w-4 h-4"></i>
+    </a>
+</div>

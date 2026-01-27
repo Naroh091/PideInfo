@@ -8,8 +8,8 @@
                     <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600"></i>
                 </div>
                 <div>
-                    <h2 class="font-semibold text-slate-800">Plazos proximos a vencer</h2>
-                    <p class="text-sm text-slate-500">Solicitudes que requieren atencion</p>
+                    <h2 class="font-semibold text-slate-800">Plazos próximos a vencer</h2>
+                    <p class="text-sm text-slate-500">Solicitudes que requieren atención</p>
                 </div>
             </div>
         </div>
@@ -20,8 +20,8 @@
                         <a href="{{ path('app_solicitudes_show', {id: alert.id}) }}"
                            class="list-item list-item-clickable group">
                             <div class="flex-1 min-w-0">
-                                <h3 class="font-medium text-slate-800 truncate group-hover:text-primary-600 transition-colors">
-                                    {{ alert.title|u.truncate(45) }}
+                                <h3 class="font-medium text-slate-800 group-hover:text-primary-600 transition-colors">
+                                    {{ alert.title }}
                                 </h3>
                                 <p class="text-sm text-slate-500 truncate mt-0.5">{{ alert.publicBody }}</p>
                             </div>
@@ -40,7 +40,7 @@
                         <i data-lucide="check-circle" class="w-full h-full text-emerald-300"></i>
                     </div>
                     <p class="empty-state-title">Todo en orden</p>
-                    <p class="empty-state-description">No hay plazos proximos a vencer</p>
+                    <p class="empty-state-description">No hay plazos próximos a vencer</p>
                 </div>
             {% endif %}
         </div>

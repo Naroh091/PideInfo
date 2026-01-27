@@ -83,7 +83,7 @@ class ComplaintController extends AbstractController
         } catch (\Exception $e) {
             return new JsonResponse([
                 'success' => false,
-                'error' => 'Error al generar la reclamacion: ' . $e->getMessage(),
+                'error' => 'Error al generar la reclamación: ' . $e->getMessage(),
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -127,7 +127,7 @@ class ComplaintController extends AbstractController
         }
 
         if (!$complaintDocument) {
-            $this->addFlash('error', 'No hay reclamacion generada para esta solicitud.');
+            $this->addFlash('error', 'No hay reclamación generada para esta solicitud.');
             return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
         }
 
@@ -169,7 +169,7 @@ class ComplaintController extends AbstractController
         }
 
         if (!$complaintDocument) {
-            $this->addFlash('error', 'No hay reclamacion generada para esta solicitud.');
+            $this->addFlash('error', 'No hay reclamación generada para esta solicitud.');
             return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
         }
 

@@ -142,23 +142,39 @@ body {
 
 /* Stat card styles */
 .stat-card {
-  @apply bg-white rounded-2xl p-6 border border-slate-100 shadow-sm;
+  @apply bg-white rounded-2xl p-5 border border-slate-200 shadow-sm;
 }
 
-.stat-card-primary {
-  @apply bg-gradient-to-br from-primary-500 to-primary-600 text-white border-0;
+.stat-card-icon {
+  @apply w-10 h-10 rounded-xl flex items-center justify-center mb-3;
 }
 
-.stat-card-accent {
-  @apply bg-gradient-to-br from-accent-400 to-accent-500 text-white border-0;
+.stat-card-value {
+  @apply text-2xl font-bold text-slate-800;
 }
 
-.stat-card-success {
-  @apply bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0;
+.stat-card-label {
+  @apply text-sm font-medium text-slate-500 mt-1;
 }
 
-.stat-card-info {
-  @apply bg-gradient-to-br from-sky-400 to-sky-500 text-white border-0;
+.stat-card-primary .stat-card-icon {
+  @apply bg-primary-100 text-primary-600;
+}
+
+.stat-card-accent .stat-card-icon {
+  @apply bg-purple-100 text-purple-600;
+}
+
+.stat-card-success .stat-card-icon {
+  @apply bg-emerald-100 text-emerald-600;
+}
+
+.stat-card-info .stat-card-icon {
+  @apply bg-sky-100 text-sky-600;
+}
+
+.stat-card-warning .stat-card-icon {
+  @apply bg-amber-100 text-amber-600;
 }
 
 /* Alert styles */
