@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reclamacion - {{ accessRequest.publicBody.name }}</title>
+    <title>Reclamación - {{ accessRequest.publicBody.name }}</title>
     <style>
         @page {
             margin: 2.5cm;
@@ -114,11 +114,11 @@
 </head>
 <body>
     <div class="header">
-        <h1>RECLAMACION ANTE EL {{ draft.transparencyCouncil|upper }}</h1>
+        <h1>RECLAMACIÓN ANTE EL {{ draft.transparencyCouncil|upper }}</h1>
         <p>
-            Solicitud de acceso a informacion publica<br>
+            Solicitud de acceso a información pública<br>
             {{ accessRequest.publicBody.name }}<br>
-            Referencia: {{ accessRequest.externalId|default('Sin numero de registro') }}
+            Referencia: {{ accessRequest.externalId|default('Sin número de registro') }}
         </p>
     </div>
 
@@ -149,7 +149,7 @@
     {% endif %}
 
     <div class="notice">
-        <strong>IMPORTANTE:</strong> Este documento ha sido generado automaticamente.
+        <strong>IMPORTANTE:</strong> Este documento ha sido generado automáticamente.
         Revise el contenido y complete sus datos personales antes de presentarlo.
         Firmado y fechado en [LUGAR], a [DIA] de [MES] de [AÑO].
     </div>

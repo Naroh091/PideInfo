@@ -9,6 +9,7 @@ use App\Enum\DocumentType;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\ApplicableLawRepository;
+use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
@@ -25,6 +26,7 @@ final class ProcessDocumentBatchHandler
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly PublicBodyRepository $publicBodyRepository,
         private readonly ApplicableLawRepository $applicableLawRepository,
+        private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
         private readonly AccessRequestManager $accessRequestManager,
         private readonly LoggerInterface $logger,
     ) {
@@ -57,6 +59,7 @@ final class ProcessDocumentBatchHandler
             $this->logger->info('AI batch analysis result', [
                 'documentType' => $analysis['documentType'] ?? null,
                 'publicBodyName' => $analysis['publicBodyName'] ?? null,
+                'autonomousCommunityCode' => $analysis['autonomousCommunityCode'] ?? null,
                 'applicableLaw' => $analysis['applicableLaw'] ?? null,
                 'referenceNumber' => $analysis['referenceNumber'] ?? null,
                 'requestTitle' => $analysis['requestTitle'] ?? null,
@@ -159,6 +162,17 @@ final class ProcessDocumentBatchHandler
         if ($analysis['documentType'] === DocumentType::Request ||
             $analysis['documentType'] === DocumentType::Receipt) {
 
+            // Find autonomous community from extracted code
+            $autonomousCommunity = null;
+            $ccaaCode = $analysis['autonomousCommunityCode'] ?? null;
+            if ($ccaaCode) {
+                $autonomousCommunity = $this->autonomousCommunityRepository->findByCode($ccaaCode);
+                $this->logger->info('AI extracted autonomous community', [
+                    'code' => $ccaaCode,
+                    'found' => $autonomousCommunity !== null,
+                ]);
+            }
+
             // Find or create public body
             $publicBody = null;
             $publicBodyName = $analysis['publicBodyName'] ?? null;
@@ -169,16 +183,38 @@ final class ProcessDocumentBatchHandler
                     $publicBody = new \App\Entity\PublicBody();
                     $publicBody->setName($publicBodyName);
                     $publicBody->setLevel('other');
+                    // Set autonomous community if we detected one
+                    if ($autonomousCommunity) {
+                        $publicBody->setAutonomousCommunity($autonomousCommunity);
+                    }
                     $this->entityManager->persist($publicBody);
-                    $this->logger->info('Created new public body from batch', ['name' => $publicBodyName]);
+                    $this->logger->info('Created new public body from batch', [
+                        'name' => $publicBodyName,
+                        'autonomousCommunity' => $ccaaCode,
+                    ]);
                 }
             }
 
-            // Find applicable law
+            // Find applicable law - prioritize by autonomous community
             $applicableLaw = null;
-            $lawName = $analysis['applicableLaw'] ?? null;
-            if ($lawName) {
-                $applicableLaw = $this->applicableLawRepository->findOneByNameLike($lawName);
+
+            // First, try to find law by autonomous community (most accurate)
+            if ($autonomousCommunity) {
+                $applicableLaw = $this->applicableLawRepository->findByAutonomousCommunity($autonomousCommunity);
+                if ($applicableLaw) {
+                    $this->logger->info('Found applicable law by autonomous community', [
+                        'law' => $applicableLaw->getShortCode(),
+                        'ccaa' => $ccaaCode,
+                    ]);
+                }
+            }
+
+            // If no law found for the community (or it's a state entity), try by law name
+            if (!$applicableLaw) {
+                $lawName = $analysis['applicableLaw'] ?? null;
+                if ($lawName) {
+                    $applicableLaw = $this->applicableLawRepository->findOneByNameLike($lawName);
+                }
             }
 
             // Use defaults if not found
@@ -186,7 +222,8 @@ final class ProcessDocumentBatchHandler
                 $publicBody = $this->publicBodyRepository->findOneBy([]);
             }
             if (!$applicableLaw) {
-                $applicableLaw = $this->applicableLawRepository->findOneBy(['autonomousCommunity' => null]);
+                // Get state law as default (for state entities or when no specific law found)
+                $applicableLaw = $this->applicableLawRepository->findStateLaw();
             }
 
             if (!$publicBody || !$applicableLaw) {
@@ -392,11 +429,16 @@ final class ProcessDocumentBatchHandler
                     // CTBG has 3 months to resolve (art. 24.4 Ley 19/2013)
                     $accessRequest->setComplaintDeadlineAt($complaintDate->modify('+3 months'));
 
+                    $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
                     $this->recordStatusChange(
                         $accessRequest,
                         'complaint',
                         AccessRequest::COMPLAINT_RECLAIMED,
-                        sprintf('Reclamación presentada el %s', $complaintDate->format('d/m/Y'))
+                        sprintf(
+                            'Reclamación presentada el %s%s',
+                            $complaintDate->format('d/m/Y'),
+                            $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''
+                        )
                     );
                 }
                 break;

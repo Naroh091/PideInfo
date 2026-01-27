@@ -1,0 +1,7 @@
+<a href="{{ path('app_solicitudes_show', {id: row.id}) }}" class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
+    {{ row.title|u.truncate(50) }}
+</a>
+{% if row.externalId %}
+    <p class="text-xs text-slate-400 mt-0.5">{{ row.externalId }}</p>
+{% endif %}
+<p class="text-xs text-slate-500 mt-0.5 md:hidden">{{ row.publicBody.name|u.truncate(30) }}</p>

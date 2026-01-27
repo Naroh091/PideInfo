@@ -2,11 +2,13 @@
 
 namespace App\Controller;
 
+use App\DataTable\Type\AccessRequestTableType;
 use App\Entity\AccessRequest;
 use App\Form\AccessRequestType;
 use App\Repository\AccessRequestRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
+use Omines\DataTablesBundle\DataTableFactory;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,27 +22,27 @@ class AccessRequestController extends AbstractController
     public function __construct(
         private AccessRequestRepository $accessRequestRepository,
         private EntityManagerInterface $entityManager,
+        private DataTableFactory $dataTableFactory,
     ) {
     }
 
     #[Route('', name: 'app_solicitudes_index')]
     public function index(Request $request): Response
     {
-        $user = $this->getUser();
         $status = $request->query->get('status');
-        $search = $request->query->get('q');
-        $page = max(1, $request->query->getInt('page', 1));
 
-        $requests = $this->accessRequestRepository->findByFilters($user, $status, $search, $page);
-        $total = $this->accessRequestRepository->countByFilters($user, $status, $search);
+        $table = $this->dataTableFactory->createFromType(
+            AccessRequestTableType::class,
+            ['status' => $status]
+        )->handleRequest($request);
+
+        if ($table->isCallback()) {
+            return $table->getResponse();
+        }
 
         return $this->render('solicitudes/index.html.twig', [
-            'requests' => $requests,
-            'total' => $total,
-            'page' => $page,
-            'pages' => ceil($total / 20),
+            'datatable' => $table,
             'status' => $status,
-            'search' => $search,
         ]);
     }
 

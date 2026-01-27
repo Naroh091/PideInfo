@@ -23,6 +23,7 @@ class DeadlineHistory
     public const REASON_THIRD_PARTY_SUSPENSION = 'third_party_suspension';
     public const REASON_THIRD_PARTY_RESUMED = 'third_party_resumed';
     public const REASON_PROCESSING_START = 'processing_start';
+    public const REASON_LAW_CHANGE = 'law_change';
     public const REASON_MANUAL = 'manual';
 
     #[ORM\Id]
@@ -141,6 +142,7 @@ class DeadlineHistory
             self::REASON_THIRD_PARTY_SUSPENSION => 'Suspensión por alegaciones de terceros',
             self::REASON_THIRD_PARTY_RESUMED => 'Reanudación tras alegaciones de terceros',
             self::REASON_PROCESSING_START => 'Inicio de tramitación',
+            self::REASON_LAW_CHANGE => 'Cambio de ley aplicable',
             self::REASON_MANUAL => 'Ajuste manual',
             default => $this->reason,
         };

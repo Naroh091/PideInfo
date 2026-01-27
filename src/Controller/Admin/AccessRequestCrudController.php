@@ -3,6 +3,9 @@
 namespace App\Controller\Admin;
 
 use App\Entity\AccessRequest;
+use App\Entity\ApplicableLaw;
+use App\Service\AccessRequest\AccessRequestManager;
+use Doctrine\ORM\EntityManagerInterface;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
@@ -21,6 +24,13 @@ use EasyCorp\Bundle\EasyAdminBundle\Filter\TextFilter;
 
 class AccessRequestCrudController extends AbstractCrudController
 {
+    private ?ApplicableLaw $previousApplicableLaw = null;
+
+    public function __construct(
+        private readonly AccessRequestManager $accessRequestManager,
+    ) {
+    }
+
     public static function getEntityFqcn(): string
     {
         return AccessRequest::class;
@@ -110,5 +120,36 @@ class AccessRequestCrudController extends AbstractCrudController
 
         yield DateTimeField::new('createdAt', 'Creada')->hideOnForm();
         yield DateTimeField::new('updatedAt', 'Actualizada')->hideOnForm()->hideOnIndex();
+    }
+
+    /**
+     * Capture the current applicable law before the form is submitted
+     * so we can detect changes after the update.
+     */
+    public function edit(\EasyCorp\Bundle\EasyAdminBundle\Context\AdminContext $context)
+    {
+        /** @var AccessRequest $entity */
+        $entity = $context->getEntity()->getInstance();
+        $this->previousApplicableLaw = $entity->getApplicableLaw();
+
+        return parent::edit($context);
+    }
+
+    /**
+     * After updating the entity, recalculate deadlines if the applicable law changed.
+     */
+    public function updateEntity(EntityManagerInterface $entityManager, $entityInstance): void
+    {
+        /** @var AccessRequest $entityInstance */
+        parent::updateEntity($entityManager, $entityInstance);
+
+        // If applicable law changed, recalculate the deadline
+        if ($this->previousApplicableLaw !== null &&
+            $entityInstance->getApplicableLaw()->getId() !== $this->previousApplicableLaw->getId()) {
+            $this->accessRequestManager->recalculateDeadlineForLawChange(
+                $entityInstance,
+                $this->previousApplicableLaw
+            );
+        }
     }
 }

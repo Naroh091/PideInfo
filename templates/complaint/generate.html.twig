@@ -1,6 +1,6 @@
 {% extends 'layouts/app.html.twig' %}
 
-{% block title %}Generar Reclamacion - {{ request.title }} - PideInfo{% endblock %}
+{% block title %}Generar Reclamación - {{ request.title }} - PideInfo{% endblock %}
 
 {% block content %}
 {# Breadcrumb #}
@@ -13,13 +13,13 @@
         {{ request.title|u.truncate(30) }}
     </a>
     <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-    <span class="text-slate-800 font-medium">Reclamacion</span>
+    <span class="text-slate-800 font-medium">Reclamación</span>
 </nav>
 
 {# Header #}
 <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
     <div class="min-w-0">
-        <h1 class="text-2xl font-bold text-slate-800">Generar Reclamacion</h1>
+        <h1 class="text-2xl font-bold text-slate-800">Generar Reclamación</h1>
         <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
             <span class="flex items-center gap-1">
                 <i data-lucide="building" class="w-4 h-4"></i>
@@ -45,14 +45,14 @@
                     <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
                         <i data-lucide="bar-chart-2" class="w-5 h-5 text-amber-600"></i>
                     </div>
-                    <h2 class="font-semibold text-slate-800">Analisis de probabilidad</h2>
+                    <h2 class="font-semibold text-slate-800">Análisis de probabilidad</h2>
                 </div>
             </div>
             <div class="card-body">
                 <template x-if="!analysis && !analysisLoading">
                     <div class="text-center py-6">
                         <p class="text-slate-500 mb-4">
-                            Analiza la probabilidad de exito de tu reclamacion antes de generarla.
+                            Analiza la probabilidad de éxito de tu reclamación antes de generarla.
                         </p>
                         <button @click="runAnalysis()" class="btn btn-secondary">
                             <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i>
@@ -103,7 +103,7 @@
                             <div x-show="analysis.weaknesses && analysis.weaknesses.length > 0">
                                 <h4 class="text-sm font-medium text-red-700 mb-2 flex items-center gap-1">
                                     <i data-lucide="alert-circle" class="w-4 h-4"></i>
-                                    Puntos debiles
+                                    Puntos débiles
                                 </h4>
                                 <ul class="text-sm text-slate-600 space-y-1">
                                     <template x-for="weakness in analysis.weaknesses">
@@ -128,7 +128,7 @@
                         <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
                             <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
                         </div>
-                        <h2 class="font-semibold text-slate-800">Vista previa de la reclamacion</h2>
+                        <h2 class="font-semibold text-slate-800">Vista previa de la reclamación</h2>
                     </div>
                     <div class="flex gap-2">
                         <a :href="'{{ path('app_complaint_pdf', {id: request.id}) }}'" class="btn btn-secondary btn-sm">
@@ -154,9 +154,9 @@
                     <div class="empty-state-icon">
                         <i data-lucide="file-plus" class="w-full h-full"></i>
                     </div>
-                    <p class="empty-state-title">Genera tu reclamacion</p>
+                    <p class="empty-state-title">Genera tu reclamación</p>
                     <p class="empty-state-description">
-                        Haz clic en el boton "Generar reclamacion" para crear un borrador basado en tu solicitud y los criterios del CTBG.
+                        Haz clic en el botón "Generar reclamación" para crear un borrador basado en tu solicitud y los criterios del CTBG.
                     </p>
                 </div>
             </div>
@@ -167,7 +167,7 @@
             <div class="card-body">
                 <div class="flex flex-col items-center justify-center py-12">
                     <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
-                    <p class="text-slate-600 font-medium">Generando reclamacion...</p>
+                    <p class="text-slate-600 font-medium">Generando reclamación...</p>
                     <p class="text-sm text-slate-500 mt-2">Esto puede tardar unos segundos</p>
                 </div>
             </div>
@@ -182,7 +182,7 @@
             </div>
             <div class="card-body space-y-4">
                 <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Titulo</h4>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Título</h4>
                     <p class="text-slate-800">{{ request.title }}</p>
                 </div>
                 <div>
@@ -194,12 +194,12 @@
                     <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
                 </div>
                 <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envio</h4>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envío</h4>
                     <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
                 </div>
                 {% if request.resolutionNotes %}
                 <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Motivo de denegacion</h4>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Motivo de denegación</h4>
                     <p class="text-slate-800">{{ request.resolutionNotes }}</p>
                 </div>
                 {% endif %}
@@ -215,7 +215,7 @@
                 {% if existingComplaint %}
                     <div class="p-3 bg-amber-50 rounded-lg text-sm text-amber-700 mb-3">
                         <i data-lucide="alert-triangle" class="w-4 h-4 inline mr-1"></i>
-                        Ya existe una reclamacion generada. Puedes descargarla o generar una nueva.
+                        Ya existe una reclamación generada. Puedes descargarla o generar una nueva.
                     </div>
                 {% endif %}
 
@@ -223,7 +223,7 @@
                         :disabled="loading"
                         class="btn btn-accent w-full">
                     <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i>
-                    <span x-text="loading ? 'Generando...' : '{{ existingComplaint ? 'Regenerar reclamacion' : 'Generar reclamacion' }}'"></span>
+                    <span x-text="loading ? 'Generando...' : '{{ existingComplaint ? 'Regenerar reclamación' : 'Generar reclamación' }}'"></span>
                 </button>
 
                 {% if existingComplaint %}
@@ -244,12 +244,12 @@
             <div class="card-body">
                 <h3 class="font-medium text-slate-800 mb-2 flex items-center gap-2">
                     <i data-lucide="info" class="w-4 h-4 text-primary-600"></i>
-                    Informacion importante
+                    Información importante
                 </h3>
                 <ul class="text-sm text-slate-600 space-y-2">
                     <li class="flex items-start gap-2">
                         <i data-lucide="check" class="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0"></i>
-                        <span>La reclamacion se genera automaticamente usando IA y criterios del CTBG.</span>
+                        <span>La reclamación se genera automáticamente usando IA y criterios del CTBG.</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <i data-lucide="check" class="w-4 h-4 text-primary-500 mt-0.5 flex-shrink-0"></i>
@@ -329,8 +329,8 @@ function complaintGenerator() {
                     alert(data.error);
                 }
             } catch (e) {
-                this.error = 'Error al generar la reclamacion';
-                alert('Error al generar la reclamacion');
+                this.error = 'Error al generar la reclamación';
+                alert('Error al generar la reclamación');
             } finally {
                 this.loading = false;
             }

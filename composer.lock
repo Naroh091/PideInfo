@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "893da872baded2ffe393c782bb581179",
+    "content-hash": "aa9613baa120a22fb6e692ad033b86f2",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -3256,6 +3256,126 @@
                 }
             ],
             "time": "2024-09-09T07:06:30+00:00"
+        },
+        {
+            "name": "omines/datatables-bundle",
+            "version": "0.10.7",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/omines/datatables-bundle.git",
+                "reference": "4cd6d27b12c79a1ed72b4953a86aedf289e8701d"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/omines/datatables-bundle/zipball/4cd6d27b12c79a1ed72b4953a86aedf289e8701d",
+                "reference": "4cd6d27b12c79a1ed72b4953a86aedf289e8701d",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2",
+                "symfony/event-dispatcher": "^6.4|^7.3|^8.0",
+                "symfony/framework-bundle": "^6.4|^7.3|^8.0",
+                "symfony/options-resolver": "^6.4|^7.3|^8.0",
+                "symfony/polyfill-mbstring": "^1.31.0",
+                "symfony/property-access": "^6.4|^7.3|^8.0",
+                "symfony/translation": "^6.4|^7.3|^8.0"
+            },
+            "conflict": {
+                "doctrine/orm": "^3.0 <3.3"
+            },
+            "require-dev": {
+                "doctrine/common": "^3.5.0",
+                "doctrine/doctrine-bundle": "^2.18.1|^3.0.0@dev",
+                "doctrine/orm": "^2.19.3|^3.5.7@dev",
+                "doctrine/persistence": "^3.4.0|^4.1.1",
+                "ext-curl": "*",
+                "ext-json": "*",
+                "ext-mbstring": "*",
+                "ext-mongodb": "*",
+                "ext-pdo_sqlite": "*",
+                "ext-zip": "*",
+                "friendsofphp/php-cs-fixer": "^3.90.0",
+                "mongodb/mongodb": "^1.20.0|^2.1.2",
+                "openspout/openspout": "^4.28.5",
+                "phpoffice/phpspreadsheet": "^2.3.3|^3.9.2|^4.5.0|^5.2.0",
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^2.1.32",
+                "phpstan/phpstan-doctrine": "^2.0.11",
+                "phpstan/phpstan-phpunit": "^2.0.8",
+                "phpstan/phpstan-symfony": "^2.0.8",
+                "phpunit/phpunit": "^11.5.44|^12.4.4",
+                "ruflin/elastica": "^7.3.2",
+                "symfony/browser-kit": "^6.4.13|^7.3|^8.0",
+                "symfony/css-selector": "^6.4.13|^7.3|^8.0",
+                "symfony/doctrine-bridge": "^6.4.13|^7.3|^8.0",
+                "symfony/dom-crawler": "^6.4.13|^7.3|^8.0",
+                "symfony/intl": "^6.4.13|^7.3|^8.0",
+                "symfony/mime": "^6.4.13|^7.3|^8.0",
+                "symfony/phpunit-bridge": "^7.3|^8.0",
+                "symfony/twig-bundle": "^6.4|^7.3|^8.0",
+                "symfony/var-dumper": "^6.4.13|^7.3|^8.0",
+                "symfony/var-exporter": "^v6.4.26|^7.3",
+                "symfony/yaml": "^6.4.13|^7.3|^8.0"
+            },
+            "suggest": {
+                "doctrine/doctrine-bundle": "For integrated access to Doctrine object managers",
+                "doctrine/orm": "For full automated integration with Doctrine entities",
+                "mongodb/mongodb": "For integration with MongoDB collections",
+                "openspout/openspout": "To use the OpenSpout Excel exporter",
+                "phpoffice/phpspreadsheet": "To export the data from DataTables to Excel",
+                "ruflin/elastica": "For integration with Elasticsearch indexes",
+                "symfony/twig-bundle": "To use default Twig based rendering and TwigColumn"
+            },
+            "type": "symfony-bundle",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "0.10-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Omines\\DataTablesBundle\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Robbert Beesems",
+                    "email": "robbert.beesems@omines.com",
+                    "homepage": "https://www.omines.nl/"
+                },
+                {
+                    "name": "Niels Keurentjes",
+                    "email": "niels.keurentjes@omines.com",
+                    "homepage": "https://www.omines.nl/"
+                }
+            ],
+            "description": "Symfony DataTables Bundle with native Doctrine ORM, Elastica and MongoDB support",
+            "keywords": [
+                "bundle",
+                "datatable",
+                "datatables",
+                "doctrine",
+                "elastica",
+                "jquery",
+                "mongodb",
+                "orm",
+                "symfony"
+            ],
+            "support": {
+                "issues": "https://github.com/omines/datatables-bundle/issues",
+                "source": "https://github.com/omines/datatables-bundle/tree/0.10.7"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/curry684",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-11-28T21:20:14+00:00"
         },
         {
             "name": "oskarstark/enum-helper",

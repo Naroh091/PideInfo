@@ -627,6 +627,42 @@ class AccessRequest
         return $interval->invert ? -$interval->days : $interval->days;
     }
 
+    public function isComplaintDeadlinePassed(): bool
+    {
+        if ($this->complaintDeadlineAt === null) {
+            return false;
+        }
+        return $this->complaintDeadlineAt < new \DateTimeImmutable('today');
+    }
+
+    public function getDaysUntilComplaintDeadline(): int
+    {
+        if ($this->complaintDeadlineAt === null) {
+            return 0;
+        }
+        $today = new \DateTimeImmutable('today');
+        $interval = $today->diff($this->complaintDeadlineAt);
+        return $interval->invert ? -$interval->days : $interval->days;
+    }
+
+    public function isComplianceDeadlinePassed(): bool
+    {
+        if ($this->complianceDeadlineAt === null) {
+            return false;
+        }
+        return $this->complianceDeadlineAt < new \DateTimeImmutable('today');
+    }
+
+    public function getDaysUntilComplianceDeadline(): int
+    {
+        if ($this->complianceDeadlineAt === null) {
+            return 0;
+        }
+        $today = new \DateTimeImmutable('today');
+        $interval = $today->diff($this->complianceDeadlineAt);
+        return $interval->invert ? -$interval->days : $interval->days;
+    }
+
     public function isActive(): bool
     {
         return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)

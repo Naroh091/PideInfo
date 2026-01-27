@@ -54,6 +54,26 @@ final class DeadlineAlerts extends AbstractController
             ];
         }
 
+        // Get complaint deadlines (pending appeals)
+        $complaintRequests = $this->repository->findWithApproachingComplaintDeadlines($user, $this->daysThreshold);
+
+        foreach ($complaintRequests as $request) {
+            $daysUntil = $request->getDaysUntilComplaintDeadline();
+            $isPassed = $request->isComplaintDeadlinePassed();
+
+            $alerts[] = [
+                'id' => (string) $request->getId(),
+                'title' => $request->getTitle(),
+                'publicBody' => $request->getPublicBody()->getName(),
+                'deadlineAt' => $request->getComplaintDeadlineAt(),
+                'daysUntil' => $daysUntil,
+                'isPassed' => $isPassed,
+                'type' => $this->getAlertType($daysUntil, $isPassed),
+                'message' => $this->getComplaintAlertMessage($daysUntil, $isPassed),
+                'isComplaint' => true,
+            ];
+        }
+
         // Get compliance deadlines (after favorable complaints)
         $complianceRequests = $this->repository->findWithApproachingComplianceDeadlines($user, $this->daysThreshold);
 
@@ -134,5 +154,19 @@ final class DeadlineAlerts extends AbstractController
             return 'Plazo de cumplimiento vence mañana';
         }
         return sprintf('Quedan %d días para cumplimiento', $daysUntil);
+    }
+
+    private function getComplaintAlertMessage(int $daysUntil, bool $isPassed): string
+    {
+        if ($isPassed) {
+            return 'Plazo de reclamación vencido';
+        }
+        if ($daysUntil === 0) {
+            return 'Plazo de reclamación vence hoy';
+        }
+        if ($daysUntil === 1) {
+            return 'Plazo de reclamación vence mañana';
+        }
+        return sprintf('Quedan %d días para resolución de reclamación', $daysUntil);
     }
 }

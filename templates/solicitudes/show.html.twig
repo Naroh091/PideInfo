@@ -77,11 +77,11 @@
                     <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
                         <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
                     </div>
-                    <h2 class="font-semibold text-slate-800">Informacion de la solicitud</h2>
+                    <h2 class="font-semibold text-slate-800">Información de la solicitud</h2>
                 </div>
             </div>
             <div class="card-body">
-                <h3 class="text-sm font-medium text-slate-700 mb-2">Descripcion</h3>
+                <h3 class="text-sm font-medium text-slate-700 mb-2">Descripción</h3>
                 <p class="text-slate-600 whitespace-pre-line">{{ request.description }}</p>
 
                 <div class="border-t border-slate-100 mt-6 pt-6 grid sm:grid-cols-2 gap-6">
@@ -90,7 +90,7 @@
                         <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
                     </div>
                     <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envio</h4>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envío</h4>
                         <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
                     </div>
                 </div>
@@ -206,16 +206,8 @@
                                 {% set icon = 'x-circle' %}
                             {% endif %}
 
-                            {# Map status to Spanish labels #}
-                            {% set statusLabels = {
-                                'sent': 'Enviada',
-                                'processing': 'En trámite',
-                                'granted': 'Concedida',
-                                'denied': 'Denegada',
-                                'delayed': 'Silencio administrativo',
-                                'pending': 'Pendiente'
-                            } %}
-                            {% set statusLabel = statusLabels[history.toStatus]|default(history.toStatus) %}
+                            {# Use entity method to get translated status label #}
+                            {% set statusLabel = history.toStatusLabel %}
 
                             {# Map status to badge classes #}
                             {% set statusBadgeClass = {
@@ -301,14 +293,21 @@
 
                 {% if request.complaintStatus != 'none' %}
                     <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamacion</h4>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamación</h4>
                         <span class="badge badge-info text-sm px-3 py-1">{{ request.complaintStatusLabel }}</span>
+                        {% if request.applicableLaw.complaintOrganism %}
+                            <p class="text-sm text-slate-600 mt-2">
+                                Ante: <a href="{{ request.applicableLaw.complaintOrganism.url }}" target="_blank" class="text-primary-600 hover:underline">
+                                    {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
+                                </a>
+                            </p>
+                        {% endif %}
                     </div>
                 {% endif %}
 
                 {% if request.courtStatus != 'none' %}
                     <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Via judicial</h4>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Vía judicial</h4>
                         <span class="badge badge-secondary text-sm px-3 py-1">{{ request.courtStatusLabel }}</span>
                     </div>
                 {% endif %}
@@ -340,7 +339,7 @@
                             {% if request.isDeadlinePassed %}
                                 <span class="badge badge-danger">Vencido</span>
                             {% else %}
-                                <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} dias)</span>
+                                <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} días)</span>
                             {% endif %}
                         </div>
                     {% endif %}
@@ -348,8 +347,28 @@
 
                 {% if request.extensionCount > 0 %}
                     <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Prorroga</h4>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Prórroga</h4>
                         <span class="badge badge-info">{{ request.extensionCount }} aplicada(s)</span>
+                    </div>
+                {% endif %}
+
+                {% if request.complaintDeadlineAt %}
+                    <div>
+                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo resolución reclamación</h4>
+                        {% set complaintPassed = date() > request.complaintDeadlineAt %}
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold {{ complaintPassed ? 'text-red-600' : 'text-slate-800' }}">
+                                {{ request.complaintDeadlineAt|date('d/m/Y') }}
+                            </span>
+                            {% if complaintPassed %}
+                                <span class="badge badge-danger">Vencido</span>
+                            {% endif %}
+                        </div>
+                        {% if request.applicableLaw.complaintOrganism %}
+                            <p class="text-xs text-slate-500 mt-1">
+                                {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }} tiene 3 meses para resolver
+                            </p>
+                        {% endif %}
                     </div>
                 {% endif %}
 
@@ -372,8 +391,13 @@
                 {% if canComplain and request.complaintStatus == 'none' %}
                     <a href="{{ path('app_complaint_generate', {id: request.id}) }}" class="btn btn-accent w-full">
                         <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
-                        Generar reclamacion
+                        Generar reclamación
                     </a>
+                    {% if request.applicableLaw.complaintOrganism %}
+                        <p class="text-xs text-slate-500 text-center mt-1">
+                            Ante {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
+                        </p>
+                    {% endif %}
                 {% endif %}
 
                 <a href="#" class="btn btn-secondary w-full">

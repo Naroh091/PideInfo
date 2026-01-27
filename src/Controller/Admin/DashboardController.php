@@ -5,6 +5,7 @@ namespace App\Controller\Admin;
 use App\Entity\AccessRequest;
 use App\Entity\ApplicableLaw;
 use App\Entity\AutonomousCommunity;
+use App\Entity\ComplaintOrganism;
 use App\Entity\Document;
 use App\Entity\Organization;
 use App\Entity\PublicBody;
@@ -52,6 +53,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::section('Configuración');
         yield MenuItem::linkToCrud('Comunidades Autónomas', 'fa fa-map', AutonomousCommunity::class);
         yield MenuItem::linkToCrud('Leyes aplicables', 'fa fa-gavel', ApplicableLaw::class);
+        yield MenuItem::linkToCrud('Órganos de reclamación', 'fa fa-balance-scale', ComplaintOrganism::class);
         yield MenuItem::linkToCrud('Organismos públicos', 'fa fa-landmark', PublicBody::class);
 
         yield MenuItem::section('RAG');

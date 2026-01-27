@@ -85,6 +85,7 @@ Extrae la siguiente información en formato JSON:
     "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
+    "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
     "documentDate": "fecha del documento o registro en formato YYYY-MM-DD",
     "applicableLaw": "SOLO la ley de transparencia principal (Ley 19/2013 o la autonómica equivalente)",
     "summary": "resumen breve del contenido (máximo 200 caracteres)",
@@ -142,6 +143,35 @@ REGLAS PARA applicableLaw:
 - Para Asturias: "Ley 8/2018 del Principado de Asturias"
 - NO incluyas otras leyes mencionadas (contratos, procedimiento, etc.)
 
+CÓDIGOS DE COMUNIDADES AUTÓNOMAS (autonomousCommunityCode):
+- AND = Andalucía (Junta de Andalucía)
+- ARA = Aragón (Gobierno de Aragón)
+- AST = Principado de Asturias
+- BAL = Illes Balears (Govern de les Illes Balears)
+- CAN = Canarias (Gobierno de Canarias)
+- CNT = Cantabria (Gobierno de Cantabria)
+- CYL = Castilla y León (Junta de Castilla y León)
+- CLM = Castilla-La Mancha (Junta de Comunidades de Castilla-La Mancha)
+- CAT = Cataluña (Generalitat de Catalunya)
+- CEU = Ceuta (Ciudad Autónoma de Ceuta)
+- VAL = Comunitat Valenciana (Generalitat Valenciana)
+- EXT = Extremadura (Junta de Extremadura)
+- GAL = Galicia (Xunta de Galicia)
+- MAD = Comunidad de Madrid
+- MEL = Melilla (Ciudad Autónoma de Melilla)
+- MUR = Región de Murcia
+- NAV = Navarra (Gobierno de Navarra, Comunidad Foral)
+- PVA = País Vasco (Gobierno Vasco, Eusko Jaurlaritza)
+- RIO = La Rioja (Gobierno de La Rioja)
+- null = Administración General del Estado (ministerios, organismos estatales)
+
+REGLAS PARA autonomousCommunityCode:
+- Identifica a qué comunidad autónoma pertenece la administración destinataria
+- Para ministerios, organismos estatales (Adif, AENA, RTVE, etc.) → null
+- Para ayuntamientos/diputaciones, usa el código de su CCAA
+- Para universidades públicas, usa el código de la CCAA donde están ubicadas
+- Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
+
 IMPORTANTE:
 - Responde SOLO con el JSON, sin texto adicional
 - Si no puedes determinar un campo, usa null
@@ -160,6 +190,7 @@ Extrae la siguiente información en formato JSON:
     "documentType": "tipo de documento (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
+    "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
     "documentDate": "fecha del documento en formato YYYY-MM-DD",
     "applicableLaw": "SOLO la ley de transparencia principal (Ley 19/2013 o la autonómica equivalente)",
     "summary": "resumen breve del contenido (máximo 200 caracteres)",
@@ -218,6 +249,35 @@ REGLAS PARA applicableLaw:
 - Para solicitudes estatales: "Ley 19/2013"
 - Para Asturias: "Ley 8/2018 del Principado de Asturias"
 - NO incluyas otras leyes mencionadas (contratos, procedimiento, etc.)
+
+CÓDIGOS DE COMUNIDADES AUTÓNOMAS (autonomousCommunityCode):
+- AND = Andalucía (Junta de Andalucía)
+- ARA = Aragón (Gobierno de Aragón)
+- AST = Principado de Asturias
+- BAL = Illes Balears (Govern de les Illes Balears)
+- CAN = Canarias (Gobierno de Canarias)
+- CNT = Cantabria (Gobierno de Cantabria)
+- CYL = Castilla y León (Junta de Castilla y León)
+- CLM = Castilla-La Mancha (Junta de Comunidades de Castilla-La Mancha)
+- CAT = Cataluña (Generalitat de Catalunya)
+- CEU = Ceuta (Ciudad Autónoma de Ceuta)
+- VAL = Comunitat Valenciana (Generalitat Valenciana)
+- EXT = Extremadura (Junta de Extremadura)
+- GAL = Galicia (Xunta de Galicia)
+- MAD = Comunidad de Madrid
+- MEL = Melilla (Ciudad Autónoma de Melilla)
+- MUR = Región de Murcia
+- NAV = Navarra (Gobierno de Navarra, Comunidad Foral)
+- PVA = País Vasco (Gobierno Vasco, Eusko Jaurlaritza)
+- RIO = La Rioja (Gobierno de La Rioja)
+- null = Administración General del Estado (ministerios, organismos estatales)
+
+REGLAS PARA autonomousCommunityCode:
+- Identifica a qué comunidad autónoma pertenece la administración destinataria
+- Para ministerios, organismos estatales (Adif, AENA, RTVE, etc.) → null
+- Para ayuntamientos/diputaciones, usa el código de su CCAA
+- Para universidades públicas, usa el código de la CCAA donde están ubicadas
+- Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
 IMPORTANTE:
 - Responde SOLO con el JSON, sin texto adicional

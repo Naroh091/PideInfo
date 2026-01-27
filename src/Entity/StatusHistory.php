@@ -91,6 +91,46 @@ class StatusHistory
         return $this->fromStatus;
     }
 
+    public function getFromStatusLabel(): string
+    {
+        return $this->translateStatus($this->statusType, $this->fromStatus);
+    }
+
+    public function getToStatusLabel(): string
+    {
+        return $this->translateStatus($this->statusType, $this->toStatus);
+    }
+
+    private function translateStatus(string $statusType, string $status): string
+    {
+        return match ($statusType) {
+            self::TYPE_STATUS => match ($status) {
+                'sent' => 'Enviada',
+                'processing' => 'En trámite',
+                'granted' => 'Concedida',
+                'denied' => 'Denegada',
+                'delayed' => 'Silencio',
+                'pending' => 'Pendiente',
+                default => $status,
+            },
+            self::TYPE_COMPLAINT => match ($status) {
+                'none' => 'Sin reclamación',
+                'reclaimed' => 'Reclamada',
+                'reclaim_granted' => 'Estimada',
+                'reclaim_denied' => 'Desestimada',
+                default => $status,
+            },
+            self::TYPE_COURT => match ($status) {
+                'none' => 'Sin recurso',
+                'in_court' => 'En tribunal',
+                'court_granted' => 'Favorable',
+                'court_denied' => 'Desfavorable',
+                default => $status,
+            },
+            default => $status,
+        };
+    }
+
     public function setFromStatus(string $fromStatus): static
     {
         $this->fromStatus = $fromStatus;

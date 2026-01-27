@@ -2052,6 +2052,20 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         },
  *     },
  * }
+ * @psalm-type DatatablesConfig = array{
+ *     language_from_cdn?: bool|Param, // Load i18n data from DataTables CDN or locally // Default: true
+ *     persist_state?: "none"|"query"|"fragment"|"local"|"session"|Param, // Where to persist the current table state automatically // Default: "fragment"
+ *     method?: "GET"|"POST"|Param, // Default HTTP method to be used for callbacks // Default: "POST"
+ *     options?: array<string, mixed>,
+ *     renderer?: scalar|null|Param, // Default service used to render templates, built-in TwigRenderer uses global Twig environment // Default: "Omines\\DataTablesBundle\\Twig\\TwigRenderer"
+ *     template?: scalar|null|Param, // Default template to be used for DataTables HTML // Default: "@DataTables/datatable_html.html.twig"
+ *     template_parameters?: array{ // Default parameters to be passed to the template
+ *         className?: scalar|null|Param, // Default class attribute to apply to the root table elements // Default: "table table-bordered"
+ *         columnFilter?: "thead"|"tfoot"|"both"|null|Param, // If and where to enable the DataTables Filter module // Default: null
+ *         ...<mixed>
+ *     },
+ *     translation_domain?: scalar|null|Param, // Default translation domain to be used // Default: "messages"
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
@@ -2072,6 +2086,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     ai?: AiConfig,
  *     symfonycasts_tailwind?: SymfonycastsTailwindConfig,
  *     mercure?: MercureConfig,
+ *     datatables?: DatatablesConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
@@ -2095,6 +2110,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai?: AiConfig,
  *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
  *         mercure?: MercureConfig,
+ *         datatables?: DatatablesConfig,
  *     },
  *     "when@prod"?: array{
  *         imports?: ImportsConfig,
@@ -2117,6 +2133,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
  *         mercure?: MercureConfig,
  *         sentry?: SentryConfig,
+ *         datatables?: DatatablesConfig,
  *     },
  *     "when@test"?: array{
  *         imports?: ImportsConfig,
@@ -2139,6 +2156,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ai?: AiConfig,
  *         symfonycasts_tailwind?: SymfonycastsTailwindConfig,
  *         mercure?: MercureConfig,
+ *         datatables?: DatatablesConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

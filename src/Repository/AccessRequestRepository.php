@@ -111,12 +111,35 @@ class AccessRequestRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilderForUser($user)
             ->andWhere('ar.deadlineAt <= :deadline')
             ->andWhere('ar.status IN (:activeStatuses)')
+            ->andWhere('ar.complaintStatus = :complaintNone')
             ->setParameter('deadline', $deadline)
             ->setParameter('activeStatuses', [
                 AccessRequest::STATUS_SENT,
                 AccessRequest::STATUS_PROCESSING,
             ])
+            ->setParameter('complaintNone', AccessRequest::COMPLAINT_NONE)
             ->orderBy('ar.deadlineAt', 'ASC');
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
+     * Find requests with pending complaints where the complaint deadline is approaching.
+     *
+     * @return AccessRequest[]
+     */
+    public function findWithApproachingComplaintDeadlines(User $user, int $daysAhead = 7): array
+    {
+        $today = new \DateTimeImmutable('today');
+        $deadline = $today->modify("+{$daysAhead} days");
+
+        $qb = $this->createQueryBuilderForUser($user)
+            ->andWhere('ar.complaintStatus = :complaintReclaimed')
+            ->andWhere('ar.complaintDeadlineAt IS NOT NULL')
+            ->andWhere('ar.complaintDeadlineAt <= :deadline')
+            ->setParameter('complaintReclaimed', AccessRequest::COMPLAINT_RECLAIMED)
+            ->setParameter('deadline', $deadline)
+            ->orderBy('ar.complaintDeadlineAt', 'ASC');
 
         return $qb->getQuery()->getResult();
     }
@@ -225,6 +248,16 @@ class AccessRequestRepository extends ServiceEntityRepository
         }
 
         return $counts;
+    }
+
+    public function countAppealed(User $user): int
+    {
+        return (int) $this->createQueryBuilderForUser($user)
+            ->select('COUNT(ar.id)')
+            ->andWhere('ar.complaintStatus != :none')
+            ->setParameter('none', AccessRequest::COMPLAINT_NONE)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 
     private function createQueryBuilderForUser(User $user): QueryBuilder
