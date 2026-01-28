@@ -290,26 +290,46 @@
     </a>
 </div>
 
-{# Status Filter #}
+{# Filters #}
 <div class="card mb-6">
     <div class="card-body py-4">
-        <form method="get" class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <label class="text-sm font-medium text-slate-600">Filtrar por estado:</label>
-            <div class="w-full sm:w-64">
-                <select name="status" class="input" onchange="this.form.submit()">
-                    <option value="">Todos los estados</option>
-                    <option value="sent" {{ status == 'sent' ? 'selected' }}>Enviadas</option>
-                    <option value="processing" {{ status == 'processing' ? 'selected' }}>En trámite</option>
-                    <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas</option>
-                    <option value="denied" {{ status == 'denied' ? 'selected' }}>Denegadas</option>
-                    <option value="delayed" {{ status == 'delayed' ? 'selected' }}>Silencio administrativo</option>
-                    <option value="pending" {{ status == 'pending' ? 'selected' }}>Pendientes</option>
-                </select>
+        <form id="filter-form" method="get" class="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+            {# Free text search #}
+            <div class="flex-1 w-full lg:max-w-md">
+                <div class="relative">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="search-input" name="q" value="{{ search }}"
+                           placeholder="Buscar por título, organismo, expediente..."
+                           class="input input-icon-left w-full"
+                           autocomplete="off">
+                    <div id="search-loading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
+                        <i data-lucide="loader-2" class="w-4 h-4 text-slate-400 animate-spin"></i>
+                    </div>
+                </div>
             </div>
-            {% if status %}
+
+            {# Status filter #}
+            <div class="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <label class="text-sm font-medium text-slate-600 whitespace-nowrap">Estado:</label>
+                <div class="w-full sm:w-52">
+                    <select name="status" class="input" onchange="this.form.submit()">
+                        <option value="">Todos</option>
+                        <option value="sent" {{ status == 'sent' ? 'selected' }}>Enviadas</option>
+                        <option value="processing" {{ status == 'processing' ? 'selected' }}>En trámite</option>
+                        <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas</option>
+                        <option value="denied" {{ status == 'denied' ? 'selected' }}>Denegadas</option>
+                        <option value="delayed" {{ status == 'delayed' ? 'selected' }}>Silencio administrativo</option>
+                        <option value="pending" {{ status == 'pending' ? 'selected' }}>Pendientes</option>
+                        <option value="reclaimed" {{ status == 'reclaimed' ? 'selected' }}>Reclamadas</option>
+                    </select>
+                </div>
+            </div>
+
+            {# Clear filters #}
+            {% if status or search %}
                 <a href="{{ path('app_solicitudes_index') }}" class="btn btn-ghost btn-sm">
                     <i data-lucide="x" class="w-4 h-4 mr-1"></i>
-                    Limpiar filtro
+                    Limpiar
                 </a>
             {% endif %}
         </form>
@@ -368,6 +388,31 @@
                     }
                 }
             });
+
+            // Debounced search
+            var searchTimeout = null;
+            var searchInput = document.getElementById('search-input');
+            var searchLoading = document.getElementById('search-loading');
+            var filterForm = document.getElementById('filter-form');
+
+            if (searchInput) {
+                searchInput.addEventListener('input', function() {
+                    clearTimeout(searchTimeout);
+                    searchLoading.classList.remove('hidden');
+
+                    searchTimeout = setTimeout(function() {
+                        filterForm.submit();
+                    }, 400);
+                });
+
+                // Hide loading on page load
+                searchLoading.classList.add('hidden');
+
+                // Reinitialize lucide icons for the loading spinner
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
         });
     </script>
 {% endblock %}

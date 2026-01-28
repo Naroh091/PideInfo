@@ -7,6 +7,8 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    mail_from_address: '%env(MAIL_FROM_ADDRESS)%'
+    mail_from_name: '%env(MAIL_FROM_NAME)%'
 
 services:
     # default configuration for services in *this* file
@@ -35,3 +37,16 @@ services:
     # Flysystem storage aliases for autowiring
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
     League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
+
+when@prod:
+    services:
+        Redis:
+            class: \Predis\Client
+            arguments:
+                - '%env(REDIS_URL)%'
+
+        Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler:
+            arguments:
+                - '@Redis'
+                - prefix: 'pideinfo_sess_'
+                  ttl: 86400

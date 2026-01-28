@@ -1,0 +1,47 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Recordatorio: {{ accessRequest.title }} - PideInfo{% endblock %}
+
+{% block body %}
+    <p class="greeting">Hola {{ user.firstName }},</p>
+
+    {% if isDayBefore|default(false) %}
+    <p class="message">
+        Tienes un recordatorio programado para <strong>mañana</strong>. Te enviamos este aviso con antelación para que puedas prepararte.
+    </p>
+    {% else %}
+    <p class="message">
+        Tienes un recordatorio programado para <strong>hoy</strong>. Es momento de realizar la acción que habías planificado.
+    </p>
+    {% endif %}
+
+    <div class="info-box info-box-highlight">
+        <p class="info-label">Solicitud</p>
+        <p class="info-value">{{ accessRequest.title }}</p>
+    </div>
+
+    <div class="info-box">
+        <p class="info-label">Organismo</p>
+        <p class="info-value">{{ accessRequest.publicBody.name }}</p>
+    </div>
+
+    <div class="info-box{% if not isDayBefore|default(false) %} info-box-warning{% endif %}">
+        <p class="info-label">Fecha del recordatorio</p>
+        <p class="info-value">{{ deadline.deadlineAt|date('d/m/Y') }}{% if deadline.notifyTime %} a las {{ deadline.notifyTime|date('H:i') }}{% endif %}</p>
+    </div>
+
+    <div class="info-box">
+        <p class="info-label">Descripción</p>
+        <p class="info-value">{{ deadline.description }}</p>
+    </div>
+
+    <div class="button-container">
+        <a href="{{ url('app_solicitudes_show', {id: accessRequest.id}) }}" class="button">Ver solicitud</a>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="text-small text-muted text-center mb-0">
+        Este recordatorio fue creado por ti en PideInfo. Puedes editarlo o eliminarlo desde la página de la solicitud.
+    </p>
+{% endblock %}

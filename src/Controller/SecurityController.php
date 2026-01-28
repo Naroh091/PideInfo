@@ -18,12 +18,15 @@ use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Component\Mime\Email;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\Mime\Address;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 class SecurityController extends AbstractController
 {
     public function __construct(
         private VerifyEmailHelperInterface $verifyEmailHelper,
         private EntityManagerInterface $entityManager,
+        #[Autowire('%mail_from_address%')] private string $mailFromAddress,
+        #[Autowire('%mail_from_name%')] private string $mailFromName,
     ) {
     }
 
@@ -82,7 +85,7 @@ class SecurityController extends AbstractController
             );
 
             $email = (new TemplatedEmail())
-                ->from(new Address('noreply@pideinfo.es', 'PideInfo'))
+                ->from(new Address($this->mailFromAddress, $this->mailFromName))
                 ->to($user->getEmail())
                 ->subject('Confirma tu cuenta en PideInfo')
                 ->htmlTemplate('email/verification.html.twig')

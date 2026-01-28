@@ -1,36 +1,25 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { text-align: center; margin-bottom: 30px; }
-        .button { display: inline-block; padding: 12px 24px; background-color: #0d6efd; color: white; text-decoration: none; border-radius: 5px; }
-        .footer { margin-top: 30px; text-align: center; color: #666; font-size: 14px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1 style="color: #0d6efd;">PideInfo</h1>
-        </div>
+{% extends 'email/base.html.twig' %}
 
-        <p>Hola {{ user.firstName }},</p>
+{% block title %}Confirma tu correo electrónico - PideInfo{% endblock %}
 
-        <p>Gracias por registrarte en PideInfo. Para completar tu registro, por favor confirma tu correo electrónico haciendo clic en el siguiente enlace:</p>
+{% block body %}
+    <p class="greeting">Hola {{ user.firstName }},</p>
 
-        <p style="text-align: center; margin: 30px 0;">
-            <a href="{{ signedUrl }}" class="button">Confirmar correo electrónico</a>
-        </p>
+    <p class="message">
+        Gracias por registrarte en PideInfo. Para completar tu registro y empezar a gestionar tus solicitudes de acceso a información pública, confirma tu correo electrónico.
+    </p>
 
-        <p>Este enlace expirará {{ expiresAtMessageKey|trans(expiresAtMessageData) }}.</p>
-
-        <p>Si no has creado una cuenta en PideInfo, puedes ignorar este correo.</p>
-
-        <div class="footer">
-            <p>PideInfo - Sistema de seguimiento de solicitudes de acceso a información pública</p>
-        </div>
+    <div class="button-container">
+        <a href="{{ signedUrl }}" class="button">Confirmar correo electrónico</a>
     </div>
-</body>
-</html>
+
+    <div class="divider"></div>
+
+    <p class="text-small text-muted text-center mb-16">
+        Este enlace expirará {{ expiresAtMessageKey|trans(expiresAtMessageData) }}.
+    </p>
+
+    <p class="text-small text-muted text-center mb-0">
+        Si no has creado una cuenta en PideInfo, puedes ignorar este correo de forma segura.
+    </p>
+{% endblock %}

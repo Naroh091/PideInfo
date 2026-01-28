@@ -6,12 +6,22 @@
     'delayed': 'status-delayed',
     'pending': 'status-pending'
 } %}
-<span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
-    {{ row.statusLabel }}
-</span>
-{% if row.isDeadlineSuspended %}
-    <span class="badge badge-warning mt-1">Plazo suspendido</span>
-{% endif %}
-{% if row.complaintStatus != 'none' %}
-    <span class="badge badge-info mt-1">{{ row.complaintStatusLabel }}</span>
-{% endif %}
+{% set complaintClass = {
+    'reclaimed': 'badge-warning',
+    'reclaim_granted': 'badge-success',
+    'reclaim_denied': 'badge-danger'
+} %}
+<div class="inline-flex flex-col items-start gap-1">
+    {# Show main status, but skip "delayed" if there's an active complaint #}
+    {% if not (row.status == 'delayed' and row.complaintStatus != 'none') %}
+        <span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
+            {{ row.statusLabel }}
+        </span>
+    {% endif %}
+    {% if row.isDeadlineSuspended %}
+        <span class="badge badge-warning">Plazo suspendido</span>
+    {% endif %}
+    {% if row.complaintStatus != 'none' %}
+        <span class="badge {{ complaintClass[row.complaintStatus]|default('badge-info') }}">{{ row.complaintStatusLabel }}</span>
+    {% endif %}
+</div>
