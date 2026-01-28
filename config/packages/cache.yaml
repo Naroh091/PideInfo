@@ -1,4 +1,5 @@
 framework:
     cache:
         app: cache.adapter.redis
+        system: cache.adapter.redis
         default_redis_provider: '%env(REDIS_URL)%'
