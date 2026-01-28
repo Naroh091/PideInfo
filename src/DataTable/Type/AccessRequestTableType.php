@@ -6,7 +6,6 @@ use App\Entity\AccessRequest;
 use App\Entity\User;
 use Doctrine\ORM\QueryBuilder;
 use Omines\DataTablesBundle\Adapter\Doctrine\ORMAdapter;
-use Omines\DataTablesBundle\Column\TextColumn;
 use Omines\DataTablesBundle\Column\TwigColumn;
 use Omines\DataTablesBundle\DataTable;
 use Omines\DataTablesBundle\DataTableTypeInterface;
@@ -22,18 +21,19 @@ class AccessRequestTableType implements DataTableTypeInterface
     public function configure(DataTable $dataTable, array $options): void
     {
         $status = $options['status'] ?? null;
+        $search = $options['search'] ?? null;
 
         $dataTable
             ->add('title', TwigColumn::class, [
                 'label' => 'Solicitud',
                 'template' => 'datatable/columns/request_title.html.twig',
                 'orderable' => true,
+                'className' => 'w-1/3 min-w-[200px]',
             ])
-            ->add('publicBody', TextColumn::class, [
+            ->add('publicBody', TwigColumn::class, [
                 'label' => 'Organismo',
-                'field' => 'publicBody.name',
+                'template' => 'datatable/columns/request_public_body.html.twig',
                 'orderable' => true,
-                'className' => 'hidden md:table-cell',
             ])
             ->add('status', TwigColumn::class, [
                 'label' => 'Estado',
@@ -55,7 +55,7 @@ class AccessRequestTableType implements DataTableTypeInterface
             ])
             ->createAdapter(ORMAdapter::class, [
                 'entity' => AccessRequest::class,
-                'query' => function (QueryBuilder $builder) use ($status): void {
+                'query' => function (QueryBuilder $builder) use ($status, $search): void {
                     /** @var User $user */
                     $user = $this->security->getUser();
 
@@ -84,9 +84,23 @@ class AccessRequestTableType implements DataTableTypeInterface
 
                     // Filter by status if provided
                     if ($status !== null && $status !== '') {
+                        if ($status === 'reclaimed') {
+                            // Special case: filter by complaint status
+                            $builder
+                                ->andWhere('ar.complaintStatus = :complaintStatus')
+                                ->setParameter('complaintStatus', AccessRequest::COMPLAINT_RECLAIMED);
+                        } else {
+                            $builder
+                                ->andWhere('ar.status = :status')
+                                ->setParameter('status', $status);
+                        }
+                    }
+
+                    // Free text search
+                    if ($search !== null && $search !== '') {
                         $builder
-                            ->andWhere('ar.status = :status')
-                            ->setParameter('status', $status);
+                            ->andWhere('ar.title LIKE :search OR ar.description LIKE :search OR ar.externalId LIKE :search OR pb.name LIKE :search')
+                            ->setParameter('search', '%' . $search . '%');
                     }
 
                     // Default sort by createdAt DESC

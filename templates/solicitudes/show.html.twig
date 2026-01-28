@@ -381,6 +381,83 @@
             </div>
         </div>
 
+        {# Custom Deadlines Card #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h2 class="font-semibold text-slate-800">Recordatorios</h2>
+                    <a href="{{ path('app_solicitudes_deadline_new', {id: request.id}) }}" class="btn btn-primary btn-sm">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                        Nuevo
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                {% if request.customDeadlines|length > 0 %}
+                    <div class="space-y-3">
+                        {% for deadline in request.customDeadlines %}
+                            <div class="p-3 rounded-lg bg-slate-50 {{ deadline.isPassed ? 'border-l-4 border-red-400' : '' }}">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="font-medium text-slate-800 text-sm">{{ deadline.deadlineAt|date('d/m/Y') }}</span>
+                                            {% if deadline.notifyTime %}
+                                                <span class="text-xs text-slate-500">{{ deadline.notifyTime|date('H:i') }}</span>
+                                            {% endif %}
+                                            {% if deadline.isPassed %}
+                                                <span class="badge badge-danger text-xs">Vencido</span>
+                                            {% elseif deadline.daysUntil <= 3 %}
+                                                <span class="badge badge-warning text-xs">{{ deadline.daysUntil }} días</span>
+                                            {% else %}
+                                                <span class="badge badge-info text-xs">{{ deadline.daysUntil }} días</span>
+                                            {% endif %}
+                                        </div>
+                                        <p class="text-sm text-slate-600 line-clamp-2">{{ deadline.description }}</p>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            {% if deadline.notifiedDayBeforeAt %}
+                                                <span class="text-xs text-green-600" title="Notificado día anterior: {{ deadline.notifiedDayBeforeAt|date('d/m/Y H:i') }}">
+                                                    <i data-lucide="mail-check" class="w-3 h-3 inline"></i> día anterior
+                                                </span>
+                                            {% endif %}
+                                            {% if deadline.notifiedAt %}
+                                                <span class="text-xs text-green-600" title="Notificado mismo día: {{ deadline.notifiedAt|date('d/m/Y H:i') }}">
+                                                    <i data-lucide="mail-check" class="w-3 h-3 inline"></i> mismo día
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1">
+                                        <a href="{{ path('app_solicitudes_deadline_edit', {id: request.id, deadlineId: deadline.id}) }}"
+                                           class="btn btn-ghost btn-sm p-1"
+                                           title="Editar">
+                                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                                        </a>
+                                        <form action="{{ path('app_solicitudes_deadline_delete', {id: request.id, deadlineId: deadline.id}) }}"
+                                              method="post"
+                                              class="inline"
+                                              onsubmit="return confirm('¿Eliminar este recordatorio?');">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('delete-deadline-' ~ deadline.id) }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm p-1 text-red-600 hover:text-red-700" title="Eliminar">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="bell-off" class="w-6 h-6 text-slate-400"></i>
+                        </div>
+                        <p class="text-sm text-slate-500">Sin recordatorios programados</p>
+                        <p class="text-xs text-slate-400 mt-1">Crea recordatorios para seguimientos informales</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
         {# Actions Card #}
         <div class="card">
             <div class="card-header">

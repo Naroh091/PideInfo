@@ -155,6 +155,11 @@ class AccessRequest
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
     private Collection $deadlineHistory;
 
+    /** @var Collection<int, CustomDeadline> */
+    #[ORM\OneToMany(targetEntity: CustomDeadline::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
+    #[ORM\OrderBy(['deadlineAt' => 'ASC'])]
+    private Collection $customDeadlines;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -163,6 +168,7 @@ class AccessRequest
         $this->documents = new ArrayCollection();
         $this->statusHistory = new ArrayCollection();
         $this->deadlineHistory = new ArrayCollection();
+        $this->customDeadlines = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -611,6 +617,31 @@ class AccessRequest
         if (!$this->deadlineHistory->contains($deadlineHistory)) {
             $this->deadlineHistory->add($deadlineHistory);
             $deadlineHistory->setAccessRequest($this);
+        }
+        return $this;
+    }
+
+    /** @return Collection<int, CustomDeadline> */
+    public function getCustomDeadlines(): Collection
+    {
+        return $this->customDeadlines;
+    }
+
+    public function addCustomDeadline(CustomDeadline $customDeadline): static
+    {
+        if (!$this->customDeadlines->contains($customDeadline)) {
+            $this->customDeadlines->add($customDeadline);
+            $customDeadline->setAccessRequest($this);
+        }
+        return $this;
+    }
+
+    public function removeCustomDeadline(CustomDeadline $customDeadline): static
+    {
+        if ($this->customDeadlines->removeElement($customDeadline)) {
+            if ($customDeadline->getAccessRequest() === $this) {
+                // No need to set null since it's required
+            }
         }
         return $this;
     }

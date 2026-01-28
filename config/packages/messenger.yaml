@@ -26,3 +26,4 @@ framework:
             Symfony\Component\Notifier\Message\SmsMessage: async
             App\Message\ProcessDocumentMessage: async
             App\Message\ProcessDocumentBatchMessage: async
+            App\Message\CheckCustomDeadlinesMessage: async

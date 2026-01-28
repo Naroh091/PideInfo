@@ -3,10 +3,20 @@ framework:
     secret: '%env(APP_SECRET)%'
 
     # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    session:
+        handler_id: null
+        cookie_secure: auto
+        cookie_samesite: lax
+        save_path: '%kernel.project_dir%/var/sessions/%kernel.environment%'
 
     #esi: true
     #fragments: true
+
+when@prod:
+    framework:
+        session:
+            handler_id: Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler
+            cookie_secure: true
 
 when@test:
     framework:

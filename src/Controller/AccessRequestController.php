@@ -4,8 +4,11 @@ namespace App\Controller;
 
 use App\DataTable\Type\AccessRequestTableType;
 use App\Entity\AccessRequest;
+use App\Entity\CustomDeadline;
 use App\Form\AccessRequestType;
+use App\Form\CustomDeadlineType;
 use App\Repository\AccessRequestRepository;
+use App\Repository\CustomDeadlineRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
@@ -30,10 +33,11 @@ class AccessRequestController extends AbstractController
     public function index(Request $request): Response
     {
         $status = $request->query->get('status');
+        $search = $request->query->get('q');
 
         $table = $this->dataTableFactory->createFromType(
             AccessRequestTableType::class,
-            ['status' => $status]
+            ['status' => $status, 'search' => $search]
         )->handleRequest($request);
 
         if ($table->isCallback()) {
@@ -43,6 +47,7 @@ class AccessRequestController extends AbstractController
         return $this->render('solicitudes/index.html.twig', [
             'datatable' => $table,
             'status' => $status,
+            'search' => $search,
         ]);
     }
 
@@ -107,5 +112,85 @@ class AccessRequestController extends AbstractController
             'request' => $accessRequest,
             'form' => $form,
         ]);
+    }
+
+    #[Route('/{id}/recordatorios/nuevo', name: 'app_solicitudes_deadline_new', methods: ['GET', 'POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function newDeadline(Request $request, AccessRequest $accessRequest): Response
+    {
+        $deadline = new CustomDeadline();
+        $form = $this->createForm(CustomDeadlineType::class, $deadline);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $accessRequest->addCustomDeadline($deadline);
+            $this->entityManager->flush();
+
+            $this->addFlash('success', 'Recordatorio creado correctamente.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        return $this->render('solicitudes/deadline_form.html.twig', [
+            'request' => $accessRequest,
+            'form' => $form,
+            'isEdit' => false,
+        ]);
+    }
+
+    #[Route('/{id}/recordatorios/{deadlineId}/editar', name: 'app_solicitudes_deadline_edit', methods: ['GET', 'POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function editDeadline(
+        Request $request,
+        AccessRequest $accessRequest,
+        string $deadlineId,
+        CustomDeadlineRepository $deadlineRepository
+    ): Response {
+        $deadline = $deadlineRepository->find($deadlineId);
+
+        if (!$deadline || $deadline->getAccessRequest()->getId() !== $accessRequest->getId()) {
+            throw $this->createNotFoundException('Recordatorio no encontrado.');
+        }
+
+        $form = $this->createForm(CustomDeadlineType::class, $deadline);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            $this->entityManager->flush();
+
+            $this->addFlash('success', 'Recordatorio actualizado correctamente.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        return $this->render('solicitudes/deadline_form.html.twig', [
+            'request' => $accessRequest,
+            'form' => $form,
+            'deadline' => $deadline,
+            'isEdit' => true,
+        ]);
+    }
+
+    #[Route('/{id}/recordatorios/{deadlineId}/eliminar', name: 'app_solicitudes_deadline_delete', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function deleteDeadline(
+        Request $request,
+        AccessRequest $accessRequest,
+        string $deadlineId,
+        CustomDeadlineRepository $deadlineRepository
+    ): Response {
+        $deadline = $deadlineRepository->find($deadlineId);
+
+        if (!$deadline || $deadline->getAccessRequest()->getId() !== $accessRequest->getId()) {
+            throw $this->createNotFoundException('Recordatorio no encontrado.');
+        }
+
+        if ($this->isCsrfTokenValid('delete-deadline-' . $deadlineId, $request->request->get('_token'))) {
+            $accessRequest->removeCustomDeadline($deadline);
+            $this->entityManager->remove($deadline);
+            $this->entityManager->flush();
+
+            $this->addFlash('success', 'Recordatorio eliminado correctamente.');
+        }
+
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
     }
 }

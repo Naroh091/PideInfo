@@ -4,8 +4,143 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aa9613baa120a22fb6e692ad033b86f2",
+    "content-hash": "114d16a31e11138f07b022e57a44c473",
     "packages": [
+        {
+            "name": "async-aws/core",
+            "version": "1.28.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/async-aws/core.git",
+                "reference": "0d5f4d650b74a8366bca1fb400b6cfb694c3b217"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/async-aws/core/zipball/0d5f4d650b74a8366bca1fb400b6cfb694c3b217",
+                "reference": "0d5f4d650b74a8366bca1fb400b6cfb694c3b217",
+                "shasum": ""
+            },
+            "require": {
+                "ext-hash": "*",
+                "ext-json": "*",
+                "ext-simplexml": "*",
+                "php": "^8.2",
+                "psr/cache": "^1.0 || ^2.0 || ^3.0",
+                "psr/log": "^1.0 || ^2.0 || ^3.0",
+                "symfony/deprecation-contracts": "^2.1 || ^3.0",
+                "symfony/http-client": "^4.4.16 || ^5.1.7 || ^6.0 || ^7.0 || ^8.0",
+                "symfony/http-client-contracts": "^1.1.8 || ^2.0 || ^3.0",
+                "symfony/service-contracts": "^1.0 || ^2.0 || ^3.0"
+            },
+            "conflict": {
+                "async-aws/s3": "<1.1",
+                "symfony/http-client": "5.2.0"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.5.42",
+                "symfony/error-handler": "^7.3.2 || ^8.0",
+                "symfony/phpunit-bridge": "^7.3.2 || ^8.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.28-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AsyncAws\\Core\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "Core package to integrate with AWS. This is a lightweight AWS SDK provider by AsyncAws.",
+            "keywords": [
+                "amazon",
+                "async-aws",
+                "aws",
+                "sdk",
+                "sts"
+            ],
+            "support": {
+                "source": "https://github.com/async-aws/core/tree/1.28.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/jderusse",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nyholm",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-01-16T22:28:05+00:00"
+        },
+        {
+            "name": "async-aws/ses",
+            "version": "1.14.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/async-aws/ses.git",
+                "reference": "c5b1d6c0c8ba32ea4f961b40b9e411aeca783302"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/async-aws/ses/zipball/c5b1d6c0c8ba32ea4f961b40b9e411aeca783302",
+                "reference": "c5b1d6c0c8ba32ea4f961b40b9e411aeca783302",
+                "shasum": ""
+            },
+            "require": {
+                "async-aws/core": "^1.9",
+                "ext-json": "*",
+                "php": "^8.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.5.42",
+                "symfony/error-handler": "^7.3.2 || ^8.0",
+                "symfony/phpunit-bridge": "^7.3.2 || ^8.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "1.14-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AsyncAws\\Ses\\": "src"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "SES client, part of the AWS SDK provided by AsyncAws.",
+            "keywords": [
+                "amazon",
+                "async-aws",
+                "aws",
+                "sdk",
+                "ses"
+            ],
+            "support": {
+                "source": "https://github.com/async-aws/ses/tree/1.14.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/jderusse",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nyholm",
+                    "type": "github"
+                }
+            ],
+            "time": "2026-01-16T22:28:05+00:00"
+        },
         {
             "name": "aws/aws-crt-php",
             "version": "v1.2.7",
@@ -1576,6 +1711,70 @@
                 "source": "https://github.com/dompdf/php-svg-lib/tree/1.0.2"
             },
             "time": "2026-01-02T16:01:13+00:00"
+        },
+        {
+            "name": "dragonmantank/cron-expression",
+            "version": "v3.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/dragonmantank/cron-expression.git",
+                "reference": "d61a8a9604ec1f8c3d150d09db6ce98b32675013"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/dragonmantank/cron-expression/zipball/d61a8a9604ec1f8c3d150d09db6ce98b32675013",
+                "reference": "d61a8a9604ec1f8c3d150d09db6ce98b32675013",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^8.2|^8.3|^8.4|^8.5"
+            },
+            "replace": {
+                "mtdowling/cron-expression": "^1.0"
+            },
+            "require-dev": {
+                "phpstan/extension-installer": "^1.4.3",
+                "phpstan/phpstan": "^1.12.32|^2.1.31",
+                "phpunit/phpunit": "^8.5.48|^9.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-master": "3.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Cron\\": "src/Cron/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Chris Tankersley",
+                    "email": "chris@ctankersley.com",
+                    "homepage": "https://github.com/dragonmantank"
+                }
+            ],
+            "description": "CRON for PHP: Calculate the next or previous run date and determine if a CRON expression is due",
+            "keywords": [
+                "cron",
+                "schedule"
+            ],
+            "support": {
+                "issues": "https://github.com/dragonmantank/cron-expression/issues",
+                "source": "https://github.com/dragonmantank/cron-expression/tree/v3.6.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/dragonmantank",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-10-31T18:51:33+00:00"
         },
         {
             "name": "easycorp/easyadmin-bundle",
@@ -3890,6 +4089,69 @@
             "time": "2025-08-30T15:50:23+00:00"
         },
         {
+            "name": "predis/predis",
+            "version": "v3.3.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/predis/predis.git",
+                "reference": "153097374b39a2f737fe700ebcd725642526cdec"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/predis/predis/zipball/153097374b39a2f737fe700ebcd725642526cdec",
+                "reference": "153097374b39a2f737fe700ebcd725642526cdec",
+                "shasum": ""
+            },
+            "require": {
+                "php": "^7.2 || ^8.0",
+                "psr/http-message": "^1.0|^2.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.3",
+                "phpstan/phpstan": "^1.9",
+                "phpunit/phpcov": "^6.0 || ^8.0",
+                "phpunit/phpunit": "^8.0 || ~9.4.4"
+            },
+            "suggest": {
+                "ext-relay": "Faster connection with in-memory caching (>=0.6.2)"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Predis\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Till Krüss",
+                    "homepage": "https://till.im",
+                    "role": "Maintainer"
+                }
+            ],
+            "description": "A flexible and feature-complete Redis/Valkey client for PHP.",
+            "homepage": "http://github.com/predis/predis",
+            "keywords": [
+                "nosql",
+                "predis",
+                "redis"
+            ],
+            "support": {
+                "issues": "https://github.com/predis/predis/issues",
+                "source": "https://github.com/predis/predis/tree/v3.3.0"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sponsors/tillkruss",
+                    "type": "github"
+                }
+            ],
+            "time": "2025-11-24T17:48:50+00:00"
+        },
+        {
             "name": "psr/cache",
             "version": "3.0.0",
             "source": {
@@ -5195,6 +5457,76 @@
                 }
             ],
             "time": "2026-01-09T16:20:45+00:00"
+        },
+        {
+            "name": "symfony/amazon-mailer",
+            "version": "v7.4.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/amazon-mailer.git",
+                "reference": "122c80099df1f415c091ce356442796406b61c7b"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/amazon-mailer/zipball/122c80099df1f415c091ce356442796406b61c7b",
+                "reference": "122c80099df1f415c091ce356442796406b61c7b",
+                "shasum": ""
+            },
+            "require": {
+                "async-aws/ses": "^1.8",
+                "php": ">=8.2",
+                "symfony/mailer": "^7.2|^8.0"
+            },
+            "require-dev": {
+                "symfony/http-client": "^6.4|^7.0|^8.0"
+            },
+            "type": "symfony-mailer-bridge",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\Mailer\\Bridge\\Amazon\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Symfony Amazon Mailer Bridge",
+            "homepage": "https://symfony.com",
+            "support": {
+                "source": "https://github.com/symfony/amazon-mailer/tree/v7.4.0"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2025-08-04T07:05:15+00:00"
         },
         {
             "name": "symfony/asset",
@@ -7545,16 +7877,16 @@
         },
         {
             "name": "symfony/mailer",
-            "version": "v7.4.3",
+            "version": "v7.4.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/mailer.git",
-                "reference": "e472d35e230108231ccb7f51eb6b2100cac02ee4"
+                "reference": "7b750074c40c694ceb34cb926d6dffee231c5cd6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/mailer/zipball/e472d35e230108231ccb7f51eb6b2100cac02ee4",
-                "reference": "e472d35e230108231ccb7f51eb6b2100cac02ee4",
+                "url": "https://api.github.com/repos/symfony/mailer/zipball/7b750074c40c694ceb34cb926d6dffee231c5cd6",
+                "reference": "7b750074c40c694ceb34cb926d6dffee231c5cd6",
                 "shasum": ""
             },
             "require": {
@@ -7605,7 +7937,7 @@
             "description": "Helps sending emails",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/mailer/tree/v7.4.3"
+                "source": "https://github.com/symfony/mailer/tree/v7.4.4"
             },
             "funding": [
                 {
@@ -7625,7 +7957,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-12-16T08:02:06+00:00"
+            "time": "2026-01-08T08:25:11+00:00"
         },
         {
             "name": "symfony/mercure",
