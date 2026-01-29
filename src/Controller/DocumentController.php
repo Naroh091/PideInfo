@@ -59,11 +59,16 @@ class DocumentController extends AbstractController
             'image/gif',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/zip',
+            'application/x-zip-compressed',
         ];
 
         if (!in_array($file->getMimeType(), $allowedMimes)) {
             return new JsonResponse(['error' => 'Tipo de archivo no permitido'], Response::HTTP_BAD_REQUEST);
         }
+
+        // Detect if this is a ZIP file
+        $isZipFile = in_array($file->getMimeType(), ['application/zip', 'application/x-zip-compressed']);
 
         // Get optional access request ID
         $accessRequestId = $request->request->get('accessRequestId');
@@ -83,8 +88,15 @@ class DocumentController extends AbstractController
             $document->setOriginalFilename($file->getClientOriginalName());
             $document->setMimeType($file->getMimeType() ?? 'application/octet-stream');
             $document->setFileSize($file->getSize());
-            $document->setType(DocumentType::Unprocessed);
-            $document->setProcessed(false);
+
+            // ZIP files are stored as "Other" type and marked as processed (no AI analysis)
+            if ($isZipFile) {
+                $document->setType(DocumentType::Other);
+                $document->setProcessed(true);
+            } else {
+                $document->setType(DocumentType::Unprocessed);
+                $document->setProcessed(false);
+            }
 
             // Generate storage path
             $extension = $file->guessExtension() ?? 'bin';
@@ -107,9 +119,9 @@ class DocumentController extends AbstractController
             $this->entityManager->persist($document);
             $this->entityManager->flush();
 
-            // Only dispatch immediately if not deferred
+            // Only dispatch processing for non-ZIP files and when not deferred
             $deferProcessing = $request->request->get('deferProcessing') === '1';
-            if (!$deferProcessing) {
+            if (!$deferProcessing && !$isZipFile) {
                 $this->messageBus->dispatch(new ProcessDocumentMessage($document->getId()));
             }
 

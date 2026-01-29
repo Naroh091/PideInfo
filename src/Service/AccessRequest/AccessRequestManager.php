@@ -7,6 +7,7 @@ use App\Entity\ApplicableLaw;
 use App\Entity\DeadlineHistory;
 use App\Entity\Document;
 use App\Entity\PublicBody;
+use App\Entity\StatusHistory;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -311,5 +312,102 @@ class AccessRequestManager
         $request->addDeadlineHistory($deadlineHistory);
 
         $this->em->flush();
+    }
+
+    /**
+     * Change the status of an AccessRequest and record in StatusHistory.
+     *
+     * @param AccessRequest $request The access request to update
+     * @param string $statusType One of: status, complaintStatus, courtStatus
+     * @param string $newStatus The new status value
+     * @param string|null $notes Optional notes for the status change
+     * @return bool True if successful, false if invalid status type or value
+     */
+    public function changeStatus(
+        AccessRequest $request,
+        string $statusType,
+        string $newStatus,
+        ?string $notes = null
+    ): bool {
+        // Validate status type and get current value
+        $currentStatus = match ($statusType) {
+            StatusHistory::TYPE_STATUS => $request->getStatus(),
+            StatusHistory::TYPE_COMPLAINT => $request->getComplaintStatus(),
+            StatusHistory::TYPE_COURT => $request->getCourtStatus(),
+            default => null,
+        };
+
+        if ($currentStatus === null) {
+            return false;
+        }
+
+        // Validate the new status value
+        $validStatuses = match ($statusType) {
+            StatusHistory::TYPE_STATUS => [
+                AccessRequest::STATUS_SENT,
+                AccessRequest::STATUS_PROCESSING,
+                AccessRequest::STATUS_GRANTED,
+                AccessRequest::STATUS_DENIED,
+                AccessRequest::STATUS_DELAYED,
+                AccessRequest::STATUS_PENDING,
+            ],
+            StatusHistory::TYPE_COMPLAINT => [
+                AccessRequest::COMPLAINT_NONE,
+                AccessRequest::COMPLAINT_RECLAIMED,
+                AccessRequest::COMPLAINT_GRANTED,
+                AccessRequest::COMPLAINT_DENIED,
+            ],
+            StatusHistory::TYPE_COURT => [
+                AccessRequest::COURT_NONE,
+                AccessRequest::COURT_IN_COURT,
+                AccessRequest::COURT_GRANTED,
+                AccessRequest::COURT_DENIED,
+            ],
+            default => [],
+        };
+
+        if (!in_array($newStatus, $validStatuses, true)) {
+            return false;
+        }
+
+        // Don't do anything if status hasn't changed
+        if ($currentStatus === $newStatus) {
+            return true;
+        }
+
+        // Update the status
+        match ($statusType) {
+            StatusHistory::TYPE_STATUS => $request->setStatus($newStatus),
+            StatusHistory::TYPE_COMPLAINT => $request->setComplaintStatus($newStatus),
+            StatusHistory::TYPE_COURT => $request->setCourtStatus($newStatus),
+            default => null,
+        };
+
+        // Set resolvedAt for terminal statuses
+        $terminalStatuses = [
+            AccessRequest::STATUS_GRANTED,
+            AccessRequest::STATUS_DENIED,
+            AccessRequest::COMPLAINT_GRANTED,
+            AccessRequest::COMPLAINT_DENIED,
+            AccessRequest::COURT_GRANTED,
+            AccessRequest::COURT_DENIED,
+        ];
+
+        if (in_array($newStatus, $terminalStatuses, true) && $request->getResolvedAt() === null) {
+            $request->setResolvedAt(new \DateTimeImmutable());
+        }
+
+        // Record in StatusHistory
+        $history = new StatusHistory();
+        $history->setAccessRequest($request);
+        $history->setStatusType($statusType);
+        $history->setFromStatus($currentStatus);
+        $history->setToStatus($newStatus);
+        $history->setNotes($notes);
+        $request->addStatusHistory($history);
+
+        $this->em->flush();
+
+        return true;
     }
 }
