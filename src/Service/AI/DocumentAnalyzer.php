@@ -172,6 +172,28 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro):
+
+IMPORTANTE - Usa "resolucion" si el documento:
+- ESTIMA (concede/otorga) el acceso a la información solicitada
+- DESESTIMA (deniega/rechaza) el acceso a la información
+- ESTIMA PARCIALMENTE el acceso
+- INADMITE la solicitud
+- Contiene una sección "RESOLUCIÓN" con un fallo/decisión final sobre el acceso
+- Aunque el título sea "NOTIFICACIÓN", si contiene una resolución estimatoria o desestimatoria, es "resolucion"
+
+Palabras clave que indican "resolucion":
+- "se estima", "estimar la solicitud", "estimación"
+- "se desestima", "desestimar", "desestimación"
+- "se concede acceso", "se deniega acceso"
+- "RESUELVO", "RESOLUCIÓN" (como sección de decisión)
+
+NO uses "resolucion" para:
+- Meros acuses de recibo → usa "acuse_recibo"
+- Notificaciones de inicio de tramitación → usa "inicio_tramitacion"
+- Prórrogas del plazo → usa "prorroga"
+- Traslados a otro órgano → usa "traslado"
+
 IMPORTANTE:
 - Responde SOLO con el JSON, sin texto adicional
 - Si no puedes determinar un campo, usa null
@@ -187,7 +209,7 @@ Analiza este documento relacionado con una solicitud de acceso a información p�
 Extrae la siguiente información en formato JSON:
 
 {
-    "documentType": "tipo de documento (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
+    "documentType": "tipo de documento (ver REGLAS PARA documentType abajo)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
     "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
@@ -278,6 +300,28 @@ REGLAS PARA autonomousCommunityCode:
 - Para ayuntamientos/diputaciones, usa el código de su CCAA
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
+
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro):
+
+IMPORTANTE - Usa "resolucion" si el documento:
+- ESTIMA (concede/otorga) el acceso a la información solicitada
+- DESESTIMA (deniega/rechaza) el acceso a la información
+- ESTIMA PARCIALMENTE el acceso
+- INADMITE la solicitud
+- Contiene una sección "RESOLUCIÓN" con un fallo/decisión final sobre el acceso
+- Aunque el título sea "NOTIFICACIÓN", si contiene una resolución estimatoria o desestimatoria, es "resolucion"
+
+Palabras clave que indican "resolucion":
+- "se estima", "estimar la solicitud", "estimación"
+- "se desestima", "desestimar", "desestimación"
+- "se concede acceso", "se deniega acceso"
+- "RESUELVO", "RESOLUCIÓN" (como sección de decisión)
+
+NO uses "resolucion" para:
+- Meros acuses de recibo → usa "acuse_recibo"
+- Notificaciones de inicio de tramitación → usa "inicio_tramitacion"
+- Prórrogas del plazo → usa "prorroga"
+- Traslados a otro órgano → usa "traslado"
 
 IMPORTANTE:
 - Responde SOLO con el JSON, sin texto adicional

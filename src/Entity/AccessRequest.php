@@ -146,12 +146,12 @@ class AccessRequest
     private Collection $documents;
 
     /** @var Collection<int, StatusHistory> */
-    #[ORM\OneToMany(targetEntity: StatusHistory::class, mappedBy: 'accessRequest', cascade: ['persist'])]
+    #[ORM\OneToMany(targetEntity: StatusHistory::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
     private Collection $statusHistory;
 
     /** @var Collection<int, DeadlineHistory> */
-    #[ORM\OneToMany(targetEntity: DeadlineHistory::class, mappedBy: 'accessRequest', cascade: ['persist'])]
+    #[ORM\OneToMany(targetEntity: DeadlineHistory::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
     private Collection $deadlineHistory;
 

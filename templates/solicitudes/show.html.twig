@@ -103,34 +103,48 @@
              data-file-uploader-url-value="{{ path('app_document_upload') }}"
              data-file-uploader-access-request-id-value="{{ request.id }}">
             <div class="card-header">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                            <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
-                        </div>
-                        <h2 class="font-semibold text-slate-800">Documentos</h2>
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
                     </div>
-                    <label class="btn btn-primary btn-sm cursor-pointer">
-                        <i data-lucide="upload" class="w-4 h-4 mr-2"></i>
-                        Subir
-                        <input type="file" class="hidden" multiple
-                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
-                               data-file-uploader-target="input"
-                               data-action="change->file-uploader#selectFiles">
-                    </label>
+                    <h2 class="font-semibold text-slate-800">Documentos</h2>
                 </div>
             </div>
             <div class="card-body">
                 <div data-file-uploader-target="status"></div>
 
+                {# Dropzone Area #}
+                <div class="dropzone-area border-2 border-dashed border-slate-300 rounded-xl p-6 text-center mb-4 cursor-pointer transition-all hover:border-primary-400 hover:bg-primary-50/50"
+                     data-file-uploader-target="dropzone"
+                     data-action="dragover->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop click->file-uploader#clickToUpload">
+                    <div class="dropzone-content">
+                        <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-3">
+                            <i data-lucide="cloud-upload" class="w-6 h-6 text-primary-600"></i>
+                        </div>
+                        <p class="text-slate-700 font-medium mb-1">Arrastra archivos aquí</p>
+                        <p class="text-sm text-slate-500 mb-3">o haz clic para seleccionar</p>
+                        <span class="btn btn-primary btn-sm">
+                            <i data-lucide="folder-open" class="w-4 h-4 mr-2"></i>
+                            Seleccionar archivos
+                        </span>
+                        <input type="file" class="hidden" multiple
+                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.zip"
+                               data-file-uploader-target="input"
+                               data-action="change->file-uploader#selectFiles">
+                        <p class="text-xs text-slate-400 mt-3">PDF, Word, imágenes o ZIP (máx. 10MB)</p>
+                    </div>
+                </div>
+
+                {# Document List #}
                 {% if request.documents|length > 0 %}
                     <div class="space-y-3">
                         {% for doc in request.documents %}
+                            {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
                             <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors" data-document-id="{{ doc.id }}">
                                 <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-10 h-10 rounded-lg {{ doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200') }} flex items-center justify-center flex-shrink-0">
-                                        <i data-lucide="{{ doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file') }}"
-                                           class="w-5 h-5 {{ doc.isPdf ? 'text-red-600' : (doc.isImage ? 'text-blue-600' : 'text-slate-600') }}"></i>
+                                    <div class="w-10 h-10 rounded-lg {{ isZip ? 'bg-purple-100' : (doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200')) }} flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="{{ isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) }}"
+                                           class="w-5 h-5 {{ isZip ? 'text-purple-600' : (doc.isPdf ? 'text-red-600' : (doc.isImage ? 'text-blue-600' : 'text-slate-600')) }}"></i>
                                     </div>
                                     <div class="min-w-0">
                                         <p class="font-medium text-slate-800 truncate">{{ doc.originalFilename }}</p>
@@ -163,6 +177,16 @@
                 <div data-file-uploader-target="preview" class="mt-4 space-y-2"></div>
             </div>
         </div>
+
+        <style>
+            .dropzone-area.dragover {
+                border-color: rgb(var(--color-primary-500)) !important;
+                background-color: rgb(var(--color-primary-50)) !important;
+            }
+            .dropzone-area.dragover .dropzone-content {
+                opacity: 0.7;
+            }
+        </style>
 
         {# Timeline #}
         <div class="card">
@@ -262,19 +286,23 @@
                 <h2 class="font-semibold text-slate-800">Estado actual</h2>
             </div>
             <div class="card-body space-y-4">
+                {# Main Status #}
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Estado principal</h4>
-                    {% set statusClass = {
-                        'sent': 'status-sent',
-                        'processing': 'status-processing',
-                        'granted': 'status-granted',
-                        'denied': 'status-denied',
-                        'delayed': 'status-delayed',
-                        'pending': 'status-pending'
-                    } %}
-                    <span class="badge {{ statusClass[request.status]|default('badge-secondary') }} text-sm px-3 py-1">
-                        {{ request.statusLabel }}
-                    </span>
+                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                        <input type="hidden" name="statusType" value="status">
+                        <select name="newStatus"
+                                class="form-select text-sm w-full"
+                                onchange="this.form.submit()">
+                            <option value="pending" {{ request.status == 'pending' ? 'selected' : '' }}>Pendiente de recepción</option>
+                            <option value="sent" {{ request.status == 'sent' ? 'selected' : '' }}>Enviada</option>
+                            <option value="processing" {{ request.status == 'processing' ? 'selected' : '' }}>En trámite</option>
+                            <option value="granted" {{ request.status == 'granted' ? 'selected' : '' }}>Concedida</option>
+                            <option value="denied" {{ request.status == 'denied' ? 'selected' : '' }}>Denegada</option>
+                            <option value="delayed" {{ request.status == 'delayed' ? 'selected' : '' }}>Silencio administrativo</option>
+                        </select>
+                    </form>
                 </div>
 
                 {% if request.isDeadlineSuspended %}
@@ -291,26 +319,46 @@
                     </div>
                 {% endif %}
 
-                {% if request.complaintStatus != 'none' %}
-                    <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamación</h4>
-                        <span class="badge badge-info text-sm px-3 py-1">{{ request.complaintStatusLabel }}</span>
-                        {% if request.applicableLaw.complaintOrganism %}
-                            <p class="text-sm text-slate-600 mt-2">
-                                Ante: <a href="{{ request.applicableLaw.complaintOrganism.url }}" target="_blank" class="text-primary-600 hover:underline">
-                                    {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
-                                </a>
-                            </p>
-                        {% endif %}
-                    </div>
-                {% endif %}
+                {# Complaint Status #}
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamación</h4>
+                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                        <input type="hidden" name="statusType" value="complaintStatus">
+                        <select name="newStatus"
+                                class="form-select text-sm w-full"
+                                onchange="this.form.submit()">
+                            <option value="none" {{ request.complaintStatus == 'none' ? 'selected' : '' }}>Sin reclamación</option>
+                            <option value="reclaimed" {{ request.complaintStatus == 'reclaimed' ? 'selected' : '' }}>Reclamada</option>
+                            <option value="reclaim_granted" {{ request.complaintStatus == 'reclaim_granted' ? 'selected' : '' }}>Reclamación estimada</option>
+                            <option value="reclaim_denied" {{ request.complaintStatus == 'reclaim_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
+                        </select>
+                    </form>
+                    {% if request.complaintStatus != 'none' and request.applicableLaw.complaintOrganism %}
+                        <p class="text-sm text-slate-600 mt-2">
+                            Ante: <a href="{{ request.applicableLaw.complaintOrganism.url }}" target="_blank" class="text-primary-600 hover:underline">
+                                {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
+                            </a>
+                        </p>
+                    {% endif %}
+                </div>
 
-                {% if request.courtStatus != 'none' %}
-                    <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Vía judicial</h4>
-                        <span class="badge badge-secondary text-sm px-3 py-1">{{ request.courtStatusLabel }}</span>
-                    </div>
-                {% endif %}
+                {# Court Status #}
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Vía judicial</h4>
+                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                        <input type="hidden" name="statusType" value="courtStatus">
+                        <select name="newStatus"
+                                class="form-select text-sm w-full"
+                                onchange="this.form.submit()">
+                            <option value="none" {{ request.courtStatus == 'none' ? 'selected' : '' }}>Sin recurso judicial</option>
+                            <option value="in_court" {{ request.courtStatus == 'in_court' ? 'selected' : '' }}>En vía judicial</option>
+                            <option value="court_granted" {{ request.courtStatus == 'court_granted' ? 'selected' : '' }}>Sentencia favorable</option>
+                            <option value="court_denied" {{ request.courtStatus == 'court_denied' ? 'selected' : '' }}>Sentencia desfavorable</option>
+                        </select>
+                    </form>
+                </div>
             </div>
         </div>
 
@@ -481,6 +529,18 @@
                     <i data-lucide="download" class="w-4 h-4 mr-2"></i>
                     Exportar historial
                 </a>
+
+                <hr class="my-4 border-slate-200">
+
+                <form action="{{ path('app_solicitudes_delete', {id: request.id}) }}"
+                      method="post"
+                      onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.');">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete-request-' ~ request.id) }}">
+                    <button type="submit" class="btn btn-danger w-full">
+                        <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                        Eliminar solicitud
+                    </button>
+                </form>
             </div>
         </div>
     </div>
