@@ -144,6 +144,81 @@
                     </div>
                 </div>
 
+                {# Modal fullscreen for orphan document linking #}
+                <div id="orphanLinkModal"
+                     class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[9999] hidden flex items-center justify-center"
+                     data-file-uploader-target="orphanLinkModal">
+                    <div class="h-[80vh] w-[90vw] max-w-7xl mx-auto my-auto bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+                        {# Header #}
+                        <div class="flex items-center justify-between px-8 py-5 border-b border-slate-200">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                    <i data-lucide="file-question" class="w-5 h-5 text-amber-600"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-lg font-semibold text-slate-800">Documento sin solicitud asociada</h2>
+                                    <p class="text-sm text-slate-500">
+                                        <span id="orphanDocTitle"></span>
+                                        <span id="orphanDocType" class="ml-2 text-xs badge badge-secondary"></span>
+                                    </p>
+                                </div>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-ghost btn-sm"
+                                    data-action="click->file-uploader#closeOrphanModal">
+                                <i data-lucide="x" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        {# Body: two columns #}
+                        <div class="flex-1 flex overflow-hidden">
+                            {# Left: PDF viewer #}
+                            <div class="w-1/2 border-r border-slate-200 bg-slate-50">
+                                <iframe id="orphanDocViewer" src="" class="w-full h-full border-0"></iframe>
+                            </div>
+                            {# Right: Request selection #}
+                            <div class="w-1/2 flex flex-col overflow-hidden">
+                                {# Search bar #}
+                                <div class="px-6 py-5 border-b border-slate-200">
+                                    <div class="relative flex items-center">
+                                        <i data-lucide="search" class="w-4 h-4 absolute left-3 text-slate-400 pointer-events-none" style="z-index:1"></i>
+                                        <input type="text"
+                                               placeholder="Buscar solicitud..."
+                                               id="orphanSearchInput"
+                                               class="input input-icon-left w-full"
+                                               data-action="input->file-uploader#searchOrphanRequests">
+                                    </div>
+                                </div>
+                                {# Request lists #}
+                                <div class="flex-1 overflow-y-auto px-6 py-5 space-y-8">
+                                    <div id="suggestedRequests"></div>
+                                    <div id="allRequests">
+                                        <div class="text-center py-8">
+                                            <div class="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-3">
+                                                <i data-lucide="loader-2" class="w-4 h-4 text-primary-600 animate-spin"></i>
+                                            </div>
+                                            <p class="text-sm text-slate-500">Cargando solicitudes...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {# Footer actions #}
+                                <div class="px-6 py-4 border-t border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+                                    <button type="button"
+                                            class="btn btn-secondary"
+                                            data-action="click->file-uploader#skipOrphanLink">
+                                        Omitir
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-primary"
+                                            data-action="click->file-uploader#createRequestFromOrphan">
+                                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                                        Crear nueva solicitud
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {# Modal for keyword-matched documents confirmation #}
                 <div id="keywordMatchModal"
                      class="modal-backdrop hidden"

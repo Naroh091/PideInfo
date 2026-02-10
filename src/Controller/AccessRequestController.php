@@ -5,6 +5,8 @@ namespace App\Controller;
 use App\DataTable\Type\AccessRequestTableType;
 use App\Entity\AccessRequest;
 use App\Entity\CustomDeadline;
+use App\Entity\DeadlineHistory;
+use App\Entity\StatusHistory;
 use App\Form\AccessRequestType;
 use App\Form\CustomDeadlineType;
 use App\Repository\AccessRequestRepository;
@@ -78,6 +80,42 @@ class AccessRequestController extends AbstractController
         ]);
     }
 
+    #[Route('/buscar', name: 'app_solicitudes_search_json', methods: ['GET'])]
+    public function searchJson(Request $request): JsonResponse
+    {
+        $user = $this->getUser();
+        $q = $request->query->get('q') ?: null;
+        $publicBody = $request->query->get('publicBody') ?: null;
+
+        $dateFrom = null;
+        if ($request->query->get('dateFrom')) {
+            try { $dateFrom = new \DateTimeImmutable($request->query->get('dateFrom')); } catch (\Exception) {}
+        }
+        $dateTo = null;
+        if ($request->query->get('dateTo')) {
+            try { $dateTo = new \DateTimeImmutable($request->query->get('dateTo')); } catch (\Exception) {}
+        }
+
+        $requests = $this->accessRequestRepository->searchForLinking(
+            $user, $q, $publicBody, $dateFrom, $dateTo
+        );
+
+        $result = [];
+        foreach ($requests as $ar) {
+            $result[] = [
+                'id' => (string) $ar->getId(),
+                'title' => $ar->getTitle(),
+                'publicBody' => ['name' => $ar->getPublicBody()->getName()],
+                'externalId' => $ar->getExternalId(),
+                'status' => $ar->getStatus(),
+                'statusLabel' => $ar->getStatusLabel(),
+                'sentAt' => $ar->getSentAt()->format('d/m/Y'),
+            ];
+        }
+
+        return new JsonResponse(['requests' => $result]);
+    }
+
     #[Route('/{id}', name: 'app_solicitudes_show')]
     #[IsGranted('view', 'accessRequest')]
     public function show(AccessRequest $accessRequest): Response
@@ -89,9 +127,14 @@ class AccessRequestController extends AbstractController
 
     #[Route('/{id}/editar', name: 'app_solicitudes_edit')]
     #[IsGranted('edit', 'accessRequest')]
-    public function edit(Request $request, AccessRequest $accessRequest): Response
+    public function edit(Request $request, AccessRequest $accessRequest, AccessRequestManager $manager): Response
     {
-        $form = $this->createForm(AccessRequestType::class, $accessRequest);
+        $previousStatus = $accessRequest->getStatus();
+        $previousDeadline = $accessRequest->getDeadlineAt();
+
+        $form = $this->createForm(AccessRequestType::class, $accessRequest, [
+            'include_status_fields' => true,
+        ]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -101,6 +144,27 @@ class AccessRequestController extends AbstractController
                     'request' => $accessRequest,
                     'form' => $form,
                 ]);
+            }
+
+            // Handle status change via manager (records StatusHistory)
+            $newStatus = $accessRequest->getStatus();
+            if ($newStatus !== $previousStatus) {
+                // Reset to previous so changeStatus can do the transition properly
+                $accessRequest->setStatus($previousStatus);
+                $manager->changeStatus($accessRequest, StatusHistory::TYPE_STATUS, $newStatus, 'Cambio manual desde formulario de edición');
+            }
+
+            // Handle deadline change (records DeadlineHistory)
+            $newDeadline = $accessRequest->getDeadlineAt();
+            if ($newDeadline->format('Y-m-d') !== $previousDeadline->format('Y-m-d')) {
+                $deadlineHistory = new DeadlineHistory();
+                $deadlineHistory->setAccessRequest($accessRequest);
+                $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_RESPONSE);
+                $deadlineHistory->setPreviousDeadline($previousDeadline);
+                $deadlineHistory->setNewDeadline($newDeadline);
+                $deadlineHistory->setReason(DeadlineHistory::REASON_MANUAL);
+                $deadlineHistory->setNotes('Plazo modificado manualmente desde formulario de edición');
+                $accessRequest->addDeadlineHistory($deadlineHistory);
             }
 
             $this->entityManager->flush();

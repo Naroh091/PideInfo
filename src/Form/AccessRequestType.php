@@ -7,6 +7,7 @@ use App\Entity\ApplicableLaw;
 use App\Form\Type\PublicBodyAutocompleteType;
 use Symfony\Bridge\Doctrine\Form\Type\EntityType;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -63,12 +64,34 @@ class AccessRequestType extends AbstractType
                 'help' => 'Si la administración te ha proporcionado un número de expediente',
             ])
         ;
+
+        if ($options['include_status_fields']) {
+            $builder
+                ->add('status', ChoiceType::class, [
+                    'label' => 'Estado',
+                    'choices' => [
+                        'Pendiente de recepción' => AccessRequest::STATUS_PENDING,
+                        'Enviada' => AccessRequest::STATUS_SENT,
+                        'En trámite' => AccessRequest::STATUS_PROCESSING,
+                        'Concedida' => AccessRequest::STATUS_GRANTED,
+                        'Denegada' => AccessRequest::STATUS_DENIED,
+                        'Silencio administrativo' => AccessRequest::STATUS_DELAYED,
+                    ],
+                ])
+                ->add('deadlineAt', DateType::class, [
+                    'label' => 'Plazo de respuesta',
+                    'widget' => 'single_text',
+                    'input' => 'datetime_immutable',
+                ])
+            ;
+        }
     }
 
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
             'data_class' => AccessRequest::class,
+            'include_status_fields' => false,
         ]);
     }
 }

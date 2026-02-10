@@ -10,6 +10,7 @@ use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\DocumentRepository;
+use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -189,8 +190,36 @@ class DocumentController extends AbstractController
         ]);
     }
 
+    #[Route('/orphaned', name: 'app_document_orphaned', methods: ['GET'])]
+    public function orphaned(): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $docs = $this->documentRepository->findOrphanedByUser($user);
+
+        $result = [];
+        foreach ($docs as $document) {
+            $aiMetadata = $document->getAiMetadata();
+            $result[] = [
+                'id' => (string) $document->getId(),
+                'name' => $document->getOriginalFilename(),
+                'type' => $document->getType(),
+                'typeLabel' => $document->getTypeLabel(),
+                'summary' => $document->getExtractedText(),
+                'createdAt' => $document->getCreatedAt()->format('d/m/Y H:i'),
+                'downloadUrl' => $this->generateUrl('app_document_download', ['id' => $document->getId()]),
+                'publicBodyName' => $aiMetadata['publicBodyName'] ?? null,
+                'documentDate' => $aiMetadata['documentDate'] ?? null,
+                'isPdf' => $document->isPdf(),
+            ];
+        }
+
+        return new JsonResponse(['documents' => $result]);
+    }
+
     #[Route('/{id}/descargar', name: 'app_document_download', methods: ['GET'])]
-    public function download(Document $document): Response
+    public function download(Document $document, Request $request): Response
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -207,6 +236,10 @@ class DocumentController extends AbstractController
         $storedFilename = $document->getStoredFilename();
         $documentsStorage = $this->documentsStorage;
 
+        // Use inline disposition when ?inline=1 is passed (for iframe embedding)
+        $inline = $request->query->getBoolean('inline');
+        $disposition = $inline ? 'inline' : sprintf('attachment; filename="%s"', $document->getOriginalFilename());
+
         return new StreamedResponse(
             function () use ($documentsStorage, $storedFilename): void {
                 $stream = $documentsStorage->readStream($storedFilename);
@@ -218,7 +251,7 @@ class DocumentController extends AbstractController
             Response::HTTP_OK,
             [
                 'Content-Type' => $document->getMimeType(),
-                'Content-Disposition' => sprintf('attachment; filename="%s"', $document->getOriginalFilename()),
+                'Content-Disposition' => $disposition,
                 'Content-Length' => $document->getFileSize(),
             ]
         );
@@ -324,6 +357,87 @@ class DocumentController extends AbstractController
         return new JsonResponse(['success' => true, 'message' => 'Asociacion rechazada. El documento queda sin asignar.']);
     }
 
+    #[Route('/{id}/link', name: 'app_document_link', methods: ['POST'])]
+    public function linkToRequest(
+        Request $request,
+        Document $document,
+        AccessRequestManager $accessRequestManager
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if ($document->getUploadedBy() !== $user) {
+            return new JsonResponse(['error' => 'No tienes acceso a este documento'], Response::HTTP_FORBIDDEN);
+        }
+
+        $data = json_decode($request->getContent(), true);
+        $accessRequestId = $data['accessRequestId'] ?? null;
+
+        if (!$accessRequestId) {
+            return new JsonResponse(['error' => 'Falta el ID de la solicitud'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $accessRequest = $this->accessRequestRepository->find($accessRequestId);
+        if (!$accessRequest || $accessRequest->getUser() !== $user) {
+            return new JsonResponse(['error' => 'Solicitud no encontrada'], Response::HTTP_NOT_FOUND);
+        }
+
+        // Link the document
+        $document->setAccessRequest($accessRequest);
+        $document->setMatchMethod(Document::MATCH_REFERENCE);
+
+        // If the document has a reference number different from the request's externalId,
+        // add it as an alternative reference for future automatic matching
+        $aiMetadata = $document->getAiMetadata();
+        $docRefNumber = $aiMetadata['referenceNumber'] ?? null;
+        if ($docRefNumber && $docRefNumber !== $accessRequest->getExternalId()
+            && !in_array($docRefNumber, $accessRequest->getAlternativeReferences(), true)) {
+            $accessRequest->addAlternativeReference($docRefNumber);
+        }
+
+        // Apply document type effects (extension, status change, etc.)
+        $documentType = $document->getType();
+        $analysis = $aiMetadata ?? [];
+        $analysis['documentType'] = $documentType;
+
+        // Handle status/deadline effects based on document type
+        if ($documentType === DocumentType::Extension && ($analysis['isExtension'] ?? false)) {
+            $explicitNewDeadline = null;
+            if (!empty($analysis['newDeadlineDate'])) {
+                try {
+                    $explicitNewDeadline = new \DateTimeImmutable($analysis['newDeadlineDate']);
+                } catch (\Exception) {}
+            }
+            $accessRequestManager->extendDeadlineByLaw($accessRequest, $document, $explicitNewDeadline);
+        } elseif ($documentType === DocumentType::Response) {
+            $statusMap = [
+                'concedida' => AccessRequest::STATUS_GRANTED,
+                'denegada' => AccessRequest::STATUS_DENIED,
+            ];
+            $newStatus = $statusMap[$analysis['status'] ?? ''] ?? null;
+            if ($newStatus && $accessRequest->getStatus() !== $newStatus) {
+                $accessRequestManager->changeStatus(
+                    $accessRequest,
+                    'status',
+                    $newStatus,
+                    $analysis['summary'] ?? 'Resolución enlazada manualmente'
+                );
+            }
+        }
+
+        $this->entityManager->flush();
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Documento enlazado correctamente',
+            'accessRequest' => [
+                'id' => (string) $accessRequest->getId(),
+                'title' => $accessRequest->getTitle(),
+                'url' => $this->generateUrl('app_solicitudes_show', ['id' => $accessRequest->getId()]),
+            ],
+        ]);
+    }
+
     #[Route('/status', name: 'app_document_status', methods: ['POST'])]
     public function checkStatus(Request $request): JsonResponse
     {
@@ -358,6 +472,7 @@ class DocumentController extends AbstractController
                 $hasKeywordMatched = true;
             }
 
+            $aiMetadata = $document->getAiMetadata();
             $result[] = [
                 'id' => (string) $document->getId(),
                 'name' => $document->getOriginalFilename(),
@@ -366,6 +481,9 @@ class DocumentController extends AbstractController
                 'typeLabel' => $document->getTypeLabel(),
                 'matchMethod' => $document->getMatchMethod(),
                 'error' => $document->getProcessingError(),
+                'downloadUrl' => $this->generateUrl('app_document_download', ['id' => $document->getId()]),
+                'publicBodyName' => $aiMetadata['publicBodyName'] ?? null,
+                'documentDate' => $aiMetadata['documentDate'] ?? null,
                 'accessRequest' => $accessRequest ? [
                     'id' => (string) $accessRequest->getId(),
                     'title' => $accessRequest->getTitle(),

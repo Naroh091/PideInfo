@@ -1,12 +1,14 @@
 import { Controller } from '@hotwired/stimulus';
 
 export default class extends Controller {
-    static targets = ['input', 'preview', 'status', 'modal', 'dropzone', 'keywordMatchModal', 'keywordMatchList'];
+    static targets = ['input', 'preview', 'status', 'modal', 'dropzone', 'keywordMatchModal', 'keywordMatchList', 'orphanLinkModal'];
     static values = {
         url: String,
         processUrl: { type: String, default: '/documentos/procesar' },
         keywordMatchUrl: { type: String, default: '/documentos/keyword-matched' },
         statusUrl: { type: String, default: '/documentos/status' },
+        searchRequestsUrl: { type: String, default: '/solicitudes/buscar' },
+        orphanedUrl: { type: String, default: '/documentos/orphaned' },
         accessRequestId: { type: String, default: '' }
     };
 
@@ -110,7 +112,8 @@ export default class extends Controller {
         }
 
         // Show uploading status
-        this.showStatus(`Subiendo "${file.name}"...`, 'info');
+        const shortName = file.name.length > 40 ? file.name.substring(0, 37) + '...' : file.name;
+        this.showStatus(`Subiendo "${shortName}"...`, 'info');
 
         try {
             const response = await fetch(this.urlValue, {
@@ -124,7 +127,8 @@ export default class extends Controller {
             const result = await response.json();
 
             if (response.ok && result.success) {
-                this.showStatus(`"${file.name}" subido correctamente`, 'success');
+                const uploadedShortName = file.name.length > 40 ? file.name.substring(0, 37) + '...' : file.name;
+                this.showStatus(`"${uploadedShortName}" subido correctamente`, 'success');
                 this.addFileToPreview(result.document);
                 this.uploadedDocuments.push(result.document);
 
@@ -226,9 +230,9 @@ export default class extends Controller {
             const alertClass = type === 'danger' ? 'alert-danger' : `alert-${type}`;
 
             this.statusTarget.innerHTML = `
-                <div class="alert ${alertClass} animate-fade-in" role="alert">
+                <div class="alert ${alertClass} animate-fade-in overflow-hidden" role="alert">
                     <i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0 ${type === 'info' ? 'animate-spin' : ''}"></i>
-                    <span>${message}</span>
+                    <span class="min-w-0 truncate">${message}</span>
                 </div>
             `;
 
@@ -329,12 +333,22 @@ export default class extends Controller {
                     }
                 }
 
+                // Check for orphan documents (processed without accessRequest)
+                const orphanDocs = processedDocs.filter(d => d.processed && !d.accessRequest && !d.error);
+
                 // Show notification if documents were processed
                 if (anyProcessed) {
                     this.showProcessingCompleteNotification(processedDocs);
 
                     // Trigger refresh of LiveComponents on the page
                     this.triggerDashboardRefresh();
+                }
+
+                // Show orphan linking modal for the first orphan document
+                if (orphanDocs.length > 0 && !this.accessRequestIdValue) {
+                    // Queue orphan docs and show modal for the first one
+                    this._orphanQueue = orphanDocs.slice(1);
+                    this.showOrphanLinkingModal(orphanDocs[0]);
                 }
 
                 // Show keyword match modal if any documents matched by keywords
@@ -647,5 +661,281 @@ export default class extends Controller {
             console.error('Error updating keyword match:', error);
             this.showStatus('Error al actualizar la asociacion', 'danger');
         }
+    }
+
+    // === Orphan Document Linking ===
+
+    showOrphanLinkingModal(doc) {
+        const modal = this.hasOrphanLinkModalTarget
+            ? this.orphanLinkModalTarget
+            : document.getElementById('orphanLinkModal');
+
+        if (!modal) return;
+
+        this._currentOrphanDoc = doc;
+
+        // Set the iframe src for PDF preview (use inline=1 to embed instead of download)
+        // #navpanes=0 hides the browser PDF viewer sidebar (thumbnails/bookmarks)
+        const viewer = modal.querySelector('#orphanDocViewer');
+        if (viewer && doc.downloadUrl) {
+            const separator = doc.downloadUrl.includes('?') ? '&' : '?';
+            viewer.src = doc.downloadUrl + separator + 'inline=1#navpanes=0';
+        }
+
+        // Set document info
+        const docTitle = modal.querySelector('#orphanDocTitle');
+        if (docTitle) {
+            docTitle.textContent = doc.name || doc.originalFilename || 'Documento';
+        }
+        const docType = modal.querySelector('#orphanDocType');
+        if (docType) {
+            docType.textContent = doc.typeLabel || '';
+        }
+
+        // Load suggested and all requests
+        this.loadOrphanRequests(doc);
+
+        modal.classList.remove('hidden');
+    }
+
+    closeOrphanModal() {
+        const modal = this.hasOrphanLinkModalTarget
+            ? this.orphanLinkModalTarget
+            : document.getElementById('orphanLinkModal');
+
+        if (modal) {
+            modal.classList.add('hidden');
+            const viewer = modal.querySelector('#orphanDocViewer');
+            if (viewer) viewer.src = '';
+        }
+        this._currentOrphanDoc = null;
+    }
+
+    _parseSpanishDate(dateStr) {
+        if (!dateStr) return null;
+
+        // Try standard Date parsing first (works for ISO formats like "2026-01-16")
+        const standard = new Date(dateStr);
+        if (!isNaN(standard.getTime())) return standard;
+
+        // Parse Spanish date formats: "16 de enero de 2026", "16 enero 2026", etc.
+        const months = {
+            'enero': 0, 'febrero': 1, 'marzo': 2, 'abril': 3,
+            'mayo': 4, 'junio': 5, 'julio': 6, 'agosto': 7,
+            'septiembre': 8, 'octubre': 9, 'noviembre': 10, 'diciembre': 11
+        };
+
+        const match = dateStr.toLowerCase().match(/(\d{1,2})\s+(?:de\s+)?(\w+)\s+(?:de\s+)?(\d{4})/);
+        if (match) {
+            const day = parseInt(match[1], 10);
+            const month = months[match[2]];
+            const year = parseInt(match[3], 10);
+            if (month !== undefined) {
+                return new Date(year, month, day);
+            }
+        }
+
+        // Try "dd/mm/yyyy" format
+        const slashMatch = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (slashMatch) {
+            return new Date(parseInt(slashMatch[3], 10), parseInt(slashMatch[2], 10) - 1, parseInt(slashMatch[1], 10));
+        }
+
+        return null;
+    }
+
+    async loadOrphanRequests(doc) {
+        const suggestedContainer = document.getElementById('suggestedRequests');
+        const allContainer = document.getElementById('allRequests');
+
+        // Build suggestion filters from AI metadata
+        const publicBody = doc.publicBodyName || '';
+        const docDate = doc.documentDate || '';
+
+        let suggestedResults = [];
+        const parsedDate = this._parseSpanishDate(docDate);
+
+        // Fetch by date range (most reliable signal)
+        if (parsedDate) {
+            const from = new Date(parsedDate);
+            from.setDate(from.getDate() - 4);
+            const to = new Date(parsedDate);
+            to.setDate(to.getDate() + 4);
+            const dateParams = new URLSearchParams({
+                dateFrom: from.toISOString().split('T')[0],
+                dateTo: to.toISOString().split('T')[0],
+            });
+            try {
+                const resp = await fetch(`${this.searchRequestsUrlValue}?${dateParams.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    suggestedResults = data.requests || [];
+                }
+            } catch (e) {}
+        }
+
+        // Fetch by publicBody (additive — merge results not already found by date)
+        if (publicBody) {
+            const orgParams = new URLSearchParams({ publicBody });
+            try {
+                const resp = await fetch(`${this.searchRequestsUrlValue}?${orgParams.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const existingIds = new Set(suggestedResults.map(r => r.id));
+                    for (const req of (data.requests || [])) {
+                        if (!existingIds.has(req.id)) {
+                            suggestedResults.push(req);
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
+
+        // Render suggested
+        if (suggestedContainer) {
+            if (suggestedResults.length > 0) {
+                this.renderRequestList(suggestedContainer, suggestedResults, 'Solicitudes sugeridas', true);
+            } else {
+                suggestedContainer.innerHTML = '';
+            }
+        }
+
+        // Fetch all requests
+        if (allContainer) {
+            try {
+                const resp = await fetch(`${this.searchRequestsUrlValue}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.renderRequestList(allContainer, data.requests, 'Todas las solicitudes', false);
+                }
+            } catch (e) {
+                console.error('Error loading all requests:', e);
+            }
+        }
+    }
+
+    renderRequestList(container, requests, title, isSuggested) {
+        if (!requests || requests.length === 0) {
+            container.innerHTML = isSuggested ? '' : `
+                <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">${title}</h3>
+                <p class="text-sm text-slate-500">No se encontraron solicitudes</p>
+            `;
+            return;
+        }
+
+        const statusBadgeMap = {
+            'sent': 'status-sent',
+            'processing': 'status-processing',
+            'granted': 'status-granted',
+            'denied': 'status-denied',
+            'delayed': 'status-delayed',
+            'pending': 'status-pending'
+        };
+
+        container.innerHTML = `
+            <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">${title}</h3>
+            <div class="space-y-3">
+            ${requests.map(req => `
+                <div class="p-4 rounded-xl border border-slate-200 hover:border-primary-400 hover:bg-primary-50/50 cursor-pointer transition-all group"
+                     data-action="click->file-uploader#selectOrphanRequest"
+                     data-request-id="${req.id}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex-1 min-w-0">
+                            <p class="font-medium text-sm text-slate-800 truncate group-hover:text-primary-700">${req.title}</p>
+                            <div class="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-500">
+                                <span class="flex items-center gap-1">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                                    ${req.publicBody.name}
+                                </span>
+                                <span>${req.sentAt}</span>
+                                ${req.externalId ? `<span class="text-primary-600">#${req.externalId}</span>` : ''}
+                            </div>
+                        </div>
+                        <span class="badge ${statusBadgeMap[req.status] || 'badge-secondary'} flex-shrink-0">${req.statusLabel}</span>
+                    </div>
+                </div>
+            `).join('')}
+            </div>
+        `;
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    async selectOrphanRequest(event) {
+        const requestId = event.currentTarget.dataset.requestId;
+        const doc = this._currentOrphanDoc;
+
+        if (!doc || !requestId) return;
+
+        // Disable the clicked card
+        event.currentTarget.classList.add('opacity-50', 'pointer-events-none');
+        event.currentTarget.innerHTML += '<div class="text-center mt-2"><span class="text-sm text-primary-600">Enlazando...</span></div>';
+
+        try {
+            const response = await fetch(`/documentos/${doc.id}/link`, {
+                method: 'POST',
+                body: JSON.stringify({ accessRequestId: requestId }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this.closeOrphanModal();
+                this.showToast(`Documento enlazado a "${result.accessRequest.title}"`, 'success');
+                this.triggerDashboardRefresh();
+            } else {
+                const err = await response.json();
+                this.showToast(err.error || 'Error al enlazar documento', 'danger');
+            }
+        } catch (error) {
+            console.error('Error linking document:', error);
+            this.showToast('Error al enlazar documento', 'danger');
+        }
+    }
+
+    skipOrphanLink() {
+        this.closeOrphanModal();
+    }
+
+    createRequestFromOrphan() {
+        this.closeOrphanModal();
+        window.location.href = '/solicitudes/nueva';
+    }
+
+    // Search within the orphan modal
+    searchOrphanRequests(event) {
+        clearTimeout(this._orphanSearchTimeout);
+        this._orphanSearchTimeout = setTimeout(async () => {
+            const query = event.target.value.trim();
+            const allContainer = document.getElementById('allRequests');
+
+            if (!allContainer) return;
+
+            try {
+                const params = new URLSearchParams();
+                if (query) params.set('q', query);
+
+                const resp = await fetch(`${this.searchRequestsUrlValue}?${params.toString()}`, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.renderRequestList(allContainer, data.requests, query ? 'Resultados de búsqueda' : 'Todas las solicitudes', false);
+                }
+            } catch (e) {
+                console.error('Error searching requests:', e);
+            }
+        }, 300);
     }
 }

@@ -140,6 +140,57 @@ class AccessRequestManager
         return $this->extendDeadline($request, $extensionDays, $reason, $triggerDocument);
     }
 
+    public function extendDeadlineByLaw(
+        AccessRequest $request,
+        ?Document $triggerDocument = null,
+        ?\DateTimeImmutable $explicitNewDeadline = null
+    ): bool {
+        if (!$request->canExtend()) {
+            return false;
+        }
+
+        $previousDeadline = $request->getDeadlineAt();
+        $newDeadline = $explicitNewDeadline
+            ?? $this->deadlineCalculator->calculateExtension($previousDeadline, $request->getApplicableLaw());
+
+        $request->setDeadlineAt($newDeadline);
+        $request->incrementExtensionCount();
+        $request->setExtensionReason('Prórroga según ' . $request->getApplicableLaw()->getShortCode());
+
+        $deadlineHistory = new DeadlineHistory();
+        $deadlineHistory->setAccessRequest($request);
+        $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_RESPONSE);
+        $deadlineHistory->setPreviousDeadline($previousDeadline);
+        $deadlineHistory->setNewDeadline($newDeadline);
+        $deadlineHistory->setReason(DeadlineHistory::REASON_EXTENSION);
+        $deadlineHistory->setNotes(sprintf(
+            'Prórroga según %s. Nuevo plazo: %s',
+            $request->getApplicableLaw()->getShortCode(),
+            $newDeadline->format('d/m/Y')
+        ));
+        $deadlineHistory->setTriggerDocument($triggerDocument);
+        $request->addDeadlineHistory($deadlineHistory);
+
+        // Record in timeline (StatusHistory) so the extension appears in the historial
+        $statusHistory = new StatusHistory();
+        $statusHistory->setAccessRequest($request);
+        $statusHistory->setStatusType(StatusHistory::TYPE_STATUS);
+        $statusHistory->setFromStatus($request->getStatus());
+        $statusHistory->setToStatus($request->getStatus());
+        $statusHistory->setNotes(sprintf(
+            'Prórroga según %s. Plazo anterior: %s → Nuevo plazo: %s',
+            $request->getApplicableLaw()->getShortCode(),
+            $previousDeadline->format('d/m/Y'),
+            $newDeadline->format('d/m/Y')
+        ));
+        $statusHistory->setTriggerDocument($triggerDocument);
+        $request->addStatusHistory($statusHistory);
+
+        $this->em->flush();
+
+        return true;
+    }
+
     /**
      * Handle processing start notification (Art. 20.1 Ley 19/2013).
      * The 1-month deadline starts from the date indicated in the document,

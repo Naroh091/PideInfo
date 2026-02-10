@@ -83,6 +83,23 @@
                         </div>
                     </div>
 
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="{{ form.status.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.status) }}
+                            </label>
+                            {{ form_widget(form.status, {'attr': {'class': 'input'}}) }}
+                            {{ form_errors(form.status) }}
+                        </div>
+                        <div>
+                            <label for="{{ form.deadlineAt.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.deadlineAt) }}
+                            </label>
+                            {{ form_widget(form.deadlineAt, {'attr': {'class': 'input'}}) }}
+                            {{ form_errors(form.deadlineAt) }}
+                        </div>
+                    </div>
+
                     <div class="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-between gap-4">
                         <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary order-2 sm:order-1">
                             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
@@ -109,7 +126,7 @@
             </div>
             <div class="card-body space-y-4">
                 <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Estado</h4>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Estado actual</h4>
                     {% set statusClass = {
                         'sent': 'status-sent',
                         'processing': 'status-processing',
@@ -121,16 +138,25 @@
                     <span class="badge {{ statusClass[request.status]|default('badge-secondary') }}">
                         {{ request.statusLabel }}
                     </span>
+                    <p class="text-xs text-slate-500 mt-1">Puedes cambiar el estado en el formulario</p>
                 </div>
 
                 <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Plazo</h4>
-                    <p class="text-sm {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
-                        {{ request.deadlineAt|date('d/m/Y') }}
-                        {% if not request.isDeadlinePassed %}
-                            <span class="text-slate-500">({{ request.daysUntilDeadline }} días)</span>
-                        {% endif %}
-                    </p>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Plazo actual</h4>
+                    {% if request.status in ['granted', 'denied'] %}
+                        <p class="text-sm text-slate-500">
+                            {{ request.deadlineAt|date('d/m/Y') }}
+                            <span class="badge badge-success ml-1">Resuelta</span>
+                        </p>
+                    {% else %}
+                        <p class="text-sm {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
+                            {{ request.deadlineAt|date('d/m/Y') }}
+                            {% if not request.isDeadlinePassed %}
+                                <span class="text-slate-500">({{ request.daysUntilDeadline }} días)</span>
+                            {% endif %}
+                        </p>
+                    {% endif %}
+                    <p class="text-xs text-slate-500 mt-1">Puedes modificar el plazo en el formulario</p>
                 </div>
 
                 <div>

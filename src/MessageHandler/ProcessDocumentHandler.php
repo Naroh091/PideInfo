@@ -292,25 +292,23 @@ final class ProcessDocumentHandler
                 break;
 
             case DocumentType::Extension:
-                // Handle extension (prórroga)
+                // Handle extension (prórroga) using the law's configured extension period
                 if ($analysis['isExtension'] ?? false) {
-                    $extensionDays = $analysis['extensionDays'] ?? null;
-                    $newDeadline = null;
+                    $explicitNewDeadline = null;
 
+                    // If the AI extracted an explicit new deadline date, use it
                     if (!empty($analysis['newDeadlineDate'])) {
                         try {
-                            $newDeadline = new \DateTimeImmutable($analysis['newDeadlineDate']);
+                            $explicitNewDeadline = new \DateTimeImmutable($analysis['newDeadlineDate']);
                         } catch (\Exception) {}
                     }
 
-                    if ($extensionDays || $newDeadline) {
-                        $this->accessRequestManager->applyExtension(
-                            $accessRequest,
-                            $extensionDays ?? 30,
-                            'Prórroga notificada por documento',
-                            $document
-                        );
-                    }
+                    // Use law-based extension (e.g., 1 calendar month for Ley 19/2013)
+                    $this->accessRequestManager->extendDeadlineByLaw(
+                        $accessRequest,
+                        $document,
+                        $explicitNewDeadline
+                    );
                 }
                 break;
 

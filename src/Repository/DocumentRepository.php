@@ -63,6 +63,25 @@ class DocumentRepository extends ServiceEntityRepository
     }
 
     /**
+     * Find processed documents without an access request for a specific user.
+     *
+     * @return Document[]
+     */
+    public function findOrphanedByUser(User $user, int $limit = 50): array
+    {
+        return $this->createQueryBuilder('d')
+            ->where('d.uploadedBy = :user')
+            ->andWhere('d.accessRequest IS NULL')
+            ->andWhere('d.processed = :processed')
+            ->setParameter('user', $user)
+            ->setParameter('processed', true)
+            ->orderBy('d.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Find documents that were matched by keywords and need user confirmation.
      *
      * @return Document[]

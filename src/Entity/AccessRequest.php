@@ -49,6 +49,9 @@ class AccessRequest
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $externalId = null;
 
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $alternativeReferences = null;
+
     #[ORM\Column(length: 255)]
     private string $title;
 
@@ -190,6 +193,27 @@ class AccessRequest
     public function setExternalId(?string $externalId): static
     {
         $this->externalId = $externalId;
+        return $this;
+    }
+
+    public function getAlternativeReferences(): array
+    {
+        return $this->alternativeReferences ?? [];
+    }
+
+    public function setAlternativeReferences(?array $alternativeReferences): static
+    {
+        $this->alternativeReferences = $alternativeReferences;
+        return $this;
+    }
+
+    public function addAlternativeReference(string $ref): static
+    {
+        $refs = $this->getAlternativeReferences();
+        if (!in_array($ref, $refs, true)) {
+            $refs[] = $ref;
+            $this->alternativeReferences = $refs;
+        }
         return $this;
     }
 
@@ -648,6 +672,9 @@ class AccessRequest
 
     public function isDeadlinePassed(): bool
     {
+        if (in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)) {
+            return false;
+        }
         return $this->deadlineAt < new \DateTimeImmutable('today');
     }
 
