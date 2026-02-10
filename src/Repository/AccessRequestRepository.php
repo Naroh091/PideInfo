@@ -184,10 +184,11 @@ class AccessRequestRepository extends ServiceEntityRepository
     public function findByExternalId(string $externalId, User $user): ?AccessRequest
     {
         $qb = $this->createQueryBuilderForUser($user)
-            ->andWhere('ar.externalId = :externalId')
-            ->setParameter('externalId', $externalId);
+            ->andWhere('ar.externalId = :externalId OR ar.alternativeReferences LIKE :altRef')
+            ->setParameter('externalId', $externalId)
+            ->setParameter('altRef', '%' . json_encode($externalId) . '%');
 
-        return $qb->getQuery()->getOneOrNullResult();
+        return $qb->setMaxResults(1)->getQuery()->getOneOrNullResult();
     }
 
     /**
@@ -258,6 +259,47 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->setParameter('none', AccessRequest::COMPLAINT_NONE)
             ->getQuery()
             ->getSingleScalarResult();
+    }
+
+    /**
+     * Search access requests for the document linking UI.
+     *
+     * @return AccessRequest[]
+     */
+    public function searchForLinking(
+        User $user,
+        ?string $query = null,
+        ?string $publicBodyName = null,
+        ?\DateTimeImmutable $dateFrom = null,
+        ?\DateTimeImmutable $dateTo = null,
+        int $limit = 50
+    ): array {
+        $qb = $this->createQueryBuilderForUser($user)
+            ->leftJoin('ar.publicBody', 'pb')
+            ->orderBy('ar.sentAt', 'DESC')
+            ->setMaxResults($limit);
+
+        if ($query !== null && $query !== '') {
+            $qb->andWhere('ar.title LIKE :q OR ar.externalId LIKE :q OR ar.description LIKE :q OR pb.name LIKE :q')
+               ->setParameter('q', '%' . $query . '%');
+        }
+
+        if ($publicBodyName !== null && $publicBodyName !== '') {
+            $qb->andWhere('pb.name LIKE :publicBody')
+               ->setParameter('publicBody', '%' . $publicBodyName . '%');
+        }
+
+        if ($dateFrom !== null) {
+            $qb->andWhere('ar.sentAt >= :dateFrom')
+               ->setParameter('dateFrom', $dateFrom);
+        }
+
+        if ($dateTo !== null) {
+            $qb->andWhere('ar.sentAt <= :dateTo')
+               ->setParameter('dateTo', $dateTo);
+        }
+
+        return $qb->getQuery()->getResult();
     }
 
     private function createQueryBuilderForUser(User $user): QueryBuilder
