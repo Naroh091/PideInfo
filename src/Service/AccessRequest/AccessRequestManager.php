@@ -434,6 +434,20 @@ class AccessRequestManager
             default => null,
         };
 
+        // Set complaint deadline when manually changing to "Reclamada"
+        if ($statusType === StatusHistory::TYPE_COMPLAINT && $newStatus === AccessRequest::COMPLAINT_RECLAIMED) {
+            $complaintDeadline = (new \DateTimeImmutable())->modify('+3 months');
+            $request->setComplaintDeadlineAt($complaintDeadline);
+
+            $deadlineHistory = new DeadlineHistory();
+            $deadlineHistory->setAccessRequest($request);
+            $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_COMPLAINT);
+            $deadlineHistory->setNewDeadline($complaintDeadline);
+            $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
+            $deadlineHistory->setNotes('Plazo de reclamación establecido por cambio manual de estado');
+            $request->addDeadlineHistory($deadlineHistory);
+        }
+
         // Set resolvedAt for terminal statuses
         $terminalStatuses = [
             AccessRequest::STATUS_GRANTED,
