@@ -155,11 +155,25 @@
                                     <span class="badge {{ doc.processed ? 'badge-success' : 'badge-warning' }}">
                                         {{ doc.processed ? 'Procesado' : 'Pendiente' }}
                                     </span>
+                                    <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
+                                       target="_blank"
+                                       class="btn btn-ghost btn-sm"
+                                       title="Abrir en nueva pestaña">
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                    </a>
                                     <a href="{{ path('app_document_download', {id: doc.id}) }}"
                                        class="btn btn-ghost btn-sm"
                                        title="Descargar">
                                         <i data-lucide="download" class="w-4 h-4"></i>
                                     </a>
+                                    {% if not isZip %}
+                                        <button type="button"
+                                                class="btn btn-ghost btn-sm"
+                                                title="Reprocesar documento"
+                                                onclick="reprocessDocument('{{ doc.id }}', this)">
+                                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                        </button>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% endfor %}
@@ -661,6 +675,41 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (window.lucide) window.lucide.createIcons();
     }
+
+    window.reprocessDocument = async function(docId, btn) {
+        if (!confirm('¿Reprocesar este documento? Se volverá a analizar con IA.')) return;
+
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+            const resp = await fetch('/documentos/procesar', {
+                method: 'POST',
+                body: JSON.stringify({ documentIds: [docId] }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (resp.ok) {
+                const badge = btn.closest('[data-document-id]').querySelector('.badge');
+                if (badge) {
+                    badge.className = 'badge badge-warning';
+                    badge.textContent = 'Procesando...';
+                }
+            } else {
+                const err = await resp.json();
+                alert(err.error || 'Error al reprocesar documento');
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        } finally {
+            btn.disabled = false;
+            if (icon) icon.classList.remove('animate-spin');
+        }
+    };
 
     window.linkOrphanDoc = async function(docId, btn) {
         btn.disabled = true;

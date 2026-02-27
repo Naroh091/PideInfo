@@ -170,6 +170,13 @@ class DocumentController extends AbstractController
             $documents[] = $document;
         }
 
+        // Reset processing state
+        foreach ($documents as $document) {
+            $document->setProcessed(false);
+            $document->setProcessingError(null);
+        }
+        $this->entityManager->flush();
+
         // Dispatch appropriate message
         if ($asRelated && count($documents) > 1) {
             // Process as a batch
