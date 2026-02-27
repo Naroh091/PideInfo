@@ -33,6 +33,9 @@ services:
               credentials:
                   key: '%env(AWS_S3_ACCESS_KEY_ID)%'
                   secret: '%env(AWS_S3_SECRET_ACCESS_KEY)%'
+              http:
+                  timeout: 10
+              defaults_mode: 'standard'
 
     # Flysystem storage aliases for autowiring
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
