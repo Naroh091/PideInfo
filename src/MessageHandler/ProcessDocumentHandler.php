@@ -514,6 +514,19 @@ final class ProcessDocumentHandler
                     $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución CTBG');
                 }
                 break;
+
+            case DocumentType::Alegaciones:
+                // Handle administration's alegaciones during complaint process
+                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
+                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
+                    $this->recordStatusChange(
+                        $accessRequest,
+                        'complaint',
+                        AccessRequest::COMPLAINT_RECLAIMED,
+                        'Alegaciones de la Administración recibidas durante proceso de reclamación'
+                    );
+                }
+                break;
         }
     }
 

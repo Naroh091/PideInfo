@@ -1,0 +1,168 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}{{ list.name }} - PideInfo{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_listas_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Listas
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <span class="text-slate-800 font-medium truncate max-w-xs">{{ list.name|u.truncate(30) }}</span>
+</nav>
+
+{# Header #}
+<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
+    <div class="min-w-0 flex items-start gap-3">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+             style="background-color: {{ list.color ? list.color ~ '20' : '#f1f5f9' }}">
+            <i data-lucide="{{ list.icon ?: 'list' }}"
+               class="w-6 h-6"
+               style="color: {{ list.color ?: '#64748b' }}"></i>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">{{ list.name }}</h1>
+            <div class="flex items-center gap-3 mt-1">
+                <span class="badge {{ list.visibility == 'shared' ? 'badge-info' : 'badge-secondary' }}">
+                    {{ list.visibilityLabel }}
+                </span>
+                <span class="text-sm text-slate-500">
+                    {{ list.itemCount }} solicitud{{ list.itemCount != 1 ? 'es' : '' }}
+                </span>
+            </div>
+            {% if list.description %}
+                <p class="text-slate-500 mt-2">{{ list.description }}</p>
+            {% endif %}
+        </div>
+    </div>
+    {% if is_granted('edit', list) %}
+        <div class="flex items-center gap-2 flex-shrink-0">
+            <a href="{{ path('app_listas_edit', {id: list.id}) }}" class="btn btn-secondary">
+                <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
+                Editar
+            </a>
+            <form action="{{ path('app_listas_delete', {id: list.id}) }}"
+                  method="post"
+                  class="inline"
+                  onsubmit="return confirm('¿Eliminar esta lista? Las solicitudes no se eliminarán.');">
+                <input type="hidden" name="_token" value="{{ csrf_token('delete-list-' ~ list.id) }}">
+                <button type="submit" class="btn btn-danger">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                    Eliminar
+                </button>
+            </form>
+        </div>
+    {% endif %}
+</div>
+
+{# List items #}
+{% if list.items|length > 0 %}
+    <div class="space-y-3">
+        {% for item in list.items %}
+            {% set ar = item.accessRequest %}
+            <div class="card hover:shadow-sm transition-shadow">
+                <div class="card-body py-4">
+                    <div class="flex items-center justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-start gap-3">
+                                <div class="flex-1 min-w-0">
+                                    <a href="{{ path('app_solicitudes_show', {id: ar.id}) }}"
+                                       class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
+                                        {{ ar.title }}
+                                    </a>
+                                    <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500">
+                                        <span class="flex items-center gap-1">
+                                            <i data-lucide="building" class="w-3 h-3"></i>
+                                            {{ ar.publicBody.name }}
+                                        </span>
+                                        {% if ar.externalId %}
+                                            <span class="flex items-center gap-1 text-primary-600">
+                                                <i data-lucide="hash" class="w-3 h-3"></i>
+                                                {{ ar.externalId }}
+                                            </span>
+                                        {% endif %}
+                                        <span class="badge {{ {
+                                            'sent': 'status-sent',
+                                            'processing': 'status-processing',
+                                            'granted': 'status-granted',
+                                            'denied': 'status-denied',
+                                            'delayed': 'status-delayed',
+                                            'pending': 'status-pending'
+                                        }[ar.status]|default('badge-secondary') }}">
+                                            {{ ar.statusLabel }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% if is_granted('edit', list) %}
+                            <button type="button"
+                                    class="btn btn-ghost btn-sm text-slate-400 hover:text-red-600 flex-shrink-0"
+                                    title="Quitar de la lista"
+                                    onclick="removeFromList('{{ ar.id }}', this)">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="mt-6">
+        <a href="{{ path('app_solicitudes_index', {list: list.id}) }}" class="btn btn-secondary">
+            <i data-lucide="filter" class="w-4 h-4 mr-2"></i>
+            Ver en solicitudes
+        </a>
+    </div>
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <div class="text-center py-12">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Lista vacía</h3>
+                <p class="text-slate-500 mb-6 max-w-sm mx-auto">
+                    Añade solicitudes a esta lista desde la página de detalle de cada solicitud.
+                </p>
+                <a href="{{ path('app_solicitudes_index') }}" class="btn btn-primary">
+                    <i data-lucide="folder-open" class="w-4 h-4 mr-2"></i>
+                    Ir a solicitudes
+                </a>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{% if is_granted('edit', list) %}
+<script>
+async function removeFromList(requestId, btn) {
+    if (!confirm('¿Quitar esta solicitud de la lista?')) return;
+
+    btn.disabled = true;
+    try {
+        const resp = await fetch('{{ path('app_listas_remove_request', {id: list.id}) }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+            body: JSON.stringify({
+                requestId: requestId,
+                _token: '{{ csrf_token('list-manage-' ~ list.id) }}'
+            })
+        });
+        if (resp.ok) {
+            btn.closest('.card').remove();
+        } else {
+            const data = await resp.json();
+            alert(data.error || 'Error al quitar la solicitud');
+            btn.disabled = false;
+        }
+    } catch (e) {
+        alert('Error de conexión');
+        btn.disabled = false;
+    }
+}
+</script>
+{% endif %}
+{% endblock %}

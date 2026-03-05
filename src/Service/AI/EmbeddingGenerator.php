@@ -6,12 +6,13 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class EmbeddingGenerator
 {
-    private const EMBEDDING_MODEL = 'text-embedding-004';
     private const API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent';
 
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
+        #[Autowire(env: 'GEMINI_EMBEDDING_MODEL')]
+        private readonly string $embeddingModel,
     ) {
     }
 
@@ -22,10 +23,10 @@ final class EmbeddingGenerator
      */
     public function generate(string $text): array
     {
-        $url = sprintf(self::API_ENDPOINT, self::EMBEDDING_MODEL) . '?key=' . $this->geminiApiKey;
+        $url = sprintf(self::API_ENDPOINT, $this->embeddingModel) . '?key=' . $this->geminiApiKey;
 
         $payload = [
-            'model' => 'models/' . self::EMBEDDING_MODEL,
+            'model' => 'models/' . $this->embeddingModel,
             'content' => [
                 'parts' => [
                     ['text' => $text],

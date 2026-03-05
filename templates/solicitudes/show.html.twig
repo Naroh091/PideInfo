@@ -97,6 +97,37 @@
             </div>
         </div>
 
+        {# Alegation Points Card #}
+        {% set alegacionesDoc = null %}
+        {% for doc in request.documents %}
+            {% if doc.type.value == 'alegaciones' and doc.aiMetadata.alegationPoints is defined and doc.aiMetadata.alegationPoints %}
+                {% set alegacionesDoc = doc %}
+            {% endif %}
+        {% endfor %}
+        {% if alegacionesDoc %}
+            <div class="card border-l-4 border-red-400">
+                <div class="card-header">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                            <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
+                        </div>
+                        <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p class="text-sm text-slate-500 mb-4">Argumentos principales presentados por la Administración en su defensa:</p>
+                    <ol class="space-y-3">
+                        {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
+                            <li class="flex items-start gap-3">
+                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                <span class="text-slate-700">{{ point }}</span>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                </div>
+            </div>
+        {% endif %}
+
         {# Documents #}
         <div class="card"
              data-controller="file-uploader"
@@ -536,6 +567,80 @@
             </div>
         </div>
 
+        {# Lists Card #}
+        <div class="card" x-data="listsManager('{{ request.id }}')">
+            <div class="card-header">
+                <h2 class="font-semibold text-slate-800">Listas</h2>
+            </div>
+            <div class="card-body">
+                <template x-if="loading">
+                    <div class="text-center py-4">
+                        <i data-lucide="loader-2" class="w-5 h-5 text-slate-400 animate-spin mx-auto"></i>
+                    </div>
+                </template>
+                <template x-if="!loading">
+                    <div>
+                        {# Current list memberships #}
+                        <template x-if="lists.filter(l => l.inList).length > 0">
+                            <div class="space-y-2 mb-3">
+                                <template x-for="list in lists.filter(l => l.inList)" :key="list.id">
+                                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50">
+                                        <a :href="'/listas/' + list.id" class="flex items-center gap-2 min-w-0 text-sm font-medium text-slate-800 hover:text-primary-600 transition-colors">
+                                            <span class="w-3 h-3 rounded-full flex-shrink-0"
+                                                  :style="'background-color: ' + (list.color || '#94a3b8')"></span>
+                                            <span class="truncate" x-text="list.name"></span>
+                                        </a>
+                                        <template x-if="list.canEdit">
+                                            <button @click="toggleList(list)"
+                                                    class="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                                                    title="Quitar de la lista"
+                                                    :disabled="toggling">
+                                                <i data-lucide="x" class="w-3 h-3"></i>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+                        </template>
+
+                        {# Add to list dropdown #}
+                        <div class="relative">
+                            <button @click="dropdownOpen = !dropdownOpen"
+                                    class="btn btn-secondary btn-sm w-full">
+                                <i data-lucide="plus" class="w-3 h-3 mr-1"></i>
+                                Añadir a lista
+                            </button>
+                            <div x-show="dropdownOpen"
+                                 @click.away="dropdownOpen = false"
+                                 x-transition
+                                 class="absolute left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 max-h-48 overflow-y-auto"
+                                 style="display: none;">
+                                <template x-for="list in lists.filter(l => !l.inList && l.canEdit)" :key="list.id">
+                                    <button @click="toggleList(list)"
+                                            class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                                            :disabled="toggling">
+                                        <span class="w-3 h-3 rounded-full flex-shrink-0"
+                                              :style="'background-color: ' + (list.color || '#94a3b8')"></span>
+                                        <span x-text="list.name" class="truncate"></span>
+                                    </button>
+                                </template>
+                                <template x-if="lists.filter(l => !l.inList && l.canEdit).length === 0">
+                                    <p class="px-3 py-2 text-xs text-slate-500">No hay más listas disponibles</p>
+                                </template>
+                                <div class="border-t border-slate-100 mt-1 pt-1">
+                                    <a href="{{ path('app_listas_new') }}"
+                                       class="block px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 flex items-center gap-2">
+                                        <i data-lucide="plus" class="w-3 h-3"></i>
+                                        Crear nueva lista
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
         {# Actions Card #}
         <div class="card">
             <div class="card-header">
@@ -544,7 +649,7 @@
             <div class="card-body space-y-3">
                 {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted']) %}
                 {% if canComplain and request.complaintStatus == 'none' %}
-                    <a href="{{ path('app_complaint_generate', {id: request.id}) }}" class="btn btn-accent w-full">
+                    <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent w-full">
                         <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
                         Generar reclamación
                     </a>
@@ -553,6 +658,13 @@
                             Ante {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
                         </p>
                     {% endif %}
+                {% endif %}
+
+                {% if request.complaintStatus == 'reclaimed' %}
+                    <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-primary w-full">
+                        <i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>
+                        Generar respuesta a alegaciones
+                    </a>
                 {% endif %}
 
                 <a href="#" class="btn btn-secondary w-full">
@@ -740,5 +852,70 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 });
+
+// Lists manager Alpine.js component
+function listsManager(requestId) {
+    return {
+        lists: [],
+        loading: true,
+        dropdownOpen: false,
+        toggling: false,
+
+        init() {
+            this.loadLists();
+        },
+
+        async loadLists() {
+            try {
+                const resp = await fetch('/listas/para-solicitud/' + requestId, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    this.lists = data.lists;
+                }
+            } catch (e) {
+                console.error('Error loading lists:', e);
+            } finally {
+                this.loading = false;
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            }
+        },
+
+        async toggleList(list) {
+            this.toggling = true;
+            const url = list.inList
+                ? '/listas/' + list.id + '/solicitudes/quitar'
+                : '/listas/' + list.id + '/solicitudes/agregar';
+
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        requestId: requestId,
+                        _token: list.csrfToken
+                    })
+                });
+
+                if (resp.ok) {
+                    list.inList = !list.inList;
+                    this.dropdownOpen = false;
+                    this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+                } else {
+                    const data = await resp.json();
+                    alert(data.error || 'Error');
+                }
+            } catch (e) {
+                alert('Error de conexión');
+            } finally {
+                this.toggling = false;
+            }
+        }
+    };
+}
 </script>
 {% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Listas - PideInfo{% endblock %}
+
+{% block content %}
+{# Page Header #}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+    <div>
+        <h1 class="text-2xl font-bold text-slate-800">Mis listas</h1>
+        <p class="text-slate-500 mt-1">Organiza tus solicitudes en listas</p>
+    </div>
+    <a href="{{ path('app_listas_new') }}" class="btn btn-primary">
+        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+        Nueva lista
+    </a>
+</div>
+
+{% if lists|length > 0 %}
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for list in lists %}
+            <a href="{{ path('app_listas_show', {id: list.id}) }}"
+               class="card hover:shadow-md transition-shadow group">
+                <div class="card-body">
+                    <div class="flex items-start gap-3">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                             style="background-color: {{ list.color ? list.color ~ '20' : '#f1f5f9' }}">
+                            <i data-lucide="{{ list.icon ?: 'list' }}"
+                               class="w-5 h-5"
+                               style="color: {{ list.color ?: '#64748b' }}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-semibold text-slate-800 group-hover:text-primary-600 transition-colors truncate">
+                                {{ list.name }}
+                            </h3>
+                            {% if list.description %}
+                                <p class="text-sm text-slate-500 mt-1 line-clamp-2">{{ list.description }}</p>
+                            {% endif %}
+                            <div class="flex items-center gap-3 mt-3">
+                                <span class="text-xs text-slate-500 flex items-center gap-1">
+                                    <i data-lucide="file-text" class="w-3 h-3"></i>
+                                    {{ list.itemCount }} solicitud{{ list.itemCount != 1 ? 'es' : '' }}
+                                </span>
+                                <span class="badge {{ list.visibility == 'shared' ? 'badge-info' : 'badge-secondary' }} text-xs">
+                                    {{ list.visibilityLabel }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="card">
+        <div class="card-body">
+            <div class="text-center py-12">
+                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="list" class="w-8 h-8 text-slate-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-800 mb-2">Sin listas</h3>
+                <p class="text-slate-500 mb-6 max-w-sm mx-auto">
+                    Crea listas para organizar tus solicitudes por tema, proyecto u organismo.
+                </p>
+                <a href="{{ path('app_listas_new') }}" class="btn btn-primary">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                    Crear primera lista
+                </a>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}

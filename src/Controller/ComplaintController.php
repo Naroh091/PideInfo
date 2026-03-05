@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\DTO\ChatMessage;
 use App\Entity\AccessRequest;
 use App\Enum\DocumentType;
 use App\Service\Complaint\ComplaintGenerator;
@@ -31,24 +32,39 @@ class ComplaintController extends AbstractController
 
     #[Route('', name: 'app_complaint_generate', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function generate(AccessRequest $accessRequest): Response
+    public function generate(Request $request, AccessRequest $accessRequest): Response
     {
-        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
-            $this->addFlash('error', 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.');
-            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-        }
+        $mode = $request->query->get('mode', 'complaint');
 
-        $existingComplaint = null;
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Complaint) {
-                $existingComplaint = $document;
-                break;
+        if ($mode === 'alegation_response') {
+            if (!$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
+                $this->addFlash('error', 'Solo se pueden generar respuestas a alegaciones para solicitudes con reclamación en curso.');
+                return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+            }
+        } else {
+            if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+                $this->addFlash('error', 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.');
+                return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
             }
         }
 
-        return $this->render('complaint/generate.html.twig', [
+        $existingDocument = null;
+        $alegacionesDoc = null;
+        $searchType = $mode === 'alegation_response' ? DocumentType::AlegationResponse : DocumentType::Complaint;
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === $searchType && !$existingDocument) {
+                $existingDocument = $document;
+            }
+            if ($document->getType() === DocumentType::Alegaciones && !$alegacionesDoc) {
+                $alegacionesDoc = $document;
+            }
+        }
+
+        return $this->render('complaint/interactive.html.twig', [
             'request' => $accessRequest,
-            'existingComplaint' => $existingComplaint,
+            'existingDocument' => $existingDocument,
+            'alegacionesDoc' => $alegacionesDoc,
+            'mode' => $mode,
         ]);
     }
 
@@ -56,34 +72,84 @@ class ComplaintController extends AbstractController
     #[IsGranted('view', 'accessRequest')]
     public function create(Request $request, AccessRequest $accessRequest): JsonResponse
     {
-        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
-            return new JsonResponse([
-                'success' => false,
-                'error' => 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.',
-            ], Response::HTTP_BAD_REQUEST);
-        }
+        $data = json_decode($request->getContent(), true) ?? [];
+        $mode = $data['mode'] ?? 'complaint';
+        $userDirections = $data['userDirections'] ?? null;
+        $rawHistory = $data['conversationHistory'] ?? [];
+
+        $conversationHistory = array_map(
+            fn(array $msg) => ChatMessage::fromArray($msg),
+            $rawHistory
+        );
 
         try {
-            $draft = $this->complaintGenerator->generate($accessRequest);
+            if ($mode === 'alegation_response') {
+                if (!$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
+                    return new JsonResponse([
+                        'success' => false,
+                        'error' => 'Solo se pueden generar respuestas a alegaciones para solicitudes con reclamación en curso.',
+                    ], Response::HTTP_BAD_REQUEST);
+                }
 
-            $document = $this->complaintGenerator->saveComplaint($accessRequest, $draft);
+                $draft = $this->complaintGenerator->generateAlegationResponse($accessRequest, $conversationHistory, $userDirections);
+            } else {
+                if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+                    return new JsonResponse([
+                        'success' => false,
+                        'error' => 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.',
+                    ], Response::HTTP_BAD_REQUEST);
+                }
 
-            $previewHtml = $this->renderView('complaint/_preview.html.twig', [
-                'draft' => $draft,
-                'request' => $accessRequest,
-                'document' => $document,
-            ]);
+                $draft = $this->complaintGenerator->generate($accessRequest, $conversationHistory, $userDirections);
+            }
 
             return new JsonResponse([
                 'success' => true,
-                'preview' => $previewHtml,
-                'documentId' => $document->getId()->toRfc4122(),
+                'markdown' => $draft->content,
+                'draftData' => $draft->toArray(),
                 'successAnalysis' => $draft->successAnalysis?->toArray(),
             ]);
         } catch (\Exception $e) {
             return new JsonResponse([
                 'success' => false,
-                'error' => 'Error al generar la reclamación: ' . $e->getMessage(),
+                'error' => 'Error al generar el documento: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    #[Route('/guardar', name: 'app_complaint_save', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function save(Request $request, AccessRequest $accessRequest): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $mode = $data['mode'] ?? 'complaint';
+        $draftData = $data['draftData'] ?? [];
+
+        if (empty($draftData['content'])) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'No hay contenido para guardar.',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        try {
+            $draft = \App\DTO\ComplaintDraft::fromArray($draftData);
+
+            if ($mode === 'alegation_response') {
+                $document = $this->complaintGenerator->saveAlegationResponse($accessRequest, $draft);
+            } else {
+                $document = $this->complaintGenerator->saveComplaint($accessRequest, $draft);
+            }
+
+            return new JsonResponse([
+                'success' => true,
+                'documentId' => $document->getId()->toRfc4122(),
+                'redirectUrl' => $this->generateUrl('app_solicitudes_show', ['id' => $accessRequest->getId()]),
+            ]);
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'Error al guardar el documento: ' . $e->getMessage(),
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
@@ -92,10 +158,11 @@ class ComplaintController extends AbstractController
     #[IsGranted('view', 'accessRequest')]
     public function analyze(AccessRequest $accessRequest): JsonResponse
     {
-        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest) &&
+            !$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
             return new JsonResponse([
                 'success' => false,
-                'error' => 'Solo se pueden analizar solicitudes denegadas o sin respuesta.',
+                'error' => 'No se puede analizar esta solicitud.',
             ], Response::HTTP_BAD_REQUEST);
         }
 
@@ -114,20 +181,45 @@ class ComplaintController extends AbstractController
         }
     }
 
+    #[Route('/descargar-pdf', name: 'app_complaint_download_pdf', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function downloadPdfFromMarkdown(Request $request, AccessRequest $accessRequest): Response
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $markdown = $data['markdown'] ?? '';
+
+        if (empty($markdown)) {
+            return new JsonResponse(['error' => 'No hay contenido.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $html = $this->renderView('complaint/_pdf_from_markdown.html.twig', [
+            'accessRequest' => $accessRequest,
+            'markdown' => $markdown,
+        ]);
+
+        $pdfContent = $this->pdfGenerator->generateFromHtml($html);
+
+        return new Response($pdfContent, Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => sprintf(
+                'attachment; filename="%s"',
+                preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', sprintf(
+                    'documento_%s_%s.pdf',
+                    $accessRequest->getPublicBody()->getName(),
+                    (new \DateTime())->format('Y-m-d')
+                ))
+            ),
+        ]);
+    }
+
     #[Route('/pdf', name: 'app_complaint_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function downloadPdf(AccessRequest $accessRequest): Response
     {
-        $complaintDocument = null;
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Complaint) {
-                $complaintDocument = $document;
-                break;
-            }
-        }
+        $complaintDocument = $this->findGeneratedDocument($accessRequest);
 
         if (!$complaintDocument) {
-            $this->addFlash('error', 'No hay reclamación generada para esta solicitud.');
+            $this->addFlash('error', 'No hay documento generado para esta solicitud.');
             return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
         }
 
@@ -160,16 +252,10 @@ class ComplaintController extends AbstractController
     #[IsGranted('view', 'accessRequest')]
     public function downloadWord(AccessRequest $accessRequest): Response
     {
-        $complaintDocument = null;
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Complaint) {
-                $complaintDocument = $document;
-                break;
-            }
-        }
+        $complaintDocument = $this->findGeneratedDocument($accessRequest);
 
         if (!$complaintDocument) {
-            $this->addFlash('error', 'No hay reclamación generada para esta solicitud.');
+            $this->addFlash('error', 'No hay documento generado para esta solicitud.');
             return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
         }
 
@@ -196,6 +282,23 @@ class ComplaintController extends AbstractController
             'Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'Content-Disposition' => 'attachment; filename="' . $filename . '"',
         ]);
+    }
+
+    private function findGeneratedDocument(AccessRequest $accessRequest): ?\App\Entity\Document
+    {
+        // Look for AlegationResponse first, then Complaint
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === DocumentType::AlegationResponse) {
+                return $document;
+            }
+        }
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === DocumentType::Complaint) {
+                return $document;
+            }
+        }
+
+        return null;
     }
 
     private function getComplaintContent(\App\Entity\Document $document): string

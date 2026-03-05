@@ -2,6 +2,7 @@
 
 namespace App\Service\Complaint;
 
+use App\DTO\ChatMessage;
 use App\DTO\CitedResolution;
 use App\DTO\ComplaintDraft;
 use App\Entity\AccessRequest;
@@ -16,7 +17,6 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ComplaintGenerator
 {
-    private const GEMINI_MODEL = 'gemini-2.0-flash';
     private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
 
     private const TRANSPARENCY_COUNCILS = [
@@ -43,6 +43,8 @@ final class ComplaintGenerator
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
+        #[Autowire(env: 'GEMINI_BIG_MODEL')]
+        private readonly string $geminiModel,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
         private readonly SuccessAnalyzer $successAnalyzer,
@@ -51,7 +53,10 @@ final class ComplaintGenerator
     ) {
     }
 
-    public function generate(AccessRequest $accessRequest): ComplaintDraft
+    /**
+     * @param ChatMessage[] $conversationHistory
+     */
+    public function generate(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null): ComplaintDraft
     {
         if (!$this->canGenerateComplaint($accessRequest)) {
             throw new \InvalidArgumentException(
@@ -76,7 +81,15 @@ final class ComplaintGenerator
             $resolutions
         );
 
-        $content = $this->callGeminiApi($prompt);
+        if ($userDirections) {
+            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        if (!empty($conversationHistory)) {
+            $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
+        } else {
+            $content = $this->callGeminiApi($prompt);
+        }
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -273,16 +286,302 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 4. ESPAÑOL JURÍDICO: Usa lenguaje formal jurídico-administrativo
 5. Citar expresamente las resoluciones que fundamenten la argumentación
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
+7. FORMATO MARKDOWN: Usa formato Markdown (## para títulos, **negrita**, *cursiva*, etc.)
+8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo.
+9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
 
-Responde ÚNICAMENTE con el texto de la reclamación, sin explicaciones adicionales ni comentarios.
+Responde ÚNICAMENTE con el texto de la reclamación en formato Markdown, sin explicaciones adicionales ni comentarios.
 PROMPT;
 
         return $prompt;
     }
 
+    public function canGenerateAlegationResponse(AccessRequest $accessRequest): bool
+    {
+        return $accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_RECLAIMED;
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     */
+    public function generateAlegationResponse(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null): ComplaintDraft
+    {
+        if (!$this->canGenerateAlegationResponse($accessRequest)) {
+            throw new \InvalidArgumentException(
+                'Cannot generate alegation response. Complaint status must be reclaimed.'
+            );
+        }
+
+        $successAnalysis = $this->successAnalyzer->analyze($accessRequest);
+
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+
+        $contextQuery = $this->buildContextQuery($accessRequest);
+        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
+        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+
+        $alegacionesContent = $this->getAlegacionesContent($accessRequest);
+        $alegationPoints = $this->getAlegationPoints($accessRequest);
+
+        $prompt = $this->buildAlegationResponsePrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $alegacionesContent,
+            $alegationPoints
+        );
+
+        if ($userDirections) {
+            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        if (!empty($conversationHistory)) {
+            $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
+        } else {
+            $content = $this->callGeminiApi($prompt);
+        }
+
+        $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
+        $citedCriteria = $this->extractCitedCriteria($content, $criteria);
+
+        return new ComplaintDraft(
+            content: $content,
+            transparencyCouncil: $transparencyCouncil,
+            applicableLaw: $applicableLawName,
+            citedResolutions: $citedResolutions,
+            citedCriteria: $citedCriteria,
+            successAnalysis: $successAnalysis,
+        );
+    }
+
+    public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft): Document
+    {
+        $filename = sprintf(
+            'respuesta_alegaciones_%s_%s.txt',
+            $accessRequest->getId()->toRfc4122(),
+            (new \DateTime())->format('Y-m-d_H-i-s')
+        );
+
+        $this->documentsStorage->write($filename, $draft->content);
+
+        $document = new Document();
+        $document->setOriginalFilename('Respuesta a alegaciones.txt');
+        $document->setStoredFilename($filename);
+        $document->setMimeType('text/plain');
+        $document->setFileSize(strlen($draft->content));
+        $document->setType(DocumentType::AlegationResponse);
+        $document->setAccessRequest($accessRequest);
+        $document->setUploadedBy($accessRequest->getUser());
+        $document->setProcessed(true);
+        $document->setAiMetadata([
+            'transparencyCouncil' => $draft->transparencyCouncil,
+            'applicableLaw' => $draft->applicableLaw,
+            'citedResolutions' => array_map(fn($r) => $r->toArray(), $draft->citedResolutions),
+            'citedCriteria' => $draft->citedCriteria,
+            'successAnalysis' => $draft->successAnalysis?->toArray(),
+            'generatedAt' => (new \DateTime())->format('c'),
+        ]);
+
+        $this->entityManager->persist($document);
+        $this->entityManager->flush();
+
+        return $document;
+    }
+
+    private function getAlegacionesContent(AccessRequest $accessRequest): string
+    {
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === DocumentType::Alegaciones) {
+                try {
+                    return $this->documentsStorage->read($document->getStoredFilename());
+                } catch (\Exception) {
+                    return '';
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getAlegationPoints(AccessRequest $accessRequest): array
+    {
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === DocumentType::Alegaciones) {
+                $metadata = $document->getAiMetadata();
+                if (!empty($metadata['alegationPoints']) && is_array($metadata['alegationPoints'])) {
+                    return $metadata['alegationPoints'];
+                }
+            }
+        }
+
+        return [];
+    }
+
+    private function buildAlegationResponsePrompt(
+        AccessRequest $accessRequest,
+        string $transparencyCouncil,
+        string $applicableLawName,
+        array $criteria,
+        array $resolutions,
+        string $alegacionesContent,
+        array $alegationPoints
+    ): string {
+        $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
+        $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
+
+        $alegationPointsText = '';
+        if (!empty($alegationPoints)) {
+            $alegationPointsText = "## PUNTOS DE ALEGACIÓN DE LA ADMINISTRACIÓN\n\n";
+            foreach ($alegationPoints as $i => $point) {
+                $alegationPointsText .= sprintf("%d. %s\n", $i + 1, $point);
+            }
+        }
+
+        $prompt = <<<PROMPT
+Eres un abogado especialista en derecho de acceso a información pública en España.
+Redacta un escrito de RESPUESTA A LAS ALEGACIONES presentadas por la Administración ante el {$transparencyCouncil}.
+
+El ciudadano presentó una reclamación y la Administración ha respondido con alegaciones defendiendo su posición. Debes rebatir punto por punto las alegaciones de la Administración.
+
+## ESTRUCTURA DEL ESCRITO
+
+### 1. ENCABEZAMIENTO
+Escrito dirigido al {$transparencyCouncil} en respuesta a las alegaciones formuladas por {$accessRequest->getPublicBody()->getName()}.
+
+### 2. ANTECEDENTES
+Resumen breve de la solicitud original y el proceso de reclamación.
+
+### 3. RESPUESTA A LAS ALEGACIONES
+Para CADA punto de alegación de la Administración:
+- Cita el argumento de la Administración
+- Rebátelo con fundamento jurídico
+- Apoya con criterios interpretativos y resoluciones favorables
+
+### 4. CONCLUSIONES Y SOLICITUD
+Solicita al {$transparencyCouncil} que desestime las alegaciones y estime la reclamación.
+
+---
+
+## CONTEXTO DE LA SOLICITUD
+
+**Título:** {$accessRequest->getTitle()}
+
+**Descripción:**
+{$accessRequest->getDescription()}
+
+**Organismo:** {$accessRequest->getPublicBody()->getName()}
+
+**Ley aplicable:** {$applicableLawName}
+
+---
+
+{$alegationPointsText}
+
+---
+
+## CRITERIOS INTERPRETATIVOS RECUPERADOS
+
+{$criteriaText}
+
+---
+
+## RESOLUCIONES FAVORABLES SIMILARES
+
+{$resolutionsText}
+
+---
+
+## REGLAS DE REDACCIÓN
+
+1. DOCUMENTO COMPLETO: El texto debe estar listo para firmar, sin huecos por rellenar
+2. SIN PLACEHOLDERS: NUNCA escribas [nombre], [fecha], [espacio para...], [completar], [firma], etc.
+3. ESPAÑOL JURÍDICO: Usa lenguaje formal jurídico-administrativo
+4. Citar expresamente las resoluciones que fundamenten la argumentación
+5. NO incluir encabezado con datos del reclamante
+6. REBATIR cada punto de alegación específicamente
+7. FORMATO MARKDOWN: Usa formato Markdown (## para títulos, **negrita**, *cursiva*, etc.)
+8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo.
+9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
+
+Responde ÚNICAMENTE con el texto del escrito en formato Markdown, sin explicaciones adicionales ni comentarios.
+PROMPT;
+
+        return $prompt;
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     */
+    private function callGeminiApiMultiTurn(string $systemPrompt, array $conversationHistory): string
+    {
+        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
+
+        $contents = [];
+
+        // System prompt as first user turn
+        $contents[] = [
+            'role' => 'user',
+            'parts' => [['text' => $systemPrompt]],
+        ];
+
+        // Model acknowledgment
+        $contents[] = [
+            'role' => 'model',
+            'parts' => [['text' => 'Entendido. Procedo a redactar el documento según las instrucciones proporcionadas.']],
+        ];
+
+        // Add conversation history
+        foreach ($conversationHistory as $message) {
+            $contents[] = $message->toGeminiFormat();
+        }
+
+        $payload = [
+            'contents' => $contents,
+            'generationConfig' => [
+                'temperature' => 0.3,
+                'topK' => 40,
+                'topP' => 0.95,
+                'maxOutputTokens' => 8192,
+            ],
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 240);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            throw new \RuntimeException('Gemini API connection error: ' . $curlError);
+        }
+
+        if ($httpCode !== 200) {
+            throw new \RuntimeException('Gemini API error: ' . $response);
+        }
+
+        $data = json_decode($response, true);
+
+        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+    }
+
     private function callGeminiApi(string $prompt): string
     {
-        $url = sprintf(self::GEMINI_ENDPOINT, self::GEMINI_MODEL) . '?key=' . $this->geminiApiKey;
+        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [
@@ -307,10 +606,17 @@ PROMPT;
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
         ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 240);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
+
+        if ($response === false) {
+            throw new \RuntimeException('Gemini API connection error: ' . $curlError);
+        }
 
         if ($httpCode !== 200) {
             throw new \RuntimeException('Gemini API error: ' . $response);

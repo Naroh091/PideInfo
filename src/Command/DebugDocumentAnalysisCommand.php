@@ -20,11 +20,15 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 )]
 class DebugDocumentAnalysisCommand extends Command
 {
+    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
+        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        private readonly string $geminiModel,
     ) {
         parent::__construct();
     }
@@ -177,7 +181,7 @@ PROMPT;
      */
     private function callGeminiApi(array $parts): array
     {
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $this->geminiApiKey;
+        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [
