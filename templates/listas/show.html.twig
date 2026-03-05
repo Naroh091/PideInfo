@@ -56,12 +56,84 @@
     {% endif %}
 </div>
 
+{% if is_granted('edit', list) %}
+{# Add requests to list #}
+<div class="card mb-6" x-data="addRequestToList()">
+    <div class="card-header">
+        <div class="flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-5 h-5 text-primary-500"></i>
+            <h2 class="font-semibold text-slate-800">Añadir solicitudes</h2>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="relative">
+            <div class="flex items-center gap-2">
+                <div class="relative flex-1">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text"
+                           x-model="query"
+                           @input.debounce.300ms="search()"
+                           @focus="if (results.length) showResults = true"
+                           placeholder="Buscar solicitudes por título, organismo..."
+                           class="input pl-9 text-sm">
+                </div>
+            </div>
+
+            <div x-show="showResults && results.length > 0"
+                 @click.away="showResults = false"
+                 x-transition
+                 class="absolute left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 max-h-64 overflow-y-auto"
+                 style="display: none;">
+                <template x-for="req in results" :key="req.id">
+                    <div class="px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-slate-800 truncate" x-text="req.title"></p>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="text-xs text-slate-500" x-text="req.publicBody.name"></span>
+                                <span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600" x-text="req.statusLabel"></span>
+                            </div>
+                        </div>
+                        <button @click="addToList(req)"
+                                class="btn btn-primary btn-sm flex-shrink-0"
+                                :disabled="adding === req.id">
+                            <template x-if="adding !== req.id">
+                                <span class="flex items-center gap-1">
+                                    <i data-lucide="plus" class="w-3 h-3"></i>
+                                    Añadir
+                                </span>
+                            </template>
+                            <template x-if="adding === req.id">
+                                <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i>
+                            </template>
+                        </button>
+                    </div>
+                </template>
+            </div>
+
+            <div x-show="showResults && results.length === 0 && query.length >= 2 && !searching"
+                 class="absolute left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 py-4 z-10 text-center"
+                 style="display: none;">
+                <p class="text-sm text-slate-500">No se encontraron solicitudes</p>
+            </div>
+        </div>
+
+        <template x-if="successMessage">
+            <div class="mt-3 p-2 bg-green-50 text-green-700 text-sm rounded-lg flex items-center gap-2"
+                 x-transition>
+                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                <span x-text="successMessage"></span>
+            </div>
+        </template>
+    </div>
+</div>
+{% endif %}
+
 {# List items #}
 {% if list.items|length > 0 %}
     <div class="space-y-3">
         {% for item in list.items %}
             {% set ar = item.accessRequest %}
-            <div class="card hover:shadow-sm transition-shadow">
+            <div class="card hover:shadow-sm transition-shadow" data-request-id="{{ ar.id }}">
                 <div class="card-body py-4">
                     <div class="flex items-center justify-between gap-4">
                         <div class="flex-1 min-w-0">
@@ -138,6 +210,76 @@
 
 {% if is_granted('edit', list) %}
 <script>
+function addRequestToList() {
+    return {
+        query: '',
+        results: [],
+        showResults: false,
+        searching: false,
+        adding: null,
+        successMessage: '',
+
+        async search() {
+            if (this.query.length < 2) {
+                this.results = [];
+                this.showResults = false;
+                return;
+            }
+            this.searching = true;
+            try {
+                const resp = await fetch('/solicitudes/buscar?q=' + encodeURIComponent(this.query), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    // Filter out requests already in the list
+                    const existingIds = new Set(
+                        [...document.querySelectorAll('[data-request-id]')].map(el => el.dataset.requestId)
+                    );
+                    this.results = data.requests.filter(r => !existingIds.has(r.id));
+                    this.showResults = true;
+                }
+            } catch (e) {
+                console.error('Error searching:', e);
+            } finally {
+                this.searching = false;
+            }
+        },
+
+        async addToList(req) {
+            this.adding = req.id;
+            try {
+                const resp = await fetch('{{ path('app_listas_add_request', {id: list.id}) }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        requestId: req.id,
+                        _token: '{{ csrf_token('list-manage-' ~ list.id) }}'
+                    })
+                });
+
+                if (resp.ok) {
+                    this.results = this.results.filter(r => r.id !== req.id);
+                    this.successMessage = '"' + req.title + '" añadida a la lista';
+                    setTimeout(() => { this.successMessage = ''; }, 3000);
+                    // Reload to show the new item
+                    setTimeout(() => { window.location.reload(); }, 1000);
+                } else {
+                    const data = await resp.json();
+                    alert(data.error || 'Error al añadir la solicitud');
+                }
+            } catch (e) {
+                alert('Error de conexión');
+            } finally {
+                this.adding = null;
+            }
+        }
+    };
+}
+
 async function removeFromList(requestId, btn) {
     if (!confirm('¿Quitar esta solicitud de la lista?')) return;
 
