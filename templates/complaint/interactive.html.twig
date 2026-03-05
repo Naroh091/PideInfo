@@ -228,6 +228,38 @@
             </div>
         </div>
 
+        {# Documents Card #}
+        {% if availableDocuments|length > 0 %}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                        <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold text-slate-800">Documentos del expediente</h2>
+                        <p class="text-xs text-slate-500">Selecciona los documentos a incluir como contexto</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body space-y-2">
+                {% for doc in availableDocuments %}
+                <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                    <input type="checkbox"
+                           value="{{ doc.id }}"
+                           x-model="selectedDocIds"
+                           {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}
+                           class="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-700 truncate">{{ doc.originalFilename }}</p>
+                        <p class="text-xs text-slate-500">{{ doc.typeLabel }} &middot; {{ doc.fileSizeFormatted }}</p>
+                    </div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         {# Analysis Card #}
         <div class="card">
             <div class="card-header">
@@ -310,6 +342,7 @@ function interactiveGenerator() {
         downloadingPdf: false,
         analysis: null,
         analysisLoading: false,
+        selectedDocIds: [{% for doc in availableDocuments %}{% if doc.type.value in ['response', 'alegaciones'] %}'{{ doc.id }}',{% endif %}{% endfor %}],
 
         init() {
             const initialMessage = this.mode === 'alegation_response'
@@ -377,7 +410,8 @@ function interactiveGenerator() {
                     body: JSON.stringify({
                         mode: this.mode,
                         conversationHistory: history,
-                        userDirections: userDirections
+                        userDirections: userDirections,
+                        documentIds: this.selectedDocIds
                     })
                 });
 

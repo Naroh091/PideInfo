@@ -50,7 +50,9 @@ class ComplaintController extends AbstractController
 
         $existingDocument = null;
         $alegacionesDoc = null;
+        $availableDocuments = [];
         $searchType = $mode === 'alegation_response' ? DocumentType::AlegationResponse : DocumentType::Complaint;
+        $excludedTypes = [DocumentType::Complaint, DocumentType::AlegationResponse, DocumentType::Unprocessed];
         foreach ($accessRequest->getDocuments() as $document) {
             if ($document->getType() === $searchType && !$existingDocument) {
                 $existingDocument = $document;
@@ -58,12 +60,18 @@ class ComplaintController extends AbstractController
             if ($document->getType() === DocumentType::Alegaciones && !$alegacionesDoc) {
                 $alegacionesDoc = $document;
             }
+            if (!in_array($document->getType(), $excludedTypes, true)
+                && $document->isProcessed()
+                && $document->getExtractedText()) {
+                $availableDocuments[] = $document;
+            }
         }
 
         return $this->render('complaint/interactive.html.twig', [
             'request' => $accessRequest,
             'existingDocument' => $existingDocument,
             'alegacionesDoc' => $alegacionesDoc,
+            'availableDocuments' => $availableDocuments,
             'mode' => $mode,
         ]);
     }
@@ -76,11 +84,15 @@ class ComplaintController extends AbstractController
         $mode = $data['mode'] ?? 'complaint';
         $userDirections = $data['userDirections'] ?? null;
         $rawHistory = $data['conversationHistory'] ?? [];
+        $documentIds = $data['documentIds'] ?? [];
 
         $conversationHistory = array_map(
             fn(array $msg) => ChatMessage::fromArray($msg),
             $rawHistory
         );
+
+        // Gather selected document contents
+        $documentContents = $this->gatherDocumentContents($accessRequest, $documentIds);
 
         try {
             if ($mode === 'alegation_response') {
@@ -91,7 +103,7 @@ class ComplaintController extends AbstractController
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-                $draft = $this->complaintGenerator->generateAlegationResponse($accessRequest, $conversationHistory, $userDirections);
+                $draft = $this->complaintGenerator->generateAlegationResponse($accessRequest, $conversationHistory, $userDirections, $documentContents);
             } else {
                 if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
                     return new JsonResponse([
@@ -100,7 +112,7 @@ class ComplaintController extends AbstractController
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
-                $draft = $this->complaintGenerator->generate($accessRequest, $conversationHistory, $userDirections);
+                $draft = $this->complaintGenerator->generate($accessRequest, $conversationHistory, $userDirections, $documentContents);
             }
 
             return new JsonResponse([
@@ -308,5 +320,29 @@ class ComplaintController extends AbstractController
         } catch (\Exception $e) {
             return '';
         }
+    }
+
+    /**
+     * @param string[] $documentIds
+     * @return array<array{name: string, type: string, content: string}>
+     */
+    private function gatherDocumentContents(AccessRequest $accessRequest, array $documentIds): array
+    {
+        if (empty($documentIds)) {
+            return [];
+        }
+
+        $contents = [];
+        foreach ($accessRequest->getDocuments() as $document) {
+            if (in_array((string) $document->getId(), $documentIds, true) && $document->getExtractedText()) {
+                $contents[] = [
+                    'name' => $document->getOriginalFilename(),
+                    'type' => $document->getType()->label(),
+                    'content' => $document->getExtractedText(),
+                ];
+            }
+        }
+
+        return $contents;
     }
 }

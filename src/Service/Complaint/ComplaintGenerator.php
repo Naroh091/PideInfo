@@ -56,7 +56,11 @@ final class ComplaintGenerator
     /**
      * @param ChatMessage[] $conversationHistory
      */
-    public function generate(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null): ComplaintDraft
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    public function generate(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): ComplaintDraft
     {
         if (!$this->canGenerateComplaint($accessRequest)) {
             throw new \InvalidArgumentException(
@@ -78,7 +82,8 @@ final class ComplaintGenerator
             $transparencyCouncil,
             $applicableLawName,
             $criteria,
-            $resolutions
+            $resolutions,
+            $documentContents
         );
 
         if ($userDirections) {
@@ -167,6 +172,23 @@ final class ComplaintGenerator
         return self::TRANSPARENCY_COUNCILS[$code] ?? self::TRANSPARENCY_COUNCILS['ES'];
     }
 
+    /**
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    private function formatDocumentContents(array $documentContents): string
+    {
+        if (empty($documentContents)) {
+            return '';
+        }
+
+        $text = "## DOCUMENTOS ADJUNTOS DEL EXPEDIENTE\n\n";
+        foreach ($documentContents as $i => $doc) {
+            $text .= sprintf("### Documento %d: %s (%s)\n\n%s\n\n---\n\n", $i + 1, $doc['name'], $doc['type'], $doc['content']);
+        }
+
+        return $text;
+    }
+
     private function buildContextQuery(AccessRequest $accessRequest): string
     {
         $parts = [
@@ -185,12 +207,16 @@ final class ComplaintGenerator
         return implode('. ', $parts);
     }
 
+    /**
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
     private function buildPrompt(
         AccessRequest $accessRequest,
         string $transparencyCouncil,
         string $applicableLawName,
         array $criteria,
-        array $resolutions
+        array $resolutions,
+        array $documentContents = []
     ): string {
         $status = match (true) {
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
@@ -266,6 +292,7 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 
 ---
 
+{$this->formatDocumentContents($documentContents)}
 ## CRITERIOS INTERPRETATIVOS RECUPERADOS
 
 {$criteriaText}
@@ -303,8 +330,9 @@ PROMPT;
 
     /**
      * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
      */
-    public function generateAlegationResponse(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null): ComplaintDraft
+    public function generateAlegationResponse(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): ComplaintDraft
     {
         if (!$this->canGenerateAlegationResponse($accessRequest)) {
             throw new \InvalidArgumentException(
@@ -331,7 +359,8 @@ PROMPT;
             $criteria,
             $resolutions,
             $alegacionesContent,
-            $alegationPoints
+            $alegationPoints,
+            $documentContents
         );
 
         if ($userDirections) {
@@ -430,7 +459,8 @@ PROMPT;
         array $criteria,
         array $resolutions,
         string $alegacionesContent,
-        array $alegationPoints
+        array $alegationPoints,
+        array $documentContents = []
     ): string {
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
@@ -485,6 +515,7 @@ Solicita al {$transparencyCouncil} que desestime las alegaciones y estime la rec
 
 ---
 
+{$this->formatDocumentContents($documentContents)}
 ## CRITERIOS INTERPRETATIVOS RECUPERADOS
 
 {$criteriaText}
