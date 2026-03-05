@@ -84,8 +84,9 @@ class AccessRequestListRepository extends ServiceEntityRepository
     private function createVisibleQueryBuilder(User $user): QueryBuilder
     {
         $qb = $this->createQueryBuilder('l')
-            ->where('l.user = :user')
-            ->setParameter('user', $user);
+            ->join('l.user', 'u')
+            ->where('u.email = :email')
+            ->setParameter('email', $user->getEmail());
 
         if ($user->getOrganization() !== null) {
             $qb->orWhere('l.organization = :organization AND l.visibility = :shared')
