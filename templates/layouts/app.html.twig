@@ -25,6 +25,11 @@
                         <i data-lucide="folder-open" class="w-4 h-4"></i>
                         <span>Solicitudes</span>
                     </a>
+                    <a href="{{ path('app_listas_index') }}"
+                       class="nav-link {{ 'lista' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                        <i data-lucide="list" class="w-4 h-4"></i>
+                        <span>Listas</span>
+                    </a>
                 </div>
             </div>
 
@@ -101,6 +106,11 @@
                class="nav-link w-full {{ 'solicitud' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
                 <i data-lucide="folder-open" class="w-4 h-4"></i>
                 <span>Solicitudes</span>
+            </a>
+            <a href="{{ path('app_listas_index') }}"
+               class="nav-link w-full {{ 'lista' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                <i data-lucide="list" class="w-4 h-4"></i>
+                <span>Listas</span>
             </a>
             <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary w-full mt-2">
                 <i data-lucide="plus" class="w-4 h-4 mr-1"></i>

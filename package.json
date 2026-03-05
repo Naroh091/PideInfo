@@ -1,5 +1,11 @@
 {
 	"dependencies": {
+		"@codemirror/state": "^6.5.4",
+		"@codemirror/view": "^6.39.16",
+		"draftly": "^2.0.0",
 		"tom-select": "^2.4.3"
+	},
+	"scripts": {
+		"build:draftly": "npx esbuild assets/draftly-bundle.js --bundle --format=iife --minify --loader:.woff=empty --loader:.woff2=empty --loader:.ttf=empty --outfile=public/build/draftly.js"
 	}
 }

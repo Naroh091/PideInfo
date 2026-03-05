@@ -22,6 +22,7 @@ class AccessRequestTableType implements DataTableTypeInterface
     {
         $status = $options['status'] ?? null;
         $search = $options['search'] ?? null;
+        $listId = $options['list'] ?? null;
 
         $dataTable
             ->add('title', TwigColumn::class, [
@@ -55,7 +56,7 @@ class AccessRequestTableType implements DataTableTypeInterface
             ])
             ->createAdapter(ORMAdapter::class, [
                 'entity' => AccessRequest::class,
-                'query' => function (QueryBuilder $builder) use ($status, $search): void {
+                'query' => function (QueryBuilder $builder) use ($status, $search, $listId): void {
                     /** @var User $user */
                     $user = $this->security->getUser();
 
@@ -101,6 +102,15 @@ class AccessRequestTableType implements DataTableTypeInterface
                         $builder
                             ->andWhere('ar.title LIKE :search OR ar.description LIKE :search OR ar.externalId LIKE :search OR pb.name LIKE :search')
                             ->setParameter('search', '%' . $search . '%');
+                    }
+
+                    // Filter by list
+                    if ($listId !== null && $listId !== '') {
+                        $builder
+                            ->join('ar.listItems', 'li')
+                            ->andWhere('li.list = :listId')
+                            ->setParameter('listId', $listId)
+                            ->distinct();
                     }
 
                     // Default sort by createdAt DESC

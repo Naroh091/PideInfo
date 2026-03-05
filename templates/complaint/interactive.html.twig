@@ -1,0 +1,508 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% set isAlegationResponse = mode == 'alegation_response' %}
+{% set pageTitle = isAlegationResponse ? 'Respuesta a Alegaciones' : 'Generar Reclamación' %}
+
+{% block title %}{{ pageTitle }} - {{ request.title }} - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="{{ asset('build/draftly.css') }}">
+{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_solicitudes_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Solicitudes
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="text-slate-500 hover:text-primary-600 transition-colors truncate max-w-xs">
+        {{ request.title|u.truncate(30) }}
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <span class="text-slate-800 font-medium">{{ pageTitle }}</span>
+</nav>
+
+{# Header #}
+<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
+    <div class="min-w-0">
+        <h1 class="text-2xl font-bold text-slate-800">{{ pageTitle }}</h1>
+        <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
+            <span class="flex items-center gap-1">
+                <i data-lucide="building" class="w-4 h-4"></i>
+                {{ request.publicBody.name }}
+            </span>
+            <span class="badge {{ request.status == 'denied' ? 'status-denied' : 'status-delayed' }}">
+                {{ request.statusLabel }}
+            </span>
+        </div>
+    </div>
+    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary flex-shrink-0">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+        Volver
+    </a>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6" x-data="interactiveGenerator()">
+    <div class="lg:col-span-2 space-y-6">
+        {# Alegaciones Card #}
+        {% if isAlegationResponse and alegacionesDoc and alegacionesDoc.aiMetadata.alegationPoints is defined and alegacionesDoc.aiMetadata.alegationPoints %}
+            <div class="card border-l-4 border-red-400">
+                <div class="card-header">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                                <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
+                            </div>
+                            <h2 class="font-semibold text-slate-800">Alegaciones de la Administración</h2>
+                        </div>
+                        <a href="{{ path('app_document_download', {id: alegacionesDoc.id}) }}" class="btn btn-secondary btn-sm">
+                            <i data-lucide="download" class="w-4 h-4 mr-1"></i>
+                            Descargar archivo
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <ol class="space-y-3">
+                        {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
+                            <li class="flex items-start gap-3">
+                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                <span class="text-slate-700 text-sm">{{ point }}</span>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                </div>
+            </div>
+        {% endif %}
+
+        {# Chat Card #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl {{ isAlegationResponse ? 'bg-red-100' : 'bg-primary-100' }} flex items-center justify-center">
+                        <i data-lucide="{{ isAlegationResponse ? 'shield-alert' : 'message-square' }}" class="w-5 h-5 {{ isAlegationResponse ? 'text-red-600' : 'text-primary-600' }}"></i>
+                    </div>
+                    <h2 class="font-semibold text-slate-800">Asistente de redacción</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                {# Message list #}
+                <div class="space-y-3 mb-4 max-h-96 overflow-y-auto scroll-smooth px-1" id="chatMessages">
+                    <template x-for="(msg, index) in messages" :key="index">
+                        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start gap-2'">
+                            <template x-if="msg.role !== 'user'">
+                                <div class="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0 mt-1">
+                                    <i data-lucide="bot" class="w-4 h-4 text-primary-600"></i>
+                                </div>
+                            </template>
+                            <div :class="msg.role === 'user'
+                                ? 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[75%] shadow-sm'
+                                : 'bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[75%]'">
+                                <p class="text-sm leading-relaxed whitespace-pre-line" x-text="msg.content"></p>
+                            </div>
+                        </div>
+                    </template>
+
+                    {# Loading indicator #}
+                    <div x-show="loading" class="flex justify-start gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0 mt-1">
+                            <i data-lucide="bot" class="w-4 h-4 text-primary-600 animate-pulse"></i>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5">
+                            <div class="flex items-center gap-2">
+                                <span class="flex gap-1">
+                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
+                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
+                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
+                                </span>
+                                <span class="text-sm text-slate-500">Generando documento...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Input area #}
+                <div x-show="!editorReady || !loading" class="border-t border-slate-100 pt-4">
+                    <div class="relative flex items-end gap-2">
+                        <div class="flex-1 relative">
+                            <textarea x-model="userInput"
+                                      @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+                                      :disabled="loading"
+                                      placeholder="Escribe indicaciones para la redacción..."
+                                      rows="1"
+                                      x-ref="chatInput"
+                                      @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
+                                      class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm text-slate-800 placeholder-slate-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:outline-none resize-none transition-all"
+                                      style="min-height: 44px;"></textarea>
+                        </div>
+                        <button @click="sendMessage()"
+                                :disabled="loading || (!userInput.trim() && messages.length <= 1)"
+                                class="flex-shrink-0 w-10 h-10 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white flex items-center justify-center transition-colors">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-between mt-2 px-1">
+                        <p class="text-xs text-slate-400">
+                            Shift+Enter para nueva línea
+                        </p>
+                        <button @click="skip()"
+                                :disabled="loading"
+                                x-show="messages.length <= 1"
+                                class="text-xs text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap flex items-center gap-1 transition-colors">
+                            <i data-lucide="sparkles" class="w-3 h-3"></i>
+                            Generar sin indicaciones
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Editor Card #}
+        <div class="card" x-show="editorReady" x-cloak>
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                            <i data-lucide="file-pen" class="w-5 h-5 text-primary-600"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">Editor de documento</h2>
+                            <p class="text-xs text-slate-500">Edita el contenido directamente. Los cambios se reflejarán en el PDF.</p>
+                        </div>
+                    </div>
+                    <button @click="downloadPdf()"
+                            :disabled="downloadingPdf"
+                            class="btn btn-accent btn-sm">
+                        <i data-lucide="download" class="w-4 h-4 mr-1"></i>
+                        <span x-text="downloadingPdf ? 'Generando...' : 'Descargar PDF'"></span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div id="draftly-editor" class="border-t border-slate-100"></div>
+            </div>
+        </div>
+
+        {# Loading state (before any interaction) #}
+        <div class="card" x-show="loading && !editorReady && messages.length <= 1">
+            <div class="card-body">
+                <div class="flex flex-col items-center justify-center py-12">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+                    <p class="text-slate-600 font-medium">Generando documento...</p>
+                    <p class="text-sm text-slate-500 mt-2">Esto puede tardar unos segundos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="lg:col-span-1 space-y-6">
+        {# Request Summary Card #}
+        <div class="card">
+            <div class="card-header">
+                <h2 class="font-semibold text-slate-800">Datos de la solicitud</h2>
+            </div>
+            <div class="card-body space-y-4">
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Título</h4>
+                    <p class="text-slate-800">{{ request.title }}</p>
+                </div>
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Organismo</h4>
+                    <p class="text-slate-800">{{ request.publicBody.name }}</p>
+                </div>
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Ley aplicable</h4>
+                    <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
+                </div>
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envío</h4>
+                    <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
+                </div>
+                {% if request.resolutionNotes %}
+                <div>
+                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Motivo de denegación</h4>
+                    <p class="text-slate-800">{{ request.resolutionNotes }}</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Analysis Card #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-amber-600"></i>
+                    </div>
+                    <h2 class="font-semibold text-slate-800">Análisis de probabilidad</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                <template x-if="analysisLoading">
+                    <div class="flex items-center justify-center py-4">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                        <span class="ml-3 text-sm text-slate-600">Analizando...</span>
+                    </div>
+                </template>
+
+                <template x-if="analysis && !analysisLoading">
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <span class="text-3xl font-bold" :class="getProbabilityClass(analysis.probability)" x-text="analysis.probability + '%'"></span>
+                            <span class="text-sm text-slate-500" x-text="getProbabilityLabel(analysis.probability)"></span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-2 mb-3">
+                            <div class="h-2 rounded-full transition-all duration-500"
+                                 :class="getProbabilityBarClass(analysis.probability)"
+                                 :style="'width: ' + analysis.probability + '%'"></div>
+                        </div>
+                        <p class="text-sm text-slate-600" x-text="analysis.reasoning"></p>
+                    </div>
+                </template>
+
+                <template x-if="!analysis && !analysisLoading">
+                    <p class="text-sm text-slate-500 text-center py-2">El análisis se ejecutará automáticamente.</p>
+                </template>
+            </div>
+        </div>
+
+        {# Info Card #}
+        <div class="card bg-slate-50">
+            <div class="card-body">
+                <h3 class="font-medium text-slate-800 mb-2 flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-primary-600"></i>
+                    Cómo funciona
+                </h3>
+                <ul class="text-sm text-slate-600 space-y-2">
+                    <li class="flex items-start gap-2">
+                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">1</span>
+                        <span>Escribe indicaciones o genera directamente.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">2</span>
+                        <span>Edita el documento en el editor visual.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">3</span>
+                        <span>Pide cambios por chat si lo prefieres.</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
+                        <span>Descarga el PDF cuando estés conforme.</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ asset('build/draftly.js') }}"></script>
+<script>
+function interactiveGenerator() {
+    return {
+        mode: '{{ mode }}',
+        messages: [],
+        userInput: '',
+        loading: false,
+        editorReady: false,
+        editorInstance: null,
+        downloadingPdf: false,
+        analysis: null,
+        analysisLoading: false,
+
+        init() {
+            const initialMessage = this.mode === 'alegation_response'
+                ? '¿Tienes alguna indicación específica para la respuesta a las alegaciones? Por ejemplo: puntos que quieras enfatizar, argumentos adicionales, o tono de la respuesta.'
+                : '¿Tienes alguna indicación específica para la reclamación? Por ejemplo: argumentos que quieras enfatizar, información adicional, o estilo de redacción.';
+
+            this.messages.push({
+                role: 'model',
+                content: initialMessage,
+                type: 'message'
+            });
+
+            this.runAnalysis();
+        },
+
+        initEditor(markdown) {
+            const container = document.getElementById('draftly-editor');
+            if (!container) return;
+
+            if (this.editorInstance) {
+                this.editorInstance.setMarkdown(markdown);
+            } else {
+                container.innerHTML = '';
+                this.editorInstance = window.DraftlyEditor.create(container, markdown);
+            }
+            this.editorReady = true;
+        },
+
+        async sendMessage() {
+            const input = this.userInput.trim();
+            if (this.loading) return;
+
+            if (input) {
+                this.messages.push({
+                    role: 'user',
+                    content: input,
+                    type: 'message'
+                });
+                this.userInput = '';
+            }
+
+            this.scrollChat();
+            await this.generateDocument(input || null);
+        },
+
+        async skip() {
+            await this.generateDocument(null);
+        },
+
+        async generateDocument(userDirections) {
+            this.loading = true;
+
+            const history = this.messages
+                .filter((msg, i) => i > 0)
+                .map(msg => ({
+                    role: msg.role,
+                    content: msg.content,
+                    type: msg.type
+                }));
+
+            try {
+                const response = await fetch('{{ path('app_complaint_create', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: this.mode,
+                        conversationHistory: history,
+                        userDirections: userDirections
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    if (data.successAnalysis) {
+                        this.analysis = data.successAnalysis;
+                    }
+
+                    this.messages.push({
+                        role: 'model',
+                        content: 'Documento generado. Puedes editarlo abajo o pedirme cambios por chat.',
+                        type: 'message'
+                    });
+
+                    this.$nextTick(() => {
+                        this.initEditor(data.markdown);
+                        if (window.lucide) window.lucide.createIcons();
+                    });
+                } else {
+                    this.messages.push({
+                        role: 'model',
+                        content: 'Error: ' + data.error,
+                        type: 'system'
+                    });
+                }
+            } catch (e) {
+                this.messages.push({
+                    role: 'model',
+                    content: 'Error de conexión. Inténtalo de nuevo.',
+                    type: 'system'
+                });
+            } finally {
+                this.loading = false;
+                this.scrollChat();
+            }
+        },
+
+        async downloadPdf() {
+            if (!this.editorInstance) return;
+            this.downloadingPdf = true;
+
+            const markdown = this.editorInstance.getMarkdown();
+
+            try {
+                const response = await fetch('{{ path('app_complaint_download_pdf', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ markdown })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    alert(err.error || 'Error al generar PDF');
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = response.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || 'documento.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Error de conexión');
+            } finally {
+                this.downloadingPdf = false;
+            }
+        },
+
+        async runAnalysis() {
+            this.analysisLoading = true;
+
+            try {
+                const response = await fetch('{{ path('app_complaint_analyze', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    this.analysis = data.analysis;
+                }
+            } catch (e) {
+                // Silently fail
+            } finally {
+                this.analysisLoading = false;
+            }
+        },
+
+        scrollChat() {
+            this.$nextTick(() => {
+                const el = document.getElementById('chatMessages');
+                if (el) el.scrollTop = el.scrollHeight;
+            });
+        },
+
+        getProbabilityClass(probability) {
+            if (probability >= 80) return 'text-green-600';
+            if (probability >= 60) return 'text-lime-600';
+            if (probability >= 40) return 'text-yellow-600';
+            if (probability >= 20) return 'text-orange-600';
+            return 'text-red-600';
+        },
+
+        getProbabilityBarClass(probability) {
+            if (probability >= 80) return 'bg-green-500';
+            if (probability >= 60) return 'bg-lime-500';
+            if (probability >= 40) return 'bg-yellow-500';
+            if (probability >= 20) return 'bg-orange-500';
+            return 'bg-red-500';
+        },
+
+        getProbabilityLabel(probability) {
+            if (probability >= 80) return 'Muy alta';
+            if (probability >= 60) return 'Alta';
+            if (probability >= 40) return 'Media';
+            if (probability >= 20) return 'Baja';
+            return 'Muy baja';
+        }
+    };
+}
+</script>
+{% endblock %}

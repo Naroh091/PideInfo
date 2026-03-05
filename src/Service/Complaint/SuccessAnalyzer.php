@@ -10,12 +10,13 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class SuccessAnalyzer
 {
-    private const GEMINI_MODEL = 'gemini-2.0-flash';
     private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
 
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
+        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        private readonly string $geminiModel,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
     ) {
@@ -124,7 +125,7 @@ PROMPT;
 
     private function callGeminiApi(string $prompt): string
     {
-        $url = sprintf(self::GEMINI_ENDPOINT, self::GEMINI_MODEL) . '?key=' . $this->geminiApiKey;
+        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [

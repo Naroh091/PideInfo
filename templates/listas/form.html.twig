@@ -1,0 +1,89 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}{{ list ? 'Editar lista' : 'Nueva lista' }} - PideInfo{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_listas_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Listas
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    {% if list %}
+        <a href="{{ path('app_listas_show', {id: list.id}) }}" class="text-slate-500 hover:text-primary-600 transition-colors truncate max-w-xs">
+            {{ list.name|u.truncate(30) }}
+        </a>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+        <span class="text-slate-800 font-medium">Editar</span>
+    {% else %}
+        <span class="text-slate-800 font-medium">Nueva lista</span>
+    {% endif %}
+</nav>
+
+<div class="max-w-2xl">
+    <div class="card">
+        <div class="card-header">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                    <i data-lucide="{{ list ? 'pencil' : 'list-plus' }}" class="w-5 h-5 text-primary-600"></i>
+                </div>
+                <div>
+                    <h1 class="font-semibold text-slate-800">{{ list ? 'Editar lista' : 'Nueva lista' }}</h1>
+                    <p class="text-sm text-slate-500">{{ list ? 'Modifica los datos de la lista' : 'Crea una lista para organizar tus solicitudes' }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            {{ form_start(form, {'attr': {'class': 'space-y-6'}}) }}
+                <div>
+                    <label for="{{ form.name.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                        {{ form_label(form.name) }}
+                    </label>
+                    {{ form_widget(form.name, {'attr': {'class': 'input'}}) }}
+                    {{ form_errors(form.name) }}
+                </div>
+
+                <div>
+                    <label for="{{ form.description.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                        {{ form_label(form.description) }}
+                    </label>
+                    {{ form_widget(form.description, {'attr': {'class': 'input min-h-[80px]'}}) }}
+                    {{ form_errors(form.description) }}
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="{{ form.color.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                            {{ form_label(form.color) }}
+                        </label>
+                        {{ form_widget(form.color, {'attr': {'class': 'input'}}) }}
+                        {{ form_errors(form.color) }}
+                    </div>
+
+                    {% if form.visibility is defined %}
+                        <div>
+                            <label for="{{ form.visibility.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                {{ form_label(form.visibility) }}
+                            </label>
+                            {{ form_widget(form.visibility, {'attr': {'class': 'input'}}) }}
+                            {{ form_errors(form.visibility) }}
+                            <p class="text-xs text-slate-500 mt-1">Las listas compartidas son visibles para todos los miembros de tu organización.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-between gap-4">
+                    <a href="{{ list ? path('app_listas_show', {id: list.id}) : path('app_listas_index') }}" class="btn btn-secondary order-2 sm:order-1">
+                        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                        Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary order-1 sm:order-2">
+                        <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+                        {{ list ? 'Guardar cambios' : 'Crear lista' }}
+                    </button>
+                </div>
+            {{ form_end(form) }}
+        </div>
+    </div>
+</div>
+{% endblock %}

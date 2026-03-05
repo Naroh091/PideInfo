@@ -15,6 +15,8 @@ enum DocumentType: string
     case ComplaintReceipt = 'complaint_receipt';
     case ComplaintProcessingStart = 'complaint_processing_start';
     case ComplaintResolution = 'complaint_resolution';
+    case Alegaciones = 'alegaciones';
+    case AlegationResponse = 'alegation_response';
     case Court = 'court';
     case Other = 'other';
     case Unprocessed = 'unprocessed';
@@ -33,6 +35,8 @@ enum DocumentType: string
             self::ComplaintReceipt => 'Acuse recibo reclamación',
             self::ComplaintProcessingStart => 'Inicio tramitación reclamación',
             self::ComplaintResolution => 'Resolución CTBG',
+            self::Alegaciones => 'Alegaciones',
+            self::AlegationResponse => 'Respuesta a alegaciones',
             self::Court => 'Documento judicial',
             self::Other => 'Otro',
             self::Unprocessed => 'Sin procesar',
@@ -57,6 +61,8 @@ enum DocumentType: string
             'acuse_recibo_reclamacion' => self::ComplaintReceipt,
             'inicio_tramitacion_reclamacion' => self::ComplaintProcessingStart,
             'resolucion_ctbg' => self::ComplaintResolution,
+            'alegaciones' => self::Alegaciones,
+            'respuesta_alegaciones' => self::AlegationResponse,
             default => self::Other,
         };
     }

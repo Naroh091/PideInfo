@@ -163,6 +163,10 @@ class AccessRequest
     #[ORM\OrderBy(['deadlineAt' => 'ASC'])]
     private Collection $customDeadlines;
 
+    /** @var Collection<int, AccessRequestListItem> */
+    #[ORM\OneToMany(targetEntity: AccessRequestListItem::class, mappedBy: 'accessRequest')]
+    private Collection $listItems;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -172,6 +176,7 @@ class AccessRequest
         $this->statusHistory = new ArrayCollection();
         $this->deadlineHistory = new ArrayCollection();
         $this->customDeadlines = new ArrayCollection();
+        $this->listItems = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -726,6 +731,18 @@ class AccessRequest
         return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)
             || $this->complaintStatus === self::COMPLAINT_RECLAIMED
             || $this->courtStatus === self::COURT_IN_COURT;
+    }
+
+    /** @return Collection<int, AccessRequestListItem> */
+    public function getListItems(): Collection
+    {
+        return $this->listItems;
+    }
+
+    /** @return AccessRequestList[] */
+    public function getLists(): array
+    {
+        return $this->listItems->map(fn(AccessRequestListItem $item) => $item->getList())->toArray();
     }
 
     public function __toString(): string

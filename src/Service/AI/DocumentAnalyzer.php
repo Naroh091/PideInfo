@@ -9,10 +9,14 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class DocumentAnalyzer
 {
+    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+
     public function __construct(
         private readonly FilesystemOperator $documentsStorage,
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
+        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        private readonly string $geminiModel,
     ) {
     }
 
@@ -82,7 +86,7 @@ El justificante de registro suele tener el número de registro y la administraci
 Extrae la siguiente información en formato JSON:
 
 {
-    "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro)",
+    "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro)",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
     "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
@@ -101,7 +105,8 @@ Extrae la siguiente información en formato JSON:
     "isProcessingStart": "true si es un documento de comienzo/inicio de tramitación que notifica el inicio del plazo de 1 mes para resolver (art. 20.1 Ley 19/2013), false en caso contrario",
     "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
     "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018'). NO uses 'Solicitud de acceso a información pública'.",
-    "requestDescription": "descripción detallada de la información solicitada"
+    "requestDescription": "descripción detallada de la información solicitada",
+    "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
 }
 
 REGLAS PARA publicBodyName:
@@ -172,7 +177,9 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro):
+
+Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante el CTBG u organismo equivalente. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
@@ -209,7 +216,7 @@ Analiza este documento relacionado con una solicitud de acceso a información p�
 Extrae la siguiente información en formato JSON:
 
 {
-    "documentType": "tipo de documento (ver REGLAS PARA documentType abajo)",
+    "documentType": "tipo de documento (ver REGLAS PARA documentType abajo, incluyendo 'alegaciones')",
     "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
     "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
     "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
@@ -228,7 +235,8 @@ Extrae la siguiente información en formato JSON:
     "isProcessingStart": "true si es un documento de comienzo/inicio de tramitación que notifica el inicio del plazo de 1 mes para resolver (art. 20.1 Ley 19/2013), false en caso contrario",
     "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
     "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018', 'Gastos publicidad Ayuntamiento 2023'). NO uses 'Solicitud de acceso a información pública'.",
-    "requestDescription": "descripción detallada de la información solicitada"
+    "requestDescription": "descripción detallada de la información solicitada",
+    "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
 }
 
 REGLAS PARA publicBodyName:
@@ -301,7 +309,9 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro):
+
+Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante el CTBG u organismo equivalente. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
@@ -337,7 +347,7 @@ PROMPT;
      */
     private function callGeminiApiWithParts(array $parts): array
     {
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' . $this->geminiApiKey;
+        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [
@@ -349,7 +359,7 @@ PROMPT;
                 'temperature' => 0.1,
                 'topK' => 1,
                 'topP' => 1,
-                'maxOutputTokens' => 2048,
+                'maxOutputTokens' => 4096,
             ],
         ];
 
@@ -407,6 +417,11 @@ PROMPT;
         // If isProcessingStart is true but documentType wasn't detected correctly, override it
         if (($data['isProcessingStart'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
             $data['documentType'] = DocumentType::ProcessingStart;
+        }
+
+        // If alegationPoints is a non-empty array and type is Other, set to Alegaciones
+        if (!empty($data['alegationPoints']) && is_array($data['alegationPoints']) && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::Alegaciones;
         }
 
         return $data;

@@ -4,7 +4,7 @@
         timeouts {
             read_body 30s
             read_header 10s
-            write 60s
+            write 300s
             idle 120s
         }
         trusted_proxies static 127.0.0.1/24 172.16.0.0/12 10.0.0.0/8 192.168.0.0/16
@@ -24,7 +24,7 @@
     respond /health 200
 
     php_fastcgi 127.0.0.1:9000 {
-        read_timeout 65s
+        read_timeout 300s
         write_timeout 10s
         dial_timeout 5s
         env HTTPS on

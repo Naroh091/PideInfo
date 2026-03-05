@@ -9,6 +9,7 @@ use App\Entity\DeadlineHistory;
 use App\Entity\StatusHistory;
 use App\Form\AccessRequestType;
 use App\Form\CustomDeadlineType;
+use App\Repository\AccessRequestListRepository;
 use App\Repository\AccessRequestRepository;
 use App\Repository\CustomDeadlineRepository;
 use App\Service\AccessRequest\AccessRequestManager;
@@ -27,6 +28,7 @@ class AccessRequestController extends AbstractController
 {
     public function __construct(
         private AccessRequestRepository $accessRequestRepository,
+        private AccessRequestListRepository $accessRequestListRepository,
         private EntityManagerInterface $entityManager,
         private DataTableFactory $dataTableFactory,
     ) {
@@ -37,20 +39,27 @@ class AccessRequestController extends AbstractController
     {
         $status = $request->query->get('status');
         $search = $request->query->get('q');
+        $listId = $request->query->get('list');
 
         $table = $this->dataTableFactory->createFromType(
             AccessRequestTableType::class,
-            ['status' => $status, 'search' => $search]
+            ['status' => $status, 'search' => $search, 'list' => $listId]
         )->handleRequest($request);
 
         if ($table->isCallback()) {
             return $table->getResponse();
         }
 
+        $lists = $this->accessRequestListRepository->findVisibleToUser($this->getUser());
+        $currentList = $listId ? $this->accessRequestListRepository->find($listId) : null;
+
         return $this->render('solicitudes/index.html.twig', [
             'datatable' => $table,
             'status' => $status,
             'search' => $search,
+            'lists' => $lists,
+            'currentList' => $currentList,
+            'listId' => $listId,
         ]);
     }
 
