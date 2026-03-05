@@ -47,9 +47,9 @@ class DocumentController extends AbstractController
             return new JsonResponse(['error' => 'No se ha recibido ningún archivo'], Response::HTTP_BAD_REQUEST);
         }
 
-        // Check file size (max 10MB)
-        if ($file->getSize() > 10 * 1024 * 1024) {
-            return new JsonResponse(['error' => 'El archivo es demasiado grande (máximo 10MB)'], Response::HTTP_BAD_REQUEST);
+        // Check file size (max 50MB)
+        if ($file->getSize() > 50 * 1024 * 1024) {
+            return new JsonResponse(['error' => 'El archivo es demasiado grande (máximo 50MB)'], Response::HTTP_BAD_REQUEST);
         }
 
         // Check file type
