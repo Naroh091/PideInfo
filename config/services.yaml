@@ -36,6 +36,7 @@ services:
               http:
                   timeout: 10
               defaults_mode: 'standard'
+              use_aws_shared_config_files: false
 
     # Flysystem storage aliases for autowiring
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
