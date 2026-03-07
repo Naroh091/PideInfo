@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e4ccaab37b955adcc60a6567bec807db",
+    "content-hash": "19803e9520f98edaed7fec399ddd7f1c",
     "packages": [
         {
             "name": "async-aws/core",
@@ -5257,27 +5257,29 @@
             "time": "2026-01-09T16:20:45+00:00"
         },
         {
-            "name": "symfony/ai-qdrant-store",
+            "name": "symfony/ai-postgres-store",
             "version": "v0.2.0",
             "source": {
                 "type": "git",
-                "url": "https://github.com/symfony/ai-qdrant-store.git",
-                "reference": "b3df99f1e6a89e254a8ca085cec5e2dee9b2558c"
+                "url": "https://github.com/symfony/ai-postgres-store.git",
+                "reference": "389898e4d83afc4dee4fcc2a5b81fe77e1eb3d30"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/ai-qdrant-store/zipball/b3df99f1e6a89e254a8ca085cec5e2dee9b2558c",
-                "reference": "b3df99f1e6a89e254a8ca085cec5e2dee9b2558c",
+                "url": "https://api.github.com/repos/symfony/ai-postgres-store/zipball/389898e4d83afc4dee4fcc2a5b81fe77e1eb3d30",
+                "reference": "389898e4d83afc4dee4fcc2a5b81fe77e1eb3d30",
                 "shasum": ""
             },
             "require": {
+                "ext-pdo": "*",
+                "oskarstark/enum-helper": "^1.5",
                 "php": ">=8.2",
                 "symfony/ai-platform": "^0.2",
                 "symfony/ai-store": "^0.2",
-                "symfony/http-client": "^7.3|^8.0",
                 "symfony/uid": "^7.3|^8.0"
             },
             "require-dev": {
+                "doctrine/dbal": "^3.3|^4.0",
                 "phpstan/phpstan": "^2.1",
                 "phpstan/phpstan-phpunit": "^2.0",
                 "phpstan/phpstan-strict-rules": "^2.0",
@@ -5295,7 +5297,7 @@
             },
             "autoload": {
                 "psr-4": {
-                    "Symfony\\AI\\Store\\Bridge\\Qdrant\\": ""
+                    "Symfony\\AI\\Store\\Bridge\\Postgres\\": ""
                 }
             },
             "notification-url": "https://packagist.org/downloads/",
@@ -5316,16 +5318,18 @@
                     "homepage": "https://symfony.com/contributors"
                 }
             ],
-            "description": "Qdrant vector store bridge for Symfony AI",
+            "description": "PostgreSQL pgvector vector store bridge for Symfony AI",
             "keywords": [
                 "Bridge",
                 "ai",
-                "qdrant",
+                "pgvector",
+                "postgres",
+                "postgresql",
                 "store",
                 "vector"
             ],
             "support": {
-                "source": "https://github.com/symfony/ai-qdrant-store/tree/v0.2.0"
+                "source": "https://github.com/symfony/ai-postgres-store/tree/v0.2.0"
             },
             "funding": [
                 {

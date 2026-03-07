@@ -26,7 +26,7 @@
         "sentry/sentry-symfony": "^5.8",
         "smalot/pdfparser": "^2.12",
         "symfony/ai-bundle": "^0.2.0",
-        "symfony/ai-qdrant-store": "*",
+        "symfony/ai-postgres-store": "^0.2.0",
         "symfony/ai-store": "^0.2.0",
         "symfony/amazon-mailer": "7.4.*",
         "symfony/asset": "7.4.*",

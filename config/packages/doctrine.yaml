@@ -3,6 +3,8 @@ doctrine:
         url: '%env(resolve:DATABASE_URL)%'
         profiling_collect_backtrace: '%kernel.debug%'
         use_savepoints: true
+        options:
+            !php/const PDO::ATTR_STRINGIFY_FETCHES: true
     orm:
         auto_generate_proxy_classes: true
         enable_lazy_ghost_objects: true

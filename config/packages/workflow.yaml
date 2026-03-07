@@ -62,8 +62,9 @@ framework:
             places:
                 - none
                 - reclaimed
-                - reclaim_granted
-                - reclaim_denied
+                - complaint_granted
+                - complaint_denied
+                - complaint_archived
             transitions:
                 file_complaint:
                     from: none
@@ -72,14 +73,19 @@ framework:
                         label: Presentar reclamación
                 complaint_granted:
                     from: reclaimed
-                    to: reclaim_granted
+                    to: complaint_granted
                     metadata:
                         label: Reclamación estimada
                 complaint_denied:
                     from: reclaimed
-                    to: reclaim_denied
+                    to: complaint_denied
                     metadata:
                         label: Reclamación desestimada
+                complaint_archived:
+                    from: reclaimed
+                    to: complaint_archived
+                    metadata:
+                        label: Reclamación archivada
 
         access_request_court:
             type: state_machine

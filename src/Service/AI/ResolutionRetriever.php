@@ -9,7 +9,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final class ResolutionRetriever
 {
     public function __construct(
-        #[Autowire(service: 'ai.store.qdrant.ctbg_resolutions')]
+        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $ctbgResolutionsStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
     ) {
@@ -18,8 +18,8 @@ final class ResolutionRetriever
     /**
      * Retrieve similar favorable CTBG resolutions
      *
-     * This method will return an empty array until resolutions are loaded into Qdrant.
-     * In the future, it will filter by outcome = 'estimada' to use successful argumentations.
+     * This method will return an empty array until resolutions are loaded into PostgreSQL.
+     * Filters by outcome = 'estimada' to use successful argumentations.
      *
      * @param string $query The search query
      * @param int $topK Number of results to return
@@ -39,18 +39,10 @@ final class ResolutionRetriever
             $embedding = $this->embeddingGenerator->generate($query);
             $vector = new Vector($embedding);
 
-            $filter = [
-                'must' => [
-                    [
-                        'key' => 'outcome',
-                        'match' => ['value' => 'estimada'],
-                    ],
-                ],
-            ];
-
             $documents = $this->ctbgResolutionsStore->query($vector, [
                 'limit' => $topK,
-                'filter' => $filter,
+                'where' => "metadata->>'outcome' = :outcome",
+                'params' => ['outcome' => 'estimada'],
             ]);
 
             $results = [];

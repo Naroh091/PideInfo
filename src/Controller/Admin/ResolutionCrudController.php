@@ -67,6 +67,5 @@ class ResolutionCrudController extends AbstractCrudController
         yield TextareaField::new('fullText', 'Texto completo')->hideOnIndex();
         yield UrlField::new('sourceUrl', 'URL origen')->hideOnIndex();
         yield DateTimeField::new('scrapedAt', 'Fecha scraping')->hideOnForm();
-        yield DateTimeField::new('embeddedAt', 'Fecha embedding')->hideOnForm()->hideOnIndex();
     }
 }

@@ -1,0 +1,14 @@
+ai:
+  store:
+    postgres:
+      ctbg_criteria:
+        dbal_connection: 'doctrine.dbal.default_connection'
+        table_name: 'ai_ctbg_criteria'
+        vector_field: 'embedding'
+        distance: 'cosine'
+
+      ctbg_resolutions:
+        dbal_connection: 'doctrine.dbal.default_connection'
+        table_name: 'ai_ctbg_resolutions'
+        vector_field: 'embedding'
+        distance: 'cosine'
