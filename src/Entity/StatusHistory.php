@@ -13,7 +13,7 @@ use Symfony\Component\Uid\Uuid;
 class StatusHistory
 {
     public const TYPE_STATUS = 'status';
-    public const TYPE_COMPLAINT = 'complaintStatus';
+    public const TYPE_COMPLAINT = 'complaint';
     public const TYPE_COURT = 'courtStatus';
 
     #[ORM\Id]

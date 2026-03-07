@@ -380,7 +380,7 @@
                     <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamación</h4>
                     <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
                         <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
-                        <input type="hidden" name="statusType" value="complaintStatus">
+                        <input type="hidden" name="statusType" value="complaint">
                         <select name="newStatus"
                                 class="form-select text-sm w-full"
                                 onchange="this.form.submit()">
