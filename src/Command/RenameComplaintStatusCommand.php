@@ -44,7 +44,7 @@ class RenameComplaintStatusCommand extends Command
             $totalUpdated += $count;
 
             $count = $this->connection->executeStatement(
-                "UPDATE status_history SET new_status = :new WHERE status_type = 'complaint' AND new_status = :old",
+                "UPDATE status_history SET to_status = :new WHERE status_type = 'complaint' AND to_status = :old",
                 ['old' => $old, 'new' => $new]
             );
             if ($count > 0) {
