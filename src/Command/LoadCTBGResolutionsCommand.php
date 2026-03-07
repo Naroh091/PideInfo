@@ -195,11 +195,23 @@ class LoadCTBGResolutionsCommand extends Command
 
     private function extractText(string $filePath): string
     {
+        // Try pdftotext first (better quality)
         $process = new Process(['pdftotext', '-layout', $filePath, '-']);
         $process->setTimeout(30);
         $process->run();
 
-        return $process->isSuccessful() ? $process->getOutput() : '';
+        if ($process->isSuccessful() && strlen(trim($process->getOutput())) > 100) {
+            return $process->getOutput();
+        }
+
+        // Fallback to PHP PDF parser
+        try {
+            $parser = new \Smalot\PdfParser\Parser();
+            $pdf = $parser->parseFile($filePath);
+            return $pdf->getText();
+        } catch (\Exception) {
+            return '';
+        }
     }
 
     private function cleanText(string $text): string
@@ -228,22 +240,8 @@ class LoadCTBGResolutionsCommand extends Command
         }
 
         $prompt = <<<PROMPT
-Analiza este extracto de una resolución del Consejo de Transparencia y Buen Gobierno (CTBG) de España y extrae la siguiente información en formato JSON:
+Extracto de una resolución del CTBG de España. Extrae los metadatos.
 
-{
-    "reference": "número de referencia de la resolución (formato R/XXXX/YYYY)",
-    "date": "fecha de la resolución en formato YYYY-MM-DD",
-    "outcome": "resultado: estimada, desestimada, parcial, o inadmitida",
-    "publicBody": "organismo público reclamado",
-    "topic": "tema principal de la solicitud de información (breve)"
-}
-
-REGLAS:
-- Para "outcome": usa "estimada" si se estima totalmente, "desestimada" si se desestima, "parcial" si se estima parcialmente, "inadmitida" si se inadmite
-- Para "reference": busca N/REF, NREF, o el formato R/XXXX/YYYY
-- Responde SOLO con el JSON
-
-Extracto:
 $excerpt
 PROMPT;
 
@@ -253,8 +251,35 @@ PROMPT;
             'contents' => [['parts' => [['text' => $prompt]]]],
             'generationConfig' => [
                 'temperature' => 0.1,
-                'maxOutputTokens' => 256,
+                'maxOutputTokens' => 512,
                 'responseMimeType' => 'application/json',
+                'responseSchema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'reference' => [
+                            'type' => 'string',
+                            'description' => 'Número de referencia (N/REF, formato R/XXXX/YYYY)',
+                        ],
+                        'date' => [
+                            'type' => 'string',
+                            'description' => 'Fecha de la resolución en formato YYYY-MM-DD',
+                        ],
+                        'outcome' => [
+                            'type' => 'string',
+                            'enum' => ['estimada', 'desestimada', 'parcial', 'inadmitida'],
+                            'description' => 'Resultado de la reclamación',
+                        ],
+                        'publicBody' => [
+                            'type' => 'string',
+                            'description' => 'Organismo público reclamado',
+                        ],
+                        'topic' => [
+                            'type' => 'string',
+                            'description' => 'Tema principal de la solicitud de información (breve)',
+                        ],
+                    ],
+                    'required' => ['reference', 'outcome'],
+                ],
             ],
         ];
 
@@ -269,22 +294,20 @@ PROMPT;
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error: ' . $response);
+            throw new \RuntimeException('Gemini API error (HTTP ' . $httpCode . '): ' . $response);
         }
 
         $data = json_decode($response, true);
+
+        if (!$data) {
+            throw new \RuntimeException('Failed to decode Gemini response: ' . $response);
+        }
+
         $jsonText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
         $metadata = json_decode($jsonText, true);
 
         if (!$metadata) {
-            // Fallback: extract reference from filename
-            return [
-                'reference' => $this->referenceFromFilename($filename),
-                'date' => null,
-                'outcome' => 'unknown',
-                'publicBody' => null,
-                'topic' => null,
-            ];
+            throw new \RuntimeException('Failed to parse metadata JSON: ' . $jsonText);
         }
 
         return [
