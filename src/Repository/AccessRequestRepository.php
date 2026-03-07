@@ -184,7 +184,7 @@ class AccessRequestRepository extends ServiceEntityRepository
     public function findByExternalId(string $externalId, User $user): ?AccessRequest
     {
         $qb = $this->createQueryBuilderForUser($user)
-            ->andWhere('ar.externalId = :externalId OR ar.alternativeReferences LIKE :altRef')
+            ->andWhere('ar.externalId = :externalId OR CAST(ar.alternativeReferences AS TEXT) LIKE :altRef')
             ->setParameter('externalId', $externalId)
             ->setParameter('altRef', '%' . json_encode($externalId) . '%');
 
