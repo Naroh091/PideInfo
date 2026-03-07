@@ -8,6 +8,7 @@ use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
 use Symfony\AI\Store\ManagedStoreInterface;
 use Symfony\AI\Store\StoreInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -37,6 +38,7 @@ class LoadCTBGResolutionsCommand extends Command
         private readonly string $geminiApiKey,
         #[Autowire(env: 'GEMINI_SMALL_MODEL')]
         private readonly string $geminiModel,
+        private readonly LoggerInterface $logger,
     ) {
         parent::__construct();
     }
@@ -176,7 +178,7 @@ class LoadCTBGResolutionsCommand extends Command
             $processed++;
 
             // Rate limit for Gemini API
-            usleep(200000);
+            usleep(500000);
         }
 
         $io->newLine();
@@ -283,31 +285,71 @@ PROMPT;
             ],
         ];
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        $jsonPayload = json_encode($payload);
+        $metadata = null;
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
 
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error (HTTP ' . $httpCode . '): ' . $response);
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 429 || $httpCode === 503) {
+                $this->logger->warning('Gemini rate limited, retrying', [
+                    'filename' => $filename,
+                    'httpCode' => $httpCode,
+                    'attempt' => $attempt,
+                ]);
+                sleep($attempt * 2);
+                continue;
+            }
+
+            if ($httpCode !== 200) {
+                $this->logger->error('Gemini API error', [
+                    'filename' => $filename,
+                    'httpCode' => $httpCode,
+                    'response' => mb_substr($response, 0, 1000),
+                ]);
+                throw new \RuntimeException('Gemini API error (HTTP ' . $httpCode . ')');
+            }
+
+            $data = json_decode($response, true);
+            if (!$data) {
+                $this->logger->error('Failed to decode Gemini response', [
+                    'filename' => $filename,
+                    'response' => mb_substr($response, 0, 1000),
+                ]);
+                throw new \RuntimeException('Failed to decode Gemini response');
+            }
+
+            $jsonText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+            $metadata = json_decode($jsonText, true);
+
+            if ($metadata) {
+                break;
+            }
+
+            $this->logger->warning('Gemini returned truncated JSON, retrying', [
+                'filename' => $filename,
+                'attempt' => $attempt,
+                'jsonText' => $jsonText,
+                'finishReason' => $data['candidates'][0]['finishReason'] ?? 'unknown',
+            ]);
+            sleep(1);
         }
-
-        $data = json_decode($response, true);
-
-        if (!$data) {
-            throw new \RuntimeException('Failed to decode Gemini response: ' . $response);
-        }
-
-        $jsonText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-        $metadata = json_decode($jsonText, true);
 
         if (!$metadata) {
-            throw new \RuntimeException('Failed to parse metadata JSON: ' . $jsonText);
+            $this->logger->error('Failed to extract metadata after 3 attempts', [
+                'filename' => $filename,
+                'lastJsonText' => $jsonText ?? 'empty',
+                'lastResponse' => mb_substr($response ?? '', 0, 1000),
+            ]);
+            throw new \RuntimeException('Failed to parse metadata JSON after 3 attempts');
         }
 
         return [
