@@ -105,7 +105,7 @@ Extrae la siguiente información en formato JSON:
     "isProcessingStart": "true si es un documento de comienzo/inicio de tramitación que notifica el inicio del plazo de 1 mes para resolver (art. 20.1 Ley 19/2013), false en caso contrario",
     "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
     "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018'). NO uses 'Solicitud de acceso a información pública'.",
-    "requestDescription": "descripción detallada de la información solicitada",
+    "requestDescription": "descripción detallada de la información solicitada, formateada en Markdown. Usa listas, negritas y estructura clara para facilitar la lectura.",
     "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
 }
 
@@ -235,7 +235,7 @@ Extrae la siguiente información en formato JSON:
     "isProcessingStart": "true si es un documento de comienzo/inicio de tramitación que notifica el inicio del plazo de 1 mes para resolver (art. 20.1 Ley 19/2013), false en caso contrario",
     "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
     "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018', 'Gastos publicidad Ayuntamiento 2023'). NO uses 'Solicitud de acceso a información pública'.",
-    "requestDescription": "descripción detallada de la información solicitada",
+    "requestDescription": "descripción detallada de la información solicitada, formateada en Markdown. Usa listas, negritas y estructura clara para facilitar la lectura.",
     "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
 }
 
@@ -359,7 +359,8 @@ PROMPT;
                 'temperature' => 0.1,
                 'topK' => 1,
                 'topP' => 1,
-                'maxOutputTokens' => 4096,
+                'maxOutputTokens' => 8192,
+                'responseMimeType' => 'application/json',
             ],
         ];
 

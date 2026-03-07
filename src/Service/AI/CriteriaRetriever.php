@@ -10,7 +10,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final class CriteriaRetriever
 {
     public function __construct(
-        #[Autowire(service: 'ai.store.qdrant.ctbg_criteria')]
+        #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
         private readonly StoreInterface $ctbgCriteriaStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
     ) {

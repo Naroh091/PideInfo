@@ -28,8 +28,9 @@ class AccessRequest
     // Complaint status constants
     public const COMPLAINT_NONE = 'none';
     public const COMPLAINT_RECLAIMED = 'reclaimed';
-    public const COMPLAINT_GRANTED = 'reclaim_granted';
-    public const COMPLAINT_DENIED = 'reclaim_denied';
+    public const COMPLAINT_GRANTED = 'complaint_granted';
+    public const COMPLAINT_DENIED = 'complaint_denied';
+    public const COMPLAINT_ARCHIVED = 'complaint_archived';
 
     // Court status constants
     public const COURT_NONE = 'none';
@@ -286,6 +287,7 @@ class AccessRequest
             self::COMPLAINT_RECLAIMED => 'Reclamada',
             self::COMPLAINT_GRANTED => 'Reclamación estimada',
             self::COMPLAINT_DENIED => 'Reclamación desestimada',
+            self::COMPLAINT_ARCHIVED => 'Reclamación archivada',
             default => $this->complaintStatus,
         };
     }

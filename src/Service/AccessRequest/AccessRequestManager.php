@@ -407,6 +407,7 @@ class AccessRequestManager
                 AccessRequest::COMPLAINT_RECLAIMED,
                 AccessRequest::COMPLAINT_GRANTED,
                 AccessRequest::COMPLAINT_DENIED,
+                AccessRequest::COMPLAINT_ARCHIVED,
             ],
             StatusHistory::TYPE_COURT => [
                 AccessRequest::COURT_NONE,
@@ -454,6 +455,7 @@ class AccessRequestManager
             AccessRequest::STATUS_DENIED,
             AccessRequest::COMPLAINT_GRANTED,
             AccessRequest::COMPLAINT_DENIED,
+            AccessRequest::COMPLAINT_ARCHIVED,
             AccessRequest::COURT_GRANTED,
             AccessRequest::COURT_DENIED,
         ];

@@ -97,8 +97,9 @@ class AccessRequestCrudController extends AbstractCrudController
             ->setChoices([
                 'Sin reclamación' => 'none',
                 'Reclamada' => 'reclaimed',
-                'Estimada' => 'reclaim_granted',
-                'Desestimada' => 'reclaim_denied',
+                'Estimada' => 'complaint_granted',
+                'Desestimada' => 'complaint_denied',
+                'Archivada' => 'complaint_archived',
             ])
             ->hideOnIndex();
 

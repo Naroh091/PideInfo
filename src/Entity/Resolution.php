@@ -39,13 +39,6 @@ class Resolution
     #[ORM\Column(type: Types::TEXT)]
     private string $fullText;
 
-    /**
-     * Vector embedding stored as binary blob
-     * MariaDB 11.4+ uses VEC_FromText() and VEC_ToText() for vector operations
-     */
-    #[ORM\Column(type: Types::BLOB, nullable: true)]
-    private mixed $embedding = null;
-
     #[ORM\Column(length: 255)]
     private string $source = self::SOURCE_CTBG;
 
@@ -61,9 +54,6 @@ class Resolution
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
-
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $embeddedAt = null;
 
     public function __construct()
     {
@@ -147,23 +137,6 @@ class Resolution
         return $this;
     }
 
-    public function getEmbedding(): mixed
-    {
-        return $this->embedding;
-    }
-
-    public function setEmbedding(mixed $embedding): static
-    {
-        $this->embedding = $embedding;
-        $this->embeddedAt = new \DateTimeImmutable();
-        return $this;
-    }
-
-    public function hasEmbedding(): bool
-    {
-        return $this->embedding !== null;
-    }
-
     public function getSource(): string
     {
         return $this->source;
@@ -213,11 +186,6 @@ class Resolution
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
-    }
-
-    public function getEmbeddedAt(): ?\DateTimeImmutable
-    {
-        return $this->embeddedAt;
     }
 
     public function __toString(): string

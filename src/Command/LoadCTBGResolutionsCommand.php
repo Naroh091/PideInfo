@@ -12,12 +12,12 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 #[AsCommand(
     name: 'app:ctbg:load-resolutions',
-    description: 'Load CTBG resolutions into Qdrant vector store (future implementation)',
+    description: 'Load CTBG resolutions into PostgreSQL vector store (future implementation)',
 )]
 class LoadCTBGResolutionsCommand extends Command
 {
     public function __construct(
-        #[Autowire(service: 'ai.store.qdrant.ctbg_resolutions')]
+        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $ctbgResolutionsStore,
     ) {
         parent::__construct();
@@ -32,7 +32,7 @@ class LoadCTBGResolutionsCommand extends Command
         $io->warning([
             'This command is prepared for future implementation.',
             '',
-            'The resolutions loader will support storing CTBG resolutions in Qdrant with the following metadata:',
+            'The resolutions loader will support storing CTBG resolutions in PostgreSQL with the following metadata:',
             '  - reference: Resolution number (e.g., "R/0123/2023")',
             '  - date: Resolution date',
             '  - outcome: estimada/desestimada/parcial',

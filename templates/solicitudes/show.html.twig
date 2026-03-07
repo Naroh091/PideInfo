@@ -82,7 +82,7 @@
             </div>
             <div class="card-body">
                 <h3 class="text-sm font-medium text-slate-700 mb-2">Descripción</h3>
-                <p class="text-slate-600 whitespace-pre-line">{{ request.description }}</p>
+                <div class="text-slate-600 prose prose-sm prose-slate max-w-none">{{ request.description|markdown_to_html }}</div>
 
                 <div class="border-t border-slate-100 mt-6 pt-6 grid sm:grid-cols-2 gap-6">
                     <div>
@@ -386,8 +386,9 @@
                                 onchange="this.form.submit()">
                             <option value="none" {{ request.complaintStatus == 'none' ? 'selected' : '' }}>Sin reclamación</option>
                             <option value="reclaimed" {{ request.complaintStatus == 'reclaimed' ? 'selected' : '' }}>Reclamada</option>
-                            <option value="reclaim_granted" {{ request.complaintStatus == 'reclaim_granted' ? 'selected' : '' }}>Reclamación estimada</option>
-                            <option value="reclaim_denied" {{ request.complaintStatus == 'reclaim_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
+                            <option value="complaint_granted" {{ request.complaintStatus == 'complaint_granted' ? 'selected' : '' }}>Reclamación estimada</option>
+                            <option value="complaint_denied" {{ request.complaintStatus == 'complaint_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
+                            <option value="complaint_archived" {{ request.complaintStatus == 'complaint_archived' ? 'selected' : '' }}>Reclamación archivada</option>
                         </select>
                     </form>
                     {% if request.complaintStatus != 'none' and request.applicableLaw.complaintOrganism %}

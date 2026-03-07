@@ -116,8 +116,9 @@ class StatusHistory
             self::TYPE_COMPLAINT => match ($status) {
                 'none' => 'Sin reclamación',
                 'reclaimed' => 'Reclamada',
-                'reclaim_granted' => 'Estimada',
-                'reclaim_denied' => 'Desestimada',
+                'complaint_granted' => 'Estimada',
+                'complaint_denied' => 'Desestimada',
+                'complaint_archived' => 'Archivada',
                 default => $status,
             },
             self::TYPE_COURT => match ($status) {

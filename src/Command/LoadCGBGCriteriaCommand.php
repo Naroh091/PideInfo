@@ -5,7 +5,6 @@ namespace App\Command;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Document\PdfTextExtractor;
 use Symfony\AI\Platform\Vector\Vector;
-use Symfony\AI\Store\Bridge\Qdrant\Store;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
 use Symfony\AI\Store\ManagedStoreInterface;
@@ -22,14 +21,14 @@ use Symfony\Component\Uid\Uuid;
 
 #[AsCommand(
     name: 'app:ctbg:load-criteria',
-    description: 'Load CTBG interpretive criteria PDFs into Qdrant vector store',
+    description: 'Load CTBG interpretive criteria PDFs into PostgreSQL vector store',
 )]
 class LoadCGBGCriteriaCommand extends Command
 {
     private const DATA_PATH = '/home/app/var/storage/data';
 
     public function __construct(
-        #[Autowire(service: 'ai.store.qdrant.ctbg_criteria')]
+        #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
         private readonly StoreInterface $ctbgCriteriaStore,
         private readonly PdfTextExtractor $pdfTextExtractor,
         private readonly EmbeddingGenerator $embeddingGenerator,
@@ -52,7 +51,7 @@ class LoadCGBGCriteriaCommand extends Command
         $io->title('CTBG Criteria Loader');
 
         if (!$dryRun && $this->ctbgCriteriaStore instanceof ManagedStoreInterface) {
-            $io->section('Setting up Qdrant collection...');
+            $io->section('Setting up PostgreSQL vector store...');
             $this->ctbgCriteriaStore->setup();
             $io->success('Collection created/verified.');
         } elseif (!$dryRun) {
@@ -127,7 +126,7 @@ class LoadCGBGCriteriaCommand extends Command
 
             if (!$dryRun && !empty($documents)) {
                 $this->ctbgCriteriaStore->add($documents);
-                $io->text("  Stored " . count($documents) . " chunks in Qdrant");
+                $io->text("  Stored " . count($documents) . " chunks in PostgreSQL");
             }
 
             $processedFiles++;
@@ -138,7 +137,7 @@ class LoadCGBGCriteriaCommand extends Command
         if ($dryRun) {
             $io->success("Dry run complete. Would have stored $totalChunks chunks from $processedFiles files.");
         } else {
-            $io->success("Successfully stored $totalChunks chunks from $processedFiles files into Qdrant.");
+            $io->success("Successfully stored $totalChunks chunks from $processedFiles files into PostgreSQL.");
         }
 
         return Command::SUCCESS;

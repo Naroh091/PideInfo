@@ -8,8 +8,9 @@
 } %}
 {% set complaintClass = {
     'reclaimed': 'badge-warning',
-    'reclaim_granted': 'badge-success',
-    'reclaim_denied': 'badge-danger'
+    'complaint_granted': 'badge-success',
+    'complaint_denied': 'badge-danger',
+    'complaint_archived': 'badge-secondary'
 } %}
 <div class="inline-flex flex-col items-start gap-1">
     {# Show main status, but skip "delayed" if there's an active complaint #}
