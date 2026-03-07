@@ -52,7 +52,12 @@ class LoadCGBGCriteriaCommand extends Command
 
         if (!$dryRun && $this->ctbgCriteriaStore instanceof ManagedStoreInterface) {
             $io->section('Setting up PostgreSQL vector store...');
-            $this->ctbgCriteriaStore->setup();
+            $this->ctbgCriteriaStore->setup([
+                'vector_type' => 'halfvec',
+                'vector_size' => 3072,
+                'index_method' => 'hnsw',
+                'index_opclass' => 'halfvec_cosine_ops',
+            ]);
             $io->success('Collection created/verified.');
         } elseif (!$dryRun) {
             $io->warning('Store does not implement ManagedStoreInterface, cannot auto-setup collection.');
