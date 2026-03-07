@@ -85,7 +85,9 @@ final class PdfTextExtractor
      */
     private function cleanText(string $text): string
     {
+        $text = str_replace("\x00", '', $text);
         $text = preg_replace('/\r\n/', "\n", $text);
+        $text = preg_replace('/[\x01-\x08\x0B\x0C\x0E-\x1F]/', '', $text);
         $text = preg_replace('/[ \t]+/', ' ', $text);
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
         $text = preg_replace('/(\n )+/', "\n", $text);
