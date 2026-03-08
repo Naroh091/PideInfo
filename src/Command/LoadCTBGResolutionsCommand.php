@@ -160,10 +160,10 @@ class LoadCTBGResolutionsCommand extends Command
             if ($excelRow) {
                 $extraMetadata = array_filter([
                     'outcome' => $excelRow['outcome'],
-                    'subject' => $excelRow['subject'],
-                    'publicBody' => $excelRow['ministry'],
-                    'topic' => $excelRow['descriptors'],
-                    'keywords' => $excelRow['keywords'],
+                    'subject' => $this->sanitizeUtf8($excelRow['subject']),
+                    'publicBody' => $this->sanitizeUtf8($excelRow['ministry']),
+                    'topic' => $this->sanitizeUtf8($excelRow['descriptors']),
+                    'keywords' => $this->sanitizeUtf8($excelRow['keywords']),
                 ], fn ($v) => $v !== null);
             }
 
@@ -240,6 +240,17 @@ class LoadCTBGResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
+    private function sanitizeUtf8(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
+
+        return preg_replace('/[\x{FFFD}]/u', '', $value);
+    }
+
     private function upsertResolution(string $reference, array $excelRow, string $fullText): void
     {
         $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
@@ -252,10 +263,10 @@ class LoadCTBGResolutionsCommand extends Command
         }
 
         $resolution->setOutcome($excelRow['outcome']);
-        $resolution->setFullText($fullText);
-        $resolution->setSubject($excelRow['subject']);
-        $resolution->setClaimReason($excelRow['claimReason']);
-        $resolution->setPublicBodyName($excelRow['ministry']);
+        $resolution->setFullText($this->sanitizeUtf8($fullText));
+        $resolution->setSubject($this->sanitizeUtf8($excelRow['subject']));
+        $resolution->setClaimReason($this->sanitizeUtf8($excelRow['claimReason']));
+        $resolution->setPublicBodyName($this->sanitizeUtf8($excelRow['ministry']));
 
         if ($excelRow['descriptors']) {
             $topics = array_map('trim', preg_split('/[;,]/', $excelRow['descriptors']));
@@ -289,6 +300,10 @@ class LoadCTBGResolutionsCommand extends Command
 
     private function cleanText(string $text): string
     {
+        // Fix invalid UTF-8 sequences from PDF extraction
+        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        $text = preg_replace('/[\x{FFFD}]/u', '', $text);
+
         $text = str_replace("\x00", '', $text);
         $text = preg_replace('/[\x01-\x08\x0B\x0C\x0E-\x1F]/', '', $text);
         $text = preg_replace('/\r\n/', "\n", $text);
