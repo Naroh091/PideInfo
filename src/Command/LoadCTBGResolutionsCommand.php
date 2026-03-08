@@ -146,73 +146,84 @@ class LoadCTBGResolutionsCommand extends Command
             // Clean text
             $text = $this->cleanText($text);
 
-            // Create/update Resolution entity
-            if (!$dryRun && $excelRow) {
-                $this->upsertResolution($reference, $excelRow, $text);
-            }
+            try {
+                // Create/update Resolution entity
+                if (!$dryRun && $excelRow) {
+                    $this->upsertResolution($reference, $excelRow, $text);
+                }
 
-            // Chunk the text
-            $chunks = $this->chunkText($text);
-            $io->text("  Chunks: " . count($chunks));
+                // Chunk the text
+                $chunks = $this->chunkText($text);
+                $io->text("  Chunks: " . count($chunks));
 
-            // Build metadata from Excel row
-            $extraMetadata = [];
-            if ($excelRow) {
-                $extraMetadata = array_filter([
-                    'outcome' => $excelRow['outcome'],
-                    'subject' => $this->sanitizeUtf8($excelRow['subject']),
-                    'publicBody' => $this->sanitizeUtf8($excelRow['ministry']),
-                    'topic' => $this->sanitizeUtf8($excelRow['descriptors']),
-                    'keywords' => $this->sanitizeUtf8($excelRow['keywords']),
-                ], fn ($v) => $v !== null);
-            }
+                // Build metadata from Excel row
+                $extraMetadata = [];
+                if ($excelRow) {
+                    $extraMetadata = array_filter([
+                        'outcome' => $excelRow['outcome'],
+                        'subject' => $this->sanitizeUtf8($excelRow['subject']),
+                        'publicBody' => $this->sanitizeUtf8($excelRow['ministry']),
+                        'topic' => $this->sanitizeUtf8($excelRow['descriptors']),
+                        'keywords' => $this->sanitizeUtf8($excelRow['keywords']),
+                    ], fn ($v) => $v !== null);
+                }
 
-            $documents = [];
-            foreach ($chunks as $index => $chunkText) {
-                if ($dryRun) {
+                $documents = [];
+                foreach ($chunks as $index => $chunkText) {
+                    if ($dryRun) {
+                        $totalChunks++;
+                        continue;
+                    }
+
+                    try {
+                        $embedding = $this->embeddingGenerator->generate($chunkText);
+                    } catch (\Exception $e) {
+                        $this->logger->error('Error generating embedding', [
+                            'filename' => $filename,
+                            'chunkIndex' => $index,
+                            'error' => $e->getMessage(),
+                        ]);
+                        $io->error("  Error generating embedding for chunk $index: " . $e->getMessage());
+                        $errors++;
+                        continue;
+                    }
+
+                    $documents[] = new VectorDocument(
+                        id: Uuid::v7(),
+                        vector: new Vector($embedding),
+                        metadata: new Metadata(array_merge([
+                            Metadata::KEY_TEXT => $chunkText,
+                            Metadata::KEY_SOURCE => $filename,
+                            'reference' => $reference,
+                            'chunkIndex' => $index,
+                        ], $extraMetadata)),
+                    );
+
                     $totalChunks++;
-                    continue;
                 }
 
-                try {
-                    $embedding = $this->embeddingGenerator->generate($chunkText);
-                } catch (\Exception $e) {
-                    $this->logger->error('Error generating embedding', [
-                        'filename' => $filename,
-                        'chunkIndex' => $index,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $io->error("  Error generating embedding for chunk $index: " . $e->getMessage());
-                    $errors++;
-                    continue;
+                if (!$dryRun && !empty($documents)) {
+                    $this->ctbgResolutionsStore->add($documents);
+                    $io->text("  Stored " . count($documents) . " chunks");
                 }
 
-                $documents[] = new VectorDocument(
-                    id: Uuid::v7(),
-                    vector: new Vector($embedding),
-                    metadata: new Metadata(array_merge([
-                        Metadata::KEY_TEXT => $chunkText,
-                        Metadata::KEY_SOURCE => $filename,
-                        'reference' => $reference,
-                        'chunkIndex' => $index,
-                    ], $extraMetadata)),
-                );
+                $processed++;
 
-                $totalChunks++;
-            }
-
-            if (!$dryRun && !empty($documents)) {
-                $this->ctbgResolutionsStore->add($documents);
-                $io->text("  Stored " . count($documents) . " chunks");
-            }
-
-            $processed++;
-
-            // Flush entities in batches
-            if (!$dryRun && $processed % self::FLUSH_BATCH_SIZE === 0) {
-                $this->entityManager->flush();
-                $this->entityManager->clear();
-                $io->text("  <info>Flushed batch ({$processed} processed)</info>");
+                // Flush entities in batches
+                if (!$dryRun && $processed % self::FLUSH_BATCH_SIZE === 0) {
+                    $this->entityManager->flush();
+                    $this->entityManager->clear();
+                    $io->text("  <info>Flushed batch ({$processed} processed)</info>");
+                }
+            } catch (\Exception $e) {
+                $this->logger->error('Error processing resolution', [
+                    'filename' => $filename,
+                    'reference' => $reference,
+                    'error' => $e->getMessage(),
+                ]);
+                $io->error("  Skipping $filename: " . $e->getMessage());
+                $errors++;
+                continue;
             }
 
             // Rate limit for embedding API
@@ -319,10 +330,14 @@ class LoadCTBGResolutionsCommand extends Command
     {
         $name = pathinfo($filename, PATHINFO_FILENAME);
 
-        // Handle _20 URL-encoding (filenames with literal _20 instead of %20)
+        // Handle _XX URL-encoding (filenames with literal _20 instead of %20)
         // e.g. R_20CTBG_202025-0500_20_5B... → R CTBG 2025-0500 [...
+        // Only decode printable ASCII characters (0x20-0x7E) to avoid null bytes and control chars
         if (str_contains($name, '_20')) {
-            $name = preg_replace_callback('/_([0-9A-Fa-f]{2})/', fn ($m) => chr(hexdec($m[1])), $name);
+            $name = preg_replace_callback('/_([0-9A-Fa-f]{2})/', function ($m) {
+                $code = hexdec($m[1]);
+                return ($code >= 0x20 && $code <= 0x7E) ? chr($code) : '_' . $m[1];
+            }, $name);
         }
 
         // Standard URL-decode for any remaining %XX sequences

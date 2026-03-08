@@ -186,7 +186,7 @@ class AccessRequestRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilderForUser($user)
             ->andWhere('ar.externalId = :externalId OR CAST(ar.alternativeReferences AS TEXT) LIKE :altRef')
             ->setParameter('externalId', $externalId)
-            ->setParameter('altRef', '%' . json_encode($externalId) . '%');
+            ->setParameter('altRef', '%' . $externalId . '%');
 
         return $qb->setMaxResults(1)->getQuery()->getOneOrNullResult();
     }
