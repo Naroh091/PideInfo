@@ -2,13 +2,17 @@
 
 namespace App\Command;
 
+use App\Entity\Resolution;
+use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
+use App\Service\Resolution\ExcelResolutionReader;
+use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
 use Symfony\AI\Store\ManagedStoreInterface;
 use Symfony\AI\Store\StoreInterface;
-use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -28,17 +32,16 @@ use Symfony\Component\Uid\Uuid;
 class LoadCTBGResolutionsCommand extends Command
 {
     private const MAX_CHUNK_CHARS = 4000;
-    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+    private const FLUSH_BATCH_SIZE = 50;
 
     public function __construct(
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $ctbgResolutionsStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
-        private readonly string $geminiModel,
         private readonly LoggerInterface $logger,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly ExcelResolutionReader $excelReader,
+        private readonly ResolutionRepository $resolutionRepository,
     ) {
         parent::__construct();
     }
@@ -50,6 +53,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of files to process')
             ->addOption('skip-empty', null, InputOption::VALUE_NONE, 'Skip PDFs with no extractable text (scanned)')
+            ->addOption('excel', null, InputOption::VALUE_REQUIRED, 'Path to Excel file with resolution metadata', 'data/ResolucionesAE.xlsx')
         ;
     }
 
@@ -60,12 +64,23 @@ class LoadCTBGResolutionsCommand extends Command
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
         $skipEmpty = $input->getOption('skip-empty');
         $path = $input->getArgument('path');
+        $excelPath = $input->getOption('excel');
 
         $io->title('CTBG Resolutions Loader');
 
         if (!is_dir($path)) {
             $io->error("Directory not found: $path");
             return Command::FAILURE;
+        }
+
+        // Load Excel lookup map
+        $excelMap = [];
+        if ($excelPath && file_exists($excelPath)) {
+            $io->section('Loading Excel metadata...');
+            $excelMap = $this->excelReader->loadLookupMap($excelPath);
+            $io->success(sprintf('Loaded %d resolution entries from Excel.', count($excelMap)));
+        } else {
+            $io->warning('Excel file not found at ' . $excelPath . '. Proceeding without metadata enrichment.');
         }
 
         if (!$dryRun && $this->ctbgResolutionsStore instanceof ManagedStoreInterface) {
@@ -92,6 +107,8 @@ class LoadCTBGResolutionsCommand extends Command
         $processed = 0;
         $skipped = 0;
         $errors = 0;
+        $matched = 0;
+        $unmatched = 0;
 
         foreach ($finder as $file) {
             if ($limit !== null && $processed >= $limit) {
@@ -99,7 +116,19 @@ class LoadCTBGResolutionsCommand extends Command
             }
 
             $filename = $file->getFilename();
-            $io->text("Processing: $filename");
+            $reference = $this->referenceFromFilename($filename);
+
+            $io->text("Processing: $filename (ref: $reference)");
+
+            // Look up in Excel map
+            $excelRow = $excelMap[$reference] ?? null;
+            if ($excelRow) {
+                $matched++;
+                $io->text("  <info>Matched in Excel: outcome={$excelRow['outcome']}</info>");
+            } else {
+                $unmatched++;
+                $io->text("  <comment>Not found in Excel</comment>");
+            }
 
             // Extract text with pdftotext
             $text = $this->extractText($file->getRealPath());
@@ -108,35 +137,35 @@ class LoadCTBGResolutionsCommand extends Command
                 $skipped++;
                 if ($skipEmpty) {
                     $io->text('  <comment>Skipped — no extractable text (scanned PDF)</comment>');
-                    continue;
+                } else {
+                    $io->warning("  No extractable text (scanned PDF) — skipping");
                 }
-                $io->warning("  No extractable text (scanned PDF) — skipping");
                 continue;
             }
 
             // Clean text
             $text = $this->cleanText($text);
 
-            // Extract metadata with Gemini
-            try {
-                $metadata = $this->extractMetadata($text, $filename);
-            } catch (\Exception $e) {
-                $io->error("  Error extracting metadata: " . $e->getMessage());
-                $errors++;
-                continue;
+            // Create/update Resolution entity
+            if (!$dryRun && $excelRow) {
+                $this->upsertResolution($reference, $excelRow, $text);
             }
-
-            $io->text(sprintf(
-                '  Ref: %s | Date: %s | Outcome: %s | Body: %s',
-                $metadata['reference'],
-                $metadata['date'] ?? '?',
-                $metadata['outcome'],
-                $metadata['publicBody'] ?? '?'
-            ));
 
             // Chunk the text
             $chunks = $this->chunkText($text);
             $io->text("  Chunks: " . count($chunks));
+
+            // Build metadata from Excel row
+            $extraMetadata = [];
+            if ($excelRow) {
+                $extraMetadata = array_filter([
+                    'outcome' => $excelRow['outcome'],
+                    'subject' => $excelRow['subject'],
+                    'publicBody' => $excelRow['ministry'],
+                    'topic' => $excelRow['descriptors'],
+                    'keywords' => $excelRow['keywords'],
+                ], fn ($v) => $v !== null);
+            }
 
             $documents = [];
             foreach ($chunks as $index => $chunkText) {
@@ -148,23 +177,25 @@ class LoadCTBGResolutionsCommand extends Command
                 try {
                     $embedding = $this->embeddingGenerator->generate($chunkText);
                 } catch (\Exception $e) {
+                    $this->logger->error('Error generating embedding', [
+                        'filename' => $filename,
+                        'chunkIndex' => $index,
+                        'error' => $e->getMessage(),
+                    ]);
                     $io->error("  Error generating embedding for chunk $index: " . $e->getMessage());
+                    $errors++;
                     continue;
                 }
 
                 $documents[] = new VectorDocument(
                     id: Uuid::v7(),
                     vector: new Vector($embedding),
-                    metadata: new Metadata([
+                    metadata: new Metadata(array_merge([
                         Metadata::KEY_TEXT => $chunkText,
                         Metadata::KEY_SOURCE => $filename,
-                        'reference' => $metadata['reference'],
-                        'date' => $metadata['date'],
-                        'outcome' => $metadata['outcome'],
-                        'publicBody' => $metadata['publicBody'],
-                        'topic' => $metadata['topic'],
+                        'reference' => $reference,
                         'chunkIndex' => $index,
-                    ]),
+                    ], $extraMetadata)),
                 );
 
                 $totalChunks++;
@@ -177,27 +208,68 @@ class LoadCTBGResolutionsCommand extends Command
 
             $processed++;
 
-            // Rate limit for Gemini API
-            usleep(500000);
+            // Flush entities in batches
+            if (!$dryRun && $processed % self::FLUSH_BATCH_SIZE === 0) {
+                $this->entityManager->flush();
+                $this->entityManager->clear();
+                $io->text("  <info>Flushed batch ({$processed} processed)</info>");
+            }
+
+            // Rate limit for embedding API
+            usleep(100000);
+        }
+
+        // Final flush
+        if (!$dryRun) {
+            $this->entityManager->flush();
         }
 
         $io->newLine();
         $io->success(sprintf(
-            '%s complete. %d resolutions processed, %d chunks %s, %d skipped, %d errors.',
+            '%s complete. %d resolutions processed, %d chunks %s, %d skipped, %d errors. Excel: %d matched, %d unmatched.',
             $dryRun ? 'Dry run' : 'Import',
             $processed,
             $totalChunks,
             $dryRun ? 'found' : 'stored',
             $skipped,
-            $errors
+            $errors,
+            $matched,
+            $unmatched
         ));
 
         return Command::SUCCESS;
     }
 
+    private function upsertResolution(string $reference, array $excelRow, string $fullText): void
+    {
+        $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
+        if (!$resolution) {
+            $resolution = new Resolution();
+            $resolution->setReferenceNumber($reference);
+            $resolution->setResolutionDate(new \DateTimeImmutable());
+            $resolution->setSummary('');
+            $this->entityManager->persist($resolution);
+        }
+
+        $resolution->setOutcome($excelRow['outcome']);
+        $resolution->setFullText($fullText);
+        $resolution->setSubject($excelRow['subject']);
+        $resolution->setClaimReason($excelRow['claimReason']);
+        $resolution->setPublicBodyName($excelRow['ministry']);
+
+        if ($excelRow['descriptors']) {
+            $topics = array_map('trim', preg_split('/[;,]/', $excelRow['descriptors']));
+            $resolution->setTopics(array_values(array_filter($topics)));
+        }
+
+        if ($excelRow['keywords']) {
+            $keywords = array_map('trim', preg_split('/[;,]/', $excelRow['keywords']));
+            $resolution->setKeywords(array_values(array_filter($keywords)));
+        }
+    }
+
     private function extractText(string $filePath): string
     {
-        // Try pdftotext first (better quality)
         $process = new Process(['pdftotext', '-layout', $filePath, '-']);
         $process->setTimeout(30);
         $process->run();
@@ -206,7 +278,6 @@ class LoadCTBGResolutionsCommand extends Command
             return $process->getOutput();
         }
 
-        // Fallback to PHP PDF parser
         try {
             $parser = new \Smalot\PdfParser\Parser();
             $pdf = $parser->parseFile($filePath);
@@ -223,150 +294,71 @@ class LoadCTBGResolutionsCommand extends Command
         $text = preg_replace('/\r\n/', "\n", $text);
         $text = preg_replace('/[ \t]+/', ' ', $text);
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
-        // Remove repeated footer/header lines (FIRMANTE, page numbers)
         $text = preg_replace('/^FIRMANTE\(.*$/m', '', $text);
         $text = preg_replace('/^\d+\s*$/m', '', $text);
 
         return trim($text);
     }
 
-    /**
-     * @return array{reference: string, date: string|null, outcome: string, publicBody: string|null, topic: string|null}
-     */
-    private function extractMetadata(string $text, string $filename): array
-    {
-        // Use first ~2000 chars + last ~1000 chars for metadata extraction (cheaper)
-        $excerpt = mb_substr($text, 0, 2000);
-        if (strlen($text) > 3000) {
-            $excerpt .= "\n\n[...]\n\n" . mb_substr($text, -1000);
-        }
-
-        $prompt = <<<PROMPT
-Extracto de una resolución del CTBG de España. Extrae los metadatos.
-
-$excerpt
-PROMPT;
-
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'contents' => [['parts' => [['text' => $prompt]]]],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'maxOutputTokens' => 2048,
-                'responseMimeType' => 'application/json',
-                'responseSchema' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'reference' => [
-                            'type' => 'string',
-                            'description' => 'Número de referencia (N/REF, formato R/XXXX/YYYY)',
-                        ],
-                        'date' => [
-                            'type' => 'string',
-                            'description' => 'Fecha de la resolución en formato YYYY-MM-DD',
-                        ],
-                        'outcome' => [
-                            'type' => 'string',
-                            'enum' => ['estimada', 'desestimada', 'parcial', 'inadmitida'],
-                            'description' => 'Resultado de la reclamación',
-                        ],
-                        'publicBody' => [
-                            'type' => 'string',
-                            'description' => 'Organismo público reclamado',
-                        ],
-                        'topic' => [
-                            'type' => 'string',
-                            'description' => 'Tema principal de la solicitud de información (breve)',
-                        ],
-                    ],
-                    'required' => ['reference', 'outcome'],
-                ],
-            ],
-        ];
-
-        $jsonPayload = json_encode($payload);
-        $metadata = null;
-
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
-            $ch = curl_init($url);
-            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
-            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-
-            $response = curl_exec($ch);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
-
-            if ($httpCode === 429 || $httpCode === 503) {
-                $this->logger->warning('Gemini rate limited, retrying', [
-                    'filename' => $filename,
-                    'httpCode' => $httpCode,
-                    'attempt' => $attempt,
-                ]);
-                sleep($attempt * 2);
-                continue;
-            }
-
-            if ($httpCode !== 200) {
-                $this->logger->error('Gemini API error', [
-                    'filename' => $filename,
-                    'httpCode' => $httpCode,
-                    'response' => mb_substr($response, 0, 1000),
-                ]);
-                throw new \RuntimeException('Gemini API error (HTTP ' . $httpCode . ')');
-            }
-
-            $data = json_decode($response, true);
-            if (!$data) {
-                $this->logger->error('Failed to decode Gemini response', [
-                    'filename' => $filename,
-                    'response' => mb_substr($response, 0, 1000),
-                ]);
-                throw new \RuntimeException('Failed to decode Gemini response');
-            }
-
-            $jsonText = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $metadata = json_decode($jsonText, true);
-
-            if ($metadata) {
-                break;
-            }
-
-            $this->logger->warning('Gemini returned truncated JSON, retrying', [
-                'filename' => $filename,
-                'attempt' => $attempt,
-                'jsonText' => $jsonText,
-                'finishReason' => $data['candidates'][0]['finishReason'] ?? 'unknown',
-            ]);
-            sleep(1);
-        }
-
-        if (!$metadata) {
-            $this->logger->error('Failed to extract metadata after 3 attempts', [
-                'filename' => $filename,
-                'lastJsonText' => $jsonText ?? 'empty',
-                'lastResponse' => mb_substr($response ?? '', 0, 1000),
-            ]);
-            throw new \RuntimeException('Failed to parse metadata JSON after 3 attempts');
-        }
-
-        return [
-            'reference' => $metadata['reference'] ?? $this->referenceFromFilename($filename),
-            'date' => $metadata['date'] ?? null,
-            'outcome' => $metadata['outcome'] ?? 'unknown',
-            'publicBody' => $metadata['publicBody'] ?? null,
-            'topic' => $metadata['topic'] ?? null,
-        ];
-    }
-
     private function referenceFromFilename(string $filename): string
     {
         $name = pathinfo($filename, PATHINFO_FILENAME);
-        // R-0532-2016 → R/0532/2016 or 0282-2015 → 0282/2015
+
+        // Handle _20 URL-encoding (filenames with literal _20 instead of %20)
+        // e.g. R_20CTBG_202025-0500_20_5B... → R CTBG 2025-0500 [...
+        if (str_contains($name, '_20')) {
+            $name = preg_replace_callback('/_([0-9A-Fa-f]{2})/', fn ($m) => chr(hexdec($m[1])), $name);
+        }
+
+        // Standard URL-decode for any remaining %XX sequences
+        $name = urldecode($name);
+
+        // Remove common prefixes like "Estimada_", "Desestimada_", etc.
+        $name = preg_replace('/^(Estimada|Desestimada|Parcial|Inadmitida)_/i', '', $name);
+        $name = preg_replace('/^Acuerdo_de_revocacion_expte\._?/i', '', $name);
+        $name = preg_replace('/_Suspendida$/i', '', $name);
+
+        // R_CTBG_YYYY-NNNN or R CTBG YYYY-NNNN (year first, e.g. 2025-0024)
+        // R_CTBG_NNNN-YYYY (number first, e.g. 0004-2026)
+        if (preg_match('/R[\s_]+CTBG[\s_]+(\d{4})-(\d{4})/i', $name, $m)) {
+            return $this->orderReferenceNumbers($m[1], $m[2]);
+        }
+
+        // R_NNNN_YYYY or R_NNNN-YYYY (underscores as separators)
+        if (preg_match('/^R[_](\d{4})[_\-](\d{4})/', $name, $m)) {
+            return $this->orderReferenceNumbers($m[1], $m[2]);
+        }
+
+        // R-0532-2016 → R/0532/2016 or 0282-2015 → R/0282/2015
+        if (preg_match('/^R?-?(\d{4})-(\d{4})$/', $name, $matches)) {
+            return 'R/' . $matches[1] . '/' . $matches[2];
+        }
+
         $parts = explode('-', $name);
         return implode('/', $parts);
+    }
+
+    /**
+     * Given two 4-digit groups, determine which is the year and which is the resolution number.
+     * Years are >= 2015; resolution numbers can be anything.
+     */
+    private function orderReferenceNumbers(string $a, string $b): string
+    {
+        $intA = (int) $a;
+        $intB = (int) $b;
+
+        // If first looks like a year (>=2015) and second doesn't, it's YYYY-NNNN
+        if ($intA >= 2015 && $intB < 2015) {
+            return 'R/' . $b . '/' . $a;
+        }
+
+        // If second looks like a year and first doesn't, it's NNNN-YYYY
+        if ($intB >= 2015 && $intA < 2015) {
+            return 'R/' . $a . '/' . $b;
+        }
+
+        // Both could be years or both could be numbers — assume first is YYYY
+        return 'R/' . $b . '/' . $a;
     }
 
     /**

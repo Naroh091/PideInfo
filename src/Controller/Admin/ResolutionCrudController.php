@@ -29,7 +29,7 @@ class ResolutionCrudController extends AbstractCrudController
             ->setEntityLabelInSingular('Resolución CTBG')
             ->setEntityLabelInPlural('Resoluciones CTBG')
             ->setSearchFields(['referenceNumber', 'subject', 'summary'])
-            ->setDefaultSort(['resolvedAt' => 'DESC']);
+            ->setDefaultSort(['resolutionDate' => 'DESC']);
     }
 
     public function configureFilters(Filters $filters): Filters
@@ -41,7 +41,7 @@ class ResolutionCrudController extends AbstractCrudController
                 'Parcial' => 'partial',
                 'Inadmitida' => 'inadmissible',
             ]))
-            ->add(DateTimeFilter::new('resolvedAt', 'Fecha resolución'));
+            ->add(DateTimeFilter::new('resolutionDate', 'Fecha resolución'));
     }
 
     public function configureFields(string $pageName): iterable
@@ -62,10 +62,10 @@ class ResolutionCrudController extends AbstractCrudController
                 'partial' => 'warning',
                 'inadmissible' => 'secondary',
             ]);
-        yield DateField::new('resolvedAt', 'Fecha resolución');
+        yield DateField::new('resolutionDate', 'Fecha resolución');
         yield TextareaField::new('summary', 'Resumen')->hideOnIndex();
         yield TextareaField::new('fullText', 'Texto completo')->hideOnIndex();
         yield UrlField::new('sourceUrl', 'URL origen')->hideOnIndex();
-        yield DateTimeField::new('scrapedAt', 'Fecha scraping')->hideOnForm();
+        yield DateTimeField::new('createdAt', 'Fecha creación')->hideOnForm();
     }
 }

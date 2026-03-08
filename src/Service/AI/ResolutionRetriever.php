@@ -41,8 +41,8 @@ final class ResolutionRetriever
 
             $documents = $this->ctbgResolutionsStore->query($vector, [
                 'limit' => $topK,
-                'where' => "metadata->>'outcome' = :outcome",
-                'params' => ['outcome' => 'estimada'],
+                'where' => "metadata->>'outcome' IN (:outcome1, :outcome2)",
+                'params' => ['outcome1' => 'favorable', 'outcome2' => 'partial'],
             ]);
 
             $results = [];
@@ -96,9 +96,10 @@ final class ResolutionRetriever
     private function translateOutcome(string $outcome): string
     {
         return match ($outcome) {
-            'estimada' => 'ESTIMADA (favorable)',
-            'desestimada' => 'DESESTIMADA',
-            'parcial' => 'ESTIMADA PARCIALMENTE',
+            'favorable' => 'ESTIMADA (favorable)',
+            'unfavorable' => 'DESESTIMADA',
+            'partial' => 'ESTIMADA PARCIALMENTE',
+            'inadmissible' => 'INADMITIDA',
             default => $outcome,
         };
     }

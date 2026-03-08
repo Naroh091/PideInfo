@@ -52,6 +52,16 @@ class Resolution
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $publicBodyName = null;
 
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $subject = null;
+
+    /** @var array<string>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $keywords = null;
+
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $claimReason = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -180,6 +190,41 @@ class Resolution
     public function setPublicBodyName(?string $publicBodyName): static
     {
         $this->publicBodyName = $publicBodyName;
+        return $this;
+    }
+
+    public function getSubject(): ?string
+    {
+        return $this->subject;
+    }
+
+    public function setSubject(?string $subject): static
+    {
+        $this->subject = $subject;
+        return $this;
+    }
+
+    /** @return array<string>|null */
+    public function getKeywords(): ?array
+    {
+        return $this->keywords;
+    }
+
+    /** @param array<string>|null $keywords */
+    public function setKeywords(?array $keywords): static
+    {
+        $this->keywords = $keywords;
+        return $this;
+    }
+
+    public function getClaimReason(): ?string
+    {
+        return $this->claimReason;
+    }
+
+    public function setClaimReason(?string $claimReason): static
+    {
+        $this->claimReason = $claimReason;
         return $this;
     }
 
