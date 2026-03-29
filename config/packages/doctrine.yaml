@@ -19,6 +19,7 @@ doctrine:
         dql:
             string_functions:
                 CAST: App\Doctrine\CastFunction
+                UNACCENT: App\Doctrine\UnaccentFunction
         mappings:
             App:
                 type: attribute

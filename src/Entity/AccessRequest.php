@@ -137,7 +137,7 @@ class AccessRequest
 
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
-    #[ORM\OrderBy(['documentDate' => 'DESC', 'createdAt' => 'DESC'])]
+    #[ORM\OrderBy(['documentDate' => 'ASC', 'createdAt' => 'ASC'])]
     private Collection $documents;
 
     /** @var Collection<int, StatusHistory> */

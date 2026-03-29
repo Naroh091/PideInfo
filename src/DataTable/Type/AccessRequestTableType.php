@@ -30,7 +30,7 @@ class AccessRequestTableType implements DataTableTypeInterface
                 'label' => 'Solicitud',
                 'template' => 'datatable/columns/request_title.html.twig',
                 'orderable' => true,
-                'className' => 'w-1/3 min-w-[200px]',
+                'className' => 'w-2/5 min-w-[200px]',
             ])
             ->add('publicBody', TwigColumn::class, [
                 'label' => 'Organismo',
@@ -47,13 +47,6 @@ class AccessRequestTableType implements DataTableTypeInterface
                 'template' => 'datatable/columns/request_deadline.html.twig',
                 'orderable' => true,
                 'className' => 'hidden sm:table-cell',
-            ])
-            ->add('actions', TwigColumn::class, [
-                'label' => 'Acciones',
-                'template' => 'datatable/columns/request_actions.html.twig',
-                'orderable' => false,
-                'searchable' => false,
-                'className' => 'text-right',
             ])
             ->createAdapter(ORMAdapter::class, [
                 'entity' => AccessRequest::class,
@@ -99,10 +92,10 @@ class AccessRequestTableType implements DataTableTypeInterface
                         }
                     }
 
-                    // Free text search
+                    // Free text search (case & accent insensitive)
                     if ($search !== null && $search !== '') {
                         $builder
-                            ->andWhere('ar.title LIKE :search OR ar.description LIKE :search OR ar.externalId LIKE :search OR pb.name LIKE :search')
+                            ->andWhere('unaccent(LOWER(ar.title)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(ar.description)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(ar.externalId)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(pb.name)) LIKE unaccent(LOWER(:search))')
                             ->setParameter('search', '%' . $search . '%');
                     }
 
