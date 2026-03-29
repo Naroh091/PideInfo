@@ -17,6 +17,9 @@ class Document
     public const MATCH_KEYWORDS = 'keywords';
     public const MATCH_CREATED = 'created';
 
+    public const SOURCE_UPLOAD = 'upload';
+    public const SOURCE_EMAIL = 'email';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -59,6 +62,13 @@ class Document
 
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $matchMethod = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $sourceType = null;
+
+    /** @var array<string, mixed>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $emailMetadata = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $documentDate = null;
@@ -237,6 +247,35 @@ class Document
     public function isKeywordMatched(): bool
     {
         return $this->matchMethod === self::MATCH_KEYWORDS;
+    }
+
+    public function getSourceType(): ?string
+    {
+        return $this->sourceType;
+    }
+
+    public function setSourceType(?string $sourceType): static
+    {
+        $this->sourceType = $sourceType;
+        return $this;
+    }
+
+    public function isFromEmail(): bool
+    {
+        return $this->sourceType === self::SOURCE_EMAIL;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function getEmailMetadata(): ?array
+    {
+        return $this->emailMetadata;
+    }
+
+    /** @param array<string, mixed>|null $emailMetadata */
+    public function setEmailMetadata(?array $emailMetadata): static
+    {
+        $this->emailMetadata = $emailMetadata;
+        return $this;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

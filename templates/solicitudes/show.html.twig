@@ -568,6 +568,30 @@
             </div>
         </div>
 
+        {# Virtual email hint #}
+        {% if app.user.virtualEmail %}
+        <div class="p-4 rounded-xl bg-violet-50 border border-violet-100" data-controller="clipboard">
+            <div class="flex items-start gap-3">
+                <i data-lucide="mail" class="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5"></i>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-violet-800">Email virtual</p>
+                    <p class="text-xs text-violet-600 mt-1">Reenvía los correos de esta administración a:</p>
+                    <div class="flex items-center gap-2 mt-2">
+                        <code class="flex-1 text-xs bg-white/70 px-2 py-1.5 rounded text-violet-800 truncate"
+                              data-clipboard-target="source">{{ app.user.virtualEmail }}</code>
+                        <button type="button"
+                                class="text-violet-600 hover:text-violet-800 p-1 flex-shrink-0"
+                                data-action="click->clipboard#copy"
+                                data-clipboard-target="button"
+                                title="Copiar">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         {# Custom Deadlines Card #}
         <div class="card">
             <div class="card-header">

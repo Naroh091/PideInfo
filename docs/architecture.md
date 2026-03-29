@@ -160,6 +160,8 @@ This ensures the audit trail is complete regardless of how a change is initiated
 
 ## Data flow overview
 
+### Manual upload
+
 ```
 User uploads document
         │
@@ -182,6 +184,31 @@ User sees updated request with
 timeline, documents, and deadlines
 ```
 
+### Inbound email
+
+```
+Email to usuario-xxx@pideinfo.es
+        │
+        ▼
+Cloudflare Email Routing (catch-all)
+        │
+        ▼
+Cloudflare Email Worker
+  ├── Filters by usuario-* prefix
+  ├── Parses MIME (postal-mime)
+  └── POSTs JSON to webhook
+        │
+        ▼
+InboundEmailController
+  ├── Validates shared secret
+  ├── Looks up user by virtual email
+  ├── Stores body + attachments in S3
+  └── Dispatches ProcessDocumentBatchMessage
+        │
+        ▼
+Same processing pipeline as manual uploads
+```
+
 ## Configuration and infrastructure
 
 - **Database**: PostgreSQL with pgvector extension for vector similarity search
@@ -190,3 +217,4 @@ timeline, documents, and deadlines
 - **Real-time**: Mercure hub for live dashboard updates
 - **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_SMALL_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
 - **Vector stores**: Two pgvector stores — one for CTBG resolutions, one for interpretive criteria
+- **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email`

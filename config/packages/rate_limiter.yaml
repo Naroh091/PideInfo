@@ -1,0 +1,6 @@
+framework:
+    rate_limiter:
+        inbound_email:
+            policy: sliding_window
+            limit: 30
+            interval: '1 minute'
