@@ -30,6 +30,11 @@
                         <i data-lucide="list" class="w-4 h-4"></i>
                         <span>Listas</span>
                     </a>
+                    <a href="{{ path('app_guias_index') }}"
+                       class="nav-link {{ 'guia' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                        <i data-lucide="book-open" class="w-4 h-4"></i>
+                        <span>Guías</span>
+                    </a>
                 </div>
             </div>
 
@@ -147,8 +152,9 @@
                 <i data-lucide="search" class="w-4 h-4 text-primary-500"></i>
                 <span>PideInfo - Sistema de seguimiento de solicitudes de acceso a información pública</span>
             </div>
-            <div class="text-slate-400 text-xs">
-                Ley 19/2013, de 9 de diciembre
+            <div class="flex items-center gap-4 text-slate-400 text-xs">
+                <span>Ley 19/2013, de 9 de diciembre</span>
+                <a href="{{ path('app_privacidad') }}" class="hover:text-primary-600 transition-colors">Política de privacidad</a>
             </div>
         </div>
     </div>

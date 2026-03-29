@@ -11,7 +11,7 @@
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      gtag('config', 'G-G15LJV06WH');
+      gtag('config', 'G-G15LJV06WH', { 'anonymize_ip': true });
     </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🔍</text></svg>">
 
@@ -38,5 +38,7 @@
         // Initialize Lucide icons
         lucide.createIcons();
     </script>
+
+    {{ include('components/_cookie_banner.html.twig') }}
 </body>
 </html>

@@ -38,6 +38,15 @@ services:
               defaults_mode: 'standard'
               use_aws_shared_config_files: false
 
+    # Markdown converter with GFM support (tables, strikethrough, etc.)
+    League\CommonMark\MarkdownConverter:
+        factory: ['App\Factory\MarkdownConverterFactory', 'create']
+
+    twig.markdown.default:
+        class: Twig\Extra\Markdown\LeagueMarkdown
+        arguments:
+            - '@League\CommonMark\MarkdownConverter'
+
     # Flysystem storage aliases for autowiring
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
     League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
