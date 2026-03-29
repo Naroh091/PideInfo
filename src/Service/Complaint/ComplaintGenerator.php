@@ -6,6 +6,7 @@ use App\DTO\ChatMessage;
 use App\DTO\CitedResolution;
 use App\DTO\ComplaintDraft;
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\ApplicableLaw;
 use App\Entity\Document;
 use App\Enum\DocumentType;
@@ -325,7 +326,7 @@ PROMPT;
 
     public function canGenerateAlegationResponse(AccessRequest $accessRequest): bool
     {
-        return $accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_RECLAIMED;
+        return $accessRequest->getComplaint()?->getStatus() === AccessRequestComplaint::STATUS_RECLAIMED;
     }
 
     /**

@@ -14,7 +14,7 @@
 } %}
 <div class="inline-flex flex-col items-start gap-1">
     {# Show main status, but skip "delayed" if there's an active complaint #}
-    {% if not (row.status == 'delayed' and row.complaintStatus != 'none') %}
+    {% if not (row.status == 'delayed' and row.complaint) %}
         <span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
             {{ row.statusLabel }}
         </span>
@@ -22,7 +22,7 @@
     {% if row.isDeadlineSuspended %}
         <span class="badge badge-warning">Plazo suspendido</span>
     {% endif %}
-    {% if row.complaintStatus != 'none' %}
-        <span class="badge {{ complaintClass[row.complaintStatus]|default('badge-info') }}">{{ row.complaintStatusLabel }}</span>
+    {% if row.complaint %}
+        <span class="badge {{ complaintClass[row.complaint.status]|default('badge-info') }}">{{ row.complaint.statusLabel }}</span>
     {% endif %}
 </div>

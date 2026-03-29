@@ -93,15 +93,8 @@ class AccessRequestCrudController extends AbstractCrudController
                 'pending' => 'secondary',
             ]);
 
-        yield ChoiceField::new('complaintStatus', 'Estado reclamación')
-            ->setChoices([
-                'Sin reclamación' => 'none',
-                'Reclamada' => 'reclaimed',
-                'Estimada' => 'complaint_granted',
-                'Desestimada' => 'complaint_denied',
-                'Archivada' => 'complaint_archived',
-            ])
-            ->hideOnIndex();
+        yield TextField::new('complaintStatusLabel', 'Reclamación')
+            ->hideOnForm();
 
         yield ChoiceField::new('courtStatus', 'Vía judicial')
             ->setChoices([

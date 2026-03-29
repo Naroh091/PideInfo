@@ -35,11 +35,11 @@ class RenameComplaintStatusCommand extends Command
 
         foreach ($mappings as $old => $new) {
             $count = $this->connection->executeStatement(
-                'UPDATE access_request SET complaint_status = :new WHERE complaint_status = :old',
+                'UPDATE access_request_complaint SET status = :new WHERE status = :old',
                 ['old' => $old, 'new' => $new]
             );
             if ($count > 0) {
-                $io->info(sprintf('access_request: renamed %d rows from "%s" to "%s"', $count, $old, $new));
+                $io->info(sprintf('access_request_complaint: renamed %d rows from "%s" to "%s"', $count, $old, $new));
             }
             $totalUpdated += $count;
 
