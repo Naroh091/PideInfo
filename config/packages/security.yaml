@@ -33,6 +33,7 @@ security:
         - { path: ^/registro, roles: PUBLIC_ACCESS }
         - { path: ^/verificar, roles: PUBLIC_ACCESS }
         - { path: ^/recuperar-password, roles: PUBLIC_ACCESS }
+        - { path: ^/webhook/, roles: PUBLIC_ACCESS }
         - { path: ^/admin, roles: ROLE_ADMIN }
         - { path: ^/, roles: ROLE_USER }
 

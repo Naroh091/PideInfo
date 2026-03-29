@@ -1,0 +1,27 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "pideinfo-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-10",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	/**
+	 * Email Routing
+	 * Configure in Cloudflare dashboard: Email Routing > catch-all > route to this Worker.
+	 * Set secrets with:
+	 *   wrangler secret put WEBHOOK_URL
+	 *   wrangler secret put WEBHOOK_SECRET
+	 */
+	"vars": {
+		"WEBHOOK_URL": "https://pideinfo.es/webhook/inbound-email"
+	}
+}

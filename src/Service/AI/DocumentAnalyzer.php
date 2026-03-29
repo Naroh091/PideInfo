@@ -46,19 +46,25 @@ final class DocumentAnalyzer
         foreach ($documents as $index => $document) {
             $content = $this->documentsStorage->read($document->getStoredFilename());
             $mimeType = $document->getMimeType();
-            $base64Content = base64_encode($content);
 
-            $parts[] = [
-                'inline_data' => [
-                    'mime_type' => $mimeType,
-                    'data' => $base64Content,
-                ],
-            ];
-
-            // Add context about this document
-            $parts[] = [
-                'text' => sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename()),
-            ];
+            if ($mimeType === 'text/plain') {
+                // Send text content directly for better token efficiency
+                $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
+                $parts[] = [
+                    'text' => sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content),
+                ];
+            } else {
+                $parts[] = [
+                    'inline_data' => [
+                        'mime_type' => $mimeType,
+                        'data' => base64_encode($content),
+                    ],
+                ];
+                // Add context about this document
+                $parts[] = [
+                    'text' => sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename()),
+                ];
+            }
         }
 
         // Add the analysis prompt

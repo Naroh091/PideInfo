@@ -48,6 +48,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $lastLoginAt = null;
 
+    #[ORM\Column(length: 100, unique: true, nullable: true)]
+    private ?string $virtualEmail = null;
+
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'users')]
     #[ORM\JoinColumn(nullable: true)]
     private ?Organization $organization = null;
@@ -167,6 +170,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->lastLoginAt = $lastLoginAt;
         return $this;
+    }
+
+    public function getVirtualEmail(): ?string
+    {
+        return $this->virtualEmail;
+    }
+
+    public function setVirtualEmail(?string $virtualEmail): static
+    {
+        $this->virtualEmail = $virtualEmail;
+        return $this;
+    }
+
+    public function hasVirtualEmail(): bool
+    {
+        return $this->virtualEmail !== null;
     }
 
     public function getOrganization(): ?Organization
