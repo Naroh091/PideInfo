@@ -1,9 +1,19 @@
-<a href="{{ path('app_solicitudes_show', {id: row.id}) }}" class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
-    {{ row.title }}
-</a>
-{% if row.externalId %}
-    <p class="text-xs text-slate-400 mt-0.5">{{ row.externalId }}</p>
-{% endif %}
-{% if row.complaint and row.complaint.externalId %}
-    <p class="text-xs text-amber-500 mt-0.5">Recl: {{ row.complaint.externalId }}</p>
-{% endif %}
+<div data-href="{{ path('app_solicitudes_show', {id: row.id}) }}">
+    <span class="font-medium text-slate-800">{{ row.title }}</span>
+    {% if row.externalId or (row.complaint and row.complaint.externalId) %}
+        <div class="flex items-center gap-3 mt-0.5 text-xs">
+            {% if row.externalId %}
+                <span class="flex items-center gap-1 text-primary-600">
+                    <i data-lucide="hash" class="w-3 h-3"></i>
+                    {{ row.externalId }}
+                </span>
+            {% endif %}
+            {% if row.complaint and row.complaint.externalId %}
+                <span class="flex items-center gap-1 text-amber-600">
+                    <i data-lucide="scale" class="w-3 h-3"></i>
+                    Recl: {{ row.complaint.externalId }}
+                </span>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
