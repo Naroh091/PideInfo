@@ -58,12 +58,17 @@
             <i data-lucide="log-in" class="w-4 h-4 mr-2"></i>
             Iniciar sesión
         </button>
+
+        <p class="text-xs text-slate-400 text-center mt-4">
+            Al iniciar sesión aceptas nuestra
+            <a href="{{ path('app_privacidad') }}" class="text-primary-600 hover:underline" target="_blank">política de privacidad</a>.
+        </p>
     </form>
 {% endblock %}
 
 {% block auth_footer %}
     <p class="text-slate-500">
-        No tienes cuenta?
+        ¿No tienes cuenta?
         <a href="{{ path('app_register') }}" class="text-primary-600 font-medium hover:text-primary-700">
             Regístrate aquí
         </a>

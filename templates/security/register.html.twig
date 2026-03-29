@@ -64,7 +64,8 @@
         <div class="flex items-start gap-2">
             {{ form_widget(registrationForm.agreeTerms, {'attr': {'class': 'w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 mt-0.5'}}) }}
             <label for="{{ registrationForm.agreeTerms.vars.id }}" class="text-sm text-slate-600">
-                Acepto los términos y condiciones de uso
+                He leído y acepto la
+                <a href="{{ path('app_privacidad') }}" class="text-primary-600 hover:underline" target="_blank">política de privacidad</a>
             </label>
         </div>
         {{ form_errors(registrationForm.agreeTerms) }}
@@ -78,7 +79,7 @@
 
 {% block auth_footer %}
     <p class="text-slate-500">
-        Ya tienes cuenta?
+        ¿Ya tienes cuenta?
         <a href="{{ path('app_login') }}" class="text-primary-600 font-medium hover:text-primary-700">
             Inicia sesión
         </a>
