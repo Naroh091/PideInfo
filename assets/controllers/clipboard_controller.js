@@ -43,6 +43,9 @@ export default class extends Controller {
 
             const data = await response.json();
             if (data.success) {
+                if (typeof gtag === 'function') {
+                    gtag('event', 'generate_virtual_email');
+                }
                 // Reload to show the new email address
                 window.location.reload();
             } else {
