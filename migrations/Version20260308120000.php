@@ -16,15 +16,15 @@ final class Version20260308120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE resolution ADD subject VARCHAR(500) DEFAULT NULL');
-        $this->addSql('ALTER TABLE resolution ADD keywords JSON DEFAULT NULL');
-        $this->addSql('ALTER TABLE resolution ADD claim_reason VARCHAR(500) DEFAULT NULL');
+        $this->addSql('ALTER TABLE resolution ADD COLUMN IF NOT EXISTS subject VARCHAR(500) DEFAULT NULL');
+        $this->addSql('ALTER TABLE resolution ADD COLUMN IF NOT EXISTS keywords JSON DEFAULT NULL');
+        $this->addSql('ALTER TABLE resolution ADD COLUMN IF NOT EXISTS claim_reason VARCHAR(500) DEFAULT NULL');
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE resolution DROP COLUMN subject');
-        $this->addSql('ALTER TABLE resolution DROP COLUMN keywords');
-        $this->addSql('ALTER TABLE resolution DROP COLUMN claim_reason');
+        $this->addSql('ALTER TABLE resolution DROP COLUMN IF EXISTS subject');
+        $this->addSql('ALTER TABLE resolution DROP COLUMN IF EXISTS keywords');
+        $this->addSql('ALTER TABLE resolution DROP COLUMN IF EXISTS claim_reason');
     }
 }

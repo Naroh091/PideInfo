@@ -134,6 +134,18 @@ class AccessRequestController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/documentos', name: 'app_solicitudes_documents_fragment', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function documentsFragment(AccessRequest $accessRequest): Response
+    {
+        // Force refresh of the documents collection from DB
+        $this->entityManager->refresh($accessRequest);
+
+        return $this->render('solicitudes/_documents_list.html.twig', [
+            'request' => $accessRequest,
+        ]);
+    }
+
     #[Route('/{id}/editar', name: 'app_solicitudes_edit')]
     #[IsGranted('edit', 'accessRequest')]
     public function edit(Request $request, AccessRequest $accessRequest, AccessRequestManager $manager): Response
@@ -284,6 +296,40 @@ class AccessRequestController extends AbstractController
 
         $this->addFlash('success', sprintf('Solicitud "%s" eliminada correctamente.', $title));
         return $this->redirectToRoute('app_solicitudes_index');
+    }
+
+    #[Route('/{id}/reclamacion/editar', name: 'app_solicitudes_complaint_edit', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function editComplaint(Request $request, AccessRequest $accessRequest): Response
+    {
+        if (!$this->isCsrfTokenValid('complaint-edit-' . $accessRequest->getId(), $request->request->get('_token'))) {
+            $this->addFlash('error', 'Token CSRF inválido');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $complaint = $accessRequest->getComplaint();
+        if ($complaint === null) {
+            $this->addFlash('error', 'Esta solicitud no tiene reclamación');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $externalId = $request->request->get('externalId');
+        $filedAtStr = $request->request->get('filedAt');
+
+        $complaint->setExternalId($externalId ?: null);
+
+        if ($filedAtStr) {
+            try {
+                $complaint->setFiledAt(new \DateTimeImmutable($filedAtStr));
+            } catch (\Exception) {}
+        } else {
+            $complaint->setFiledAt(null);
+        }
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Datos de reclamación actualizados.');
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
     }
 
     #[Route('/{id}/estado', name: 'app_solicitudes_change_status', methods: ['POST'])]

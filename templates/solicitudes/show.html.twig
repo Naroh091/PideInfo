@@ -27,6 +27,12 @@
                     {{ request.externalId }}
                 </span>
             {% endif %}
+            {% if request.complaint and request.complaint.externalId %}
+                <span class="flex items-center gap-1 text-amber-600">
+                    <i data-lucide="scale" class="w-4 h-4"></i>
+                    Recl: {{ request.complaint.externalId }}
+                </span>
+            {% endif %}
         </div>
     </div>
     <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="btn btn-secondary flex-shrink-0">
@@ -132,13 +138,23 @@
         <div class="card"
              data-controller="file-uploader"
              data-file-uploader-url-value="{{ path('app_document_upload') }}"
-             data-file-uploader-access-request-id-value="{{ request.id }}">
+             data-file-uploader-access-request-id-value="{{ request.id }}"
+             data-file-uploader-documents-fragment-url-value="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
             <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                        <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
+                <div class="flex items-center justify-between w-full">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                            <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
+                        </div>
+                        <h2 class="font-semibold text-slate-800">Documentos</h2>
                     </div>
-                    <h2 class="font-semibold text-slate-800">Documentos</h2>
+                    {% if request.documents|length > 0 %}
+                        <a href="{{ path('app_document_download_all', {id: request.id}) }}"
+                           class="btn btn-secondary btn-sm">
+                            <i data-lucide="archive" class="w-4 h-4 mr-1"></i>
+                            Descargar todo
+                        </a>
+                    {% endif %}
                 </div>
             </div>
             <div class="card-body">
@@ -167,57 +183,9 @@
                 </div>
 
                 {# Document List #}
-                {% if request.documents|length > 0 %}
-                    <div class="space-y-3">
-                        {% for doc in request.documents %}
-                            {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
-                            <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors" data-document-id="{{ doc.id }}">
-                                <div class="flex items-center gap-3 min-w-0">
-                                    <div class="w-10 h-10 rounded-lg {{ isZip ? 'bg-purple-100' : (doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200')) }} flex items-center justify-center flex-shrink-0">
-                                        <i data-lucide="{{ isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) }}"
-                                           class="w-5 h-5 {{ isZip ? 'text-purple-600' : (doc.isPdf ? 'text-red-600' : (doc.isImage ? 'text-blue-600' : 'text-slate-600')) }}"></i>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <p class="font-medium text-slate-800 truncate">{{ doc.originalFilename }}</p>
-                                        <p class="text-sm text-slate-500">{{ doc.typeLabel }} - {{ doc.fileSizeFormatted }}</p>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="badge {{ doc.processed ? 'badge-success' : 'badge-warning' }}">
-                                        {{ doc.processed ? 'Procesado' : 'Pendiente' }}
-                                    </span>
-                                    <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
-                                       target="_blank"
-                                       class="btn btn-ghost btn-sm"
-                                       title="Abrir en nueva pestaña">
-                                        <i data-lucide="external-link" class="w-4 h-4"></i>
-                                    </a>
-                                    <a href="{{ path('app_document_download', {id: doc.id}) }}"
-                                       class="btn btn-ghost btn-sm"
-                                       title="Descargar">
-                                        <i data-lucide="download" class="w-4 h-4"></i>
-                                    </a>
-                                    {% if not isZip %}
-                                        <button type="button"
-                                                class="btn btn-ghost btn-sm"
-                                                title="Reprocesar documento"
-                                                onclick="reprocessDocument('{{ doc.id }}', this)">
-                                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                                        </button>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="empty-state py-8">
-                        <div class="empty-state-icon">
-                            <i data-lucide="file" class="w-full h-full"></i>
-                        </div>
-                        <p class="empty-state-title">Sin documentos</p>
-                        <p class="empty-state-description">No hay documentos adjuntos a esta solicitud</p>
-                    </div>
-                {% endif %}
+                <div id="documents-list" data-documents-url="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
+                    {% include 'solicitudes/_documents_list.html.twig' %}
+                </div>
 
                 <div data-file-uploader-target="preview" class="mt-4 space-y-2"></div>
 
@@ -256,47 +224,148 @@
                 {% if request.statusHistory|length > 0 %}
                     <div class="space-y-4">
                         {% for history in request.statusHistory %}
-                            {# Determine icon and color based on event type #}
-                            {% set isRedirection = 'trasladada' in (history.notes|default('')|lower) %}
-                            {% set isThirdParty = 'terceros' in (history.notes|default('')|lower) %}
-                            {% set isProcessingStart = 'inicio de tramitación' in (history.notes|default('')|lower) %}
-                            {% set isExtension = 'prórroga' in (history.notes|default('')|lower) %}
+                            {# --- Determine event title, icon, and color from context --- #}
+                            {% set notes = history.notes|default('') %}
+                            {% set notesLower = notes|lower %}
+                            {% set sType = history.statusType %}
+                            {% set to = history.toStatus %}
+                            {% set from = history.fromStatus %}
 
-                            {% set dotColor = 'bg-primary-500' %}
+                            {# Detect special events from notes content #}
+                            {% set isCreation = from == '' %}
+                            {% set isRedirection = 'trasladada' in notesLower %}
+                            {% set isThirdParty = 'terceros' in notesLower %}
+                            {% set isProcessingStart = 'inicio de tramitación' in notesLower and sType == 'status' %}
+                            {% set isExtension = 'prórroga' in notesLower %}
+                            {% set isSubsanacion = 'subsanación' in notesLower %}
+                            {% set isAudiencia = 'audiencia' in notesLower %}
+                            {% set isAmpliacion = 'ampliación' in notesLower %}
+
+                            {# Default #}
+                            {% set dotColor = 'bg-slate-400' %}
                             {% set icon = 'circle' %}
-                            {% if isRedirection %}
+                            {% set title = notes %}
+                            {% set titleColor = 'text-slate-800' %}
+
+                            {% if isCreation %}
+                                {% set dotColor = 'bg-primary-500' %}
+                                {% set icon = 'file-plus' %}
+                                {% set title = 'Solicitud creada' %}
+                                {% set titleColor = 'text-primary-700' %}
+                            {% elseif isRedirection %}
                                 {% set dotColor = 'bg-blue-500' %}
                                 {% set icon = 'arrow-right-circle' %}
+                                {% set title = 'Solicitud trasladada' %}
+                                {% set titleColor = 'text-blue-700' %}
                             {% elseif isThirdParty %}
                                 {% set dotColor = 'bg-amber-500' %}
                                 {% set icon = 'users' %}
+                                {% set title = 'Afectación a derechos de terceros' %}
+                                {% set titleColor = 'text-amber-700' %}
                             {% elseif isProcessingStart %}
                                 {% set dotColor = 'bg-green-500' %}
                                 {% set icon = 'play-circle' %}
+                                {% set title = 'Inicio de tramitación' %}
+                                {% set titleColor = 'text-green-700' %}
                             {% elseif isExtension %}
                                 {% set dotColor = 'bg-orange-500' %}
                                 {% set icon = 'clock' %}
-                            {% elseif history.toStatus == 'granted' %}
-                                {% set dotColor = 'bg-emerald-500' %}
-                                {% set icon = 'check-circle' %}
-                            {% elseif history.toStatus == 'denied' %}
-                                {% set dotColor = 'bg-red-500' %}
-                                {% set icon = 'x-circle' %}
+                                {% set title = 'Prórroga del plazo' %}
+                                {% set titleColor = 'text-orange-700' %}
+                            {% elseif sType == 'complaint' %}
+                                {# Complaint lifecycle events #}
+                                {% if to == 'reclaimed' %}
+                                    {% set dotColor = 'bg-amber-500' %}
+                                    {% set icon = 'scale' %}
+                                    {% if isSubsanacion %}
+                                        {% set title = 'Subsanación' %}
+                                    {% elseif isAudiencia %}
+                                        {% set title = 'Trámite de audiencia' %}
+                                    {% elseif isAmpliacion %}
+                                        {% set title = 'Ampliación de reclamación' %}
+                                    {% elseif 'alegaciones' in notesLower %}
+                                        {% set title = 'Alegaciones de la Administración' %}
+                                    {% elseif 'acuse de recibo' in notesLower %}
+                                        {% set title = 'Acuse de recibo de reclamación' %}
+                                    {% elseif 'inicio' in notesLower %}
+                                        {% set title = 'Inicio de tramitación de reclamación' %}
+                                    {% else %}
+                                        {% set title = 'Reclamación presentada' %}
+                                    {% endif %}
+                                    {% set titleColor = 'text-amber-700' %}
+                                {% elseif to == 'complaint_granted' %}
+                                    {% set dotColor = 'bg-emerald-500' %}
+                                    {% set icon = 'check-circle' %}
+                                    {% set title = 'Reclamación estimada' %}
+                                    {% set titleColor = 'text-emerald-700' %}
+                                {% elseif to == 'complaint_denied' %}
+                                    {% set dotColor = 'bg-red-500' %}
+                                    {% set icon = 'x-circle' %}
+                                    {% set title = 'Reclamación desestimada' %}
+                                    {% set titleColor = 'text-red-700' %}
+                                {% elseif to == 'complaint_archived' %}
+                                    {% set dotColor = 'bg-slate-500' %}
+                                    {% set icon = 'archive' %}
+                                    {% set title = 'Reclamación archivada' %}
+                                    {% set titleColor = 'text-slate-700' %}
+                                {% else %}
+                                    {% set dotColor = 'bg-amber-500' %}
+                                    {% set icon = 'scale' %}
+                                    {% set title = 'Reclamación' %}
+                                    {% set titleColor = 'text-amber-700' %}
+                                {% endif %}
+                            {% elseif sType == 'courtStatus' %}
+                                {% set dotColor = 'bg-purple-500' %}
+                                {% set icon = 'gavel' %}
+                                {% set titleColor = 'text-purple-700' %}
+                                {% if to == 'in_court' %}
+                                    {% set title = 'Recurso judicial interpuesto' %}
+                                {% elseif to == 'court_granted' %}
+                                    {% set dotColor = 'bg-emerald-500' %}
+                                    {% set icon = 'check-circle' %}
+                                    {% set title = 'Sentencia favorable' %}
+                                    {% set titleColor = 'text-emerald-700' %}
+                                {% elseif to == 'court_denied' %}
+                                    {% set dotColor = 'bg-red-500' %}
+                                    {% set icon = 'x-circle' %}
+                                    {% set title = 'Sentencia desfavorable' %}
+                                    {% set titleColor = 'text-red-700' %}
+                                {% else %}
+                                    {% set title = 'Vía judicial' %}
+                                {% endif %}
+                            {% elseif sType == 'status' %}
+                                {# Primary status changes #}
+                                {% if to == 'granted' %}
+                                    {% set dotColor = 'bg-emerald-500' %}
+                                    {% set icon = 'check-circle' %}
+                                    {% set title = 'Solicitud concedida' %}
+                                    {% set titleColor = 'text-emerald-700' %}
+                                {% elseif to == 'denied' %}
+                                    {% set dotColor = 'bg-red-500' %}
+                                    {% set icon = 'x-circle' %}
+                                    {% set title = 'Solicitud denegada' %}
+                                    {% set titleColor = 'text-red-700' %}
+                                {% elseif to == 'delayed' %}
+                                    {% set dotColor = 'bg-amber-500' %}
+                                    {% set icon = 'clock' %}
+                                    {% set title = 'Silencio administrativo' %}
+                                    {% set titleColor = 'text-amber-700' %}
+                                {% elseif to == 'processing' %}
+                                    {% set dotColor = 'bg-blue-500' %}
+                                    {% set icon = 'loader' %}
+                                    {% set title = 'Solicitud en trámite' %}
+                                    {% set titleColor = 'text-blue-700' %}
+                                {% elseif to == 'sent' %}
+                                    {% set dotColor = 'bg-primary-500' %}
+                                    {% set icon = 'send' %}
+                                    {% set title = 'Solicitud enviada' %}
+                                    {% set titleColor = 'text-primary-700' %}
+                                {% else %}
+                                    {% set dotColor = 'bg-slate-400' %}
+                                    {% set icon = 'circle' %}
+                                    {% set title = history.toStatusLabel %}
+                                {% endif %}
                             {% endif %}
-
-                            {# Use entity method to get translated status label #}
-                            {% set statusLabel = history.toStatusLabel %}
-
-                            {# Map status to badge classes #}
-                            {% set statusBadgeClass = {
-                                'sent': 'status-sent',
-                                'processing': 'status-processing',
-                                'granted': 'status-granted',
-                                'denied': 'status-denied',
-                                'delayed': 'status-delayed',
-                                'pending': 'status-pending'
-                            } %}
-                            {% set badgeClass = statusBadgeClass[history.toStatus]|default('badge-secondary') %}
 
                             <div class="flex gap-4 pb-4 {{ not loop.last ? 'border-b border-slate-100' : '' }}">
                                 <div class="w-8 h-8 rounded-full {{ dotColor }} flex items-center justify-center flex-shrink-0">
@@ -304,25 +373,11 @@
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                        <div>
-                                            {% if isExtension %}
-                                                <span class="font-medium text-orange-700">Prórroga del plazo</span>
-                                            {% elseif isRedirection %}
-                                                <span class="font-medium text-blue-700">Solicitud trasladada</span>
-                                            {% elseif isThirdParty %}
-                                                <span class="font-medium text-amber-700">Afectación a terceros</span>
-                                            {% elseif isProcessingStart %}
-                                                <span class="font-medium text-green-700">Inicio de tramitación</span>
-                                            {% else %}
-                                                <span class="font-medium text-slate-800">{{ history.statusTypeLabel }}</span>
-                                                <span class="text-slate-400 mx-2">→</span>
-                                                <span class="badge {{ badgeClass }}">{{ statusLabel }}</span>
-                                            {% endif %}
-                                        </div>
+                                        <span class="font-medium {{ titleColor }}">{{ title }}</span>
                                         <span class="text-sm text-slate-500 flex-shrink-0">{{ history.createdAt|date('d/m/Y H:i') }}</span>
                                     </div>
-                                    {% if history.notes %}
-                                        <p class="text-sm text-slate-600 mt-2">{{ history.notes }}</p>
+                                    {% if notes and notes != title %}
+                                        <p class="text-sm text-slate-600 mt-2">{{ notes }}</p>
                                     {% endif %}
                                 </div>
                             </div>
@@ -381,22 +436,44 @@
                     <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
                         <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
                         <input type="hidden" name="statusType" value="complaint">
+                        {% set cStatus = request.complaint ? request.complaint.status : 'none' %}
                         <select name="newStatus"
                                 class="form-select text-sm w-full"
                                 onchange="this.form.submit()">
-                            <option value="none" {{ request.complaintStatus == 'none' ? 'selected' : '' }}>Sin reclamación</option>
-                            <option value="reclaimed" {{ request.complaintStatus == 'reclaimed' ? 'selected' : '' }}>Reclamada</option>
-                            <option value="complaint_granted" {{ request.complaintStatus == 'complaint_granted' ? 'selected' : '' }}>Reclamación estimada</option>
-                            <option value="complaint_denied" {{ request.complaintStatus == 'complaint_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
-                            <option value="complaint_archived" {{ request.complaintStatus == 'complaint_archived' ? 'selected' : '' }}>Reclamación archivada</option>
+                            <option value="none" {{ cStatus == 'none' ? 'selected' : '' }}>Sin reclamación</option>
+                            <option value="reclaimed" {{ cStatus == 'reclaimed' ? 'selected' : '' }}>Reclamada</option>
+                            <option value="complaint_granted" {{ cStatus == 'complaint_granted' ? 'selected' : '' }}>Reclamación estimada</option>
+                            <option value="complaint_denied" {{ cStatus == 'complaint_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
+                            <option value="complaint_archived" {{ cStatus == 'complaint_archived' ? 'selected' : '' }}>Reclamación archivada</option>
                         </select>
                     </form>
-                    {% if request.complaintStatus != 'none' and request.applicableLaw.complaintOrganism %}
+                    {% if request.complaint and request.applicableLaw.complaintOrganism %}
                         <p class="text-sm text-slate-600 mt-2">
                             Ante: <a href="{{ request.applicableLaw.complaintOrganism.url }}" target="_blank" class="text-primary-600 hover:underline">
                                 {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
                             </a>
                         </p>
+                    {% endif %}
+                    {% if request.complaint %}
+                        <div class="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                            <form action="{{ path('app_solicitudes_complaint_edit', {id: request.id}) }}" method="post" class="space-y-2">
+                                <input type="hidden" name="_token" value="{{ csrf_token('complaint-edit-' ~ request.id) }}">
+                                <div>
+                                    <label class="text-xs text-slate-500">Nº expediente reclamación</label>
+                                    <input type="text" name="externalId" value="{{ request.complaint.externalId }}"
+                                           class="input text-sm mt-0.5" placeholder="Ej: R/0123/2025">
+                                </div>
+                                <div>
+                                    <label class="text-xs text-slate-500">Fecha de presentación</label>
+                                    <input type="date" name="filedAt" value="{{ request.complaint.filedAt ? request.complaint.filedAt|date('Y-m-d') : '' }}"
+                                           class="input text-sm mt-0.5">
+                                </div>
+                                <button type="submit" class="btn btn-secondary btn-sm w-full">
+                                    <i data-lucide="save" class="w-3 h-3 mr-1"></i>
+                                    Guardar datos reclamación
+                                </button>
+                            </form>
+                        </div>
                     {% endif %}
                 </div>
 
@@ -462,13 +539,13 @@
                     </div>
                 {% endif %}
 
-                {% if request.complaintDeadlineAt %}
+                {% if request.complaint and request.complaint.deadlineAt %}
                     <div>
                         <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo resolución reclamación</h4>
-                        {% set complaintPassed = date() > request.complaintDeadlineAt %}
+                        {% set complaintPassed = date() > request.complaint.deadlineAt %}
                         <div class="flex items-center gap-2">
                             <span class="font-semibold {{ complaintPassed ? 'text-red-600' : 'text-slate-800' }}">
-                                {{ request.complaintDeadlineAt|date('d/m/Y') }}
+                                {{ request.complaint.deadlineAt|date('d/m/Y') }}
                             </span>
                             {% if complaintPassed %}
                                 <span class="badge badge-danger">Vencido</span>
@@ -482,10 +559,10 @@
                     </div>
                 {% endif %}
 
-                {% if request.complianceDeadlineAt %}
+                {% if request.complaint and request.complaint.complianceDeadlineAt %}
                     <div>
                         <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de cumplimiento</h4>
-                        <span class="font-semibold text-slate-800">{{ request.complianceDeadlineAt|date('d/m/Y') }}</span>
+                        <span class="font-semibold text-slate-800">{{ request.complaint.complianceDeadlineAt|date('d/m/Y') }}</span>
                     </div>
                 {% endif %}
             </div>
@@ -649,7 +726,7 @@
             </div>
             <div class="card-body space-y-3">
                 {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted']) %}
-                {% if canComplain and request.complaintStatus == 'none' %}
+                {% if canComplain and not request.complaint %}
                     <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent w-full">
                         <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
                         Generar reclamación
@@ -661,7 +738,7 @@
                     {% endif %}
                 {% endif %}
 
-                {% if request.complaintStatus == 'reclaimed' %}
+                {% if request.complaint and request.complaint.status == 'reclaimed' %}
                     <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-primary w-full">
                         <i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>
                         Generar respuesta a alegaciones

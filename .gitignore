@@ -40,3 +40,5 @@ Thumbs.db
 
 # Local overrides
 /compose.override.yaml
+
+/examples

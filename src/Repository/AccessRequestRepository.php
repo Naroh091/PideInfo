@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\User;
 use App\Entity\Organization;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -109,15 +110,15 @@ class AccessRequestRepository extends ServiceEntityRepository
         $deadline = $today->modify("+{$daysAhead} days");
 
         $qb = $this->createQueryBuilderForUser($user)
+            ->leftJoin('ar.complaint', 'c')
             ->andWhere('ar.deadlineAt <= :deadline')
             ->andWhere('ar.status IN (:activeStatuses)')
-            ->andWhere('ar.complaintStatus = :complaintNone')
+            ->andWhere('c.id IS NULL')
             ->setParameter('deadline', $deadline)
             ->setParameter('activeStatuses', [
                 AccessRequest::STATUS_SENT,
                 AccessRequest::STATUS_PROCESSING,
             ])
-            ->setParameter('complaintNone', AccessRequest::COMPLAINT_NONE)
             ->orderBy('ar.deadlineAt', 'ASC');
 
         return $qb->getQuery()->getResult();
@@ -134,12 +135,13 @@ class AccessRequestRepository extends ServiceEntityRepository
         $deadline = $today->modify("+{$daysAhead} days");
 
         $qb = $this->createQueryBuilderForUser($user)
-            ->andWhere('ar.complaintStatus = :complaintReclaimed')
-            ->andWhere('ar.complaintDeadlineAt IS NOT NULL')
-            ->andWhere('ar.complaintDeadlineAt <= :deadline')
-            ->setParameter('complaintReclaimed', AccessRequest::COMPLAINT_RECLAIMED)
+            ->join('ar.complaint', 'c')
+            ->andWhere('c.status = :complaintReclaimed')
+            ->andWhere('c.deadlineAt IS NOT NULL')
+            ->andWhere('c.deadlineAt <= :deadline')
+            ->setParameter('complaintReclaimed', AccessRequestComplaint::STATUS_RECLAIMED)
             ->setParameter('deadline', $deadline)
-            ->orderBy('ar.complaintDeadlineAt', 'ASC');
+            ->orderBy('c.deadlineAt', 'ASC');
 
         return $qb->getQuery()->getResult();
     }
@@ -171,12 +173,13 @@ class AccessRequestRepository extends ServiceEntityRepository
         $deadline = $today->modify("+{$daysAhead} days");
 
         $qb = $this->createQueryBuilderForUser($user)
-            ->andWhere('ar.complianceDeadlineAt IS NOT NULL')
-            ->andWhere('ar.complianceDeadlineAt <= :deadline')
-            ->andWhere('ar.complaintStatus = :complaintStatus')
+            ->join('ar.complaint', 'c')
+            ->andWhere('c.complianceDeadlineAt IS NOT NULL')
+            ->andWhere('c.complianceDeadlineAt <= :deadline')
+            ->andWhere('c.status = :complaintStatus')
             ->setParameter('deadline', $deadline)
-            ->setParameter('complaintStatus', AccessRequest::COMPLAINT_GRANTED)
-            ->orderBy('ar.complianceDeadlineAt', 'ASC');
+            ->setParameter('complaintStatus', AccessRequestComplaint::STATUS_GRANTED)
+            ->orderBy('c.complianceDeadlineAt', 'ASC');
 
         return $qb->getQuery()->getResult();
     }
@@ -255,8 +258,7 @@ class AccessRequestRepository extends ServiceEntityRepository
     {
         return (int) $this->createQueryBuilderForUser($user)
             ->select('COUNT(ar.id)')
-            ->andWhere('ar.complaintStatus != :none')
-            ->setParameter('none', AccessRequest::COMPLAINT_NONE)
+            ->join('ar.complaint', 'c')
             ->getQuery()
             ->getSingleScalarResult();
     }
