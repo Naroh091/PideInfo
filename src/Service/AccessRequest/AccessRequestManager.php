@@ -478,6 +478,17 @@ class AccessRequestManager
             }
         } elseif ($statusType === StatusHistory::TYPE_STATUS) {
             $request->setStatus($newStatus);
+
+            // If the deadline was suspended (third-party allegations) and a resolution arrives,
+            // clear the suspension — the request is resolved, the suspended deadline is moot
+            if ($request->isDeadlineSuspended() && in_array($newStatus, [
+                AccessRequest::STATUS_GRANTED,
+                AccessRequest::STATUS_DENIED,
+            ], true)) {
+                $request->setDeadlineSuspendedAt(null);
+                $request->setSuspendedDaysRemaining(null);
+                $request->setThirdPartyStatus(AccessRequest::THIRD_PARTY_RECEIVED);
+            }
         } elseif ($statusType === StatusHistory::TYPE_COURT) {
             $request->setCourtStatus($newStatus);
         }
