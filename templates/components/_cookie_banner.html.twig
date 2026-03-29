@@ -1,0 +1,36 @@
+{# Cookie information banner — informational only (no consent needed for technical + anonymized analytics cookies) #}
+<div id="cookie-banner" style="display: none;"
+     class="fixed bottom-0 inset-x-0 z-50 p-4 sm:p-6">
+    <div class="max-w-3xl mx-auto glass rounded-2xl border border-slate-200/50 shadow-lg p-5 sm:p-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div class="flex-1 text-sm text-slate-600 leading-relaxed">
+                <p>
+                    Este sitio utiliza <strong>cookies técnicas</strong> necesarias para su funcionamiento
+                    y <strong>analíticas anonimizadas</strong> para mejorar la experiencia de uso.
+                    No se utilizan cookies publicitarias ni de seguimiento personal.
+                </p>
+            </div>
+            <button id="cookie-accept-btn"
+                    class="btn btn-primary btn-sm whitespace-nowrap flex-shrink-0">
+                Entendido
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var STORAGE_KEY = 'pideinfo_cookie_notice_dismissed';
+        var banner = document.getElementById('cookie-banner');
+        var btn = document.getElementById('cookie-accept-btn');
+
+        if (!localStorage.getItem(STORAGE_KEY)) {
+            banner.style.display = '';
+        }
+
+        btn.addEventListener('click', function () {
+            localStorage.setItem(STORAGE_KEY, '1');
+            banner.style.display = 'none';
+        });
+    })();
+</script>

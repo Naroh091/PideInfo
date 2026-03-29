@@ -1,0 +1,97 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}{{ currentTitle }} - Guías - PideInfo{% endblock %}
+
+{% block content %}
+{# Breadcrumb #}
+<nav class="flex items-center gap-2 text-sm mb-6">
+    <a href="{{ path('app_guias_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
+        Guías
+    </a>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+    <span class="text-slate-800 font-medium">{{ currentTitle }}</span>
+</nav>
+
+{# Mobile guide selector #}
+<div class="lg:hidden mb-6">
+    <select onchange="window.location.href=this.value" class="input w-full">
+        {% for slug, title in guides %}
+            <option value="{{ path('app_guias_show', {slug: slug}) }}" {{ currentSlug == slug ? 'selected' : '' }}>
+                {{ title }}
+            </option>
+        {% endfor %}
+    </select>
+</div>
+
+<div class="flex gap-8">
+    {# Sidebar TOC #}
+    <aside class="hidden lg:block w-64 flex-shrink-0">
+        <nav class="sticky top-24">
+            <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-4">Guías de uso</h2>
+            <ul class="space-y-1">
+                {% for slug, title in guides %}
+                    <li>
+                        <a href="{{ path('app_guias_show', {slug: slug}) }}"
+                           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors {{ currentSlug == slug ? 'bg-primary-50 text-primary-700 font-medium' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800' }}">
+                            {% if slug == 'como-funciona' %}
+                                <i data-lucide="info" class="w-4 h-4 flex-shrink-0"></i>
+                            {% elseif slug == 'solicitudes' %}
+                                <i data-lucide="file-plus" class="w-4 h-4 flex-shrink-0"></i>
+                            {% elseif slug == 'buzon-virtual' %}
+                                <i data-lucide="mail" class="w-4 h-4 flex-shrink-0"></i>
+                            {% elseif slug == 'reclamaciones' %}
+                                <i data-lucide="scale" class="w-4 h-4 flex-shrink-0"></i>
+                            {% elseif slug == 'recordatorios' %}
+                                <i data-lucide="bell" class="w-4 h-4 flex-shrink-0"></i>
+                            {% elseif slug == 'listas' %}
+                                <i data-lucide="list" class="w-4 h-4 flex-shrink-0"></i>
+                            {% endif %}
+                            {{ title }}
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </nav>
+    </aside>
+
+    {# Content #}
+    <main class="flex-1 min-w-0">
+        <div class="card">
+            <div class="card-body">
+                <article class="guide-content">
+                    {{ markdown|markdown_to_html }}
+                </article>
+            </div>
+        </div>
+
+        {# Prev/Next navigation #}
+        {% set slugs = guides|keys %}
+        {% set currentIndex = null %}
+        {% for i, s in slugs %}
+            {% if s == currentSlug %}
+                {% set currentIndex = i %}
+            {% endif %}
+        {% endfor %}
+
+        <div class="flex justify-between mt-6">
+            {% if currentIndex > 0 %}
+                {% set prevSlug = slugs[currentIndex - 1] %}
+                <a href="{{ path('app_guias_show', {slug: prevSlug}) }}" class="btn btn-secondary">
+                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                    {{ guides[prevSlug] }}
+                </a>
+            {% else %}
+                <div></div>
+            {% endif %}
+
+            {% if currentIndex < slugs|length - 1 %}
+                {% set nextSlug = slugs[currentIndex + 1] %}
+                <a href="{{ path('app_guias_show', {slug: nextSlug}) }}" class="btn btn-secondary">
+                    {{ guides[nextSlug] }}
+                    <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
+                </a>
+            {% endif %}
+        </div>
+    </main>
+</div>
+{% endblock %}

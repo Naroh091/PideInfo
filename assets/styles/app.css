@@ -452,3 +452,115 @@ body {
 .ts-wrapper .clear-button {
   @apply text-slate-400 hover:text-slate-600;
 }
+
+/* Guide content — markdown rendering */
+.guide-content {
+  @apply text-slate-700 leading-relaxed;
+}
+
+.guide-content h1 {
+  @apply text-2xl font-bold text-slate-800 border-b border-slate-200 pb-4 mb-6 mt-0;
+}
+
+.guide-content h2 {
+  @apply text-xl font-semibold text-slate-800 mt-10 mb-4;
+}
+
+.guide-content h3 {
+  @apply text-lg font-semibold text-slate-800 mt-8 mb-3;
+}
+
+.guide-content p {
+  @apply mb-4;
+}
+
+.guide-content ul {
+  @apply mb-4 pl-6 space-y-2 list-disc;
+}
+
+.guide-content ol {
+  @apply mb-4 pl-6 space-y-2 list-decimal;
+}
+
+.guide-content li {
+  @apply text-slate-600;
+}
+
+.guide-content li > p {
+  @apply mb-1;
+}
+
+.guide-content strong {
+  @apply text-slate-800 font-semibold;
+}
+
+.guide-content em {
+  @apply text-slate-600 italic;
+}
+
+.guide-content a {
+  @apply text-primary-600 underline decoration-primary-300 hover:decoration-primary-600 transition-colors;
+}
+
+.guide-content table {
+  @apply w-full mb-6 text-sm;
+  display: table;
+  border-collapse: collapse;
+  border: 1px solid var(--color-slate-200, #e2e8f0);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.guide-content thead {
+  display: table-header-group;
+}
+
+.guide-content tbody {
+  display: table-row-group;
+}
+
+.guide-content tr {
+  display: table-row;
+}
+
+.guide-content thead th {
+  @apply bg-slate-50 text-slate-700 font-medium text-left;
+  display: table-cell;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--color-slate-200, #e2e8f0);
+}
+
+.guide-content tbody td {
+  @apply text-slate-600;
+  display: table-cell;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid var(--color-slate-100, #f1f5f9);
+}
+
+.guide-content tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.guide-content tbody tr:hover {
+  @apply bg-slate-50/50;
+}
+
+.guide-content code {
+  @apply text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.guide-content pre {
+  @apply bg-slate-800 text-slate-100 rounded-xl p-4 mb-4 overflow-x-auto text-sm;
+}
+
+.guide-content pre code {
+  @apply bg-transparent text-inherit px-0 py-0;
+}
+
+.guide-content blockquote {
+  @apply border-l-4 border-primary-300 pl-4 py-1 mb-4 text-slate-600 italic;
+}
+
+.guide-content hr {
+  @apply border-slate-200 my-8;
+}
