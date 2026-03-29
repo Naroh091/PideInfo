@@ -3,6 +3,10 @@ doctrine:
         url: '%env(resolve:DATABASE_URL)%'
         profiling_collect_backtrace: '%kernel.debug%'
         use_savepoints: true
+        schema_manager_factory: 'doctrine.dbal.default_schema_manager_factory'
+        mapping_types:
+            halfvec: string
+            vector: string
         options:
             !php/const PDO::ATTR_STRINGIFY_FETCHES: true
     orm:
