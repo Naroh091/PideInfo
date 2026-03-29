@@ -3,6 +3,7 @@
 namespace App\DataTable\Type;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\User;
 use Doctrine\ORM\QueryBuilder;
 use Omines\DataTablesBundle\Adapter\Doctrine\ORMAdapter;
@@ -88,8 +89,9 @@ class AccessRequestTableType implements DataTableTypeInterface
                         if ($status === 'reclaimed') {
                             // Special case: filter by complaint status
                             $builder
-                                ->andWhere('ar.complaintStatus = :complaintStatus')
-                                ->setParameter('complaintStatus', AccessRequest::COMPLAINT_RECLAIMED);
+                                ->join('ar.complaint', 'c')
+                                ->andWhere('c.status = :complaintStatus')
+                                ->setParameter('complaintStatus', AccessRequestComplaint::STATUS_RECLAIMED);
                         } else {
                             $builder
                                 ->andWhere('ar.status = :status')

@@ -4,3 +4,6 @@
 {% if row.externalId %}
     <p class="text-xs text-slate-400 mt-0.5">{{ row.externalId }}</p>
 {% endif %}
+{% if row.complaint and row.complaint.externalId %}
+    <p class="text-xs text-amber-500 mt-0.5">Recl: {{ row.complaint.externalId }}</p>
+{% endif %}

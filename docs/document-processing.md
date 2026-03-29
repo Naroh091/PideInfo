@@ -1,0 +1,200 @@
+# Document processing
+
+How uploaded documents are analyzed by AI and automatically linked to access requests.
+
+## Upload flow
+
+```
+User drags file onto dropzone (or clicks to select)
+        │
+        ▼
+POST /document/upload
+  ├── File stored in S3 (documents.storage)
+  ├── Document entity created (type: unprocessed, processed: false)
+  └── ProcessDocumentMessage dispatched to async queue
+        │
+        ▼
+Symfony Messenger consumes message
+        │
+        ▼
+ProcessDocumentHandler::__invoke()
+  ├── DocumentAnalyzer::analyze()  ← Gemini API call
+  ├── Find or create AccessRequest
+  ├── Update request state from document
+  └── Mark document as processed
+```
+
+## Supported file types
+
+| Format | MIME types |
+|--------|-----------|
+| PDF | `application/pdf` |
+| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/msword` |
+| Images | `image/jpeg`, `image/png`, `image/gif` |
+| ZIP | `application/zip` (contents extracted and processed individually) |
+
+Maximum file size: 50 MB.
+
+## AI analysis with Gemini
+
+### DocumentAnalyzer service
+
+`src/Service/AI/DocumentAnalyzer.php`
+
+The analyzer reads the document from S3, encodes it to base64, and sends it to Google Gemini's multimodal API. It uses the smaller Gemini model configured via `GEMINI_SMALL_MODEL` for fast, cost-effective analysis.
+
+**API call structure:**
+- Model: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+- Temperature: 0.1 (near-deterministic for consistent classification)
+- Response format: JSON
+- Timeout: 120 seconds (documents can be large)
+
+### What the AI extracts
+
+The prompt instructs Gemini to return a JSON object with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `documentType` | string | One of the recognized types (see below) |
+| `referenceNumber` | string | Government file/reference number |
+| `publicBodyName` | string | Name of the public body |
+| `autonomousCommunityCode` | string | CCAA code (AND, AST, CAT, etc.) |
+| `applicableLaw` | string | Name of the applicable transparency law |
+| `documentDate` | string | Date from the document |
+| `status` | string | Extracted resolution status if applicable |
+| `summary` | string | Brief summary of the document content |
+| `requestTitle` | string | Title of the FOIA request |
+| `requestDescription` | string | Description of what was requested |
+| `isExtension` | boolean | Whether this is a deadline extension notice |
+| `newDeadlineDate` | string | Explicit new deadline if mentioned |
+| `extensionDays` | integer | Number of extension days |
+| `denialReason` | string | Reason for denial |
+| `isRedirection` | boolean | Whether the request was redirected |
+| `redirectedToPublicBody` | string | Name of the new public body |
+| `isThirdPartyRights` | boolean | Whether third-party rights are affected |
+| `processingStartDate` | string | Date processing formally began |
+| `alegationPoints` | array | Key arguments from administration allegations |
+
+### Document type classification
+
+The AI classifies documents into these types:
+
+| AI value | DocumentType enum | Label |
+|----------|------------------|-------|
+| `solicitud` | Request | Solicitud |
+| `acuse_recibo` | Receipt | Acuse de recibo |
+| `inicio_tramitacion` | ProcessingStart | Inicio de tramitación |
+| `resolucion` | Response | Respuesta |
+| `prorroga` | Extension | Prórroga |
+| `traslado` | Redirection | Traslado a otro órgano |
+| `afectacion_terceros` | ThirdPartyRights | Afectación derechos terceros |
+| `reclamacion` | Complaint | Reclamación |
+| `acuse_recibo_reclamacion` | ComplaintReceipt | Acuse recibo reclamación |
+| `inicio_tramitacion_reclamacion` | ComplaintProcessingStart | Inicio tramitación reclamación |
+| `resolucion_ctbg` | ComplaintResolution | Resolución CTBG |
+| `alegaciones` | Alegaciones | Alegaciones |
+| `respuesta_alegaciones` | AlegationResponse | Respuesta a alegaciones |
+| `subsanacion` | Subsanacion | Subsanación solicitada |
+| `subsanacion_respuesta` | SubsanacionResponse | Subsanación presentada |
+| `audiencia` | Audiencia | Trámite de audiencia |
+| `ampliacion_reclamacion` | ComplaintExtension | Ampliación de reclamación |
+
+### Batch analysis
+
+When multiple files are uploaded together (e.g., a ZIP file's contents), `ProcessDocumentBatchHandler` sends them all to `DocumentAnalyzer::analyzeMultiple()` in a single Gemini call. This gives the AI more context to correctly classify related documents and extract consistent metadata.
+
+## Request matching
+
+After analysis, the handler tries to link the document to an existing access request using three strategies, in order:
+
+### 1. Reference number matching
+
+If the AI extracted a `referenceNumber`, the handler searches for an existing request with that external ID:
+
+```php
+$existing = $this->accessRequestRepository->findByExternalId($referenceNumber, $user);
+```
+
+This also searches the `alternativeReferences` JSON field, so a request can be matched by any of its reference numbers.
+
+Match method recorded: `Document::MATCH_REFERENCE`
+
+### 2. Keyword matching
+
+If no reference number match is found, the handler extracts keywords from the analysis — contract identifiers, platform codes, expedition numbers, NIF/CIF references — and searches for requests whose title or description contains them:
+
+```php
+$existing = $this->accessRequestRepository->findByKeywords($keywords, $user);
+```
+
+Keyword patterns extracted:
+- Contract numbers: `2020/011739`
+- Route codes: `VCM-036`, `DIV-123`
+- Expedition numbers: `AYTOZAM-SEIS-4420/2025`
+- NIF/CIF: `A12345678`
+
+Match method recorded: `Document::MATCH_KEYWORDS`
+
+### 3. Auto-creation
+
+If the document is a request (`DocumentType::Request`) or receipt (`DocumentType::Receipt`) and no existing request matches, the handler creates a new `AccessRequest`:
+
+1. Finds or creates the `PublicBody` from the AI-extracted name
+2. Determines the `ApplicableLaw` — first by autonomous community, then by law name, falling back to the state law
+3. Extracts the sent date from the document date
+4. Creates the request via `AccessRequestManager::create()`
+
+Match method recorded: `Document::MATCH_CREATED`
+
+If the document type is anything else and no match is found, the document remains **orphaned** (no access request linked). The user can later link it manually via the "Importar documento sin asignar" modal on any request's detail page.
+
+## State updates from documents
+
+Once a document is linked to a request, the handler updates the request based on the document type:
+
+| Document type | State change |
+|---------------|-------------|
+| Receipt | Status → `processing`, set `acknowledgedAt` |
+| Response | Status → `granted`/`denied` based on AI analysis, set `resolvedAt` |
+| Extension | Extend deadline by law period, increment extension count |
+| ProcessingStart | Recalculate deadline from processing start date |
+| Redirection | Update public body, record original, set `redirectedAt` |
+| ThirdPartyRights | Suspend deadline, set 15-day allegation period |
+| Complaint | Create `AccessRequestComplaint`, set 3-month deadline |
+| ComplaintReceipt | Ensure complaint exists, recalculate deadline from receipt date |
+| ComplaintProcessingStart | Ensure complaint exists, recalculate deadline from processing date |
+| ComplaintResolution | Set complaint status to granted/denied based on AI analysis |
+| Alegaciones | Ensure complaint exists, extract alegation points |
+| Subsanacion | Ensure complaint exists, record timeline entry |
+| SubsanacionResponse | Ensure complaint exists, record timeline entry |
+| Audiencia | Ensure complaint exists, record timeline entry |
+| ComplaintExtension | Ensure complaint exists, record timeline entry |
+
+All state changes create `StatusHistory` entries. Deadline changes create `DeadlineHistory` entries.
+
+## Reprocessing
+
+Documents can be reprocessed by clicking the refresh button on the request detail page. This dispatches a new `ProcessDocumentMessage` for the document. The handler re-runs the AI analysis and re-applies state updates.
+
+## Orphan document management
+
+Documents uploaded without being linked to a request (or that the AI couldn't match) are available in the "Importar documento sin asignar" modal. The modal shows:
+- Document name and type
+- Upload date
+- Detected public body name
+- AI summary
+
+The user clicks "Enlazar" to link an orphan document to the current request via `POST /documentos/{id}/link`.
+
+## Error handling
+
+If Gemini analysis fails:
+- The error message is stored in `document.processingError`
+- The document is marked as not processed
+- The document remains accessible for manual classification
+- The user can retry via the reprocess button
+
+If request matching fails:
+- The document is left as an orphan
+- No state changes are applied
+- The user can manually link it later

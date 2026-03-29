@@ -25,12 +25,8 @@ class AccessRequest
     public const STATUS_DELAYED = 'delayed';
     public const STATUS_PENDING = 'pending';
 
-    // Complaint status constants
+    // Complaint status: "no complaint" sentinel value
     public const COMPLAINT_NONE = 'none';
-    public const COMPLAINT_RECLAIMED = 'reclaimed';
-    public const COMPLAINT_GRANTED = 'complaint_granted';
-    public const COMPLAINT_DENIED = 'complaint_denied';
-    public const COMPLAINT_ARCHIVED = 'complaint_archived';
 
     // Court status constants
     public const COURT_NONE = 'none';
@@ -62,8 +58,8 @@ class AccessRequest
     #[ORM\Column(length: 50)]
     private string $status = self::STATUS_SENT;
 
-    #[ORM\Column(length: 50)]
-    private string $complaintStatus = self::COMPLAINT_NONE;
+    #[ORM\OneToOne(mappedBy: 'accessRequest', targetEntity: AccessRequestComplaint::class, cascade: ['persist', 'remove'])]
+    private ?AccessRequestComplaint $complaint = null;
 
     #[ORM\Column(length: 50)]
     private string $courtStatus = self::COURT_NONE;
@@ -124,12 +120,6 @@ class AccessRequest
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $originalDeadlineAt = null;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $complaintDeadlineAt = null;
-
-    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $complianceDeadlineAt = null;
-
     #[ORM\Column]
     private int $extensionCount = 0;
 
@@ -147,6 +137,7 @@ class AccessRequest
 
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
+    #[ORM\OrderBy(['documentDate' => 'DESC', 'createdAt' => 'DESC'])]
     private Collection $documents;
 
     /** @var Collection<int, StatusHistory> */
@@ -269,27 +260,28 @@ class AccessRequest
         };
     }
 
-    public function getComplaintStatus(): string
+    public function getComplaint(): ?AccessRequestComplaint
     {
-        return $this->complaintStatus;
+        return $this->complaint;
     }
 
-    public function setComplaintStatus(string $complaintStatus): static
+    public function setComplaint(?AccessRequestComplaint $complaint): static
     {
-        $this->complaintStatus = $complaintStatus;
+        $this->complaint = $complaint;
+        if ($complaint !== null) {
+            $complaint->setAccessRequest($this);
+        }
         return $this;
+    }
+
+    public function getComplaintStatus(): string
+    {
+        return $this->complaint?->getStatus() ?? self::COMPLAINT_NONE;
     }
 
     public function getComplaintStatusLabel(): string
     {
-        return match ($this->complaintStatus) {
-            self::COMPLAINT_NONE => 'Sin reclamación',
-            self::COMPLAINT_RECLAIMED => 'Reclamada',
-            self::COMPLAINT_GRANTED => 'Reclamación estimada',
-            self::COMPLAINT_DENIED => 'Reclamación desestimada',
-            self::COMPLAINT_ARCHIVED => 'Reclamación archivada',
-            default => $this->complaintStatus,
-        };
+        return $this->complaint?->getStatusLabel() ?? 'Sin reclamación';
     }
 
     public function getCourtStatus(): string
@@ -523,24 +515,12 @@ class AccessRequest
 
     public function getComplaintDeadlineAt(): ?\DateTimeImmutable
     {
-        return $this->complaintDeadlineAt;
-    }
-
-    public function setComplaintDeadlineAt(?\DateTimeImmutable $complaintDeadlineAt): static
-    {
-        $this->complaintDeadlineAt = $complaintDeadlineAt;
-        return $this;
+        return $this->complaint?->getDeadlineAt();
     }
 
     public function getComplianceDeadlineAt(): ?\DateTimeImmutable
     {
-        return $this->complianceDeadlineAt;
-    }
-
-    public function setComplianceDeadlineAt(?\DateTimeImmutable $complianceDeadlineAt): static
-    {
-        $this->complianceDeadlineAt = $complianceDeadlineAt;
-        return $this;
+        return $this->complaint?->getComplianceDeadlineAt();
     }
 
     public function getExtensionCount(): int
@@ -694,44 +674,28 @@ class AccessRequest
 
     public function isComplaintDeadlinePassed(): bool
     {
-        if ($this->complaintDeadlineAt === null) {
-            return false;
-        }
-        return $this->complaintDeadlineAt < new \DateTimeImmutable('today');
+        return $this->complaint?->isDeadlinePassed() ?? false;
     }
 
     public function getDaysUntilComplaintDeadline(): int
     {
-        if ($this->complaintDeadlineAt === null) {
-            return 0;
-        }
-        $today = new \DateTimeImmutable('today');
-        $interval = $today->diff($this->complaintDeadlineAt);
-        return $interval->invert ? -$interval->days : $interval->days;
+        return $this->complaint?->getDaysUntilDeadline() ?? 0;
     }
 
     public function isComplianceDeadlinePassed(): bool
     {
-        if ($this->complianceDeadlineAt === null) {
-            return false;
-        }
-        return $this->complianceDeadlineAt < new \DateTimeImmutable('today');
+        return $this->complaint?->isComplianceDeadlinePassed() ?? false;
     }
 
     public function getDaysUntilComplianceDeadline(): int
     {
-        if ($this->complianceDeadlineAt === null) {
-            return 0;
-        }
-        $today = new \DateTimeImmutable('today');
-        $interval = $today->diff($this->complianceDeadlineAt);
-        return $interval->invert ? -$interval->days : $interval->days;
+        return $this->complaint?->getDaysUntilComplianceDeadline() ?? 0;
     }
 
     public function isActive(): bool
     {
         return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)
-            || $this->complaintStatus === self::COMPLAINT_RECLAIMED
+            || $this->complaint?->getStatus() === AccessRequestComplaint::STATUS_RECLAIMED
             || $this->courtStatus === self::COURT_IN_COURT;
     }
 

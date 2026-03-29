@@ -9,7 +9,8 @@ export default class extends Controller {
         statusUrl: { type: String, default: '/documentos/status' },
         searchRequestsUrl: { type: String, default: '/solicitudes/buscar' },
         orphanedUrl: { type: String, default: '/documentos/orphaned' },
-        accessRequestId: { type: String, default: '' }
+        accessRequestId: { type: String, default: '' },
+        documentsFragmentUrl: { type: String, default: '' }
     };
 
     connect() {
@@ -340,6 +341,9 @@ export default class extends Controller {
                 if (anyProcessed) {
                     this.showProcessingCompleteNotification(processedDocs);
 
+                    // Refresh the document list on the request detail page
+                    this.refreshDocumentList();
+
                     // Trigger refresh of LiveComponents on the page
                     this.triggerDashboardRefresh();
                 }
@@ -516,6 +520,26 @@ export default class extends Controller {
             toast.classList.add('animate-fade-out');
             setTimeout(() => toast.remove(), 300);
         }, 5000);
+    }
+
+    async refreshDocumentList() {
+        const url = this.documentsFragmentUrlValue;
+        if (!url) return;
+
+        const container = document.getElementById('documents-list');
+        if (!container) return;
+
+        try {
+            const resp = await fetch(url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (resp.ok) {
+                container.innerHTML = await resp.text();
+                if (window.lucide) window.lucide.createIcons();
+            }
+        } catch (e) {
+            console.error('Error refreshing document list:', e);
+        }
     }
 
     triggerDashboardRefresh() {

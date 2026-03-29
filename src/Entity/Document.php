@@ -60,6 +60,9 @@ class Document
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $matchMethod = null;
 
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $documentDate = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -244,6 +247,45 @@ class Document
     public function getProcessedAt(): ?\DateTimeImmutable
     {
         return $this->processedAt;
+    }
+
+    public function getDocumentDate(): ?\DateTimeImmutable
+    {
+        return $this->documentDate;
+    }
+
+    public function setDocumentDate(?\DateTimeImmutable $documentDate): static
+    {
+        $this->documentDate = $documentDate;
+        return $this;
+    }
+
+    public function getSummary(): ?string
+    {
+        return $this->aiMetadata['summary'] ?? null;
+    }
+
+    /**
+     * Returns a display filename in the format: "<TypeLabel> - <original_name>.<ext>"
+     */
+    public function getDisplayFilename(): string
+    {
+        if ($this->type === DocumentType::Unprocessed || $this->type === DocumentType::Other) {
+            return $this->originalFilename;
+        }
+
+        $extension = pathinfo($this->originalFilename, PATHINFO_EXTENSION);
+        $baseName = pathinfo($this->originalFilename, PATHINFO_FILENAME);
+        $typeLabel = $this->type->label();
+
+        // Avoid duplication if the original already starts with the type label
+        if (str_starts_with($this->originalFilename, $typeLabel)) {
+            return $this->originalFilename;
+        }
+
+        return $extension
+            ? sprintf('%s - %s.%s', $typeLabel, $baseName, $extension)
+            : sprintf('%s - %s', $typeLabel, $baseName);
     }
 
     public function isPdf(): bool
