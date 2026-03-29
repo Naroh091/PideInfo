@@ -97,6 +97,45 @@
                     </div>
                 </div>
 
+                {# Virtual email #}
+                <div class="mt-4 card"
+                     data-controller="clipboard"
+                     {% if not app.user.virtualEmail %}data-clipboard-url-value="{{ path('app_virtual_email_generate') }}"{% endif %}>
+                    <div class="card-body">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                                <i data-lucide="mail" class="w-5 h-5 text-violet-600"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-semibold text-slate-800 text-sm">Email virtual</h3>
+                                <p class="text-xs text-slate-500">Recibe documentos por email</p>
+                            </div>
+                        </div>
+                        {% if app.user.virtualEmail %}
+                            <div class="flex items-center gap-2">
+                                <code class="flex-1 text-xs bg-slate-100 px-3 py-2 rounded-lg text-slate-700 truncate"
+                                      data-clipboard-target="source">{{ app.user.virtualEmail }}</code>
+                                <button type="button"
+                                        class="btn btn-ghost btn-sm flex-shrink-0"
+                                        data-action="click->clipboard#copy"
+                                        data-clipboard-target="button"
+                                        title="Copiar">
+                                    <i data-lucide="copy" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-2">Reenvía los correos de las administraciones a esta dirección para procesamiento automático.</p>
+                        {% else %}
+                            <p class="text-xs text-slate-500 mb-3">Genera un email virtual para recibir documentos directamente desde las administraciones.</p>
+                            <button type="button"
+                                    class="btn btn-secondary btn-sm w-full"
+                                    data-action="click->clipboard#generate">
+                                <i data-lucide="wand-2" class="w-4 h-4 mr-2"></i>
+                                Generar email virtual
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+
                 {# Modal for related documents - must be inside controller #}
                 <div id="relatedDocsModal"
                      class="modal-backdrop hidden"
