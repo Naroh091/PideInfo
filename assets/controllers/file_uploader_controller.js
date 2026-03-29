@@ -133,6 +133,13 @@ export default class extends Controller {
                 this.addFileToPreview(result.document);
                 this.uploadedDocuments.push(result.document);
 
+                if (typeof gtag === 'function') {
+                    gtag('event', 'file_upload', {
+                        event_category: this.accessRequestIdValue ? 'request_details' : 'home',
+                        event_label: file.name,
+                    });
+                }
+
                 // Dispatch custom event for other components to react
                 this.dispatch('uploaded', { detail: result.document });
 

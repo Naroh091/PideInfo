@@ -418,6 +418,10 @@ function interactiveGenerator() {
                 const data = await response.json();
 
                 if (data.success) {
+                    if (typeof gtag === 'function') {
+                        gtag('event', this.mode === 'alegation_response' ? 'generate_alegation' : 'generate_complaint');
+                    }
+
                     if (data.successAnalysis) {
                         this.analysis = data.successAnalysis;
                     }
