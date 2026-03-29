@@ -553,6 +553,16 @@ export default class extends Controller {
         // Dispatch a custom event that LiveComponents listen to via data-action attribute
         // The components are configured to call live#$render when this event fires
         window.dispatchEvent(new CustomEvent('documents:processed'));
+
+        // After LiveComponents re-render, check if a granted banner appeared and scroll to it
+        setTimeout(() => {
+            const banner = document.querySelector('[data-granted-banner]');
+            if (banner) {
+                banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+            // Re-initialize Lucide icons for LiveComponent re-rendered content
+            if (window.lucide) window.lucide.createIcons();
+        }, 800);
     }
 
     async checkForKeywordMatches() {

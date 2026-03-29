@@ -1,0 +1,179 @@
+<div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
+{# Status Card #}
+<div class="card">
+    <div class="card-header">
+        <h2 class="font-semibold text-slate-800">Estado actual</h2>
+    </div>
+    <div class="card-body space-y-4">
+        {# Main Status #}
+        <div>
+            <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Estado principal</h4>
+            <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                <input type="hidden" name="statusType" value="status">
+                <select name="newStatus"
+                        class="form-select text-sm w-full"
+                        onchange="this.form.submit()">
+                    <option value="pending" {{ request.status == 'pending' ? 'selected' : '' }}>Pendiente de recepción</option>
+                    <option value="sent" {{ request.status == 'sent' ? 'selected' : '' }}>Enviada</option>
+                    <option value="processing" {{ request.status == 'processing' ? 'selected' : '' }}>En trámite</option>
+                    <option value="granted" {{ request.status == 'granted' ? 'selected' : '' }}>Concedida (pendiente de recepción)</option>
+                    <option value="granted_completed" {{ request.status == 'granted_completed' ? 'selected' : '' }}>Concedida y completada</option>
+                    <option value="denied" {{ request.status == 'denied' ? 'selected' : '' }}>Denegada</option>
+                    <option value="delayed" {{ request.status == 'delayed' ? 'selected' : '' }}>Silencio administrativo</option>
+                </select>
+            </form>
+        </div>
+
+        {% if request.isDeadlineSuspended %}
+            <div>
+                <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo</h4>
+                <span class="badge badge-warning text-sm px-3 py-1">Plazo suspendido</span>
+                <p class="text-sm text-slate-600 mt-2">
+                    El plazo está suspendido por afectación a derechos de terceros.
+                    {% if request.thirdPartyAllegationsDeadlineAt %}
+                        Plazo de alegaciones hasta el {{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}.
+                    {% endif %}
+                    Quedan {{ request.suspendedDaysRemaining }} días hábiles cuando se reanude.
+                </p>
+            </div>
+        {% endif %}
+
+        {# Complaint Status #}
+        <div>
+            <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Reclamación</h4>
+            <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                <input type="hidden" name="statusType" value="complaint">
+                {% set cStatus = request.complaint ? request.complaint.status : 'none' %}
+                <select name="newStatus"
+                        class="form-select text-sm w-full"
+                        onchange="this.form.submit()">
+                    <option value="none" {{ cStatus == 'none' ? 'selected' : '' }}>Sin reclamación</option>
+                    <option value="reclaimed" {{ cStatus == 'reclaimed' ? 'selected' : '' }}>Reclamada</option>
+                    <option value="complaint_granted" {{ cStatus == 'complaint_granted' ? 'selected' : '' }}>Reclamación estimada</option>
+                    <option value="complaint_denied" {{ cStatus == 'complaint_denied' ? 'selected' : '' }}>Reclamación desestimada</option>
+                    <option value="complaint_archived" {{ cStatus == 'complaint_archived' ? 'selected' : '' }}>Reclamación archivada</option>
+                </select>
+            </form>
+            {% if request.complaint and request.applicableLaw.complaintOrganism %}
+                <p class="text-sm text-slate-600 mt-2">
+                    Ante: <a href="{{ request.applicableLaw.complaintOrganism.url }}" target="_blank" class="text-primary-600 hover:underline">
+                        {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
+                    </a>
+                </p>
+            {% endif %}
+            {% if request.complaint %}
+                <div class="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                    <form action="{{ path('app_solicitudes_complaint_edit', {id: request.id}) }}" method="post" class="space-y-2">
+                        <input type="hidden" name="_token" value="{{ csrf_token('complaint-edit-' ~ request.id) }}">
+                        <div>
+                            <label class="text-xs text-slate-500">Nº expediente reclamación</label>
+                            <input type="text" name="externalId" value="{{ request.complaint.externalId }}"
+                                   class="input text-sm mt-0.5" placeholder="Ej: R/0123/2025">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500">Fecha de presentación</label>
+                            <input type="date" name="filedAt" value="{{ request.complaint.filedAt ? request.complaint.filedAt|date('Y-m-d') : '' }}"
+                                   class="input text-sm mt-0.5">
+                        </div>
+                        <button type="submit" class="btn btn-secondary btn-sm w-full">
+                            <i data-lucide="save" class="w-3 h-3 mr-1"></i>
+                            Guardar datos reclamación
+                        </button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+
+        {# Court Status #}
+        <div>
+            <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Vía judicial</h4>
+            <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="status-change-form">
+                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                <input type="hidden" name="statusType" value="courtStatus">
+                <select name="newStatus"
+                        class="form-select text-sm w-full"
+                        onchange="this.form.submit()">
+                    <option value="none" {{ request.courtStatus == 'none' ? 'selected' : '' }}>Sin recurso judicial</option>
+                    <option value="in_court" {{ request.courtStatus == 'in_court' ? 'selected' : '' }}>En vía judicial</option>
+                    <option value="court_granted" {{ request.courtStatus == 'court_granted' ? 'selected' : '' }}>Sentencia favorable</option>
+                    <option value="court_denied" {{ request.courtStatus == 'court_denied' ? 'selected' : '' }}>Sentencia desfavorable</option>
+                </select>
+            </form>
+        </div>
+    </div>
+</div>
+
+{# Deadlines Card #}
+<div class="card mt-6">
+    <div class="card-header">
+        <h2 class="font-semibold text-slate-800">Plazos</h2>
+    </div>
+    <div class="card-body space-y-4">
+        <div>
+            <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de respuesta</h4>
+            {% if request.status in ['granted', 'granted_completed', 'denied'] %}
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold text-slate-400">{{ request.deadlineAt|date('d/m/Y') }}</span>
+                    <span class="badge badge-success">Resuelta</span>
+                </div>
+            {% elseif request.isDeadlineSuspended %}
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-warning font-bold">PLAZO SUSPENDIDO</span>
+                </div>
+                <p class="text-sm text-slate-500 mt-2">
+                    {% if request.thirdPartyAllegationsDeadlineAt %}
+                        Alegaciones hasta {{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}
+                    {% endif %}
+                </p>
+            {% else %}
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
+                        {{ request.deadlineAt|date('d/m/Y') }}
+                    </span>
+                    {% if request.isDeadlinePassed %}
+                        <span class="badge badge-danger">Vencido</span>
+                    {% else %}
+                        <span class="text-sm text-slate-500">({{ request.daysUntilDeadline }} días)</span>
+                    {% endif %}
+                </div>
+            {% endif %}
+        </div>
+
+        {% if request.extensionCount > 0 %}
+            <div>
+                <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Prórroga</h4>
+                <span class="badge badge-info">{{ request.extensionCount }} aplicada(s)</span>
+            </div>
+        {% endif %}
+
+        {% if request.complaint and request.complaint.deadlineAt %}
+            <div>
+                <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo resolución reclamación</h4>
+                {% set complaintPassed = date() > request.complaint.deadlineAt %}
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold {{ complaintPassed ? 'text-red-600' : 'text-slate-800' }}">
+                        {{ request.complaint.deadlineAt|date('d/m/Y') }}
+                    </span>
+                    {% if complaintPassed %}
+                        <span class="badge badge-danger">Vencido</span>
+                    {% endif %}
+                </div>
+                {% if request.applicableLaw.complaintOrganism %}
+                    <p class="text-xs text-slate-500 mt-1">
+                        {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }} tiene 3 meses para resolver
+                    </p>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if request.complaint and request.complaint.complianceDeadlineAt %}
+            <div>
+                <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de cumplimiento</h4>
+                <span class="font-semibold text-slate-800">{{ request.complaint.complianceDeadlineAt|date('d/m/Y') }}</span>
+            </div>
+        {% endif %}
+    </div>
+</div>
+</div>

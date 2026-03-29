@@ -338,6 +338,14 @@ final class ProcessDocumentHandler
                 if ($status && $accessRequest->getStatus() !== $status) {
                     $accessRequest->setStatus($status);
                     $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
+
+                    // Clear deadline suspension if resolved
+                    if ($accessRequest->isDeadlineSuspended()) {
+                        $accessRequest->setDeadlineSuspendedAt(null);
+                        $accessRequest->setSuspendedDaysRemaining(null);
+                        $accessRequest->setThirdPartyStatus(AccessRequest::THIRD_PARTY_RECEIVED);
+                    }
+
                     $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate);
                 }
                 break;

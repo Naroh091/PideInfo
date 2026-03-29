@@ -1,0 +1,184 @@
+<div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
+<div class="card">
+    <div class="card-header">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                <i data-lucide="history" class="w-5 h-5 text-primary-600"></i>
+            </div>
+            <h2 class="font-semibold text-slate-800">Historial</h2>
+        </div>
+    </div>
+    <div class="card-body">
+        {% if request.statusHistory|length > 0 %}
+            <div class="space-y-4">
+                {% for history in request.statusHistory %}
+                    {# --- Determine event title, icon, and color from context --- #}
+                    {% set notes = history.notes|default('') %}
+                    {% set notesLower = notes|lower %}
+                    {% set sType = history.statusType %}
+                    {% set to = history.toStatus %}
+                    {% set from = history.fromStatus %}
+
+                    {# Detect special events from notes content #}
+                    {% set isCreation = from == '' %}
+                    {% set isRedirection = 'trasladada' in notesLower %}
+                    {% set isThirdParty = 'terceros' in notesLower %}
+                    {% set isProcessingStart = 'inicio de tramitación' in notesLower and sType == 'status' %}
+                    {% set isExtension = 'prórroga' in notesLower %}
+                    {% set isSubsanacion = 'subsanación' in notesLower %}
+                    {% set isAudiencia = 'audiencia' in notesLower %}
+                    {% set isAmpliacion = 'ampliación' in notesLower %}
+
+                    {# Default #}
+                    {% set dotColor = 'bg-slate-400' %}
+                    {% set icon = 'circle' %}
+                    {% set title = notes %}
+                    {% set titleColor = 'text-slate-800' %}
+
+                    {% if isCreation %}
+                        {% set dotColor = 'bg-primary-500' %}
+                        {% set icon = 'file-plus' %}
+                        {% set title = 'Solicitud creada' %}
+                        {% set titleColor = 'text-primary-700' %}
+                    {% elseif isRedirection %}
+                        {% set dotColor = 'bg-blue-500' %}
+                        {% set icon = 'arrow-right-circle' %}
+                        {% set title = 'Solicitud trasladada' %}
+                        {% set titleColor = 'text-blue-700' %}
+                    {% elseif isThirdParty %}
+                        {% set dotColor = 'bg-amber-500' %}
+                        {% set icon = 'users' %}
+                        {% set title = 'Afectación a derechos de terceros' %}
+                        {% set titleColor = 'text-amber-700' %}
+                    {% elseif isProcessingStart %}
+                        {% set dotColor = 'bg-green-500' %}
+                        {% set icon = 'play-circle' %}
+                        {% set title = 'Inicio de tramitación' %}
+                        {% set titleColor = 'text-green-700' %}
+                    {% elseif isExtension %}
+                        {% set dotColor = 'bg-orange-500' %}
+                        {% set icon = 'clock' %}
+                        {% set title = 'Prórroga del plazo' %}
+                        {% set titleColor = 'text-orange-700' %}
+                    {% elseif sType == 'complaint' %}
+                        {# Complaint lifecycle events #}
+                        {% if to == 'reclaimed' %}
+                            {% set dotColor = 'bg-amber-500' %}
+                            {% set icon = 'scale' %}
+                            {% if isSubsanacion %}
+                                {% set title = 'Subsanación' %}
+                            {% elseif isAudiencia %}
+                                {% set title = 'Trámite de audiencia' %}
+                            {% elseif isAmpliacion %}
+                                {% set title = 'Ampliación de reclamación' %}
+                            {% elseif 'alegaciones' in notesLower %}
+                                {% set title = 'Alegaciones de la Administración' %}
+                            {% elseif 'acuse de recibo' in notesLower %}
+                                {% set title = 'Acuse de recibo de reclamación' %}
+                            {% elseif 'inicio' in notesLower %}
+                                {% set title = 'Inicio de tramitación de reclamación' %}
+                            {% else %}
+                                {% set title = 'Reclamación presentada' %}
+                            {% endif %}
+                            {% set titleColor = 'text-amber-700' %}
+                        {% elseif to == 'complaint_granted' %}
+                            {% set dotColor = 'bg-emerald-500' %}
+                            {% set icon = 'check-circle' %}
+                            {% set title = 'Reclamación estimada' %}
+                            {% set titleColor = 'text-emerald-700' %}
+                        {% elseif to == 'complaint_denied' %}
+                            {% set dotColor = 'bg-red-500' %}
+                            {% set icon = 'x-circle' %}
+                            {% set title = 'Reclamación desestimada' %}
+                            {% set titleColor = 'text-red-700' %}
+                        {% elseif to == 'complaint_archived' %}
+                            {% set dotColor = 'bg-slate-500' %}
+                            {% set icon = 'archive' %}
+                            {% set title = 'Reclamación archivada' %}
+                            {% set titleColor = 'text-slate-700' %}
+                        {% else %}
+                            {% set dotColor = 'bg-amber-500' %}
+                            {% set icon = 'scale' %}
+                            {% set title = 'Reclamación' %}
+                            {% set titleColor = 'text-amber-700' %}
+                        {% endif %}
+                    {% elseif sType == 'courtStatus' %}
+                        {% set dotColor = 'bg-purple-500' %}
+                        {% set icon = 'gavel' %}
+                        {% set titleColor = 'text-purple-700' %}
+                        {% if to == 'in_court' %}
+                            {% set title = 'Recurso judicial interpuesto' %}
+                        {% elseif to == 'court_granted' %}
+                            {% set dotColor = 'bg-emerald-500' %}
+                            {% set icon = 'check-circle' %}
+                            {% set title = 'Sentencia favorable' %}
+                            {% set titleColor = 'text-emerald-700' %}
+                        {% elseif to == 'court_denied' %}
+                            {% set dotColor = 'bg-red-500' %}
+                            {% set icon = 'x-circle' %}
+                            {% set title = 'Sentencia desfavorable' %}
+                            {% set titleColor = 'text-red-700' %}
+                        {% else %}
+                            {% set title = 'Vía judicial' %}
+                        {% endif %}
+                    {% elseif sType == 'status' %}
+                        {# Primary status changes #}
+                        {% if to == 'granted' %}
+                            {% set dotColor = 'bg-emerald-500' %}
+                            {% set icon = 'check-circle' %}
+                            {% set title = 'Solicitud concedida' %}
+                            {% set titleColor = 'text-emerald-700' %}
+                        {% elseif to == 'granted_completed' %}
+                            {% set dotColor = 'bg-emerald-600' %}
+                            {% set icon = 'package-check' %}
+                            {% set title = 'Información recibida' %}
+                            {% set titleColor = 'text-emerald-800' %}
+                        {% elseif to == 'denied' %}
+                            {% set dotColor = 'bg-red-500' %}
+                            {% set icon = 'x-circle' %}
+                            {% set title = 'Solicitud denegada' %}
+                            {% set titleColor = 'text-red-700' %}
+                        {% elseif to == 'delayed' %}
+                            {% set dotColor = 'bg-amber-500' %}
+                            {% set icon = 'clock' %}
+                            {% set title = 'Silencio administrativo' %}
+                            {% set titleColor = 'text-amber-700' %}
+                        {% elseif to == 'processing' %}
+                            {% set dotColor = 'bg-blue-500' %}
+                            {% set icon = 'loader' %}
+                            {% set title = 'Solicitud en trámite' %}
+                            {% set titleColor = 'text-blue-700' %}
+                        {% elseif to == 'sent' %}
+                            {% set dotColor = 'bg-primary-500' %}
+                            {% set icon = 'send' %}
+                            {% set title = 'Solicitud enviada' %}
+                            {% set titleColor = 'text-primary-700' %}
+                        {% else %}
+                            {% set dotColor = 'bg-slate-400' %}
+                            {% set icon = 'circle' %}
+                            {% set title = history.toStatusLabel %}
+                        {% endif %}
+                    {% endif %}
+
+                    <div class="flex gap-4 pb-4 {{ not loop.last ? 'border-b border-slate-100' : '' }}">
+                        <div class="w-8 h-8 rounded-full {{ dotColor }} flex items-center justify-center flex-shrink-0">
+                            <i data-lucide="{{ icon }}" class="w-4 h-4 text-white"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <span class="font-medium {{ titleColor }}">{{ title }}</span>
+                                <span class="text-sm text-slate-500 flex-shrink-0">{{ history.createdAt|date('d/m/Y H:i') }}</span>
+                            </div>
+                            {% if notes and notes != title %}
+                                <p class="text-sm text-slate-600 mt-2">{{ notes }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-slate-500 text-center py-4">Sin cambios de estado registrados</p>
+        {% endif %}
+    </div>
+</div>
+</div>
