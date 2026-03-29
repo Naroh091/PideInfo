@@ -49,6 +49,44 @@
     </a>
 </div>
 
+{# Granted pending reception banner #}
+{% if request.status == 'granted' %}
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-6">
+        <div class="flex flex-col sm:flex-row items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="package" class="w-5 h-5 text-emerald-600"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-semibold text-emerald-800 text-lg">Solicitud concedida — pendiente de recepción</h3>
+                <p class="text-sm text-emerald-700 mt-1">
+                    La administración ha concedido tu solicitud. ¿Has recibido ya la información solicitada?
+                </p>
+                <div class="flex flex-wrap gap-3 mt-4">
+                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                        <input type="hidden" name="statusType" value="status">
+                        <input type="hidden" name="newStatus" value="granted">
+                        <button type="submit" class="btn btn-secondary">
+                            <i data-lucide="clock" class="w-4 h-4 mr-2"></i>
+                            Aún no la he recibido
+                        </button>
+                    </form>
+                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                        <input type="hidden" name="statusType" value="status">
+                        <input type="hidden" name="newStatus" value="granted_completed">
+                        <input type="hidden" name="notes" value="Información recibida correctamente">
+                        <button type="submit" class="btn btn-primary bg-emerald-600 hover:bg-emerald-700 border-emerald-600">
+                            <i data-lucide="check" class="w-4 h-4 mr-2"></i>
+                            Completada — información recibida
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
 {# Redirection notice #}
 {% if request.wasRedirected %}
     <div class="alert alert-info mb-6">
@@ -348,6 +386,11 @@
                                     {% set icon = 'check-circle' %}
                                     {% set title = 'Solicitud concedida' %}
                                     {% set titleColor = 'text-emerald-700' %}
+                                {% elseif to == 'granted_completed' %}
+                                    {% set dotColor = 'bg-emerald-600' %}
+                                    {% set icon = 'package-check' %}
+                                    {% set title = 'Información recibida' %}
+                                    {% set titleColor = 'text-emerald-800' %}
                                 {% elseif to == 'denied' %}
                                     {% set dotColor = 'bg-red-500' %}
                                     {% set icon = 'x-circle' %}
@@ -417,7 +460,8 @@
                             <option value="pending" {{ request.status == 'pending' ? 'selected' : '' }}>Pendiente de recepción</option>
                             <option value="sent" {{ request.status == 'sent' ? 'selected' : '' }}>Enviada</option>
                             <option value="processing" {{ request.status == 'processing' ? 'selected' : '' }}>En trámite</option>
-                            <option value="granted" {{ request.status == 'granted' ? 'selected' : '' }}>Concedida</option>
+                            <option value="granted" {{ request.status == 'granted' ? 'selected' : '' }}>Concedida (pendiente de recepción)</option>
+                            <option value="granted_completed" {{ request.status == 'granted_completed' ? 'selected' : '' }}>Concedida y completada</option>
                             <option value="denied" {{ request.status == 'denied' ? 'selected' : '' }}>Denegada</option>
                             <option value="delayed" {{ request.status == 'delayed' ? 'selected' : '' }}>Silencio administrativo</option>
                         </select>
@@ -491,7 +535,7 @@
             <div class="card-body space-y-4">
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Plazo de respuesta</h4>
-                    {% if request.status in ['granted', 'denied'] %}
+                    {% if request.status in ['granted', 'granted_completed', 'denied'] %}
                         <div class="flex items-center gap-2">
                             <span class="font-semibold text-slate-400">{{ request.deadlineAt|date('d/m/Y') }}</span>
                             <span class="badge badge-success">Resuelta</span>
@@ -736,7 +780,7 @@
                 <h2 class="font-semibold text-slate-800">Acciones</h2>
             </div>
             <div class="card-body space-y-3">
-                {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted']) %}
+                {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted', 'granted_completed']) %}
                 {% if canComplain and not request.complaint %}
                     <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent w-full">
                         <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>

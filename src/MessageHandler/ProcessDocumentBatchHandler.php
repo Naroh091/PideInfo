@@ -304,6 +304,7 @@ final class ProcessDocumentBatchHandler
 
         $isResolved = in_array($accessRequest->getStatus(), [
             AccessRequest::STATUS_GRANTED,
+            AccessRequest::STATUS_GRANTED_COMPLETED,
             AccessRequest::STATUS_DENIED,
             AccessRequest::STATUS_DELAYED,
         ], true);

@@ -294,7 +294,8 @@
                 <option value="">Todos los estados</option>
                 <option value="sent" {{ status == 'sent' ? 'selected' }}>Enviadas</option>
                 <option value="processing" {{ status == 'processing' ? 'selected' }}>En trámite</option>
-                <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas</option>
+                <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas (pendiente de recepción)</option>
+                <option value="granted_completed" {{ status == 'granted_completed' ? 'selected' }}>Concedidas y completadas</option>
                 <option value="denied" {{ status == 'denied' ? 'selected' }}>Denegadas</option>
                 <option value="delayed" {{ status == 'delayed' ? 'selected' }}>Silencio administrativo</option>
                 <option value="pending" {{ status == 'pending' ? 'selected' }}>Pendientes</option>

@@ -21,6 +21,7 @@ class AccessRequest
     public const STATUS_SENT = 'sent';
     public const STATUS_PROCESSING = 'processing';
     public const STATUS_GRANTED = 'granted';
+    public const STATUS_GRANTED_COMPLETED = 'granted_completed';
     public const STATUS_DENIED = 'denied';
     public const STATUS_DELAYED = 'delayed';
     public const STATUS_PENDING = 'pending';
@@ -252,7 +253,8 @@ class AccessRequest
         return match ($this->status) {
             self::STATUS_SENT => 'Enviada',
             self::STATUS_PROCESSING => 'En trámite',
-            self::STATUS_GRANTED => 'Concedida',
+            self::STATUS_GRANTED => 'Concedida (pendiente de recepción)',
+            self::STATUS_GRANTED_COMPLETED => 'Concedida y completada',
             self::STATUS_DENIED => 'Denegada',
             self::STATUS_DELAYED => 'Silencio administrativo',
             self::STATUS_PENDING => 'Pendiente de recepción',
@@ -659,7 +661,7 @@ class AccessRequest
 
     public function isDeadlinePassed(): bool
     {
-        if (in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)) {
+        if (in_array($this->status, [self::STATUS_GRANTED, self::STATUS_GRANTED_COMPLETED, self::STATUS_DENIED], true)) {
             return false;
         }
         return $this->deadlineAt < new \DateTimeImmutable('today');
@@ -694,7 +696,7 @@ class AccessRequest
 
     public function isActive(): bool
     {
-        return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_DENIED], true)
+        return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_GRANTED_COMPLETED, self::STATUS_DENIED], true)
             || $this->complaint?->getStatus() === AccessRequestComplaint::STATUS_RECLAIMED
             || $this->courtStatus === self::COURT_IN_COURT;
     }

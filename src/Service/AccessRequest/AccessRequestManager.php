@@ -427,6 +427,7 @@ class AccessRequestManager
                 AccessRequest::STATUS_SENT,
                 AccessRequest::STATUS_PROCESSING,
                 AccessRequest::STATUS_GRANTED,
+                AccessRequest::STATUS_GRANTED_COMPLETED,
                 AccessRequest::STATUS_DENIED,
                 AccessRequest::STATUS_DELAYED,
                 AccessRequest::STATUS_PENDING,
@@ -499,6 +500,7 @@ class AccessRequestManager
         // Set resolvedAt for terminal statuses
         $terminalStatuses = [
             AccessRequest::STATUS_GRANTED,
+            AccessRequest::STATUS_GRANTED_COMPLETED,
             AccessRequest::STATUS_DENIED,
             AccessRequestComplaint::STATUS_GRANTED,
             AccessRequestComplaint::STATUS_DENIED,

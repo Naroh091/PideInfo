@@ -131,6 +131,7 @@
                         'sent': 'status-sent',
                         'processing': 'status-processing',
                         'granted': 'status-granted',
+                        'granted_completed': 'status-granted-completed',
                         'denied': 'status-denied',
                         'delayed': 'status-delayed',
                         'pending': 'status-pending'
@@ -143,7 +144,7 @@
 
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Plazo actual</h4>
-                    {% if request.status in ['granted', 'denied'] %}
+                    {% if request.status in ['granted', 'granted_completed', 'denied'] %}
                         <p class="text-sm text-slate-500">
                             {{ request.deadlineAt|date('d/m/Y') }}
                             <span class="badge badge-success ml-1">Resuelta</span>

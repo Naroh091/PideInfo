@@ -43,7 +43,7 @@ Cada solicitud mantiene un historial cronológico completo que registra automát
 - Cuándo se recibió acuse de recibo
 - Si hubo prórroga del plazo
 - Si la solicitud fue trasladada a otro organismo
-- Cuándo se recibió la resolución (concedida, denegada o silencio administrativo)
+- Cuándo se recibió la resolución (concedida, denegada o silencio administrativo) y, si fue concedida, cuándo se confirmó la recepción de la información
 - Todos los eventos de la reclamación: presentación, acuse, alegaciones, audiencia, resolución
 
 Este historial se genera automáticamente a partir de los documentos que subes y los cambios de estado que hagas. No necesitas mantenerlo a mano.

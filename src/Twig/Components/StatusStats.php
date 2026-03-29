@@ -37,6 +37,7 @@ final class StatusStats extends AbstractController
             'sent' => $counts[AccessRequest::STATUS_SENT] ?? 0,
             'processing' => $counts[AccessRequest::STATUS_PROCESSING] ?? 0,
             'granted' => $counts[AccessRequest::STATUS_GRANTED] ?? 0,
+            'granted_completed' => $counts[AccessRequest::STATUS_GRANTED_COMPLETED] ?? 0,
             'denied' => $counts[AccessRequest::STATUS_DENIED] ?? 0,
             'delayed' => $counts[AccessRequest::STATUS_DELAYED] ?? 0,
             'pending' => $counts[AccessRequest::STATUS_PENDING] ?? 0,
@@ -53,17 +54,18 @@ final class StatusStats extends AbstractController
     public function getResolvedCount(): int
     {
         $stats = $this->getStats();
-        return $stats['granted'] + $stats['denied'] + $stats['delayed'];
+        return $stats['granted'] + $stats['granted_completed'] + $stats['denied'] + $stats['delayed'];
     }
 
     public function getSuccessRate(): float
     {
         $stats = $this->getStats();
-        $resolved = $stats['granted'] + $stats['denied'];
+        $totalGranted = $stats['granted'] + $stats['granted_completed'];
+        $resolved = $totalGranted + $stats['denied'];
         if ($resolved === 0) {
             return 0.0;
         }
-        return round(($stats['granted'] / $resolved) * 100, 1);
+        return round(($totalGranted / $resolved) * 100, 1);
     }
 
     private function getEmptyStats(): array
@@ -73,6 +75,7 @@ final class StatusStats extends AbstractController
             'sent' => 0,
             'processing' => 0,
             'granted' => 0,
+            'granted_completed' => 0,
             'denied' => 0,
             'delayed' => 0,
             'pending' => 0,

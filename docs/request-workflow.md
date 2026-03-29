@@ -11,7 +11,8 @@ An access request moves through these primary statuses:
 | `pending` | Pendiente de recepción | Created but not yet confirmed as sent |
 | `sent` | Enviada | Submitted to the public body, awaiting response |
 | `processing` | En trámite | Public body has acknowledged receipt and is processing |
-| `granted` | Concedida | Request approved — information provided |
+| `granted` | Concedida (pendiente de recepción) | Request approved — waiting for information to be delivered |
+| `granted_completed` | Concedida y completada | Request approved and information received |
 | `denied` | Denegada | Request explicitly denied |
 | `delayed` | Silencio administrativo | Response deadline passed with no answer (administrative silence = implicit denial) |
 
@@ -73,7 +74,9 @@ If the public body doesn't hold the information, it redirects (*traslado*) the r
 
 The request resolves in one of three ways:
 
-**Granted** (`granted`) — The public body provides the requested information. `resolvedAt` is set.
+**Granted** (`granted`) — The public body approves the request. `resolvedAt` is set. The request enters a "pending reception" state — the administration has said yes, but the information may not have been delivered yet. A banner on the request detail page prompts the user to confirm reception.
+
+**Granted and completed** (`granted_completed`) — The user confirms the requested information has been received. This is the true terminal state for successful requests. Transition from `granted` via the banner or status dropdown.
 
 **Denied** (`denied`) — The public body explicitly refuses. The denial reason is stored in `resolutionNotes`. This opens the possibility of filing a complaint. `resolvedAt` is set.
 
@@ -84,6 +87,10 @@ The request resolves in one of three ways:
 After resolution, the request can enter additional phases:
 
 ```
+granted
+      │
+      └──► granted_completed (user confirms info received)
+
 denied / delayed
       │
       ├──► Complaint filed (see complaint-workflow.md)
@@ -115,7 +122,7 @@ The `DeadlineCalculator` service handles all date arithmetic:
 ### The `isActive()` check
 
 A request is considered active if:
-- Its primary status is not `granted` or `denied`, OR
+- Its primary status is not `granted`, `granted_completed`, or `denied`, OR
 - It has an active complaint (status = `reclaimed`), OR
 - It's in court proceedings (courtStatus = `in_court`)
 
