@@ -2,7 +2,7 @@
 
 **Última actualización:** 29 de marzo de 2026
 
-PideInfo es un proyecto personal sin ánimo de lucro desarrollado para facilitar a los ciudadanos la gestión de sus solicitudes de acceso a información pública en España.
+PideInfo es un proyecto personal desarrollado para facilitar a los ciudadanos la gestión de sus solicitudes de acceso a información pública en España.
 
 ## 1. Responsable del tratamiento
 
@@ -115,7 +115,7 @@ Además, utilizamos **Google Analytics** con **anonimización de IP** activada p
 
 ## 12. Financiación
 
-PideInfo es un proyecto personal sin ánimo de lucro. No tiene financiación externa ni acuerdos comerciales con terceros.
+PideInfo es un proyecto personal. No tiene financiación externa ni acuerdos comerciales con terceros.
 
 ## 13. Modificaciones
 

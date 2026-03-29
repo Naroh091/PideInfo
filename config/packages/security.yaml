@@ -15,10 +15,11 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            user_checker: App\Security\UserChecker
             form_login:
                 login_path: app_login
                 check_path: app_login
-                default_target_path: app_dashboard
+                default_target_path: /panel
                 enable_csrf: true
             logout:
                 path: app_logout
@@ -29,6 +30,7 @@ security:
                 path: /
 
     access_control:
+        - { path: ^/$, roles: PUBLIC_ACCESS }
         - { path: ^/login, roles: PUBLIC_ACCESS }
         - { path: ^/registro, roles: PUBLIC_ACCESS }
         - { path: ^/verificar, roles: PUBLIC_ACCESS }

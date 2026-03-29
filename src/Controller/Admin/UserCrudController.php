@@ -38,6 +38,7 @@ class UserCrudController extends AbstractCrudController
         yield AssociationField::new('organization', 'Organización');
         yield ArrayField::new('roles', 'Roles');
         yield BooleanField::new('isVerified', 'Verificado');
+        yield BooleanField::new('isActive', 'Activo');
         yield DateTimeField::new('createdAt', 'Registrado')->hideOnForm();
     }
 }
