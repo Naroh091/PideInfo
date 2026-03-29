@@ -108,6 +108,7 @@ class StatusHistory
                 'sent' => 'Enviada',
                 'processing' => 'En trámite',
                 'granted' => 'Concedida',
+                'granted_completed' => 'Completada',
                 'denied' => 'Denegada',
                 'delayed' => 'Silencio',
                 'pending' => 'Pendiente',

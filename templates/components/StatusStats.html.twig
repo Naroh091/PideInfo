@@ -1,45 +1,71 @@
 <div {{ attributes.defaults({class: 'status-stats', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set stats = this.stats %}
 
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="stat-card stat-card-primary animate-slide-up" style="animation-delay: 0ms;">
-            <div class="stat-card-icon">
-                <i data-lucide="send" class="w-5 h-5"></i>
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="send" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.sent }}</p>
             </div>
-            <p class="stat-card-value">{{ stats.sent }}</p>
             <p class="stat-card-label">Enviadas</p>
+            <div class="stat-card-bar stat-card-bar-primary" style="width: {{ stats.total > 0 ? (stats.sent / stats.total * 100) : 0 }}%"></div>
         </div>
 
         <div class="stat-card stat-card-info animate-slide-up" style="animation-delay: 50ms;">
-            <div class="stat-card-icon">
-                <i data-lucide="loader" class="w-5 h-5"></i>
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="loader" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.processing }}</p>
             </div>
-            <p class="stat-card-value">{{ stats.processing }}</p>
-            <p class="stat-card-label">En tramite</p>
+            <p class="stat-card-label">En trámite</p>
+            <div class="stat-card-bar stat-card-bar-info" style="width: {{ stats.total > 0 ? (stats.processing / stats.total * 100) : 0 }}%"></div>
         </div>
 
         <div class="stat-card stat-card-success animate-slide-up" style="animation-delay: 100ms;">
-            <div class="stat-card-icon">
-                <i data-lucide="check-circle" class="w-5 h-5"></i>
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="package" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.granted }}</p>
             </div>
-            <p class="stat-card-value">{{ stats.granted }}</p>
-            <p class="stat-card-label">Concedidas</p>
+            <p class="stat-card-label">Concedidas (pendientes)</p>
+            <div class="stat-card-bar stat-card-bar-success" style="width: {{ stats.total > 0 ? (stats.granted / stats.total * 100) : 0 }}%"></div>
         </div>
 
-        <div class="stat-card stat-card-accent animate-slide-up" style="animation-delay: 150ms;">
-            <div class="stat-card-icon">
-                <i data-lucide="clock" class="w-5 h-5"></i>
+        <div class="stat-card stat-card-complete animate-slide-up" style="animation-delay: 150ms;">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.granted_completed }}</p>
             </div>
-            <p class="stat-card-value">{{ stats.delayed }}</p>
+            <p class="stat-card-label">Completadas</p>
+            <div class="stat-card-bar stat-card-bar-complete" style="width: {{ stats.total > 0 ? (stats.granted_completed / stats.total * 100) : 0 }}%"></div>
+        </div>
+
+        <div class="stat-card stat-card-accent animate-slide-up" style="animation-delay: 200ms;">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="clock" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.delayed }}</p>
+            </div>
             <p class="stat-card-label">Silencio</p>
+            <div class="stat-card-bar stat-card-bar-accent" style="width: {{ stats.total > 0 ? (stats.delayed / stats.total * 100) : 0 }}%"></div>
         </div>
 
-        <div class="stat-card stat-card-warning animate-slide-up" style="animation-delay: 200ms;">
-            <div class="stat-card-icon">
-                <i data-lucide="scale" class="w-5 h-5"></i>
+        <div class="stat-card stat-card-warning animate-slide-up" style="animation-delay: 250ms;">
+            <div class="flex items-center justify-between mb-3">
+                <div class="stat-card-icon">
+                    <i data-lucide="scale" class="w-5 h-5"></i>
+                </div>
+                <p class="stat-card-value">{{ stats.appealed }}</p>
             </div>
-            <p class="stat-card-value">{{ stats.appealed }}</p>
             <p class="stat-card-label">Reclamadas</p>
+            <div class="stat-card-bar stat-card-bar-warning" style="width: {{ stats.total > 0 ? (stats.appealed / stats.total * 100) : 0 }}%"></div>
         </div>
     </div>
 </div>

@@ -96,7 +96,7 @@
                         </div>
                         <div class="text-end ms-3">
                             <span class="badge bg-{{
-                                request.status == 'granted' ? 'success' :
+                                request.status in ['granted', 'granted_completed'] ? 'success' :
                                 (request.status == 'denied' ? 'danger' :
                                 (request.status == 'delayed' ? 'warning' :
                                 (request.status == 'pending' ? 'info' : 'primary')))

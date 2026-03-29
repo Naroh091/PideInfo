@@ -77,3 +77,22 @@ El sistema clasifica automáticamente cada documento en uno de estos tipos:
 | Resolución CTBG | La resolución del organismo de transparencia |
 
 Si la clasificación automática no es correcta, puedes reprocesar el documento pulsando el botón de recarga en la lista de documentos.
+
+## Estados de una solicitud concedida
+
+Cuando la administración concede tu solicitud, ésta no pasa directamente a "resuelta". PideInfo distingue dos fases:
+
+### Concedida (pendiente de recepción)
+
+Es el estado inicial cuando la administración aprueba tu solicitud. Significa que han dicho que sí, pero **todavía no te han entregado la información** solicitada. Esto es habitual: muchas administraciones tardan días o semanas en enviar los documentos incluso después de conceder la solicitud.
+
+Mientras la solicitud esté en este estado, verás un aviso destacado en la página de detalle con dos opciones:
+
+- **"Aún no la he recibido"**: Mantiene la solicitud en espera. El aviso seguirá visible para que no pierdas de vista que aún falta recibir la información.
+- **"Completada — información recibida"**: Marca la solicitud como resuelta por completo.
+
+### Concedida y completada
+
+Este estado indica que la administración ha concedido la solicitud **y tú has confirmado que has recibido la información**. Es el estado final para solicitudes exitosas.
+
+Para marcar una solicitud como completada, puedes usar el botón del aviso o cambiar el estado manualmente desde el desplegable de estado en la barra lateral.

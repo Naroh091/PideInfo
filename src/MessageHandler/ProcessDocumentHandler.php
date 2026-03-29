@@ -283,6 +283,7 @@ final class ProcessDocumentHandler
         // Resolved statuses — don't regress the primary status past these
         $isResolved = in_array($accessRequest->getStatus(), [
             AccessRequest::STATUS_GRANTED,
+            AccessRequest::STATUS_GRANTED_COMPLETED,
             AccessRequest::STATUS_DENIED,
             AccessRequest::STATUS_DELAYED,
         ], true);

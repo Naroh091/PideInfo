@@ -4,24 +4,26 @@ PideInfo te proporciona una dirección de correo electrónico virtual. Los corre
 
 ## Generar tu dirección virtual
 
-1. En el panel principal, en la tarjeta de subida de archivos de la derecha, pulsa **"Generar email virtual"**
+1. En el panel principal, en la tarjeta **"Email virtual"** de la derecha, pulsa **"Generar email virtual"**
 2. Se generará una dirección única con el formato `usuario-xxxxxxxxxx@pideinfo.es`
 3. Puedes copiarla al portapapeles con el botón de copiar
 
 Solo puedes tener una dirección virtual activa. Una vez generada, permanece asociada a tu cuenta.
 
-## Cómo usarlo: reenvío automático (recomendado)
+## Dos formas de usarlo
 
-La forma más eficaz de usar el buzón virtual es **configurar tu cuenta de correo habitual para que reenvíe automáticamente** los correos de las administraciones a tu dirección virtual.
+### Opción 1: Reenvío automático (recomendado)
 
-**¿Por qué reenviar en vez de usar directamente la dirección virtual?**
+La forma más eficaz es **configurar tu cuenta de correo habitual para que reenvíe automáticamente** los correos de las administraciones a tu dirección virtual.
+
+**¿Por qué es la opción recomendada?**
 
 - Tú sigues recibiendo los correos en tu bandeja de entrada normal, con lo que no pierdes nada
 - PideInfo los recibe en paralelo y los procesa automáticamente
 - No necesitas dar una dirección desconocida a la administración: sigues usando tu email habitual
 - Puedes configurar reglas de reenvío selectivas (solo correos de ciertos remitentes)
 
-### Configurar el reenvío en los principales proveedores
+#### Configurar el reenvío en los principales proveedores
 
 **Gmail:**
 1. Ajustes → Ver todos los ajustes → Reenvío y correo POP/IMAP
@@ -36,9 +38,21 @@ La forma más eficaz de usar el buzón virtual es **configurar tu cuenta de corr
 
 **Otros proveedores:** Busca en la configuración la opción de reenvío automático o reglas de correo. La mayoría de proveedores permiten reenviar a una dirección específica.
 
-### Consejo: reglas de reenvío selectivas
+#### Consejo: reglas de reenvío selectivas
 
 Si recibes muchos correos y solo quieres reenviar los de administraciones, puedes crear una regla que reenvíe únicamente los correos que vengan de dominios como `@age.mites.gob.es`, `@transparencia.gob.es`, `@juntadeandalucia.es`, etc.
+
+### Opción 2: Reenvío manual
+
+También puedes **reenviar correos individualmente** cuando te llega algo relevante a tu bandeja de entrada. Simplemente reenvía el correo a tu dirección virtual de PideInfo y el sistema lo procesará igual que si llegara por reenvío automático.
+
+Esto es útil si:
+
+- No quieres configurar reglas de reenvío automático
+- Solo quieres procesar correos concretos, no todos
+- Recibes un correo puntual de una administración que no tenías prevista
+
+El funcionamiento es el mismo: PideInfo extrae los adjuntos, los analiza con IA y los enlaza a la solicitud correspondiente.
 
 ## Qué ocurre cuando llega un correo
 

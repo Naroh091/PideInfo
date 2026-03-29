@@ -154,40 +154,42 @@ body {
 
 /* Stat card styles */
 .stat-card {
-  @apply bg-white rounded-2xl p-5 border border-slate-200 shadow-sm;
+  @apply relative bg-white rounded-2xl p-5 border border-slate-100 shadow-sm overflow-hidden transition-all duration-200;
+}
+.stat-card:hover {
+  @apply shadow-md -translate-y-0.5;
 }
 
 .stat-card-icon {
-  @apply w-10 h-10 rounded-xl flex items-center justify-center mb-3;
+  @apply w-10 h-10 rounded-xl flex items-center justify-center;
 }
 
 .stat-card-value {
-  @apply text-2xl font-bold text-slate-800;
+  @apply text-3xl font-extrabold text-slate-800 tracking-tight;
 }
 
 .stat-card-label {
-  @apply text-sm font-medium text-slate-500 mt-1;
+  @apply text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1;
 }
 
-.stat-card-primary .stat-card-icon {
-  @apply bg-primary-100 text-primary-600;
+.stat-card-bar {
+  @apply h-1 rounded-full mt-3 transition-all duration-500;
+  min-width: 4px;
 }
 
-.stat-card-accent .stat-card-icon {
-  @apply bg-purple-100 text-purple-600;
-}
+.stat-card-primary .stat-card-icon { @apply bg-primary-50 text-primary-500; }
+.stat-card-info .stat-card-icon { @apply bg-sky-50 text-sky-500; }
+.stat-card-success .stat-card-icon { @apply bg-emerald-50 text-emerald-500; }
+.stat-card-complete .stat-card-icon { @apply bg-emerald-100 text-emerald-700; }
+.stat-card-accent .stat-card-icon { @apply bg-purple-50 text-purple-500; }
+.stat-card-warning .stat-card-icon { @apply bg-amber-50 text-amber-500; }
 
-.stat-card-success .stat-card-icon {
-  @apply bg-emerald-100 text-emerald-600;
-}
-
-.stat-card-info .stat-card-icon {
-  @apply bg-sky-100 text-sky-600;
-}
-
-.stat-card-warning .stat-card-icon {
-  @apply bg-amber-100 text-amber-600;
-}
+.stat-card-bar-primary { @apply bg-primary-400; }
+.stat-card-bar-info { @apply bg-sky-400; }
+.stat-card-bar-success { @apply bg-emerald-400; }
+.stat-card-bar-complete { @apply bg-emerald-600; }
+.stat-card-bar-accent { @apply bg-purple-400; }
+.stat-card-bar-warning { @apply bg-amber-400; }
 
 /* Alert styles */
 .alert {
@@ -377,6 +379,10 @@ body {
 
 .status-granted {
   @apply bg-emerald-100 text-emerald-700;
+}
+
+.status-granted-completed {
+  @apply bg-emerald-200 text-emerald-800;
 }
 
 .status-denied {

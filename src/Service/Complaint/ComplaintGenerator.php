@@ -150,7 +150,7 @@ final class ComplaintGenerator
             return true;
         }
 
-        if ($accessRequest->isDeadlinePassed() && $accessRequest->getStatus() !== AccessRequest::STATUS_GRANTED) {
+        if ($accessRequest->isDeadlinePassed() && !in_array($accessRequest->getStatus(), [AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED], true)) {
             return true;
         }
 
