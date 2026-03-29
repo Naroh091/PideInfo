@@ -40,24 +40,25 @@ final class Version20260329100000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        // Add document_date column
-        $this->addSql('ALTER TABLE document ADD document_date DATE DEFAULT NULL');
+        // Add document_date column (idempotent)
+        $this->addSql('ALTER TABLE document ADD COLUMN IF NOT EXISTS document_date DATE DEFAULT NULL');
         $this->addSql("COMMENT ON COLUMN document.document_date IS '(DC2Type:date_immutable)'");
 
         // Populate document_date from ai_metadata->>'documentDate' for processed documents
+        // Only updates rows where document_date is still NULL (idempotent)
         $this->addSql("
             UPDATE document
             SET document_date = (ai_metadata->>'documentDate')::date
             WHERE processed = true
+              AND document_date IS NULL
               AND ai_metadata IS NOT NULL
               AND ai_metadata->>'documentDate' IS NOT NULL
               AND ai_metadata->>'documentDate' != ''
         ");
 
         // Rename processed documents: prepend type label to filename
-        // Skip 'unprocessed', 'other', and documents already prefixed
+        // Skip 'unprocessed', 'other', and documents already prefixed (idempotent)
         foreach (self::TYPE_LABELS as $typeValue => $label) {
-            // Update documents whose original_filename does NOT already start with the label
             $this->addSql("
                 UPDATE document
                 SET original_filename = :label || ' - ' || original_filename
@@ -89,6 +90,6 @@ final class Version20260329100000 extends AbstractMigration
             ]);
         }
 
-        $this->addSql('ALTER TABLE document DROP COLUMN document_date');
+        $this->addSql('ALTER TABLE document DROP COLUMN IF EXISTS document_date');
     }
 }
