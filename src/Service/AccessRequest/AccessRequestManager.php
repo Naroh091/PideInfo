@@ -3,6 +3,7 @@
 namespace App\Service\AccessRequest;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\ApplicableLaw;
 use App\Entity\DeadlineHistory;
 use App\Entity\Document;
@@ -50,6 +51,8 @@ class AccessRequestManager
         $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
         $request->addDeadlineHistory($deadlineHistory);
 
+        $this->recordCreation($request);
+
         $this->em->persist($request);
         $this->em->flush();
 
@@ -75,8 +78,26 @@ class AccessRequestManager
         $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
         $request->addDeadlineHistory($deadlineHistory);
 
+        $this->recordCreation($request);
+
         $this->em->persist($request);
         $this->em->flush();
+    }
+
+    private function recordCreation(AccessRequest $request): void
+    {
+        $history = new StatusHistory();
+        $history->setAccessRequest($request);
+        $history->setStatusType(StatusHistory::TYPE_STATUS);
+        $history->setFromStatus('');
+        $history->setToStatus(AccessRequest::STATUS_SENT);
+        $history->setNotes(sprintf(
+            'Solicitud creada. Enviada a %s el %s. Plazo: %s.',
+            $request->getPublicBody()->getName(),
+            $request->getSentAt()->format('d/m/Y'),
+            $request->getDeadlineAt()->format('d/m/Y')
+        ));
+        $request->addStatusHistory($history);
     }
 
     public function extendDeadline(
@@ -118,7 +139,15 @@ class AccessRequestManager
         ?Document $triggerDocument = null
     ): void {
         $complianceDeadline = $this->deadlineCalculator->addBusinessDays($fromDate, $complianceDays);
-        $request->setComplianceDeadlineAt($complianceDeadline);
+
+        $complaint = $request->getComplaint();
+        if ($complaint === null) {
+            $complaint = new AccessRequestComplaint();
+            $complaint->setAccessRequest($request);
+            $request->setComplaint($complaint);
+            $this->em->persist($complaint);
+        }
+        $complaint->setComplianceDeadlineAt($complianceDeadline);
 
         $deadlineHistory = new DeadlineHistory();
         $deadlineHistory->setAccessRequest($request);
@@ -369,7 +398,7 @@ class AccessRequestManager
      * Change the status of an AccessRequest and record in StatusHistory.
      *
      * @param AccessRequest $request The access request to update
-     * @param string $statusType One of: status, complaintStatus, courtStatus
+     * @param string $statusType One of: status, complaint, courtStatus
      * @param string $newStatus The new status value
      * @param string|null $notes Optional notes for the status change
      * @return bool True if successful, false if invalid status type or value
@@ -404,10 +433,10 @@ class AccessRequestManager
             ],
             StatusHistory::TYPE_COMPLAINT => [
                 AccessRequest::COMPLAINT_NONE,
-                AccessRequest::COMPLAINT_RECLAIMED,
-                AccessRequest::COMPLAINT_GRANTED,
-                AccessRequest::COMPLAINT_DENIED,
-                AccessRequest::COMPLAINT_ARCHIVED,
+                AccessRequestComplaint::STATUS_RECLAIMED,
+                AccessRequestComplaint::STATUS_GRANTED,
+                AccessRequestComplaint::STATUS_DENIED,
+                AccessRequestComplaint::STATUS_ARCHIVED,
             ],
             StatusHistory::TYPE_COURT => [
                 AccessRequest::COURT_NONE,
@@ -428,17 +457,35 @@ class AccessRequestManager
         }
 
         // Update the status
-        match ($statusType) {
-            StatusHistory::TYPE_STATUS => $request->setStatus($newStatus),
-            StatusHistory::TYPE_COMPLAINT => $request->setComplaintStatus($newStatus),
-            StatusHistory::TYPE_COURT => $request->setCourtStatus($newStatus),
-            default => null,
-        };
+        if ($statusType === StatusHistory::TYPE_COMPLAINT) {
+            if ($newStatus === AccessRequest::COMPLAINT_NONE) {
+                // Remove complaint entity
+                if ($request->getComplaint() !== null) {
+                    $this->em->remove($request->getComplaint());
+                    $request->setComplaint(null);
+                }
+            } else {
+                // Create or update complaint entity
+                $complaint = $request->getComplaint();
+                if ($complaint === null) {
+                    $complaint = new AccessRequestComplaint();
+                    $complaint->setAccessRequest($request);
+                    $request->setComplaint($complaint);
+                    $this->em->persist($complaint);
+                }
+                $complaint->setStatus($newStatus);
+            }
+        } elseif ($statusType === StatusHistory::TYPE_STATUS) {
+            $request->setStatus($newStatus);
+        } elseif ($statusType === StatusHistory::TYPE_COURT) {
+            $request->setCourtStatus($newStatus);
+        }
 
-        // Set complaint deadline when manually changing to "Reclamada"
-        if ($statusType === StatusHistory::TYPE_COMPLAINT && $newStatus === AccessRequest::COMPLAINT_RECLAIMED) {
+        // Set complaint deadline when changing to "Reclamada"
+        if ($statusType === StatusHistory::TYPE_COMPLAINT && $newStatus === AccessRequestComplaint::STATUS_RECLAIMED) {
+            $complaint = $request->getComplaint();
             $complaintDeadline = (new \DateTimeImmutable())->modify('+3 months');
-            $request->setComplaintDeadlineAt($complaintDeadline);
+            $complaint->setDeadlineAt($complaintDeadline);
 
             $deadlineHistory = new DeadlineHistory();
             $deadlineHistory->setAccessRequest($request);
@@ -453,9 +500,9 @@ class AccessRequestManager
         $terminalStatuses = [
             AccessRequest::STATUS_GRANTED,
             AccessRequest::STATUS_DENIED,
-            AccessRequest::COMPLAINT_GRANTED,
-            AccessRequest::COMPLAINT_DENIED,
-            AccessRequest::COMPLAINT_ARCHIVED,
+            AccessRequestComplaint::STATUS_GRANTED,
+            AccessRequestComplaint::STATUS_DENIED,
+            AccessRequestComplaint::STATUS_ARCHIVED,
             AccessRequest::COURT_GRANTED,
             AccessRequest::COURT_DENIED,
         ];

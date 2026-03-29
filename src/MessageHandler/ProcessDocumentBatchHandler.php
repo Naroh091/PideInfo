@@ -3,6 +3,7 @@
 namespace App\MessageHandler;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
 use App\Entity\StatusHistory;
 use App\Enum\DocumentType;
@@ -70,6 +71,16 @@ final class ProcessDocumentBatchHandler
                 $document->setType($analysis['documentType']);
                 $document->setExtractedText($analysis['summary'] ?? null);
                 $document->setAiMetadata($analysis);
+
+                // Set document date from AI analysis
+                if (!empty($analysis['documentDate'])) {
+                    try {
+                        $document->setDocumentDate(new \DateTimeImmutable($analysis['documentDate']));
+                    } catch (\Exception) {}
+                }
+
+                // Rename to <TypeLabel> - <original>
+                $document->setOriginalFilename($document->getDisplayFilename());
             }
 
             // Find or create access request (use first document's user)
@@ -281,23 +292,59 @@ final class ProcessDocumentBatchHandler
         Document $document,
         array $analysis
     ): void {
-        // Update external ID if we have one and the request doesn't
-        if (!$accessRequest->getExternalId() && !empty($analysis['referenceNumber'])) {
-            $accessRequest->setExternalId($analysis['referenceNumber']);
+        $documentType = $analysis['documentType'];
+
+        // Parse the document date once — used for timeline ordering
+        $eventDate = null;
+        if (!empty($analysis['documentDate'])) {
+            try {
+                $eventDate = new \DateTimeImmutable($analysis['documentDate']);
+            } catch (\Exception) {}
         }
 
-        $documentType = $analysis['documentType'];
+        $isResolved = in_array($accessRequest->getStatus(), [
+            AccessRequest::STATUS_GRANTED,
+            AccessRequest::STATUS_DENIED,
+            AccessRequest::STATUS_DELAYED,
+        ], true);
+
+        // Determine if this is a complaint-related document
+        $isComplaintDocument = in_array($documentType, [
+            DocumentType::Complaint,
+            DocumentType::ComplaintReceipt,
+            DocumentType::ComplaintProcessingStart,
+            DocumentType::ComplaintResolution,
+            DocumentType::Alegaciones,
+            DocumentType::AlegationResponse,
+            DocumentType::Subsanacion,
+            DocumentType::SubsanacionResponse,
+            DocumentType::Audiencia,
+            DocumentType::ComplaintExtension,
+        ], true);
+
+        $referenceNumber = $analysis['referenceNumber'] ?? null;
+
+        if ($referenceNumber) {
+            if ($isComplaintDocument) {
+                $complaint = $this->ensureComplaint($accessRequest);
+                if (!$complaint->getExternalId()) {
+                    $complaint->setExternalId($referenceNumber);
+                }
+            } else {
+                if (!$accessRequest->getExternalId()) {
+                    $accessRequest->setExternalId($referenceNumber);
+                }
+            }
+        }
 
         switch ($documentType) {
             case DocumentType::Receipt:
-                if ($accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
+                if (!$isResolved && $accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
                     $accessRequest->setStatus(AccessRequest::STATUS_PROCESSING);
-                    if (!empty($analysis['documentDate'])) {
-                        try {
-                            $accessRequest->setAcknowledgedAt(new \DateTimeImmutable($analysis['documentDate']));
-                        } catch (\Exception) {}
+                    if ($eventDate) {
+                        $accessRequest->setAcknowledgedAt($eventDate);
                     }
-                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido');
+                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate);
                 }
                 break;
 
@@ -305,198 +352,111 @@ final class ProcessDocumentBatchHandler
                 $status = $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
                 if ($status && $accessRequest->getStatus() !== $status) {
                     $accessRequest->setStatus($status);
-                    $accessRequest->setResolvedAt(new \DateTimeImmutable());
-                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida');
+                    $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
+                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate);
                 }
                 break;
 
             case DocumentType::Redirection:
-                // Handle redirection to another public body (traslado)
                 if (($analysis['isRedirection'] ?? false) && !empty($analysis['redirectedToPublicBody'])) {
                     $newPublicBodyName = $analysis['redirectedToPublicBody'];
                     $newPublicBody = $this->publicBodyRepository->findOneByNameLike($newPublicBodyName);
 
-                    // Auto-create public body if not found
                     if (!$newPublicBody) {
                         $newPublicBody = new \App\Entity\PublicBody();
                         $newPublicBody->setName($newPublicBodyName);
                         $newPublicBody->setLevel('other');
                         $this->entityManager->persist($newPublicBody);
-                        $this->logger->info('Created new public body for redirection', ['name' => $newPublicBodyName]);
                     }
 
                     if ($newPublicBody->getId() !== $accessRequest->getPublicBody()->getId()) {
                         if (!$accessRequest->wasRedirected()) {
                             $accessRequest->setOriginalPublicBody($accessRequest->getPublicBody());
                         }
-
                         $accessRequest->setPublicBody($newPublicBody);
-
-                        $redirectedAt = new \DateTimeImmutable();
-                        if (!empty($analysis['documentDate'])) {
-                            try {
-                                $redirectedAt = new \DateTimeImmutable($analysis['documentDate']);
-                            } catch (\Exception) {}
-                        }
-                        $accessRequest->setRedirectedAt($redirectedAt);
+                        $accessRequest->setRedirectedAt($eventDate ?? new \DateTimeImmutable());
 
                         $this->recordStatusChange(
-                            $accessRequest,
-                            'status',
-                            AccessRequest::STATUS_PROCESSING,
-                            sprintf(
-                                'Solicitud trasladada a %s (art. 19.1 Ley 19/2013). Órgano original: %s',
-                                $newPublicBody->getName(),
-                                $accessRequest->getOriginalPublicBody()->getName()
-                            )
+                            $accessRequest, 'status', AccessRequest::STATUS_PROCESSING,
+                            sprintf('Solicitud trasladada a %s (art. 19.1 Ley 19/2013). Órgano original: %s',
+                                $newPublicBody->getName(), $accessRequest->getOriginalPublicBody()->getName()),
+                            $eventDate
                         );
                     }
                 }
                 break;
 
             case DocumentType::ThirdPartyRights:
-                // Handle third party rights notification (afectación derechos terceros)
                 if (($analysis['isThirdPartyRights'] ?? false) ||
                     $accessRequest->getThirdPartyStatus() === AccessRequest::THIRD_PARTY_NONE) {
-
-                    $notificationDate = new \DateTimeImmutable();
-                    if (!empty($analysis['documentDate'])) {
-                        try {
-                            $notificationDate = new \DateTimeImmutable($analysis['documentDate']);
-                        } catch (\Exception) {}
-                    }
-
-                    $this->accessRequestManager->suspendForThirdPartyAllegations(
-                        $accessRequest,
-                        $notificationDate,
-                        $document,
-                        15
-                    );
-
+                    $notificationDate = $eventDate ?? new \DateTimeImmutable();
+                    $this->accessRequestManager->suspendForThirdPartyAllegations($accessRequest, $notificationDate, $document, 15);
                     $this->recordStatusChange(
-                        $accessRequest,
-                        'status',
-                        AccessRequest::STATUS_PROCESSING,
-                        'Plazo suspendido por afectación a derechos de terceros (art. 19.3 Ley 19/2013)'
+                        $accessRequest, 'status', AccessRequest::STATUS_PROCESSING,
+                        'Plazo suspendido por afectación a derechos de terceros (art. 19.3 Ley 19/2013)', $eventDate
                     );
                 }
                 break;
 
             case DocumentType::ProcessingStart:
-                // Handle processing start notification (art. 20.1 Ley 19/2013)
                 if (($analysis['isProcessingStart'] ?? false) || !empty($analysis['processingStartDate'])) {
-                    $processingStartDate = new \DateTimeImmutable();
+                    $processingStartDate = null;
                     if (!empty($analysis['processingStartDate'])) {
-                        try {
-                            $processingStartDate = new \DateTimeImmutable($analysis['processingStartDate']);
-                        } catch (\Exception) {}
-                    } elseif (!empty($analysis['documentDate'])) {
-                        try {
-                            $processingStartDate = new \DateTimeImmutable($analysis['documentDate']);
-                        } catch (\Exception) {}
+                        try { $processingStartDate = new \DateTimeImmutable($analysis['processingStartDate']); } catch (\Exception) {}
                     }
-
-                    $this->accessRequestManager->startProcessing(
-                        $accessRequest,
-                        $processingStartDate,
-                        $document
-                    );
-
+                    $processingStartDate = $processingStartDate ?? $eventDate ?? new \DateTimeImmutable();
+                    $this->accessRequestManager->startProcessing($accessRequest, $processingStartDate, $document);
                     $this->recordStatusChange(
-                        $accessRequest,
-                        'status',
-                        AccessRequest::STATUS_PROCESSING,
-                        sprintf(
-                            'Inicio de tramitación notificado. Plazo de 1 mes desde %s (art. 20.1 Ley 19/2013)',
-                            $processingStartDate->format('d/m/Y')
-                        )
+                        $accessRequest, 'status', AccessRequest::STATUS_PROCESSING,
+                        sprintf('Inicio de tramitación notificado. Plazo de 1 mes desde %s (art. 20.1 Ley 19/2013)', $processingStartDate->format('d/m/Y')),
+                        $eventDate
                     );
                 }
                 break;
 
             case DocumentType::Complaint:
-                // Handle complaint filing (reclamación)
-                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
-                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
-
-                    $complaintDate = new \DateTimeImmutable();
-                    if (!empty($analysis['documentDate'])) {
-                        try {
-                            $complaintDate = new \DateTimeImmutable($analysis['documentDate']);
-                        } catch (\Exception) {}
-                    }
-
-                    // CTBG has 3 months to resolve (art. 24.4 Ley 19/2013)
-                    $accessRequest->setComplaintDeadlineAt($complaintDate->modify('+3 months'));
-
+                if ($accessRequest->getComplaint() === null) {
+                    $complaint = $this->ensureComplaint($accessRequest);
+                    $complaintDate = $eventDate ?? new \DateTimeImmutable();
+                    $complaint->setFiledAt($complaintDate);
+                    $complaint->setDeadlineAt($complaintDate->modify('+3 months'));
                     $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
                     $this->recordStatusChange(
-                        $accessRequest,
-                        'complaint',
-                        AccessRequest::COMPLAINT_RECLAIMED,
-                        sprintf(
-                            'Reclamación presentada el %s%s',
-                            $complaintDate->format('d/m/Y'),
-                            $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''
-                        )
+                        $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
+                        sprintf('Reclamación presentada el %s%s', $complaintDate->format('d/m/Y'),
+                            $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''),
+                        $eventDate
                     );
                 }
                 break;
 
             case DocumentType::ComplaintReceipt:
-                // Handle complaint receipt (acuse de recibo de reclamación)
-                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
-                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
-                }
-
-                $receiptDate = new \DateTimeImmutable();
-                if (!empty($analysis['documentDate'])) {
-                    try {
-                        $receiptDate = new \DateTimeImmutable($analysis['documentDate']);
-                    } catch (\Exception) {}
-                }
-
-                // Update deadline from receipt date (3 months)
-                $accessRequest->setComplaintDeadlineAt($receiptDate->modify('+3 months'));
-
+                $complaint = $this->ensureComplaint($accessRequest);
+                $receiptDate = $eventDate ?? new \DateTimeImmutable();
+                $complaint->setDeadlineAt($receiptDate->modify('+3 months'));
                 $this->recordStatusChange(
-                    $accessRequest,
-                    'complaint',
-                    AccessRequest::COMPLAINT_RECLAIMED,
-                    sprintf('Acuse de recibo de reclamación recibido el %s', $receiptDate->format('d/m/Y'))
+                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
+                    sprintf('Acuse de recibo de reclamación recibido el %s', $receiptDate->format('d/m/Y')), $eventDate
                 );
                 break;
 
             case DocumentType::ComplaintProcessingStart:
-                // Handle complaint processing start (inicio de tramitación de reclamación)
-                if ($accessRequest->getComplaintStatus() === AccessRequest::COMPLAINT_NONE) {
-                    $accessRequest->setComplaintStatus(AccessRequest::COMPLAINT_RECLAIMED);
-                }
-
-                $processingDate = new \DateTimeImmutable();
-                if (!empty($analysis['documentDate'])) {
-                    try {
-                        $processingDate = new \DateTimeImmutable($analysis['documentDate']);
-                    } catch (\Exception) {}
-                }
-
-                // Deadline starts from processing start (3 months)
-                $accessRequest->setComplaintDeadlineAt($processingDate->modify('+3 months'));
-
+                $complaint = $this->ensureComplaint($accessRequest);
+                $processingDate = $eventDate ?? new \DateTimeImmutable();
+                $complaint->setDeadlineAt($processingDate->modify('+3 months'));
                 $this->recordStatusChange(
-                    $accessRequest,
-                    'complaint',
-                    AccessRequest::COMPLAINT_RECLAIMED,
-                    sprintf('Inicio de tramitación de reclamación notificado el %s. Plazo de 3 meses.', $processingDate->format('d/m/Y'))
+                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
+                    sprintf('Inicio de tramitación de reclamación notificado el %s. Plazo de 3 meses.', $processingDate->format('d/m/Y')),
+                    $eventDate
                 );
                 break;
 
             case DocumentType::ComplaintResolution:
-                // Handle CTBG resolution
                 $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
                 if ($status) {
-                    $accessRequest->setComplaintStatus($status);
-                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución CTBG');
+                    $complaint = $this->ensureComplaint($accessRequest);
+                    $complaint->setStatus($status);
+                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución CTBG', $eventDate);
                 }
                 break;
         }
@@ -517,22 +477,35 @@ final class ProcessDocumentBatchHandler
     private function mapAnalysisStatusToComplaintStatus(?string $status): ?string
     {
         return match ($status) {
-            'concedida' => AccessRequest::COMPLAINT_GRANTED,
-            'denegada' => AccessRequest::COMPLAINT_DENIED,
+            'concedida' => AccessRequestComplaint::STATUS_GRANTED,
+            'denegada' => AccessRequestComplaint::STATUS_DENIED,
             default => null,
         };
+    }
+
+    private function ensureComplaint(AccessRequest $accessRequest): AccessRequestComplaint
+    {
+        $complaint = $accessRequest->getComplaint();
+        if ($complaint === null) {
+            $complaint = new AccessRequestComplaint();
+            $complaint->setAccessRequest($accessRequest);
+            $accessRequest->setComplaint($complaint);
+            $this->entityManager->persist($complaint);
+        }
+        return $complaint;
     }
 
     private function recordStatusChange(
         AccessRequest $accessRequest,
         string $statusType,
         string $toStatus,
-        string $notes
+        string $notes,
+        ?\DateTimeImmutable $eventDate = null
     ): void {
         // Get the current status based on status type
         $fromStatus = match ($statusType) {
             'status' => $accessRequest->getStatus(),
-            'complaintStatus' => $accessRequest->getComplaintStatus(),
+            'complaint' => $accessRequest->getComplaintStatus(),
             'courtStatus' => $accessRequest->getCourtStatus(),
             default => 'unknown',
         };
@@ -543,6 +516,10 @@ final class ProcessDocumentBatchHandler
         $history->setFromStatus($fromStatus);
         $history->setToStatus($toStatus);
         $history->setNotes($notes);
+
+        if ($eventDate !== null) {
+            $history->setCreatedAt($eventDate);
+        }
 
         $this->entityManager->persist($history);
     }

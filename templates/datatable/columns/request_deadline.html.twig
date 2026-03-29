@@ -20,8 +20,8 @@
 {% endif %}
 
 {# Complaint deadline (if applicable) #}
-{% if row.complaintDeadlineAt and row.complaintStatus != 'none' %}
-    {% set complaintPassed = date() > row.complaintDeadlineAt %}
+{% if row.complaint and row.complaint.deadlineAt %}
+    {% set complaintPassed = date() > row.complaint.deadlineAt %}
     <div class="mt-2 pt-2 border-t border-slate-100">
         <p class="text-xs text-slate-500">Reclamación:</p>
         {% if complaintPassed %}
@@ -30,7 +30,7 @@
                 <span class="text-xs font-medium">Vencido</span>
             </div>
         {% else %}
-            <span class="text-xs text-slate-700">{{ row.complaintDeadlineAt|date('d/m/Y') }}</span>
+            <span class="text-xs text-slate-700">{{ row.complaint.deadlineAt|date('d/m/Y') }}</span>
         {% endif %}
     </div>
 {% endif %}

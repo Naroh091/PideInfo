@@ -103,9 +103,9 @@
                             }} fs-6">
                                 {{ request.statusLabel }}
                             </span>
-                            {% if request.complaintStatus != 'none' %}
+                            {% if request.complaint %}
                                 <br>
-                                <span class="badge bg-secondary mt-1">{{ request.complaintStatusLabel }}</span>
+                                <span class="badge bg-secondary mt-1">{{ request.complaint.statusLabel }}</span>
                             {% endif %}
                         </div>
                     </div>

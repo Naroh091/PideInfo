@@ -76,7 +76,7 @@ class DocumentController extends AbstractController
         $accessRequest = null;
         if ($accessRequestId) {
             $accessRequest = $this->accessRequestRepository->find($accessRequestId);
-            if ($accessRequest && $accessRequest->getUser() !== $user) {
+            if ($accessRequest && !$this->isGranted('view', $accessRequest)) {
                 return new JsonResponse(['error' => 'No tienes acceso a esta solicitud'], Response::HTTP_FORBIDDEN);
             }
         }
@@ -228,11 +228,8 @@ class DocumentController extends AbstractController
     #[Route('/{id}/descargar', name: 'app_document_download', methods: ['GET'])]
     public function download(Document $document, Request $request): Response
     {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        // Check access
-        if ($document->getUploadedBy() !== $user) {
+        // Check access via document's uploader or linked request's ownership
+        if (!$this->canAccessDocument($document)) {
             throw $this->createAccessDeniedException('No tienes acceso a este documento');
         }
 
@@ -267,11 +264,8 @@ class DocumentController extends AbstractController
     #[Route('/{id}/eliminar', name: 'app_document_delete', methods: ['POST', 'DELETE'])]
     public function delete(Request $request, Document $document): Response
     {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        // Check access
-        if ($document->getUploadedBy() !== $user) {
+        // Check access via document's uploader or linked request's ownership
+        if (!$this->canAccessDocument($document)) {
             throw $this->createAccessDeniedException('No tienes acceso a este documento');
         }
 
@@ -385,7 +379,7 @@ class DocumentController extends AbstractController
         }
 
         $accessRequest = $this->accessRequestRepository->find($accessRequestId);
-        if (!$accessRequest || $accessRequest->getUser() !== $user) {
+        if (!$accessRequest || !$this->isGranted('edit', $accessRequest)) {
             return new JsonResponse(['error' => 'Solicitud no encontrada'], Response::HTTP_NOT_FOUND);
         }
 
@@ -507,5 +501,86 @@ class DocumentController extends AbstractController
             'hasProcessed' => $hasProcessed,
             'hasKeywordMatched' => $hasKeywordMatched,
         ]);
+    }
+
+    #[Route('/solicitud/{id}/descargar-todo', name: 'app_document_download_all', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function downloadAll(AccessRequest $accessRequest): Response
+    {
+        if (!$this->isGranted('view', $accessRequest)) {
+            throw $this->createAccessDeniedException('No tienes acceso a esta solicitud');
+        }
+
+        $documents = $accessRequest->getDocuments();
+        if ($documents->isEmpty()) {
+            throw $this->createNotFoundException('No hay documentos para descargar');
+        }
+
+        $documentsStorage = $this->documentsStorage;
+
+        $zipFilename = sprintf(
+            '%s - documentos.zip',
+            preg_replace('/[^a-zA-Z0-9áéíóúñÁÉÍÓÚÑ\s\-_]/u', '', $accessRequest->getTitle())
+        );
+
+        return new StreamedResponse(
+            function () use ($documents, $documentsStorage): void {
+                $zip = new \ZipArchive();
+                $tmpFile = tempnam(sys_get_temp_dir(), 'docs_');
+                $zip->open($tmpFile, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+                $usedNames = [];
+                foreach ($documents as $document) {
+                    if (!$documentsStorage->fileExists($document->getStoredFilename())) {
+                        continue;
+                    }
+
+                    // Ensure unique filenames in the ZIP
+                    $name = $document->getDisplayFilename();
+                    if (isset($usedNames[$name])) {
+                        $usedNames[$name]++;
+                        $ext = pathinfo($name, PATHINFO_EXTENSION);
+                        $base = pathinfo($name, PATHINFO_FILENAME);
+                        $name = $ext
+                            ? sprintf('%s (%d).%s', $base, $usedNames[$name], $ext)
+                            : sprintf('%s (%d)', $base, $usedNames[$name]);
+                    } else {
+                        $usedNames[$name] = 1;
+                    }
+
+                    $content = $documentsStorage->read($document->getStoredFilename());
+                    $zip->addFromString($name, $content);
+                }
+
+                $zip->close();
+
+                readfile($tmpFile);
+                unlink($tmpFile);
+            },
+            Response::HTTP_OK,
+            [
+                'Content-Type' => 'application/zip',
+                'Content-Disposition' => sprintf('attachment; filename="%s"', $zipFilename),
+            ]
+        );
+    }
+
+    private function canAccessDocument(Document $document): bool
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        // Direct uploader always has access
+        if ($document->getUploadedBy()->getId()->equals($user->getId())) {
+            return true;
+        }
+
+        // If the document is linked to a request, check via the voter
+        $accessRequest = $document->getAccessRequest();
+        if ($accessRequest !== null) {
+            return $this->isGranted('view', $accessRequest);
+        }
+
+        return false;
     }
 }

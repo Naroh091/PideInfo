@@ -17,6 +17,10 @@ enum DocumentType: string
     case ComplaintResolution = 'complaint_resolution';
     case Alegaciones = 'alegaciones';
     case AlegationResponse = 'alegation_response';
+    case Subsanacion = 'subsanacion';
+    case SubsanacionResponse = 'subsanacion_response';
+    case Audiencia = 'audiencia';
+    case ComplaintExtension = 'complaint_extension';
     case Court = 'court';
     case Other = 'other';
     case Unprocessed = 'unprocessed';
@@ -37,6 +41,10 @@ enum DocumentType: string
             self::ComplaintResolution => 'Resolución CTBG',
             self::Alegaciones => 'Alegaciones',
             self::AlegationResponse => 'Respuesta a alegaciones',
+            self::Subsanacion => 'Subsanación solicitada',
+            self::SubsanacionResponse => 'Subsanación presentada',
+            self::Audiencia => 'Trámite de audiencia',
+            self::ComplaintExtension => 'Ampliación de reclamación',
             self::Court => 'Documento judicial',
             self::Other => 'Otro',
             self::Unprocessed => 'Sin procesar',
@@ -63,6 +71,10 @@ enum DocumentType: string
             'resolucion_ctbg' => self::ComplaintResolution,
             'alegaciones' => self::Alegaciones,
             'respuesta_alegaciones' => self::AlegationResponse,
+            'subsanacion' => self::Subsanacion,
+            'subsanacion_respuesta' => self::SubsanacionResponse,
+            'audiencia' => self::Audiencia,
+            'ampliacion_reclamacion' => self::ComplaintExtension,
             default => self::Other,
         };
     }
