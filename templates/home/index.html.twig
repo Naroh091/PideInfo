@@ -1,0 +1,247 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}PideInfo - Gestiona tu derecho de acceso a la información pública{% endblock %}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{# Nav #}
+<nav class="glass border-b border-slate-200/50 sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+            <a href="/" class="flex items-center gap-2 text-primary-600 font-bold text-xl">
+                <i data-lucide="search" class="w-6 h-6"></i>
+                <span>PideInfo</span>
+            </a>
+            <div class="flex items-center gap-3">
+                <a href="{{ path('app_login') }}" class="text-sm text-slate-600 hover:text-primary-600 transition-colors font-medium">
+                    Iniciar sesión
+                </a>
+                <a href="{{ path('app_register') }}" class="btn btn-primary btn-sm">
+                    Crear cuenta
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+{# Hero #}
+<section class="py-12 sm:py-20">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
+            <div class="flex-1 text-center lg:text-left">
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium mb-6">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    Beta cerrada — acceso por invitación
+                </div>
+
+                <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold text-slate-800 leading-tight">
+                    Ejerce tu derecho de acceso
+                    <span class="text-primary-600">a la información pública</span>
+                </h1>
+
+                <p class="mt-5 text-lg text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+                    PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde o deniega tu derecho.
+                </p>
+
+                <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                    <a href="{{ path('app_register') }}" class="btn btn-primary px-8 py-3 text-base">
+                        <i data-lucide="user-plus" class="w-5 h-5 mr-2"></i>
+                        Solicitar acceso
+                    </a>
+                    <a href="#como-funciona" class="btn btn-secondary px-8 py-3 text-base">
+                        <i data-lucide="arrow-down" class="w-5 h-5 mr-2"></i>
+                        Cómo funciona
+                    </a>
+                </div>
+            </div>
+
+            <div class="lg:w-5/12 flex-shrink-0">
+                <img src="{{ asset('images/hero.png') }}" alt="Ciudadano accediendo a información pública"
+                     class="w-full h-auto" loading="eager">
+            </div>
+        </div>
+    </div>
+</section>
+
+{# Reivindicación #}
+<section class="py-16 bg-white/70 border-y border-slate-200/50">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-2xl font-bold text-slate-800">El derecho de acceso en España: una carrera de obstáculos</h2>
+        </div>
+
+        <div class="grid sm:grid-cols-3 gap-8 mb-12">
+            <div class="text-center">
+                <img src="{{ asset('images/2a_silencio.png') }}" alt="Silencio administrativo"
+                     class="w-40 h-40 mx-auto mb-4 object-contain" loading="lazy">
+                <h3 class="font-semibold text-slate-800 mb-2">Silencio administrativo</h3>
+                <p class="text-sm text-slate-600">Muchas administraciones simplemente no responden, esperando que te canses. El silencio equivale a denegación, pero dificulta saber cuándo reclamar.</p>
+            </div>
+            <div class="text-center">
+                <img src="{{ asset('images/2b_denegado.png') }}" alt="Denegaciones injustificadas"
+                     class="w-40 h-40 mx-auto mb-4 object-contain" loading="lazy">
+                <h3 class="font-semibold text-slate-800 mb-2">Denegaciones injustificadas</h3>
+                <p class="text-sm text-slate-600">La Ley 19/2013 reconoce límites, pero con frecuencia se aplican de forma extensiva para evitar la transparencia. Reclamar requiere argumentación jurídica sólida.</p>
+            </div>
+            <div class="text-center">
+                <img src="{{ asset('images/2c_plazos.png') }}" alt="Plazos y burocracia"
+                     class="w-40 h-40 mx-auto mb-4 object-contain" loading="lazy">
+                <h3 class="font-semibold text-slate-800 mb-2">Plazos y burocracia</h3>
+                <p class="text-sm text-slate-600">Un mes para responder, 30 días para reclamar, 3 meses para resolver la reclamación. Perder un plazo es perder tu derecho. Llevar la cuenta a mano, si tienes muchas solicitudes, a veces es inviable.</p>
+            </div>
+        </div>
+
+        <blockquote class="border-l-4 border-primary-400 pl-6 py-2 text-slate-700 italic max-w-3xl mx-auto">
+            <p class="text-lg leading-relaxed">
+                «Todas las personas tienen derecho a acceder a la información pública.»
+            </p>
+            <footer class="mt-2 text-sm text-slate-500 not-italic">
+                — Artículo 12, Ley 19/2013, de transparencia, acceso a la información pública y buen gobierno
+            </footer>
+        </blockquote>
+    </div>
+</section>
+
+{# Cómo funciona #}
+<section id="como-funciona" class="py-16">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-2xl font-bold text-slate-800">PideInfo automatiza el trabajo pesado</h2>
+            <p class="mt-3 text-slate-600">Para que tú te centres en pedir información, no en gestionar papeles</p>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-12 items-center">
+            <div class="flex-1 space-y-8">
+                <div class="flex gap-5 items-start">
+                    <div class="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <span class="text-primary-700 font-bold text-lg">1</span>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-800 text-lg">Registra tus solicitudes</h3>
+                        <p class="text-slate-600 mt-1">Crea solicitudes a mano o sube directamente los PDFs: el sistema los analiza con inteligencia artificial, extrae los datos y calcula los plazos automáticamente.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-5 items-start">
+                    <div class="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <span class="text-primary-700 font-bold text-lg">2</span>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-800 text-lg">Recibe documentos automáticamente</h3>
+                        <p class="text-slate-600 mt-1">Configura tu correo para reenviar los emails de las administraciones a tu buzón virtual de PideInfo. Los adjuntos se clasifican y enlazan solos a la solicitud correcta.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-5 items-start">
+                    <div class="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <span class="text-primary-700 font-bold text-lg">3</span>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-800 text-lg">Controla plazos y actúa a tiempo</h3>
+                        <p class="text-slate-600 mt-1">El sistema te avisa cuando se acercan plazos de respuesta, de reclamación o de cumplimiento. Nunca más pierdas tu derecho por dejar pasar una fecha.</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-5 items-start">
+                    <div class="w-12 h-12 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <span class="text-primary-700 font-bold text-lg">4</span>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-slate-800 text-lg">Reclama con fundamento jurídico</h3>
+                        <p class="text-slate-600 mt-1">Cuando te deniegan o no responden, PideInfo genera reclamaciones con IA basándose en resoluciones favorables y criterios del Consejo de Transparencia. Descárgalas en PDF y preséntalas directamente.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lg:w-80 flex-shrink-0">
+                <img src="{{ asset('images/3_como_funciona.png') }}" alt="Flujo de procesamiento de PideInfo"
+                     class="w-full h-auto" loading="lazy">
+            </div>
+        </div>
+    </div>
+</section>
+
+{# Beta cerrada #}
+<section class="py-16 bg-white/70 border-y border-slate-200/50">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <div class="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center mx-auto mb-6">
+            <i data-lucide="flask-conical" class="w-8 h-8 text-primary-600"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-slate-800">Beta cerrada</h2>
+        <p class="mt-4 text-slate-600 leading-relaxed max-w-xl mx-auto">
+            PideInfo está en fase de desarrollo activo. De momento el acceso está restringido a un grupo reducido de testers que nos ayudan a mejorar la herramienta antes del lanzamiento público.
+        </p>
+        <p class="mt-6 text-slate-700 font-medium">
+            ¿Quieres probar PideInfo? Contacta con nosotros:
+        </p>
+        <div class="mt-4 flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="https://twitter.com/naroh" target="_blank" rel="noopener"
+               class="btn btn-secondary px-6 py-3">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                DM a @naroh
+            </a>
+            <a href="mailto:info@iniciativafaro.es"
+               class="btn btn-secondary px-6 py-3">
+                <i data-lucide="mail" class="w-5 h-5 mr-2"></i>
+                info@iniciativafaro.es
+            </a>
+        </div>
+    </div>
+</section>
+
+{# En desarrollo #}
+<section class="py-16">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid sm:grid-cols-2 gap-8">
+            <div class="card">
+                <div class="card-body p-6">
+                    <img src="{{ asset('images/5a_notificaciones.png') }}" alt="Notificaciones automáticas"
+                         class="w-28 h-28 mx-auto mb-4 object-contain" loading="lazy">
+                    <h3 class="font-semibold text-slate-800 text-center mb-3">En lo que estamos trabajando</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Gestión automática de <strong class="text-slate-800">comunicaciones y notificaciones electrónicas</strong> de las administraciones, para que las actualizaciones que te lleguen por este medio se carguen automáticamente al sistema — sin obligarte a entrar, autenticarte y subir documentos a mano cada vez.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body p-6">
+                    <img src="{{ asset('images/5b_sostenibilidad.png') }}" alt="Modelo de sostenibilidad"
+                         class="w-28 h-28 mx-auto mb-4 object-contain" loading="lazy">
+                    <h3 class="font-semibold text-slate-800 text-center mb-3">Modelo de sostenibilidad</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        Durante la beta el uso es <strong class="text-slate-800">completamente gratuito</strong>. Cuando PideInfo esté listo para producción, habrá un <strong class="text-slate-800">plan gratuito</strong> que cubrirá las necesidades de la mayoría de personas. Quienes lo utilicen profesionalmente como herramienta de trabajo podrán acceder a un plan de pago ajustado al coste real que su uso genera en el sistema — sin márgenes artificiales, solo lo justo para que el proyecto sea sostenible.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# Qué es #}
+<section class="py-12">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+        <p class="text-slate-600 leading-relaxed">
+            PideInfo es un proyecto personal nacido de la frustración de gestionar decenas de solicitudes de acceso a información pública a mano. Porque ejercer un derecho fundamental no debería requerir una hoja de cálculo y un calendario con alarmas.
+        </p>
+    </div>
+</section>
+
+{# Footer #}
+<footer class="border-t border-slate-200/50 bg-white/50 py-6 mt-auto">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2 text-slate-500 text-sm">
+                <i data-lucide="search" class="w-4 h-4 text-primary-500"></i>
+                <span>PideInfo</span>
+            </div>
+            <div class="flex items-center gap-4 text-slate-400 text-xs">
+                <a href="{{ path('app_privacidad') }}" class="hover:text-primary-600 transition-colors">Política de privacidad</a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% endblock %}
