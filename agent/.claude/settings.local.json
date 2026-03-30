@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -c \"import pystray; from PIL import Image; print\\('OK'\\)\")",
+      "Bash(.venv/bin/python -c \"import pystray; from PIL import Image, ImageDraw; print\\('pystray', pystray.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"import pystray; from PIL import Image, ImageDraw; print\\('OK'\\)\")",
+      "Bash(.venv/bin/python -c \"import playwright; print\\(playwright.__version__\\)\")",
+      "Bash(.venv/bin/pip show:*)"
+    ]
+  }
+}

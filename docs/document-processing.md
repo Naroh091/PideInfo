@@ -229,10 +229,11 @@ Existing AI pipeline (same as manual uploads)
 
 - Email body is stored as a `text/plain` document and analyzed by Gemini for reference numbers and context
 - Attachments are filtered by allowed MIME types (PDF, images, Word)
-- All documents from the same email share an `emailGroupId` in their `emailMetadata` JSON field
-- `Document.sourceType` is set to `'email'` to distinguish from manual uploads
-- `Document.emailMetadata` stores: `{from, subject, date, emailGroupId, emailHash}`
-- Duplicate detection uses a hash of `from + date + subject + attachment count`
+- All documents from the same email share an `emailGroupId` in their `sourceMetadata` JSON field
+- `Document.sourceType` is set to `'email'` to distinguish from manual uploads and portal sync
+- `Document.sourceMetadata` stores: `{from, subject, date, emailGroupId, emailHash}` for emails, or portal-specific metadata for portal-synced documents
+- `Document.contentHash` stores SHA-256 of file content for cross-source deduplication
+- Duplicate detection for emails uses a hash of `from + date + subject + attachment count`
 
 ### Cloudflare Worker
 
