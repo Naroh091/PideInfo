@@ -19,10 +19,19 @@ class SessionExpiredError(Exception):
 class SessionManager:
     """Manages portal session cookies: load, save, validate, and re-authenticate."""
 
-    def __init__(self, portal_url: str, cookies_file: Path, auth_timeout: int = 120):
+    def __init__(
+        self,
+        portal_url: str,
+        cookies_file: Path,
+        auth_timeout: int = 120,
+        client_cert_p12: "Path | None" = None,
+        client_cert_passphrase: str = "",
+    ):
         self.portal_url = portal_url
         self.cookies_file = cookies_file
         self.auth_timeout = auth_timeout
+        self.client_cert_p12 = client_cert_p12
+        self.client_cert_passphrase = client_cert_passphrase
         self._cookies: dict[str, str] = {}
 
     @property
@@ -95,7 +104,12 @@ class SessionManager:
             console.print("[yellow]Sesión expirada, re-autenticando...[/]")
 
         # Need fresh authentication
-        cookies = await authenticate(self.portal_url, self.auth_timeout)
+        cookies = await authenticate(
+            self.portal_url,
+            self.auth_timeout,
+            client_cert_p12=self.client_cert_p12,
+            client_cert_passphrase=self.client_cert_passphrase,
+        )
         self.save_cookies(cookies)
         return cookies
 

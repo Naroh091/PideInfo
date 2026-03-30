@@ -50,6 +50,14 @@ class AccessRequest
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $alternativeReferences = null;
 
+    /**
+     * Pending portal notifications reported by the agent when auto-accept is off.
+     * Each entry: {notificationId, tipo, concepto, fechaEmision, fechaCaducidad, esComunicacion, reportedAt}
+     * Replaced wholesale on each agent report — the portal is the source of truth.
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $pendingPortalNotifications = null;
+
     #[ORM\Column(length: 255)]
     private string $title;
 
@@ -213,6 +221,22 @@ class AccessRequest
             $this->alternativeReferences = $refs;
         }
         return $this;
+    }
+
+    public function getPendingPortalNotifications(): array
+    {
+        return $this->pendingPortalNotifications ?? [];
+    }
+
+    public function setPendingPortalNotifications(?array $notifications): static
+    {
+        $this->pendingPortalNotifications = $notifications;
+        return $this;
+    }
+
+    public function hasPendingPortalNotifications(): bool
+    {
+        return !empty($this->pendingPortalNotifications);
     }
 
     public function getTitle(): string

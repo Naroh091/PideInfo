@@ -88,6 +88,14 @@ final class ProcessDocumentBatchHandler
             $accessRequest = $this->findOrCreateAccessRequest($documents, $analysis, $user);
 
             if ($accessRequest) {
+                // Save the portal numeric expedienteId as an alternative reference so
+                // future lookups via id_expediente (from notifications) work without
+                // knowing the human-readable identificador.
+                $sourceMetadata = $documents[0]->getSourceMetadata() ?? [];
+                if (!empty($sourceMetadata['expedienteId'])) {
+                    $accessRequest->addAlternativeReference((string) $sourceMetadata['expedienteId']);
+                }
+
                 // Link all documents to the access request
                 foreach ($documents as $document) {
                     $document->setAccessRequest($accessRequest);
