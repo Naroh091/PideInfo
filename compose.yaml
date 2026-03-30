@@ -2,23 +2,6 @@
 services:
 ###> doctrine/doctrine-bundle ###
 
-  databaseold:
-    image: mariadb:11.4
-    environment:
-      MARIADB_DATABASE: vigia
-      MARIADB_USER: vigia
-      MARIADB_PASSWORD: vigia_password
-      MARIADB_ROOT_PASSWORD: vigia_root_password
-    healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
-      timeout: 5s
-      retries: 5
-      start_period: 60s
-    volumes:
-      - database_data:/var/lib/mysql:rw
-    ports:
-      - "3306:3306"
-
   database:
     image: pgvector/pgvector:pg17
     environment:

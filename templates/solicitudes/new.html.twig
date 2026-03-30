@@ -74,7 +74,9 @@
                                 {{ form_label(form.externalId) }}
                             </label>
                             {{ form_widget(form.externalId, {'attr': {'class': 'input', 'placeholder': 'Número de expediente (si lo tienes)'}}) }}
-                            <p class="text-xs text-slate-500 mt-1">{{ form_help(form.externalId) }}</p>
+                            {% if form.externalId.vars.help %}
+                                <p class="text-xs text-slate-400 mt-1">{{ form.externalId.vars.help }}</p>
+                            {% endif %}
                             {{ form_errors(form.externalId) }}
                         </div>
                     </div>

@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -29,6 +30,7 @@ final class ProcessDocumentBatchHandler
         private readonly ApplicableLawRepository $applicableLawRepository,
         private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
         private readonly AccessRequestManager $accessRequestManager,
+        private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -54,47 +56,62 @@ final class ProcessDocumentBatchHandler
         ]);
 
         try {
-            // Analyze all documents together
-            $analysis = $this->documentAnalyzer->analyzeMultiple($documents);
+            // Analyze all documents together — returns shared context + per-document analysis
+            $result = $this->documentAnalyzer->analyzeMultiple($documents);
+            $shared = $result['shared'];
+            $perDocAnalyses = $result['documents'];
 
             $this->logger->info('AI batch analysis result', [
-                'documentType' => $analysis['documentType'] ?? null,
-                'publicBodyName' => $analysis['publicBodyName'] ?? null,
-                'autonomousCommunityCode' => $analysis['autonomousCommunityCode'] ?? null,
-                'applicableLaw' => $analysis['applicableLaw'] ?? null,
-                'referenceNumber' => $analysis['referenceNumber'] ?? null,
-                'requestTitle' => $analysis['requestTitle'] ?? null,
+                'publicBodyName' => $shared['publicBodyName'] ?? null,
+                'autonomousCommunityCode' => $shared['autonomousCommunityCode'] ?? null,
+                'applicableLaw' => $shared['applicableLaw'] ?? null,
+                'referenceNumber' => $shared['referenceNumber'] ?? null,
+                'requestTitle' => $shared['requestTitle'] ?? null,
+                'documentTypes' => array_map(
+                    fn($a) => ($a['documentType'] ?? null)?->value ?? null,
+                    $perDocAnalyses,
+                ),
             ]);
 
-            // Update all documents with extracted info
-            foreach ($documents as $document) {
-                $document->setType($analysis['documentType']);
-                $document->setExtractedText($analysis['summary'] ?? null);
-                $document->setAiMetadata($analysis);
+            // Update each document with its own analysis (type, date, summary)
+            foreach ($documents as $index => $document) {
+                $docAnalysis = $perDocAnalyses[$index] ?? $shared;
 
-                // Set document date from AI analysis
-                if (!empty($analysis['documentDate'])) {
+                $document->setType($docAnalysis['documentType']);
+                $document->setExtractedText($docAnalysis['summary'] ?? null);
+                $document->setAiMetadata($docAnalysis);
+
+                if (!empty($docAnalysis['documentDate'])) {
                     try {
-                        $document->setDocumentDate(new \DateTimeImmutable($analysis['documentDate']));
+                        $document->setDocumentDate(new \DateTimeImmutable($docAnalysis['documentDate']));
                     } catch (\Exception) {}
                 }
 
-                // Rename to <TypeLabel> - <original>
                 $document->setOriginalFilename($document->getDisplayFilename());
             }
 
-            // Find or create access request (use first document's user)
+            // Find or create access request using the shared analysis + per-doc types
             $user = $documents[0]->getUploadedBy();
-            $accessRequest = $this->findOrCreateAccessRequest($documents, $analysis, $user);
+            $accessRequest = $this->findOrCreateAccessRequest($documents, $shared, $perDocAnalyses, $user);
 
             if ($accessRequest) {
-                // Link all documents to the access request
+                // Save the portal numeric expedienteId as an alternative reference so
+                // future lookups via id_expediente (from notifications) work without
+                // knowing the human-readable identificador.
+                $sourceMetadata = $documents[0]->getSourceMetadata() ?? [];
+                if (!empty($sourceMetadata['expedienteId'])) {
+                    $accessRequest->addAlternativeReference((string) $sourceMetadata['expedienteId']);
+                }
+
                 foreach ($documents as $document) {
                     $document->setAccessRequest($accessRequest);
                 }
 
-                // Update access request based on document type
-                $this->updateAccessRequestFromAnalysis($accessRequest, $documents[0], $analysis);
+                // Apply state changes from each document in order
+                foreach ($documents as $index => $document) {
+                    $docAnalysis = $perDocAnalyses[$index] ?? $shared;
+                    $this->updateAccessRequestFromAnalysis($accessRequest, $document, $docAnalysis);
+                }
             }
 
             // Mark all documents as processed
@@ -104,6 +121,19 @@ final class ProcessDocumentBatchHandler
             }
 
             $this->entityManager->flush();
+
+            // Create user notifications for the processed documents
+            if ($accessRequest) {
+                foreach ($documents as $document) {
+                    $this->notificationManager->notifyDocumentImported($user, $document, $accessRequest);
+                }
+
+                if ($documents[0]->getMatchMethod() === Document::MATCH_CREATED) {
+                    $this->notificationManager->notifyRequestCreated($user, $accessRequest);
+                }
+
+                $this->entityManager->flush();
+            }
 
             $this->logger->info('Document batch processed successfully', [
                 'documentCount' => count($documents),
@@ -126,9 +156,10 @@ final class ProcessDocumentBatchHandler
 
     /**
      * @param Document[] $documents
-     * @param array<string, mixed> $analysis
+     * @param array<string, mixed> $shared
+     * @param array<int, array<string, mixed>> $perDocAnalyses
      */
-    private function findOrCreateAccessRequest(array $documents, array $analysis, $user): ?AccessRequest
+    private function findOrCreateAccessRequest(array $documents, array $shared, array $perDocAnalyses, $user): ?AccessRequest
     {
         // Check if any document already has an access request
         foreach ($documents as $document) {
@@ -138,7 +169,7 @@ final class ProcessDocumentBatchHandler
         }
 
         // Try to find by reference number
-        $referenceNumber = $analysis['referenceNumber'] ?? null;
+        $referenceNumber = $shared['referenceNumber'] ?? null;
         if ($referenceNumber) {
             $existing = $this->accessRequestRepository->findByExternalId($referenceNumber, $user);
             if ($existing) {
@@ -153,8 +184,8 @@ final class ProcessDocumentBatchHandler
             }
         }
 
-        // Try to find by keywords in title/description (for related documents with different reference numbers)
-        $keywords = $this->extractKeywords($analysis);
+        // Try to find by keywords in title/description
+        $keywords = $this->extractKeywords($shared);
         if (!empty($keywords)) {
             $existing = $this->accessRequestRepository->findByKeywords($keywords, $user);
             if ($existing) {
@@ -169,13 +200,21 @@ final class ProcessDocumentBatchHandler
             }
         }
 
-        // For certain document types, create a new access request
-        if ($analysis['documentType'] === DocumentType::Request ||
-            $analysis['documentType'] === DocumentType::Receipt) {
+        // Check if ANY document in the batch is a Request or Receipt — if so, create the AccessRequest
+        $hasRequestOrReceipt = false;
+        foreach ($perDocAnalyses as $docAnalysis) {
+            if (($docAnalysis['documentType'] ?? null) === DocumentType::Request ||
+                ($docAnalysis['documentType'] ?? null) === DocumentType::Receipt) {
+                $hasRequestOrReceipt = true;
+                break;
+            }
+        }
+
+        if ($hasRequestOrReceipt) {
 
             // Find autonomous community from extracted code
             $autonomousCommunity = null;
-            $ccaaCode = $analysis['autonomousCommunityCode'] ?? null;
+            $ccaaCode = $shared['autonomousCommunityCode'] ?? null;
             if ($ccaaCode) {
                 $autonomousCommunity = $this->autonomousCommunityRepository->findByCode($ccaaCode);
                 $this->logger->info('AI extracted autonomous community', [
@@ -186,7 +225,7 @@ final class ProcessDocumentBatchHandler
 
             // Find or create public body
             $publicBody = null;
-            $publicBodyName = $analysis['publicBodyName'] ?? null;
+            $publicBodyName = $shared['publicBodyName'] ?? null;
             if ($publicBodyName) {
                 $publicBody = $this->publicBodyRepository->findOneByNameLike($publicBodyName);
 
@@ -222,7 +261,7 @@ final class ProcessDocumentBatchHandler
 
             // If no law found for the community (or it's a state entity), try by law name
             if (!$applicableLaw) {
-                $lawName = $analysis['applicableLaw'] ?? null;
+                $lawName = $shared['applicableLaw'] ?? null;
                 if ($lawName) {
                     $applicableLaw = $this->applicableLawRepository->findOneByNameLike($lawName);
                 }
@@ -242,20 +281,23 @@ final class ProcessDocumentBatchHandler
                 return null;
             }
 
-            // Determine sent date
+            // Determine sent date from the Request/Receipt document
             $sentAt = null;
-            if (!empty($analysis['documentDate'])) {
-                try {
-                    $sentAt = new \DateTimeImmutable($analysis['documentDate']);
-                } catch (\Exception) {
-                    $sentAt = new \DateTimeImmutable();
+            foreach ($perDocAnalyses as $docAnalysis) {
+                if (($docAnalysis['documentType'] ?? null) === DocumentType::Request ||
+                    ($docAnalysis['documentType'] ?? null) === DocumentType::Receipt) {
+                    if (!empty($docAnalysis['documentDate'])) {
+                        try {
+                            $sentAt = new \DateTimeImmutable($docAnalysis['documentDate']);
+                        } catch (\Exception) {}
+                    }
+                    break;
                 }
-            } else {
-                $sentAt = new \DateTimeImmutable();
             }
+            $sentAt = $sentAt ?? new \DateTimeImmutable();
 
             // Create new access request with better title
-            $title = $analysis['requestTitle'] ?? null;
+            $title = $shared['requestTitle'] ?? null;
             if (!$title || $title === 'Solicitud de acceso a información pública' || $title === 'SOLICITUD DE ACCESO A INFORMACIÓN PÚBLICA') {
                 $title = 'Solicitud - ' . $documents[0]->getOriginalFilename();
             }
@@ -263,7 +305,7 @@ final class ProcessDocumentBatchHandler
             $accessRequest = $this->accessRequestManager->create(
                 user: $user,
                 title: $title,
-                description: $analysis['requestDescription'] ?? $analysis['summary'] ?? '',
+                description: $shared['requestDescription'] ?? $shared['summary'] ?? '',
                 publicBody: $publicBody,
                 applicableLaw: $applicableLaw,
                 sentAt: $sentAt,
@@ -341,17 +383,19 @@ final class ProcessDocumentBatchHandler
         switch ($documentType) {
             case DocumentType::Receipt:
                 if (!$isResolved && $accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
+                    $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus(AccessRequest::STATUS_PROCESSING);
                     if ($eventDate) {
                         $accessRequest->setAcknowledgedAt($eventDate);
                     }
-                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate, $previousStatus);
                 }
                 break;
 
             case DocumentType::Response:
                 $status = $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
                 if ($status && $accessRequest->getStatus() !== $status) {
+                    $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus($status);
                     $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
 
@@ -361,7 +405,7 @@ final class ProcessDocumentBatchHandler
                         $accessRequest->setThirdPartyStatus(AccessRequest::THIRD_PARTY_RECEIVED);
                     }
 
-                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate, $previousStatus);
                 }
                 break;
 
@@ -424,6 +468,7 @@ final class ProcessDocumentBatchHandler
 
             case DocumentType::Complaint:
                 if ($accessRequest->getComplaint() === null) {
+                    $previousComplaintStatus = $accessRequest->getComplaintStatus();
                     $complaint = $this->ensureComplaint($accessRequest);
                     $complaintDate = $eventDate ?? new \DateTimeImmutable();
                     $complaint->setFiledAt($complaintDate);
@@ -433,7 +478,8 @@ final class ProcessDocumentBatchHandler
                         $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
                         sprintf('Reclamación presentada el %s%s', $complaintDate->format('d/m/Y'),
                             $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''),
-                        $eventDate
+                        $eventDate,
+                        $previousComplaintStatus,
                     );
                 }
                 break;
@@ -463,8 +509,9 @@ final class ProcessDocumentBatchHandler
                 $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
                 if ($status) {
                     $complaint = $this->ensureComplaint($accessRequest);
+                    $previousComplaintStatus = $complaint->getStatus();
                     $complaint->setStatus($status);
-                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución CTBG', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
                 }
                 break;
         }
@@ -508,15 +555,18 @@ final class ProcessDocumentBatchHandler
         string $statusType,
         string $toStatus,
         string $notes,
-        ?\DateTimeImmutable $eventDate = null
+        ?\DateTimeImmutable $eventDate = null,
+        ?string $fromStatus = null,
     ): void {
-        // Get the current status based on status type
-        $fromStatus = match ($statusType) {
-            'status' => $accessRequest->getStatus(),
-            'complaint' => $accessRequest->getComplaintStatus(),
-            'courtStatus' => $accessRequest->getCourtStatus(),
-            default => 'unknown',
-        };
+        // Use provided fromStatus, or fall back to current (may already be changed)
+        if ($fromStatus === null) {
+            $fromStatus = match ($statusType) {
+                'status' => $accessRequest->getStatus(),
+                'complaint' => $accessRequest->getComplaintStatus(),
+                'courtStatus' => $accessRequest->getCourtStatus(),
+                default => 'unknown',
+            };
+        }
 
         $history = new StatusHistory();
         $history->setAccessRequest($accessRequest);
@@ -530,6 +580,14 @@ final class ProcessDocumentBatchHandler
         }
 
         $this->entityManager->persist($history);
+
+        // Create user notification for the status change (only if status actually changed)
+        if ($fromStatus !== $toStatus) {
+            $user = $accessRequest->getUser();
+            if ($user) {
+                $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+            }
+        }
     }
 
     /**

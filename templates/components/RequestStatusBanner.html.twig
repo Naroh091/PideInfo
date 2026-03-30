@@ -1,4 +1,45 @@
 <div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
+{# Pending portal notifications (agent reported, auto-accept is off) #}
+{% if request.hasPendingPortalNotifications %}
+    {% set pending = request.pendingPortalNotifications %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+        <div class="flex flex-col sm:flex-row items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="bell-ring" class="w-5 h-5 text-amber-600"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-semibold text-amber-800 text-base">
+                    {{ pending|length }} notificación{{ pending|length != 1 ? 'es' : '' }} pendiente{{ pending|length != 1 ? 's' : '' }} de aceptar en el portal
+                </h3>
+                <p class="text-sm text-amber-700 mt-1">
+                    El agente ha detectado notificaciones que aún no han sido aceptadas en el Portal de Transparencia.
+                    Activa la opción <strong>«Aceptar notificaciones electrónicas»</strong> en el agente, o accede manualmente al portal.
+                </p>
+                <ul class="mt-3 space-y-1.5">
+                    {% for n in pending %}
+                        <li class="flex items-start gap-2 text-sm text-amber-800">
+                            <i data-lucide="{{ n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500"></i>
+                            <span>
+                                <strong>{{ n.tipo }}</strong>
+                                {% if n.concepto %} — {{ n.concepto }}{% endif %}
+                                <span class="text-amber-600 ml-1">({{ n.fechaEmision|date('d/m/Y') }})</span>
+                                {% if n.fechaCaducidad %}
+                                    <span class="text-red-600 ml-1">· caduca {{ n.fechaCaducidad|date('d/m/Y') }}</span>
+                                {% endif %}
+                            </span>
+                        </li>
+                    {% endfor %}
+                </ul>
+                {% if pending[0].reportedAt is defined %}
+                    <p class="text-xs text-amber-500 mt-3">
+                        Última actualización: {{ pending[0].reportedAt|date('d/m/Y H:i') }}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endif %}
+
 {# Granted pending reception #}
 {% if request.status == 'granted' %}
     <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-5 mb-6" data-granted-banner>
