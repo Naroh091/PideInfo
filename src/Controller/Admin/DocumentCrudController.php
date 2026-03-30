@@ -3,6 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Document;
+use App\Enum\DocumentType;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
@@ -54,9 +55,9 @@ class DocumentCrudController extends AbstractCrudController
 
         return $actions
             ->disable(Action::NEW)
-            ->disable(Action::EDIT)
             ->add(Crud::PAGE_INDEX, $downloadAction)
-            ->add(Crud::PAGE_DETAIL, $downloadAction);
+            ->add(Crud::PAGE_DETAIL, $downloadAction)
+            ->add(Crud::PAGE_INDEX, Action::EDIT);
     }
 
     public function downloadFile(AdminContext $context): Response
@@ -94,48 +95,40 @@ class DocumentCrudController extends AbstractCrudController
 
     public function configureFilters(Filters $filters): Filters
     {
+        $typeChoices = [];
+        foreach (DocumentType::cases() as $case) {
+            $typeChoices[$case->label()] = $case->value;
+        }
+
         return $filters
             ->add(BooleanFilter::new('processed', 'Procesado'))
-            ->add(ChoiceFilter::new('type', 'Tipo')->setChoices([
-                'Sin procesar' => 'unprocessed',
-                'Solicitud' => 'request',
-                'Acuse de recibo' => 'acknowledgment',
-                'Resolución' => 'resolution',
-                'Notificación' => 'notification',
-                'Prórroga' => 'extension',
-                'Resolución CTBG' => 'complaint_resolution',
-                'Otro' => 'other',
-            ]))
+            ->add(ChoiceFilter::new('type', 'Tipo')->setChoices($typeChoices))
             ->add(EntityFilter::new('uploadedBy', 'Usuario'))
             ->add(EntityFilter::new('accessRequest', 'Solicitud'));
     }
 
     public function configureFields(string $pageName): iterable
     {
+        $typeChoices = [];
+        foreach (DocumentType::cases() as $case) {
+            $typeChoices[$case->label()] = $case->value;
+        }
+
         yield IdField::new('id')->hideOnForm();
         yield TextField::new('originalFilename', 'Nombre archivo');
-        yield ChoiceField::new('type', 'Tipo')
-            ->setChoices([
-                'Sin procesar' => 'unprocessed',
-                'Solicitud' => 'request',
-                'Acuse de recibo' => 'acknowledgment',
-                'Resolución' => 'resolution',
-                'Notificación' => 'notification',
-                'Prórroga' => 'extension',
-                'Resolución CTBG' => 'complaint_resolution',
-                'Otro' => 'other',
-            ]);
-        yield TextField::new('mimeType', 'Tipo MIME')->hideOnIndex();
-        yield IntegerField::new('fileSize', 'Tamaño (bytes)')->hideOnIndex();
+        yield ChoiceField::new('type', 'Tipo')->setChoices($typeChoices);
+        yield TextField::new('mimeType', 'Tipo MIME')->hideOnIndex()->hideOnForm();
+        yield IntegerField::new('fileSize', 'Tamaño (bytes)')->hideOnIndex()->hideOnForm();
         yield BooleanField::new('processed', 'Procesado');
+        yield TextField::new('processingError', 'Error procesamiento')->hideOnIndex()->onlyOnDetail();
 
         yield AssociationField::new('accessRequest', 'Solicitud');
-        yield AssociationField::new('uploadedBy', 'Usuario');
+        yield AssociationField::new('uploadedBy', 'Usuario')->hideOnForm();
 
-        yield TextareaField::new('extractedText', 'Texto extraído')->hideOnIndex();
-        yield TextareaField::new('aiSummary', 'Resumen IA')->hideOnIndex();
+        yield TextareaField::new('extractedText', 'Descripción / Texto extraído')->hideOnIndex();
+        yield TextareaField::new('aiSummary', 'Resumen IA')->hideOnIndex()->hideOnForm();
 
-        yield DateTimeField::new('createdAt', 'Subido');
-        yield DateTimeField::new('processedAt', 'Procesado')->hideOnIndex();
+        yield DateTimeField::new('createdAt', 'Subido')->hideOnForm();
+        yield DateTimeField::new('processedAt', 'Procesado')->hideOnIndex()->hideOnForm();
     }
 }
