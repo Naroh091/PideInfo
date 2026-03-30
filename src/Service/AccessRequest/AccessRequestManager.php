@@ -97,6 +97,7 @@ class AccessRequestManager
             $request->getSentAt()->format('d/m/Y'),
             $request->getDeadlineAt()->format('d/m/Y')
         ));
+        $history->setCreatedAt($request->getSentAt());
         $request->addStatusHistory($history);
     }
 

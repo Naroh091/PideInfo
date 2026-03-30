@@ -9,6 +9,9 @@
     {# Global alerts container for document processing notifications #}
     <div id="global-alerts-container" class="mb-6 space-y-3"></div>
 
+    {# Pending portal notifications from agent #}
+    {{ component('PendingNotifications') }}
+
     {# Onboarding banner for new users #}
     {% include 'dashboard/_onboarding_banner.html.twig' %}
 
@@ -33,6 +36,9 @@
 
             {# Deadline Alerts - LiveComponent #}
             {{ component('DeadlineAlerts') }}
+
+            {# Recent Notifications - LiveComponent #}
+            {{ component('RecentNotifications') }}
 
             {# Recent Requests - LiveComponent #}
             {{ component('RecentRequests') }}

@@ -19,6 +19,7 @@ class Document
 
     public const SOURCE_UPLOAD = 'upload';
     public const SOURCE_EMAIL = 'email';
+    public const SOURCE_PORTAL = 'portal';
 
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
@@ -68,7 +69,10 @@ class Document
 
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $emailMetadata = null;
+    private ?array $sourceMetadata = null;
+
+    #[ORM\Column(length: 64, nullable: true)]
+    private ?string $contentHash = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $documentDate = null;
@@ -266,16 +270,32 @@ class Document
     }
 
     /** @return array<string, mixed>|null */
-    public function getEmailMetadata(): ?array
+    public function getSourceMetadata(): ?array
     {
-        return $this->emailMetadata;
+        return $this->sourceMetadata;
     }
 
-    /** @param array<string, mixed>|null $emailMetadata */
-    public function setEmailMetadata(?array $emailMetadata): static
+    /** @param array<string, mixed>|null $sourceMetadata */
+    public function setSourceMetadata(?array $sourceMetadata): static
     {
-        $this->emailMetadata = $emailMetadata;
+        $this->sourceMetadata = $sourceMetadata;
         return $this;
+    }
+
+    public function getContentHash(): ?string
+    {
+        return $this->contentHash;
+    }
+
+    public function setContentHash(?string $contentHash): static
+    {
+        $this->contentHash = $contentHash;
+        return $this;
+    }
+
+    public function isFromPortal(): bool
+    {
+        return $this->sourceType === self::SOURCE_PORTAL;
     }
 
     public function getCreatedAt(): \DateTimeImmutable
