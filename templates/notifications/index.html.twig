@@ -1,3 +1,4 @@
+{% import 'components/_notification_macros.html.twig' as macros %}
 {% extends 'layouts/app.html.twig' %}
 
 {% block title %}Notificaciones - PideInfo{% endblock %}
@@ -41,26 +42,27 @@
             <div class="divide-y divide-slate-100">
                 {% for notification in notifications %}
                     <a href="{{ path('app_notificaciones_read', {id: notification.id}) }}"
-                       class="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors
+                       class="flex items-start gap-4 px-6 py-5 hover:bg-slate-50 transition-colors
                               {{ not notification.read ? 'bg-primary-50/30' : '' }}">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
                                     {{ notification.alertLevel == 'warning' ? 'bg-amber-100' : 'bg-slate-100' }}">
                             <i data-lucide="{{ notification.icon }}" class="w-5 h-5 {{ notification.alertLevel == 'warning' ? 'text-amber-600' : 'text-slate-500' }}"></i>
                         </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm text-slate-800 {{ not notification.read ? 'font-medium' : '' }}">
+                        <div class="flex-1 min-w-0 space-y-1">
+                            {% if notification.accessRequest %}
+                                <p class="text-xs font-medium text-primary-600 truncate">{{ notification.accessRequest.title }}</p>
+                            {% endif %}
+                            <p class="text-sm text-slate-800 leading-relaxed {{ not notification.read ? 'font-medium' : '' }}">
                                 {{ notification.message }}
                             </p>
-                            <div class="flex items-center gap-3 mt-1">
+                            {{ macros.status_transition(notification) }}
+                            <div class="flex items-center gap-3 mt-1.5">
                                 <span class="text-xs text-slate-400">{{ notification.createdAt|date('d/m/Y H:i') }}</span>
                                 <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{{ notification.typeLabel }}</span>
-                                {% if notification.accessRequest %}
-                                    <span class="text-xs text-primary-600 truncate max-w-xs">{{ notification.accessRequest.title }}</span>
-                                {% endif %}
                             </div>
                         </div>
                         {% if not notification.read %}
-                            <span class="w-2.5 h-2.5 rounded-full bg-primary-500 flex-shrink-0 mt-2"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-primary-500 flex-shrink-0 mt-3"></span>
                         {% endif %}
                     </a>
                 {% endfor %}

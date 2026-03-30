@@ -1,3 +1,5 @@
+{% import 'components/_notification_macros.html.twig' as macros %}
+
 <div {{ attributes.defaults({'data-action': 'notification_created@window->live#$render documents:processed@window->live#$render'}) }}>
     {% set unreadCount = this.unreadCount %}
     {% set notifications = this.recentNotifications %}
@@ -7,7 +9,7 @@
                 class="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
             <i data-lucide="bell" class="w-5 h-5"></i>
             {% if unreadCount > 0 %}
-                <span class="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full min-w-[18px] h-[18px] px-1">
+                <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full min-w-[18px] h-[18px] px-1">
                     {{ unreadCount > 99 ? '99+' : unreadCount }}
                 </span>
             {% endif %}
@@ -21,7 +23,7 @@
              x-transition:leave="transition ease-in duration-75"
              x-transition:leave-start="transform opacity-100 scale-100"
              x-transition:leave-end="transform opacity-0 scale-95"
-             class="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden"
+             class="absolute right-0 mt-2 w-full md:w-140 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden"
              style="display: none;">
 
             {# Header #}
@@ -39,23 +41,27 @@
 
             {# Notification list #}
             {% if notifications|length > 0 %}
-                <div class="max-h-80 overflow-y-auto divide-y divide-slate-50">
+                <div class="max-h-[28rem] overflow-y-auto divide-y divide-slate-100">
                     {% for notification in notifications %}
                         <a href="{{ path('app_notificaciones_read', {id: notification.id}) }}"
-                           class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors {{ not notification.read ? 'bg-primary-50/50' : '' }}">
-                            <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 {{ notification.alertLevel == 'warning' ? 'bg-amber-100' : 'bg-slate-100' }}">
+                           class="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors {{ not notification.read ? 'bg-primary-50/50' : '' }}">
+                            <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 {{ notification.alertLevel == 'warning' ? 'bg-amber-100' : 'bg-slate-100' }}">
                                 <i data-lucide="{{ notification.icon }}" class="w-4 h-4 {{ notification.alertLevel == 'warning' ? 'text-amber-600' : 'text-slate-500' }}"></i>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-sm text-slate-700 {{ not notification.read ? 'font-medium' : '' }} line-clamp-2">
+                            <div class="flex-1 min-w-0 space-y-1">
+                                {% if notification.accessRequest %}
+                                    <p class="text-xs font-medium text-primary-600 truncate">{{ notification.accessRequest.title }}</p>
+                                {% endif %}
+                                <p class="text-sm text-slate-700 {{ not notification.read ? 'font-medium' : '' }} line-clamp-2 leading-relaxed">
                                     {{ notification.message }}
                                 </p>
-                                <p class="text-xs text-slate-400 mt-0.5">
+                                {{ macros.status_transition(notification) }}
+                                <p class="text-xs text-slate-400 mt-1">
                                     {{ notification.createdAt|date('d/m/Y H:i') }}
                                 </p>
                             </div>
                             {% if not notification.read %}
-                                <span class="w-2 h-2 rounded-full bg-primary-500 flex-shrink-0 mt-2"></span>
+                                <span class="w-2 h-2 rounded-full bg-primary-500 flex-shrink-0 mt-3"></span>
                             {% endif %}
                         </a>
                     {% endfor %}

@@ -51,6 +51,22 @@ enum DocumentType: string
         };
     }
 
+    public function isComplaintRelated(): bool
+    {
+        return in_array($this, [
+            self::Complaint,
+            self::ComplaintReceipt,
+            self::ComplaintProcessingStart,
+            self::ComplaintResolution,
+            self::Alegaciones,
+            self::AlegationResponse,
+            self::Subsanacion,
+            self::SubsanacionResponse,
+            self::Audiencia,
+            self::ComplaintExtension,
+        ], true);
+    }
+
     /**
      * Map AI-extracted document type to enum value.
      */
