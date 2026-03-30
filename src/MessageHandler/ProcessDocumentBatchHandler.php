@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -29,6 +30,7 @@ final class ProcessDocumentBatchHandler
         private readonly ApplicableLawRepository $applicableLawRepository,
         private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
         private readonly AccessRequestManager $accessRequestManager,
+        private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -119,6 +121,19 @@ final class ProcessDocumentBatchHandler
             }
 
             $this->entityManager->flush();
+
+            // Create user notifications for the processed documents
+            if ($accessRequest) {
+                foreach ($documents as $document) {
+                    $this->notificationManager->notifyDocumentImported($user, $document, $accessRequest);
+                }
+
+                if ($documents[0]->getMatchMethod() === Document::MATCH_CREATED) {
+                    $this->notificationManager->notifyRequestCreated($user, $accessRequest);
+                }
+
+                $this->entityManager->flush();
+            }
 
             $this->logger->info('Document batch processed successfully', [
                 'documentCount' => count($documents),
@@ -557,6 +572,12 @@ final class ProcessDocumentBatchHandler
         }
 
         $this->entityManager->persist($history);
+
+        // Create user notification for the status change
+        $user = $accessRequest->getUser();
+        if ($user) {
+            $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+        }
     }
 
     /**

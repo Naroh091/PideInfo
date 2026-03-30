@@ -50,6 +50,16 @@ final class DashboardUpdatePublisher
     }
 
     /**
+     * Publish an update when a new user notification is created.
+     */
+    public function publishNotification(User $user): void
+    {
+        $this->publishUserUpdate($user, 'notification_created', [
+            'timestamp' => (new \DateTimeImmutable())->format('c'),
+        ]);
+    }
+
+    /**
      * Publish a general dashboard refresh for a user.
      */
     public function publishDashboardRefresh(User $user): void

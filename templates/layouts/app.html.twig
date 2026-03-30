@@ -46,6 +46,9 @@
                     Nueva solicitud
                 </a>
 
+                {# Notification bell #}
+                {{ component('NotificationBell') }}
+
                 {# User dropdown #}
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open"
