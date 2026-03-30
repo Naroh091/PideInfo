@@ -56,8 +56,7 @@ class DocumentCrudController extends AbstractCrudController
         return $actions
             ->disable(Action::NEW)
             ->add(Crud::PAGE_INDEX, $downloadAction)
-            ->add(Crud::PAGE_DETAIL, $downloadAction)
-            ->add(Crud::PAGE_INDEX, Action::EDIT);
+            ->add(Crud::PAGE_DETAIL, $downloadAction);
     }
 
     public function downloadFile(AdminContext $context): Response
