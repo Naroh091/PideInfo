@@ -526,7 +526,7 @@ final class ProcessDocumentHandler
                 if ($status) {
                     $complaint = $this->ensureComplaint($accessRequest);
                     $complaint->setStatus($status);
-                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución CTBG', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate);
                 }
                 break;
 
