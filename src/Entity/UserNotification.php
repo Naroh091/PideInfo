@@ -170,4 +170,51 @@ class UserNotification
             default => 'Notificación',
         };
     }
+
+    public function getFromStatus(): ?string
+    {
+        return $this->metadata['fromStatus'] ?? null;
+    }
+
+    public function getToStatus(): ?string
+    {
+        return $this->metadata['toStatus'] ?? null;
+    }
+
+    public static function translateStatus(string $status): string
+    {
+        return match ($status) {
+            'sent' => 'Enviada',
+            'processing' => 'En trámite',
+            'granted' => 'Concedida',
+            'granted_completed' => 'Completada',
+            'denied' => 'Denegada',
+            'delayed' => 'Silencio',
+            'pending' => 'Pendiente',
+            'none' => 'Sin reclamación',
+            'reclaimed' => 'Reclamada',
+            'complaint_granted' => 'Estimada',
+            'complaint_denied' => 'Desestimada',
+            'complaint_archived' => 'Archivada',
+            'in_court' => 'En tribunal',
+            'court_granted' => 'Favorable',
+            'court_denied' => 'Desfavorable',
+            default => $status,
+        };
+    }
+
+    public static function statusBadgeClass(string $status): string
+    {
+        return match ($status) {
+            'sent' => 'status-sent',
+            'processing' => 'status-processing',
+            'granted', 'complaint_granted', 'court_granted' => 'status-granted',
+            'granted_completed' => 'status-granted-completed',
+            'denied', 'complaint_denied', 'court_denied' => 'status-denied',
+            'delayed' => 'status-delayed',
+            'pending' => 'status-pending',
+            'reclaimed', 'in_court' => 'status-processing',
+            default => 'badge-secondary',
+        };
+    }
 }
