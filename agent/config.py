@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -22,9 +23,17 @@ class Settings(BaseSettings):
     sync_interval_minutes: int = 30
     data_dir: Path = Path.home() / ".pideinfo-agent"
 
+    # Optional: path to FNMT client certificate (.p12) for automatic selection
+    client_cert_p12: Optional[Path] = None
+    client_cert_passphrase: str = ""
+
     @property
     def cookies_file(self) -> Path:
         return self.data_dir / "cookies.json"
+
+    @property
+    def preferences_file(self) -> Path:
+        return self.data_dir / "preferences.json"
 
     @property
     def state_file(self) -> Path:

@@ -90,6 +90,46 @@ class TransparenciaAgentController extends AbstractController
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
+        $pendingNotifications = $data['pendingNotifications'] ?? [];
+
+        // Pending-notifications report: no documents to store — persist on the AccessRequest.
+        if (empty($documents) && !empty($pendingNotifications)) {
+            $accessRequest = $expedienteRef
+                ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
+                : null;
+
+            // Fallback: look up by the numeric portal expedienteId stored in alternativeReferences
+            if (!$accessRequest && !empty($metadata['expedienteId'])) {
+                $accessRequest = $this->accessRequestRepository->findByExternalId(
+                    (string) $metadata['expedienteId'],
+                    $user
+                );
+            }
+
+            if ($accessRequest !== null) {
+                $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+                $enriched = array_map(
+                    static fn(array $n) => $n + ['reportedAt' => $reportedAt],
+                    $pendingNotifications
+                );
+                $accessRequest->setPendingPortalNotifications($enriched);
+                $this->entityManager->flush();
+            }
+
+            $this->logger->info('Transparencia agent: pending notifications reported', [
+                'expedienteRef' => $expedienteRef,
+                'pendingCount' => count($pendingNotifications),
+                'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
+            ]);
+
+            return new JsonResponse([
+                'ok' => true,
+                'pendingNotifications' => count($pendingNotifications),
+                'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
+                'accessRequestFound' => $accessRequest !== null,
+            ]);
+        }
+
         if (empty($documents)) {
             return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => 0, 'skipped' => []]);
         }
@@ -98,6 +138,12 @@ class TransparenciaAgentController extends AbstractController
         $accessRequest = $expedienteRef
             ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
             : null;
+
+        // Save portal numeric expedienteId as an alternative reference so that
+        // PENDIENTE notification reports can find this AccessRequest by id_expediente.
+        if ($accessRequest !== null && !empty($metadata['expedienteId'])) {
+            $accessRequest->addAlternativeReference((string) $metadata['expedienteId']);
+        }
 
         $documentIds = [];
         $skipped = [];
@@ -174,6 +220,11 @@ class TransparenciaAgentController extends AbstractController
                 'created' => 0,
                 'skipped' => $skipped,
             ]);
+        }
+
+        // Documents were received — clear any stale pending notifications on this AR.
+        if ($accessRequest !== null && $accessRequest->hasPendingPortalNotifications()) {
+            $accessRequest->setPendingPortalNotifications(null);
         }
 
         $this->entityManager->flush();

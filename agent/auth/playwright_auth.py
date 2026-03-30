@@ -22,7 +22,12 @@ class AuthFailedError(Exception):
     pass
 
 
-async def authenticate(portal_url: str, timeout_seconds: int = 120) -> dict[str, str]:
+async def authenticate(
+    portal_url: str,
+    timeout_seconds: int = 120,
+    client_cert_p12: "str | None" = None,
+    client_cert_passphrase: str = "",
+) -> dict[str, str]:
     """
     Open a headed browser, navigate to the portal's private area,
     wait for the user to complete Cl@ve authentication with their certificate,
@@ -35,14 +40,29 @@ async def authenticate(portal_url: str, timeout_seconds: int = 120) -> dict[str,
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context(
-            locale="es-ES",
-            user_agent=(
+
+        context_kwargs: dict = {
+            "locale": "es-ES",
+            "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/131.0.0.0 Safari/537.36"
             ),
-        )
+        }
+
+        if client_cert_p12:
+            # Playwright's client_certificates bypasses the certificate picker
+            # entirely — the browser presents the cert automatically.
+            context_kwargs["client_certificates"] = [
+                {
+                    "origin": "https://pasarela-ident.clave.gob.es",
+                    "pfxPath": str(client_cert_p12),
+                    "passphrase": client_cert_passphrase,
+                }
+            ]
+            console.print("[dim]Certificado FNMT configurado — selección automática[/]")
+
+        context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
 
         try:
@@ -54,6 +74,14 @@ async def authenticate(portal_url: str, timeout_seconds: int = 120) -> dict[str,
                 f"{portal_url}/claveproxy/clave/authenticate?returnUrl={return_url}",
                 wait_until="domcontentloaded",
             )
+
+            # Auto-click "DNIe / Certificado electrónico" (AFIRMA IdP) so the
+            # user does not have to select the authentication method manually.
+            try:
+                await page.locator('button[onclick*="AFIRMA"]').click(timeout=10_000)
+                console.print("[dim]Método de autenticación seleccionado automáticamente[/]")
+            except Exception:
+                console.print("[dim]No se pudo seleccionar el método automáticamente — selecciónalo manualmente[/]")
 
             console.print("[bold cyan]Esperando autenticación...[/]")
 

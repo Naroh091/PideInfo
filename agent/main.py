@@ -22,6 +22,7 @@ from notifier.desktop import (
 )
 from portals.transparencia_age import TransparenciaAGEScraper
 from storage.downloads import DownloadManager
+from storage.preferences import AgentPreferences, load_preferences, save_preferences
 from storage.state import SyncState, load_state, save_state
 
 console = Console()
@@ -33,6 +34,8 @@ async def do_auth(settings: Settings) -> dict[str, str]:
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
+        client_cert_p12=settings.client_cert_p12,
+        client_cert_passphrase=settings.client_cert_passphrase,
     )
     notify_auth_required()
     cookies = await session.get_valid_session()
@@ -40,13 +43,15 @@ async def do_auth(settings: Settings) -> dict[str, str]:
     return cookies
 
 
-async def do_sync(settings: Settings, dry_run: bool = False) -> None:
+async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPreferences | None" = None) -> None:
     """Run a single sync cycle."""
     # Initialize components
     session = SessionManager(
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
+        client_cert_p12=settings.client_cert_p12,
+        client_cert_passphrase=settings.client_cert_passphrase,
     )
     downloads = DownloadManager(settings.downloads_dir)
     state = load_state(settings.state_file)
@@ -74,12 +79,20 @@ async def do_sync(settings: Settings, dry_run: bool = False) -> None:
         # Show summary
         _print_summary(expedientes, notificaciones, state)
 
-        # Filter: only downloadable notifications not yet synced
-        to_sync = [
-            n for n in notificaciones
-            if n.is_downloadable
-            and not state.is_document_synced(n.id_expediente, n.id_documento)
-        ]
+        # Filter: only downloadable notifications not yet synced.
+        # When accept_notifications is enabled, also include PENDIENTE ones.
+        accept_notifications = prefs.accept_notifications if prefs else False
+
+        def _should_sync(n: Notificacion) -> bool:
+            if state.is_document_synced(n.id_expediente, n.id_documento):
+                return False
+            if n.is_downloadable:
+                return True
+            if accept_notifications and n.estado == "PENDIENTE":
+                return True
+            return False
+
+        to_sync = [n for n in notificaciones if _should_sync(n)]
 
         # Count pending signatures
         pending = [n for n in notificaciones if n.estado == "PENDIENTE"]
@@ -98,6 +111,25 @@ async def do_sync(settings: Settings, dry_run: bool = False) -> None:
         )
 
         synced_count = 0
+
+        # --- Sync expediente documents FIRST ---
+        console.print("\n[bold]Sincronizando documentos de expedientes...[/]")
+        exp_synced = 0
+        for exp in expedientes:
+            if exp.es_ac1 or exp.es_acceda1_pee or exp.is_borrador:
+                continue
+            try:
+                exp_synced += await _sync_expediente_docs(
+                    exp, scraper, pideinfo, downloads, state, dry_run
+                )
+            except SessionExpiredError:
+                console.print("[yellow]Sesión expirada durante sincronización de expedientes[/]")
+                notify_error("Sesión expirada. Ejecuta de nuevo para re-autenticar.")
+                break
+            except Exception as e:
+                console.print(f"[red]Error sincronizando expediente {exp.identificador}: {e}[/]")
+
+        synced_count += exp_synced
 
         # --- Sync notification documents ---
         if not to_sync:
@@ -121,24 +153,9 @@ async def do_sync(settings: Settings, dry_run: bool = False) -> None:
                 except Exception as e:
                     console.print(f"[red]Error sincronizando notificación {notif.id}: {e}[/]")
 
-        # --- Sync expediente documents ---
-        console.print("\n[bold]Sincronizando documentos de expedientes...[/]")
-        exp_synced = 0
-        for exp in expedientes:
-            if exp.es_ac1 or exp.es_acceda1_pee or exp.is_borrador:
-                continue
-            try:
-                exp_synced += await _sync_expediente_docs(
-                    exp, scraper, pideinfo, downloads, state, dry_run
-                )
-            except SessionExpiredError:
-                console.print("[yellow]Sesión expirada durante sincronización de expedientes[/]")
-                notify_error("Sesión expirada. Ejecuta de nuevo para re-autenticar.")
-                break
-            except Exception as e:
-                console.print(f"[red]Error sincronizando expediente {exp.identificador}: {e}[/]")
-
-        synced_count += exp_synced
+        # Report PENDIENTE notifications to PideInfo when auto-accept is off
+        if not accept_notifications and not dry_run:
+            await _report_pending_notifications(notificaciones, pideinfo)
 
         # Save state
         state.mark_sync_complete()
@@ -177,6 +194,35 @@ async def _sync_notification(
     downloads.cleanup_file(dest)
 
 
+async def _report_pending_notifications(
+    notificaciones: "list[Notificacion]",
+    pideinfo: PideInfoClient,
+) -> None:
+    """Group PENDIENTE notifications by expediente and report each group to PideInfo."""
+    from collections import defaultdict
+
+    # Group by (id_expediente, identificador) — identificador is the human-readable ref
+    groups: dict[int, list[Notificacion]] = defaultdict(list)
+    for n in notificaciones:
+        if n.estado == "PENDIENTE":
+            groups[n.id_expediente].append(n)
+
+    if not groups:
+        return
+
+    console.print(
+        f"\n[dim]Reportando notificaciones pendientes de {len(groups)} expediente(s)...[/]"
+    )
+    for id_expediente, pending in groups.items():
+        expediente_ref = pending[0].identificador
+        try:
+            await pideinfo.report_pending_notifications(id_expediente, expediente_ref, pending)
+        except Exception as e:
+            console.print(
+                f"[red]Error reportando pendientes de {expediente_ref}: {e}[/]"
+            )
+
+
 async def _sync_expediente_docs(
     expediente,
     scraper: TransparenciaAGEScraper,
@@ -191,6 +237,7 @@ async def _sync_expediente_docs(
     to_sync = [
         doc for doc in documentos
         if not state.is_document_synced(expediente.id, doc.id)
+        and not doc.nombre.startswith("JUSTIFICANTE_COMPARECENCIA")
     ]
 
     if not to_sync:
@@ -265,6 +312,7 @@ async def do_daemon(settings: Settings) -> None:
     """Run sync on a schedule."""
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+    prefs = load_preferences(settings.preferences_file)
     console.print(
         f"[bold]Modo daemon — sincronizando cada {settings.sync_interval_minutes} minutos[/]"
     )
@@ -275,6 +323,7 @@ async def do_daemon(settings: Settings) -> None:
         "interval",
         minutes=settings.sync_interval_minutes,
         args=[settings],
+        kwargs={"prefs": prefs},
         id="sync",
         name="Portal sync",
         max_instances=1,
@@ -282,7 +331,7 @@ async def do_daemon(settings: Settings) -> None:
     scheduler.start()
 
     # Run immediately on start
-    await do_sync(settings)
+    await do_sync(settings, prefs=prefs)
 
     # Keep running
     try:
@@ -291,6 +340,40 @@ async def do_daemon(settings: Settings) -> None:
     except (KeyboardInterrupt, SystemExit):
         console.print("\n[yellow]Deteniendo agente...[/]")
         scheduler.shutdown()
+
+
+def _run_tray(settings: Settings) -> None:
+    """Launch the system tray icon with Sincronizar / Resetear / Cerrar."""
+    from tray import TrayApp
+
+    prefs = load_preferences(settings.preferences_file)
+
+    async def sync() -> None:
+        try:
+            await do_sync(settings, prefs=prefs)
+        except Exception as e:
+            notify_error(str(e))
+
+    async def reset() -> None:
+        settings.state_file.unlink(missing_ok=True)
+        settings.cookies_file.unlink(missing_ok=True)
+        console.print("[yellow]Estado y sesión reiniciados[/]")
+
+    def get_accept_notifications() -> bool:
+        return prefs.accept_notifications
+
+    def toggle_accept_notifications() -> None:
+        prefs.accept_notifications = not prefs.accept_notifications
+        save_preferences(prefs, settings.preferences_file)
+        state = "activada" if prefs.accept_notifications else "desactivada"
+        console.print(f"[yellow]Aceptación automática de notificaciones {state}[/]")
+
+    TrayApp(
+        sync_fn=sync,
+        reset_fn=reset,
+        get_accept_notifications_fn=get_accept_notifications,
+        toggle_accept_notifications_fn=toggle_accept_notifications,
+    ).run()
 
 
 def main() -> None:
@@ -318,6 +401,11 @@ def main() -> None:
         help="Scrapear pero no sincronizar con PideInfo",
     )
     parser.add_argument(
+        "--tray",
+        action="store_true",
+        help="Ejecutar como icono en la barra del sistema",
+    )
+    parser.add_argument(
         "--env-file",
         default=".env",
         help="Ruta al fichero .env (default: .env)",
@@ -336,6 +424,8 @@ def main() -> None:
 
     if args.auth_only:
         asyncio.run(do_auth(settings))
+    elif args.tray:
+        _run_tray(settings)
     elif args.daemon:
         asyncio.run(do_daemon(settings))
     elif args.once or args.dry_run:

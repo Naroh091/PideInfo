@@ -155,6 +155,60 @@ class PideInfoClient:
 
         return result
 
+    async def report_pending_notifications(
+        self,
+        id_expediente: int,
+        expediente_ref: str,
+        notifications: "list[Notificacion]",
+        source: str = "transparencia_age",
+    ) -> dict:
+        """
+        Inform PideInfo about PENDIENTE notifications without downloading them.
+        PideInfo uses this to link pending notifications to the correct AccessRequest.
+        """
+        payload = {
+            "userId": self.user_id,
+            "source": source,
+            "expedienteRef": expediente_ref,
+            "documents": [],
+            "pendingNotifications": [
+                {
+                    "notificationId": n.id,
+                    "tipo": n.tipo,
+                    "concepto": n.concepto,
+                    "fechaEmision": n.fecha_emision,
+                    "fechaCaducidad": n.fecha_caducidad,
+                    "esComunicacion": n.es_comunicacion,
+                }
+                for n in notifications
+            ],
+            "metadata": {
+                "expedienteId": id_expediente,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                self.webhook_url,
+                json=payload,
+                headers={
+                    "X-Webhook-Secret": self.webhook_secret,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        found = result.get("accessRequestFound", False)
+        ar_id = result.get("accessRequestId")
+        console.print(
+            f"[dim]Notificaciones pendientes de {expediente_ref}: "
+            f"{len(notifications)} reportadas"
+            + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
+            + "[/]"
+        )
+        return result
+
     @staticmethod
     def _guess_mime(path: Path) -> str:
         suffix = path.suffix.lower()
