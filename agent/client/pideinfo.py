@@ -13,12 +13,60 @@ console = Console()
 
 
 class PideInfoClient:
-    """Client for posting synced documents to PideInfo's webhook."""
+    """Client for posting synced documents to PideInfo's webhook.
 
-    def __init__(self, webhook_url: str, webhook_secret: str, user_id: str):
+    Supports two authentication modes:
+    - JWT (preferred): Uses Bearer token against /api/agent/webhook
+    - Legacy: Uses X-Webhook-Secret header against /webhook/agent
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str = "",
+        jwt_token: str = "",
+        # Legacy params (deprecated)
+        webhook_url: str = "",
+        webhook_secret: str = "",
+        user_id: str = "",
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.jwt_token = jwt_token
         self.webhook_url = webhook_url
         self.webhook_secret = webhook_secret
         self.user_id = user_id
+
+    @property
+    def _use_jwt(self) -> bool:
+        return bool(self.jwt_token)
+
+    @property
+    def _effective_webhook_url(self) -> str:
+        if self._use_jwt:
+            return f"{self.base_url}/api/agent/webhook"
+        return self.webhook_url
+
+    @property
+    def _auth_headers(self) -> dict[str, str]:
+        if self._use_jwt:
+            return {"Authorization": f"Bearer {self.jwt_token}"}
+        return {"X-Webhook-Secret": self.webhook_secret}
+
+    def _build_payload(self, payload: dict) -> dict:
+        """Add userId to payload when using legacy auth."""
+        if not self._use_jwt:
+            payload["userId"] = self.user_id
+        return payload
+
+    async def validate_token(self) -> dict:
+        """Validate JWT token and return user info from /api/agent/me."""
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                f"{self.base_url}/api/agent/me",
+                headers=self._auth_headers,
+            )
+            response.raise_for_status()
+            return response.json()
 
     async def sync_notification(
         self,
@@ -45,8 +93,7 @@ class PideInfoClient:
             "esComunicacion": notificacion.es_comunicacion,
         }
 
-        payload = {
-            "userId": self.user_id,
+        payload = self._build_payload({
             "source": source,
             "expedienteRef": notificacion.identificador,
             "documents": [
@@ -69,7 +116,7 @@ class PideInfoClient:
                 "idDocumento": notificacion.id_documento,
                 "esComunicacion": notificacion.es_comunicacion,
             },
-        }
+        })
 
         # When the notification was PENDIENTE, downloading it constitutes accepting it.
         # Tell Symfony so it can create a UserNotification for the user.
@@ -79,10 +126,10 @@ class PideInfoClient:
 
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
-                self.webhook_url,
+                self._effective_webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )
@@ -134,8 +181,7 @@ class PideInfoClient:
                 "contentHash": hashlib.sha256(content).hexdigest(),
             })
 
-        payload = {
-            "userId": self.user_id,
+        payload = self._build_payload({
             "source": source,
             "expedienteRef": expediente.identificador,
             "documents": documents_payload,
@@ -144,14 +190,14 @@ class PideInfoClient:
                 "expedientePortalId": portal_id,
                 "expedienteEstado": expediente.estado,
             },
-        }
+        })
 
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(
-                self.webhook_url,
+                self._effective_webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )
@@ -181,8 +227,7 @@ class PideInfoClient:
         Inform PideInfo about PENDIENTE notifications without downloading them.
         PideInfo uses this to link pending notifications to the correct AccessRequest.
         """
-        payload = {
-            "userId": self.user_id,
+        payload = self._build_payload({
             "source": source,
             "expedienteRef": expediente_ref,
             "documents": [],
@@ -200,14 +245,14 @@ class PideInfoClient:
             "metadata": {
                 "expedienteId": id_expediente,
             },
-        }
+        })
 
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
-                self.webhook_url,
+                self._effective_webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )

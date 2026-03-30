@@ -2,45 +2,25 @@
 
 namespace App\Controller\Webhook;
 
-use App\Entity\AccessRequest;
-use App\Entity\Document;
-use App\Message\ProcessDocumentBatchMessage;
-use App\Message\ProcessDocumentMessage;
-use App\Repository\AccessRequestRepository;
 use App\Repository\UserRepository;
-use App\Service\UserNotificationManager;
-use Doctrine\ORM\EntityManagerInterface;
-use League\Flysystem\FilesystemOperator;
+use App\Service\AgentWebhookProcessor;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
 class AgentController extends AbstractController
 {
-    private const ALLOWED_MIMES = [
-        'application/pdf',
-        'image/jpeg',
-        'image/png',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-
     private const MAX_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50MB
 
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly FilesystemOperator $documentsStorage,
         private readonly UserRepository $userRepository,
-        private readonly AccessRequestRepository $accessRequestRepository,
-        private readonly MessageBusInterface $messageBus,
-        private readonly UserNotificationManager $notificationManager,
+        private readonly AgentWebhookProcessor $processor,
         private readonly LoggerInterface $logger,
         #[Autowire(env: 'AGENT_WEBHOOK_SECRET')]
         private readonly string $webhookSecret,
@@ -76,10 +56,6 @@ class AgentController extends AbstractController
         }
 
         $userId = $data['userId'] ?? '';
-        $source = $data['source'] ?? 'transparencia_age';
-        $expedienteRef = $data['expedienteRef'] ?? '';
-        $documents = $data['documents'] ?? [];
-        $metadata = $data['metadata'] ?? [];
 
         // Look up user by UUID
         if (!$userId || !Uuid::isValid($userId)) {
@@ -92,245 +68,6 @@ class AgentController extends AbstractController
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $pendingNotifications = $data['pendingNotifications'] ?? null;
-
-        // Pending-notifications report: no documents to store — persist on the AccessRequest.
-        // An empty array is a valid signal to clear existing pending notifications.
-        if (empty($documents) && $pendingNotifications !== null) {
-            $accessRequest = $expedienteRef
-                ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
-                : null;
-
-            // Fallback: look up by the numeric portal expedienteId stored in alternativeReferences
-            if (!$accessRequest && !empty($metadata['expedienteId'])) {
-                $accessRequest = $this->accessRequestRepository->findByExternalId(
-                    (string) $metadata['expedienteId'],
-                    $user
-                );
-            }
-
-            if ($accessRequest !== null) {
-                if (empty($pendingNotifications)) {
-                    $accessRequest->setPendingPortalNotifications(null);
-                } else {
-                    $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-                    $enriched = array_map(
-                        static fn(array $n) => $n + ['reportedAt' => $reportedAt],
-                        $pendingNotifications
-                    );
-                    $accessRequest->setPendingPortalNotifications($enriched);
-                }
-                $this->entityManager->flush();
-            }
-
-            $this->logger->info('Transparencia agent: pending notifications reported', [
-                'expedienteRef' => $expedienteRef,
-                'pendingCount' => count($pendingNotifications),
-                'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
-            ]);
-
-            return new JsonResponse([
-                'ok' => true,
-                'pendingNotifications' => count($pendingNotifications),
-                'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
-                'accessRequestFound' => $accessRequest !== null,
-            ]);
-        }
-
-        // Handle accepted notifications/communications from the agent
-        $acceptedNotifications = $data['acceptedNotifications'] ?? [];
-        $acceptedCommunications = $data['acceptedCommunications'] ?? [];
-
-        if (!empty($acceptedNotifications) || !empty($acceptedCommunications)) {
-            $ar = $expedienteRef
-                ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
-                : null;
-
-            if (!$ar && !empty($metadata['expedienteId'])) {
-                $ar = $this->accessRequestRepository->findByExternalId((string) $metadata['expedienteId'], $user);
-            }
-
-            foreach ($acceptedNotifications as $accepted) {
-                $this->notificationManager->notifyNotificationAccepted($user, $ar, $accepted);
-            }
-            foreach ($acceptedCommunications as $accepted) {
-                $this->notificationManager->notifyCommunicationAccepted($user, $ar, $accepted);
-            }
-
-            if (!empty($acceptedNotifications) || !empty($acceptedCommunications)) {
-                $this->entityManager->flush();
-            }
-        }
-
-        if (empty($documents)) {
-            return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => 0, 'skipped' => []]);
-        }
-
-        // Look up an existing AccessRequest matching this expediente reference
-        $accessRequest = $expedienteRef
-            ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
-            : null;
-
-        // Save portal numeric expedienteId as an alternative reference so that
-        // PENDIENTE notification reports can find this AccessRequest by id_expediente.
-        if ($accessRequest !== null && !empty($metadata['expedienteId'])) {
-            $accessRequest->addAlternativeReference((string) $metadata['expedienteId']);
-        }
-
-        $documentIds = [];
-        $skipped = [];
-
-        foreach ($documents as $doc) {
-            $filename = $doc['filename'] ?? 'document.pdf';
-            $contentType = $doc['contentType'] ?? 'application/pdf';
-            $base64Content = $doc['content'] ?? '';
-            $contentHash = $doc['contentHash'] ?? null;
-
-            // Filter by allowed MIME types
-            if (!in_array($contentType, self::ALLOWED_MIMES, true)) {
-                $this->logger->info('Agent: skipping unsupported type', [
-                    'filename' => $filename,
-                    'contentType' => $contentType,
-                ]);
-                $skipped[] = ['filename' => $filename, 'reason' => 'unsupported_type'];
-                continue;
-            }
-
-            $content = base64_decode($base64Content, true);
-            if ($content === false) {
-                $this->logger->warning('Agent: failed to decode content', ['filename' => $filename]);
-                $skipped[] = ['filename' => $filename, 'reason' => 'decode_error'];
-                continue;
-            }
-
-            // Calculate content hash if not provided
-            if (!$contentHash) {
-                $contentHash = hash('sha256', $content);
-            }
-
-            // Check for duplicate by content hash
-            $existing = $this->entityManager->getRepository(Document::class)->findOneBy([
-                'uploadedBy' => $user,
-                'contentHash' => $contentHash,
-            ]);
-
-            if ($existing) {
-                // If the document exists but isn't linked to this access request yet, link it now
-                if ($accessRequest !== null && $existing->getAccessRequest() === null) {
-                    $accessRequest->addDocument($existing);
-                }
-                $this->logger->info('Agent: duplicate document skipped', [
-                    'filename' => $filename,
-                    'contentHash' => $contentHash,
-                ]);
-                $skipped[] = ['filename' => $filename, 'reason' => 'duplicate'];
-                continue;
-            }
-
-            $sourceMetadata = [
-                'source' => $source,
-                'expedienteRef' => $expedienteRef,
-                ...$metadata,
-            ];
-
-            $document = $this->createDocument(
-                user: $user,
-                content: $content,
-                originalFilename: $filename,
-                mimeType: $contentType,
-                contentHash: $contentHash,
-                sourceMetadata: $sourceMetadata,
-                accessRequest: $accessRequest,
-            );
-            $documentIds[] = $document->getId();
-        }
-
-        if (empty($documentIds)) {
-            return new JsonResponse([
-                'ok' => true,
-                'documents' => count($documents),
-                'created' => 0,
-                'skipped' => $skipped,
-            ]);
-        }
-
-        // Documents were received — clear any stale pending notifications on this AR.
-        if ($accessRequest !== null && $accessRequest->hasPendingPortalNotifications()) {
-            $accessRequest->setPendingPortalNotifications(null);
-        }
-
-        $this->entityManager->flush();
-
-        // Dispatch processing — batch when multiple documents so the AI
-        // sees them together and can extract shared context (reference number,
-        // public body, request title). The batch analyzer now returns
-        // per-document classifications.
-        if (count($documentIds) > 1) {
-            $this->messageBus->dispatch(new ProcessDocumentBatchMessage($documentIds));
-        } else {
-            $this->messageBus->dispatch(new ProcessDocumentMessage($documentIds[0]));
-        }
-
-        $this->logger->info('Agent: documents synced', [
-            'userId' => $userId,
-            'source' => $source,
-            'expedienteRef' => $expedienteRef,
-            'created' => count($documentIds),
-            'skipped' => count($skipped),
-        ]);
-
-        return new JsonResponse([
-            'ok' => true,
-            'documents' => count($documents),
-            'created' => count($documentIds),
-            'skipped' => $skipped,
-        ]);
-    }
-
-    private function createDocument(
-        \App\Entity\User $user,
-        string $content,
-        string $originalFilename,
-        string $mimeType,
-        string $contentHash,
-        array $sourceMetadata,
-        ?AccessRequest $accessRequest = null,
-    ): Document {
-        $extension = pathinfo($originalFilename, PATHINFO_EXTENSION) ?: match ($mimeType) {
-            'application/pdf' => 'pdf',
-            'image/jpeg' => 'jpg',
-            'image/png' => 'png',
-            'application/msword' => 'doc',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
-            default => 'bin',
-        };
-
-        $storedFilename = sprintf(
-            '%s/%s/%s.%s',
-            $user->getId(),
-            date('Y/m'),
-            bin2hex(random_bytes(16)),
-            strtolower($extension)
-        );
-
-        $this->documentsStorage->write($storedFilename, $content);
-
-        $document = new Document();
-        $document->setUploadedBy($user);
-        $document->setOriginalFilename($originalFilename);
-        $document->setStoredFilename($storedFilename);
-        $document->setMimeType($mimeType);
-        $document->setFileSize(strlen($content));
-        $document->setSourceType(Document::SOURCE_PORTAL);
-        $document->setSourceMetadata($sourceMetadata);
-        $document->setContentHash($contentHash);
-
-        if ($accessRequest !== null) {
-            $accessRequest->addDocument($document);
-        }
-
-        $this->entityManager->persist($document);
-
-        return $document;
+        return $this->processor->process($user, $data);
     }
 }

@@ -42,3 +42,6 @@ Thumbs.db
 /compose.override.yaml
 
 /examples
+###> lexik/jwt-authentication-bundle ###
+/config/jwt/*.pem
+###< lexik/jwt-authentication-bundle ###

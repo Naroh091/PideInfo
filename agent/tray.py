@@ -54,7 +54,9 @@ class TrayApp:
 
     Usage::
 
-        app = TrayApp(sync_fn=..., reset_fn=..., get_accept_notifications_fn=..., toggle_accept_notifications_fn=...)
+        app = TrayApp(sync_fn=..., reset_fn=..., get_accept_notifications_fn=...,
+                       toggle_accept_notifications_fn=..., connect_fn=...,
+                       disconnect_fn=..., is_connected_fn=..., get_user_email_fn=...)
         app.run()   # blocks — call from the main thread
     """
 
@@ -64,11 +66,19 @@ class TrayApp:
         reset_fn: Callable[[], Coroutine[Any, Any, None]],
         get_accept_notifications_fn: Callable[[], bool],
         toggle_accept_notifications_fn: Callable[[], None],
+        connect_fn: Callable[[], None],
+        disconnect_fn: Callable[[], None],
+        is_connected_fn: Callable[[], bool],
+        get_user_email_fn: Callable[[], str],
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
         self._get_accept_notifications = get_accept_notifications_fn
         self._toggle_accept_notifications = toggle_accept_notifications_fn
+        self._connect_fn = connect_fn
+        self._disconnect_fn = disconnect_fn
+        self._is_connected = is_connected_fn
+        self._get_user_email = get_user_email_fn
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
@@ -89,6 +99,12 @@ class TrayApp:
         if self._icon:
             self._icon.icon = _make_icon(syncing=value)
             self._icon.title = "PideInfo Agent — sincronizando…" if value else "PideInfo Agent"
+
+    def _rebuild_menu(self) -> None:
+        """Rebuild and update the tray menu (e.g. after connect/disconnect)."""
+        if self._icon:
+            self._icon.menu = self._build_menu()
+            self._icon.update_menu()
 
     # ------------------------------------------------------------------
     # Menu callbacks (called from the tray thread)
@@ -120,9 +136,15 @@ class TrayApp:
 
     def _on_toggle_accept_notifications(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._toggle_accept_notifications()
-        # Rebuild the menu so the checkmark updates
-        icon.menu = self._build_menu()
-        icon.update_menu()
+        self._rebuild_menu()
+
+    def _on_connect(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._connect_fn()
+        self._rebuild_menu()
+
+    def _on_disconnect(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._disconnect_fn()
+        self._rebuild_menu()
 
     def _on_quit(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -133,7 +155,16 @@ class TrayApp:
     # ------------------------------------------------------------------
 
     def _build_menu(self) -> "pystray.Menu":
-        """Build (or rebuild) the tray menu with current preference state."""
+        """Build (or rebuild) the tray menu with current state."""
+        if not self._is_connected():
+            # Disconnected: only show Connect + Cerrar
+            return pystray.Menu(
+                pystray.MenuItem("Conectar", self._on_connect),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Cerrar", self._on_quit),
+            )
+
+        # Connected: full menu
         items = [
             pystray.MenuItem("Sincronizar ahora", self._on_sync),
             pystray.MenuItem("Resetear", self._on_reset),
@@ -157,7 +188,18 @@ class TrayApp:
                 )
             )
 
-        items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Cerrar", self._on_quit)]
+        email = self._get_user_email()
+        items += [
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Desconectar", self._on_disconnect),
+            pystray.MenuItem(
+                f"Conectado como {email}" if email else "Conectado",
+                None,
+                enabled=False,
+            ),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Cerrar", self._on_quit),
+        ]
         return pystray.Menu(*items)
 
     def run(self) -> None:

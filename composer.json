@@ -17,6 +17,7 @@
         "league/commonmark": "^2.8",
         "league/flysystem-aws-s3-v3": "^3.30",
         "league/flysystem-bundle": "^3.6",
+        "lexik/jwt-authentication-bundle": "^3.2",
         "nyholm/psr7": "^1.8",
         "omines/datatables-bundle": "^0.10.7",
         "phpoffice/phpspreadsheet": "^5.5",
