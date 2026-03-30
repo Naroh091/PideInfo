@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import threading
+
+from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE
 from typing import Callable, Coroutine, Any
 
 from rich.console import Console
@@ -132,19 +134,31 @@ class TrayApp:
 
     def _build_menu(self) -> "pystray.Menu":
         """Build (or rebuild) the tray menu with current preference state."""
-        accept_enabled = self._get_accept_notifications()
-        return pystray.Menu(
+        items = [
             pystray.MenuItem("Sincronizar ahora", self._on_sync),
             pystray.MenuItem("Resetear", self._on_reset),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                "Aceptar notificaciones electrónicas",
-                self._on_toggle_accept_notifications,
-                checked=lambda item: self._get_accept_notifications(),
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Cerrar", self._on_quit),
-        )
+        ]
+
+        if ACCEPT_NOTIFICATIONS_AVAILABLE:
+            items.append(
+                pystray.MenuItem(
+                    "Aceptar notificaciones electrónicas",
+                    self._on_toggle_accept_notifications,
+                    checked=lambda item: self._get_accept_notifications(),
+                )
+            )
+        else:
+            items.append(
+                pystray.MenuItem(
+                    "Aceptar notificaciones electrónicas (no disponible)",
+                    None,
+                    enabled=False,
+                )
+            )
+
+        items += [pystray.Menu.SEPARATOR, pystray.MenuItem("Cerrar", self._on_quit)]
+        return pystray.Menu(*items)
 
     def run(self) -> None:
         """Start the tray icon. Blocks until the user chooses Cerrar."""

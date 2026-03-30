@@ -22,7 +22,7 @@ from notifier.desktop import (
 )
 from portals.transparencia_age import TransparenciaAGEScraper
 from storage.downloads import DownloadManager
-from storage.preferences import AgentPreferences, load_preferences, save_preferences
+from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences, load_preferences, save_preferences
 from storage.state import SyncState, load_state, save_state
 
 console = Console()
@@ -81,7 +81,7 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
 
         # Filter: only downloadable notifications not yet synced.
         # When accept_notifications is enabled, also include PENDIENTE ones.
-        accept_notifications = prefs.accept_notifications if prefs else False
+        accept_notifications = ACCEPT_NOTIFICATIONS_AVAILABLE and (prefs.accept_notifications if prefs else False)
 
         def _should_sync(n: Notificacion) -> bool:
             if state.is_document_synced(n.id_expediente, n.id_documento):
@@ -153,9 +153,11 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
                 except Exception as e:
                     console.print(f"[red]Error sincronizando notificación {notif.id}: {e}[/]")
 
-        # Report PENDIENTE notifications to PideInfo when auto-accept is off
+        # Report PENDIENTE notifications to PideInfo when auto-accept is off,
+        # but only those whose document hasn't already been synced via the expediente path.
+        # Expedientes that had pending notifications but are now all synced get an explicit clear.
         if not accept_notifications and not dry_run:
-            await _report_pending_notifications(notificaciones, pideinfo)
+            await _report_pending_notifications(notificaciones, pideinfo, state, expedientes)
 
         # Save state
         state.mark_sync_complete()
@@ -197,23 +199,52 @@ async def _sync_notification(
 async def _report_pending_notifications(
     notificaciones: "list[Notificacion]",
     pideinfo: PideInfoClient,
+    state: SyncState,
+    expedientes: "list",
 ) -> None:
-    """Group PENDIENTE notifications by expediente and report each group to PideInfo."""
+    """Group PENDIENTE notifications by expediente and report each group to PideInfo.
+
+    Notifications whose document was already synced (via the expediente path) are
+    excluded — they remain PENDIENTE on the portal but the content is already imported.
+    Expedientes that previously had pending notifications but now have all their
+    documents synced receive an explicit empty report to clear the banner in PideInfo.
+    """
     from collections import defaultdict
 
-    # Group by (id_expediente, identificador) — identificador is the human-readable ref
-    groups: dict[int, list[Notificacion]] = defaultdict(list)
-    for n in notificaciones:
-        if n.estado == "PENDIENTE":
-            groups[n.id_expediente].append(n)
+    # Build a map of id_expediente → identificador for the clear pass
+    exp_ref_by_id = {exp.id: exp.identificador for exp in expedientes}
 
-    if not groups:
+    # Separate: which expedientes have at least one truly-pending (unsynced) notification?
+    all_pending: dict[int, list[Notificacion]] = defaultdict(list)
+    already_synced_exp_ids: set[int] = set()
+
+    for n in notificaciones:
+        if n.estado != "PENDIENTE":
+            continue
+        if state.is_document_synced(n.id_expediente, n.id_documento):
+            already_synced_exp_ids.add(n.id_expediente)
+        else:
+            all_pending[n.id_expediente].append(n)
+
+    # Expedientes whose notifications are all already synced → send a clear (empty list)
+    to_clear = already_synced_exp_ids - set(all_pending.keys())
+
+    for id_expediente in to_clear:
+        expediente_ref = exp_ref_by_id.get(id_expediente)
+        if not expediente_ref:
+            continue
+        try:
+            await pideinfo.report_pending_notifications(id_expediente, expediente_ref, [])
+        except Exception as e:
+            console.print(f"[red]Error limpiando pendientes de {expediente_ref}: {e}[/]")
+
+    if not all_pending:
         return
 
     console.print(
-        f"\n[dim]Reportando notificaciones pendientes de {len(groups)} expediente(s)...[/]"
+        f"\n[dim]Reportando notificaciones pendientes de {len(all_pending)} expediente(s)...[/]"
     )
-    for id_expediente, pending in groups.items():
+    for id_expediente, pending in all_pending.items():
         expediente_ref = pending[0].identificador
         try:
             await pideinfo.report_pending_notifications(id_expediente, expediente_ref, pending)

@@ -5,6 +5,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# Set to True once the portal comparecencia endpoint has been identified
+# and implemented in the scraper. Until then the feature does not actually
+# accept the notification on the portal and must stay disabled.
+ACCEPT_NOTIFICATIONS_AVAILABLE = False
+
+
 @dataclass
 class AgentPreferences:
     """User-configurable agent settings persisted to disk."""
