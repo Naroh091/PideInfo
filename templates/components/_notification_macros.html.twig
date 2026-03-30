@@ -1,6 +1,7 @@
 {% macro status_label(status) %}
     {%- apply spaceless -%}
-    {%- if status == 'sent' -%}Enviada
+    {%- if status == 'none' -%}Sin reclamación
+    {%- elseif status == 'sent' -%}Enviada
     {%- elseif status == 'processing' -%}En trámite
     {%- elseif status == 'granted' -%}Concedida
     {%- elseif status == 'granted_completed' -%}Completada
