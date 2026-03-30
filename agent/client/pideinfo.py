@@ -13,12 +13,29 @@ console = Console()
 
 
 class PideInfoClient:
-    """Client for posting synced documents to PideInfo's webhook."""
+    """Client for posting synced documents to PideInfo via JWT-authenticated API."""
 
-    def __init__(self, webhook_url: str, webhook_secret: str, user_id: str):
-        self.webhook_url = webhook_url
-        self.webhook_secret = webhook_secret
-        self.user_id = user_id
+    def __init__(self, *, base_url: str, jwt_token: str):
+        self.base_url = base_url.rstrip("/")
+        self.jwt_token = jwt_token
+
+    @property
+    def _webhook_url(self) -> str:
+        return f"{self.base_url}/api/agent/webhook"
+
+    @property
+    def _auth_headers(self) -> dict[str, str]:
+        return {"Authorization": f"Bearer {self.jwt_token}"}
+
+    async def validate_token(self) -> dict:
+        """Validate JWT token and return user info from /api/agent/me."""
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                f"{self.base_url}/api/agent/me",
+                headers=self._auth_headers,
+            )
+            response.raise_for_status()
+            return response.json()
 
     async def sync_notification(
         self,
@@ -46,7 +63,6 @@ class PideInfoClient:
         }
 
         payload = {
-            "userId": self.user_id,
             "source": source,
             "expedienteRef": notificacion.identificador,
             "documents": [
@@ -79,10 +95,10 @@ class PideInfoClient:
 
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(
-                self.webhook_url,
+                self._webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )
@@ -135,7 +151,6 @@ class PideInfoClient:
             })
 
         payload = {
-            "userId": self.user_id,
             "source": source,
             "expedienteRef": expediente.identificador,
             "documents": documents_payload,
@@ -148,10 +163,10 @@ class PideInfoClient:
 
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(
-                self.webhook_url,
+                self._webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )
@@ -182,7 +197,6 @@ class PideInfoClient:
         PideInfo uses this to link pending notifications to the correct AccessRequest.
         """
         payload = {
-            "userId": self.user_id,
             "source": source,
             "expedienteRef": expediente_ref,
             "documents": [],
@@ -204,10 +218,10 @@ class PideInfoClient:
 
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
-                self.webhook_url,
+                self._webhook_url,
                 json=payload,
                 headers={
-                    "X-Webhook-Secret": self.webhook_secret,
+                    **self._auth_headers,
                     "Content-Type": "application/json",
                 },
             )

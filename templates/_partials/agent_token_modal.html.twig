@@ -1,0 +1,151 @@
+{# Agent Token Generation Modal #}
+<div x-data="{
+        show: false,
+        token: '',
+        loading: false,
+        copied: false,
+        error: '',
+        async generateToken() {
+            this.loading = true;
+            this.error = '';
+            try {
+                const response = await fetch('{{ path('app_agent_token_generate') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                });
+                if (!response.ok) throw new Error('Error al generar el token');
+                const data = await response.json();
+                this.token = data.token;
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+        async copyToken() {
+            try {
+                await navigator.clipboard.writeText(this.token);
+                this.copied = true;
+                setTimeout(() => this.copied = false, 2000);
+            } catch (e) {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = this.token;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                this.copied = true;
+                setTimeout(() => this.copied = false, 2000);
+            }
+        },
+        close() {
+            this.show = false;
+            this.token = '';
+            this.error = '';
+            this.copied = false;
+        }
+     }"
+     @open-agent-token-modal.window="show = true; token = ''; error = ''; copied = false"
+     x-show="show"
+     x-cloak
+     class="modal-backdrop"
+     style="display: none;">
+
+    <div class="modal-content max-w-lg w-full mx-4" @click.away="close()">
+        {# Header #}
+        <div class="modal-header flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-slate-900">Conectar agente</h3>
+            <button @click="close()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        {# Body: Pre-generation state #}
+        <div class="modal-body" x-show="!token && !loading">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="link" class="w-5 h-5 text-primary-600"></i>
+                </div>
+                <div>
+                    <p class="text-sm text-slate-700 mb-2">
+                        Genera un token de conexión para sincronizar el agente con el Portal de la Transparencia.
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2">
+                        Utilizar el Agente de Pideinfo te permite conectarte con el Portal de la Transparencia (y, en el futuro, con más organismos) con tu certificado digital sin que tu certificado salga de tu ordenador.
+                    </p>
+                    <p class="text-xs text-slate-500 mb-2">
+                        Solo tienes que ejecutar el Agente en tu ordenador e introducir el token que generes en el siguiente paso. A partir de entonces, el Agente podra sincronizar tus solicitudes del Portal de Transparencia para que no tengas que dar ni un solo paso manual.
+                    </p>
+                    <p class="text-xs text-slate-500">
+                        <a href="{{ path('app_guias_show', {slug: 'agente'}) }}" target="_blank" class="text-primary-600 hover:text-primary-700 underline">Lee la guia sobre el Agente</a> para saber mas de su funcionamiento seguro.
+                    </p>
+                </div>
+            </div>
+
+            <div x-show="error" class="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" x-text="error"></div>
+        </div>
+
+        {# Body: Loading state #}
+        <div class="modal-body flex items-center justify-center py-8" x-show="loading">
+            <div class="flex items-center gap-3 text-slate-500">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <span class="text-sm">Generando token...</span>
+            </div>
+        </div>
+
+        {# Body: Token generated state #}
+        <div class="modal-body" x-show="token">
+            <div class="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                <p class="text-xs text-amber-800">
+                    Este token solo se mostrara una vez. Copialo ahora y guardalo en un lugar seguro.
+                </p>
+            </div>
+
+            <div class="relative">
+                <label class="block text-xs font-medium text-slate-500 mb-1">Token de conexion</label>
+                <div class="flex gap-2">
+                    <code class="flex-1 block p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-mono break-all max-h-24 overflow-y-auto select-all" x-text="token"></code>
+                    <button @click="copyToken()"
+                            class="flex-shrink-0 px-3 py-2 rounded-lg border transition-all duration-200"
+                            :class="copied ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                        <i x-show="!copied" data-lucide="copy" class="w-4 h-4"></i>
+                        <i x-show="copied" data-lucide="check" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <p class="text-xs font-medium text-slate-700 mb-2">Instrucciones:</p>
+                <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+                    <li>Abre el agente de PideInfo en tu ordenador</li>
+                    <li>Haz clic en el icono del agente en la barra del sistema</li>
+                    <li>Selecciona <strong>Conectar</strong></li>
+                    <li>Pega el token copiado y haz clic en <strong>Guardar</strong></li>
+                </ol>
+            </div>
+        </div>
+
+        {# Footer #}
+        <div class="modal-footer">
+            <template x-if="!token">
+                <div class="flex gap-3 w-full justify-end">
+                    <button @click="close()" class="btn btn-ghost btn-sm">Cancelar</button>
+                    <button @click="generateToken()" :disabled="loading" class="btn btn-primary btn-sm">
+                        <i data-lucide="key" class="w-4 h-4 mr-1"></i>
+                        Generar token
+                    </button>
+                </div>
+            </template>
+            <template x-if="token">
+                <button @click="close()" class="btn btn-primary btn-sm">Cerrar</button>
+            </template>
+        </div>
+    </div>
+</div>
