@@ -22,14 +22,40 @@
                 {{ request.publicBody.name }}
             </span>
             {% if request.externalId %}
-                <button type="button"
-                        class="flex items-center gap-1 text-primary-600 hover:text-primary-800 cursor-pointer transition-colors"
-                        onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
-                        title="Copiar nº expediente">
-                    <i data-lucide="hash" class="w-4 h-4"></i>
-                    <span>{{ request.externalId }}</span>
-                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
-                </button>
+                <div class="relative inline-flex items-center" x-data="{ showAltRefs: false }">
+                    <button type="button"
+                            class="flex items-center gap-1 text-primary-600 hover:text-primary-800 cursor-pointer transition-colors"
+                            onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                            title="Copiar nº expediente">
+                        <i data-lucide="hash" class="w-4 h-4"></i>
+                        <span>{{ request.externalId }}</span>
+                        <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                    </button>
+                    {% if request.alternativeReferences|length > 0 %}
+                        <button type="button"
+                                @click="showAltRefs = !showAltRefs"
+                                class="ml-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                title="Ver referencias alternativas">
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="showAltRefs && 'rotate-180'"></i>
+                        </button>
+                        <div x-show="showAltRefs"
+                             x-transition
+                             @click.away="showAltRefs = false"
+                             class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 min-w-[200px]">
+                            <p class="px-3 py-1.5 text-xs text-slate-400 font-medium">Referencias alternativas</p>
+                            {% for ref in request.alternativeReferences %}
+                                <button type="button"
+                                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                        onclick="navigator.clipboard.writeText('{{ ref|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                                        title="Copiar referencia">
+                                    <i data-lucide="hash" class="w-3.5 h-3.5 text-slate-400"></i>
+                                    <span>{{ ref }}</span>
+                                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden ml-auto"></i>
+                                </button>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
             {% endif %}
             {% if request.complaint and request.complaint.externalId %}
                 <button type="button"

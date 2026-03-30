@@ -338,11 +338,12 @@ final class ProcessDocumentHandler
             case DocumentType::Receipt:
                 // Mark as acknowledged — only if not already resolved
                 if (!$isResolved && $accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
+                    $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus(AccessRequest::STATUS_PROCESSING);
                     if ($eventDate) {
                         $accessRequest->setAcknowledgedAt($eventDate);
                     }
-                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate, $previousStatus);
                 }
                 break;
 
@@ -350,6 +351,7 @@ final class ProcessDocumentHandler
                 // Update status based on AI analysis
                 $status = $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
                 if ($status && $accessRequest->getStatus() !== $status) {
+                    $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus($status);
                     $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
 
@@ -360,7 +362,7 @@ final class ProcessDocumentHandler
                         $accessRequest->setThirdPartyStatus(AccessRequest::THIRD_PARTY_RECEIVED);
                     }
 
-                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate, $previousStatus);
                 }
                 break;
 
@@ -472,6 +474,7 @@ final class ProcessDocumentHandler
 
             case DocumentType::Complaint:
                 if ($accessRequest->getComplaint() === null) {
+                    $previousComplaintStatus = $accessRequest->getComplaintStatus();
                     $complaint = $this->ensureComplaint($accessRequest);
                     $complaintDate = $eventDate ?? new \DateTimeImmutable();
 
@@ -488,7 +491,8 @@ final class ProcessDocumentHandler
                             $complaintDate->format('d/m/Y'),
                             $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''
                         ),
-                        $eventDate
+                        $eventDate,
+                        $previousComplaintStatus,
                     );
                 }
                 break;
@@ -525,8 +529,9 @@ final class ProcessDocumentHandler
                 $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
                 if ($status) {
                     $complaint = $this->ensureComplaint($accessRequest);
+                    $previousComplaintStatus = $complaint->getStatus();
                     $complaint->setStatus($status);
-                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate);
+                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
                 }
                 break;
 
@@ -612,15 +617,17 @@ final class ProcessDocumentHandler
         string $statusType,
         string $toStatus,
         string $notes,
-        ?\DateTimeImmutable $eventDate = null
+        ?\DateTimeImmutable $eventDate = null,
+        ?string $fromStatus = null,
     ): void {
-        // Get the current status based on status type
-        $fromStatus = match ($statusType) {
-            'status' => $accessRequest->getStatus(),
-            'complaint' => $accessRequest->getComplaintStatus(),
-            'courtStatus' => $accessRequest->getCourtStatus(),
-            default => 'unknown',
-        };
+        if ($fromStatus === null) {
+            $fromStatus = match ($statusType) {
+                'status' => $accessRequest->getStatus(),
+                'complaint' => $accessRequest->getComplaintStatus(),
+                'courtStatus' => $accessRequest->getCourtStatus(),
+                default => 'unknown',
+            };
+        }
 
         $history = new StatusHistory();
         $history->setAccessRequest($accessRequest);
@@ -635,9 +642,11 @@ final class ProcessDocumentHandler
 
         $this->entityManager->persist($history);
 
-        $user = $accessRequest->getUser();
-        if ($user) {
-            $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+        if ($fromStatus !== $toStatus) {
+            $user = $accessRequest->getUser();
+            if ($user) {
+                $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+            }
         }
     }
 
