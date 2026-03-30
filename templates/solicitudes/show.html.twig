@@ -12,6 +12,15 @@
     <span class="text-slate-800 font-medium truncate max-w-xs">{{ request.title|u.truncate(30) }}</span>
 </nav>
 
+{% if is_granted('ROLE_ADMIN') and request.user != app.user %}
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+        <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
+        <p class="text-sm text-amber-800">
+            Estás viendo la solicitud de <strong>{{ request.user.fullName }}</strong> ({{ request.user.email }}).
+        </p>
+    </div>
+{% endif %}
+
 {# Header #}
 <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
     <div class="min-w-0">
