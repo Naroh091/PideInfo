@@ -71,7 +71,7 @@ class AccessRequestController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            if (!$accessRequest->getPublicBody()) {
+            if (!$form->get('publicBody')->getData()) {
                 $this->addFlash('error', 'Por favor, selecciona o crea un organismo público.');
                 return $this->render('solicitudes/new.html.twig', [
                     'form' => $form,
@@ -159,7 +159,7 @@ class AccessRequestController extends AbstractController
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            if (!$accessRequest->getPublicBody()) {
+            if (!$form->get('publicBody')->getData()) {
                 $this->addFlash('error', 'Por favor, selecciona o crea un organismo público.');
                 return $this->render('solicitudes/edit.html.twig', [
                     'request' => $accessRequest,
