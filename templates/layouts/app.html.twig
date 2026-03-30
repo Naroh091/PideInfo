@@ -79,8 +79,14 @@
                             <i data-lucide="settings" class="w-4 h-4"></i>
                             Administración
                         </a>
-                        <div class="border-t border-slate-100 my-1"></div>
                         {% endif %}
+                        <button type="button"
+                                @click="open = false; $dispatch('open-agent-token-modal')"
+                                class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
+                            <i data-lucide="link" class="w-4 h-4"></i>
+                            Conectar agente
+                        </button>
+                        <div class="border-t border-slate-100 my-1"></div>
                         <a href="{{ path('app_logout') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                             <i data-lucide="log-out" class="w-4 h-4"></i>
                             Cerrar sesión
@@ -161,6 +167,8 @@
         </div>
     </div>
 </footer>
+
+{% include '_partials/agent_token_modal.html.twig' %}
 
 {# Alpine.js for interactivity #}
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
