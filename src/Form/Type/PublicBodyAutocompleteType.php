@@ -2,7 +2,6 @@
 
 namespace App\Form\Type;
 
-use App\Entity\PublicBody;
 use App\Form\DataTransformer\PublicBodyTransformer;
 use App\Repository\PublicBodyRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,15 +27,8 @@ class PublicBodyAutocompleteType extends AbstractType
 
     public function configureOptions(OptionsResolver $resolver): void
     {
-        $publicBodies = $this->repository->findBy([], ['name' => 'ASC']);
-
-        $choices = [];
-        foreach ($publicBodies as $pb) {
-            $choices[$pb->getName()] = (string) $pb->getId();
-        }
-
         $resolver->setDefaults([
-            'choices' => $choices,
+            'choice_loader' => new PublicBodyChoiceLoader($this->repository),
             'placeholder' => 'Busca o crea un organismo...',
             'required' => false,
             'attr' => [
