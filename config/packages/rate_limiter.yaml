@@ -4,3 +4,7 @@ framework:
             policy: sliding_window
             limit: 30
             interval: '1 minute'
+        transparencia_agent:
+            policy: sliding_window
+            limit: 60
+            interval: '1 minute'
