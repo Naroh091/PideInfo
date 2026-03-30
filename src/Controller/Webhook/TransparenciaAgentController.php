@@ -2,9 +2,11 @@
 
 namespace App\Controller\Webhook;
 
+use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
+use App\Repository\AccessRequestRepository;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -35,6 +37,7 @@ class TransparenciaAgentController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
         private readonly UserRepository $userRepository,
+        private readonly AccessRequestRepository $accessRequestRepository,
         private readonly MessageBusInterface $messageBus,
         private readonly LoggerInterface $logger,
         #[Autowire(env: 'TRANSPARENCIA_AGENT_WEBHOOK_SECRET')]
@@ -91,6 +94,11 @@ class TransparenciaAgentController extends AbstractController
             return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => 0, 'skipped' => []]);
         }
 
+        // Look up an existing AccessRequest matching this expediente reference
+        $accessRequest = $expedienteRef
+            ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
+            : null;
+
         $documentIds = [];
         $skipped = [];
 
@@ -129,6 +137,10 @@ class TransparenciaAgentController extends AbstractController
             ]);
 
             if ($existing) {
+                // If the document exists but isn't linked to this access request yet, link it now
+                if ($accessRequest !== null && $existing->getAccessRequest() === null) {
+                    $accessRequest->addDocument($existing);
+                }
                 $this->logger->info('Transparencia agent: duplicate document skipped', [
                     'filename' => $filename,
                     'contentHash' => $contentHash,
@@ -150,6 +162,7 @@ class TransparenciaAgentController extends AbstractController
                 mimeType: $contentType,
                 contentHash: $contentHash,
                 sourceMetadata: $sourceMetadata,
+                accessRequest: $accessRequest,
             );
             $documentIds[] = $document->getId();
         }
@@ -165,11 +178,17 @@ class TransparenciaAgentController extends AbstractController
 
         $this->entityManager->flush();
 
-        // Dispatch processing
-        if (count($documentIds) > 1) {
+        // Dispatch processing.
+        // - No existing AccessRequest: send as a batch so the AI analyzes all
+        //   documents together and creates the request from the first (SOLICITUD).
+        // - Existing AccessRequest: dispatch individually so each document is
+        //   processed against the known request without re-running batch creation.
+        if ($accessRequest === null && count($documentIds) > 1) {
             $this->messageBus->dispatch(new ProcessDocumentBatchMessage($documentIds));
         } else {
-            $this->messageBus->dispatch(new ProcessDocumentMessage($documentIds[0]));
+            foreach ($documentIds as $documentId) {
+                $this->messageBus->dispatch(new ProcessDocumentMessage($documentId));
+            }
         }
 
         $this->logger->info('Transparencia agent: documents synced', [
@@ -195,6 +214,7 @@ class TransparenciaAgentController extends AbstractController
         string $mimeType,
         string $contentHash,
         array $sourceMetadata,
+        ?AccessRequest $accessRequest = null,
     ): Document {
         $extension = pathinfo($originalFilename, PATHINFO_EXTENSION) ?: match ($mimeType) {
             'application/pdf' => 'pdf',
@@ -224,6 +244,10 @@ class TransparenciaAgentController extends AbstractController
         $document->setSourceType(Document::SOURCE_PORTAL);
         $document->setSourceMetadata($sourceMetadata);
         $document->setContentHash($contentHash);
+
+        if ($accessRequest !== null) {
+            $accessRequest->addDocument($document);
+        }
 
         $this->entityManager->persist($document);
 

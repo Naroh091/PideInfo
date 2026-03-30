@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 from rich.console import Console
 
-from models.portal import Notificacion
+from models.portal import DocumentoExpediente, Expediente, Notificacion
 
 console = Console()
 
@@ -86,6 +86,72 @@ class PideInfoClient:
                 console.print(
                     f"[yellow]Saltado: {s['filename']} ({s['reason']})[/]"
                 )
+
+        return result
+
+    async def sync_expediente_documents(
+        self,
+        expediente: Expediente,
+        docs_and_paths: list[tuple[DocumentoExpediente, Path]],
+        portal_id: str = "",
+        source: str = "transparencia_age",
+    ) -> dict:
+        """
+        Send all new documents from an expediente in a single webhook call.
+
+        Documents are sorted so SOLICITUD comes first — the batch handler
+        uses the first document to extract the request metadata and create
+        the AccessRequest when none exists yet.
+        """
+        # SOLICITUD first, then the rest in their original order
+        sorted_docs = sorted(
+            docs_and_paths,
+            key=lambda dp: (0 if dp[0].nombre.startswith("SOLICITUD") else 1),
+        )
+
+        documents_payload = []
+        for documento, path in sorted_docs:
+            content = path.read_bytes()
+            documents_payload.append({
+                "filename": f"{documento.nombre}{path.suffix}",
+                "contentType": self._guess_mime(path),
+                "content": base64.b64encode(content).decode("ascii"),
+                "contentHash": hashlib.sha256(content).hexdigest(),
+            })
+
+        payload = {
+            "userId": self.user_id,
+            "source": source,
+            "expedienteRef": expediente.identificador,
+            "documents": documents_payload,
+            "metadata": {
+                "expedienteId": expediente.id,
+                "expedientePortalId": portal_id,
+                "expedienteEstado": expediente.estado,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                self.webhook_url,
+                json=payload,
+                headers={
+                    "X-Webhook-Secret": self.webhook_secret,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        created = result.get("created", 0)
+        skipped = result.get("skipped", [])
+
+        if created > 0:
+            console.print(
+                f"[green]Sincronizados {created} doc(s) de {expediente.identificador} → PideInfo[/]"
+            )
+        for s in skipped:
+            console.print(f"[yellow]Saltado: {s['filename']} ({s['reason']})[/]")
 
         return result
 
