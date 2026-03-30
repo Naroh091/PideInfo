@@ -77,10 +77,10 @@
                         Utilizar el Agente de Pideinfo te permite conectarte con el Portal de la Transparencia (y, en el futuro, con más organismos) con tu certificado digital sin que tu certificado salga de tu ordenador.
                     </p>
                     <p class="text-xs text-slate-500 mb-2">
-                        Solo tienes que ejecutar el Agente en tu ordenador e introducir el token que generes en el siguiente paso. A partir de entonces, el Agente podra sincronizar tus solicitudes del Portal de Transparencia para que no tengas que dar ni un solo paso manual.
+                        Sólo tienes que ejecutar el Agente en tu ordenador e introducir el token que generes en el siguiente paso. A partir de entonces, el Agente podrá sincronizar tus solicitudes del Portal de Transparencia para que no tengas que dar ni un solo paso manual.
                     </p>
                     <p class="text-xs text-slate-500">
-                        <a href="{{ path('app_guias_show', {slug: 'agente'}) }}" target="_blank" class="text-primary-600 hover:text-primary-700 underline">Lee la guia sobre el Agente</a> para saber mas de su funcionamiento seguro.
+                        <a href="{{ path('app_guias_show', {slug: 'agente'}) }}" target="_blank" class="text-primary-600 hover:text-primary-700 underline">Lee la guía sobre el Agente</a> para saber más de su funcionamiento seguro.
                     </p>
                 </div>
             </div>
@@ -104,12 +104,12 @@
             <div class="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
                 <p class="text-xs text-amber-800">
-                    Este token solo se mostrara una vez. Copialo ahora y guardalo en un lugar seguro.
+                    Este token sólo se mostrará una vez. Cópialo ahora y guárdalo en un lugar seguro.
                 </p>
             </div>
 
             <div class="relative">
-                <label class="block text-xs font-medium text-slate-500 mb-1">Token de conexion</label>
+                <label class="block text-xs font-medium text-slate-500 mb-1">Token de conexión</label>
                 <div class="flex gap-2">
                     <code class="flex-1 block p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-mono break-all max-h-24 overflow-y-auto select-all" x-text="token"></code>
                     <button @click="copyToken()"
