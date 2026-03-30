@@ -100,13 +100,13 @@ class InboundEmailController extends AbstractController
             'sourceType' => Document::SOURCE_EMAIL,
         ]);
         // Simple dedup: check if we recently processed the same email hash
-        if ($existing && ($existing->getEmailMetadata()['emailHash'] ?? null) === $emailHash) {
+        if ($existing && ($existing->getSourceMetadata()['emailHash'] ?? null) === $emailHash) {
             $this->logger->info('Inbound email skipped: duplicate', ['hash' => $emailHash]);
             return new JsonResponse(['ok' => true, 'duplicate' => true]);
         }
 
         $emailGroupId = Uuid::v7()->toRfc4122();
-        $emailMetadata = [
+        $sourceMetadata = [
             'from' => $from,
             'subject' => $subject,
             'date' => $date,
@@ -124,7 +124,7 @@ class InboundEmailController extends AbstractController
                 originalFilename: 'Email: ' . mb_substr($subject, 0, 200),
                 mimeType: 'text/plain',
                 sourceType: Document::SOURCE_EMAIL,
-                emailMetadata: $emailMetadata,
+                sourceMetadata: $sourceMetadata,
             );
             $documentIds[] = $bodyDocument->getId();
         }
@@ -156,7 +156,7 @@ class InboundEmailController extends AbstractController
                 originalFilename: $filename,
                 mimeType: $contentType,
                 sourceType: Document::SOURCE_EMAIL,
-                emailMetadata: $emailMetadata,
+                sourceMetadata: $sourceMetadata,
             );
             $documentIds[] = $attachmentDocument->getId();
         }
@@ -193,7 +193,7 @@ class InboundEmailController extends AbstractController
         string $originalFilename,
         string $mimeType,
         string $sourceType,
-        array $emailMetadata,
+        array $sourceMetadata,
     ): Document {
         $extension = $this->guessExtension($mimeType, $originalFilename);
         $storedFilename = sprintf(
@@ -213,7 +213,8 @@ class InboundEmailController extends AbstractController
         $document->setMimeType($mimeType);
         $document->setFileSize(strlen($content));
         $document->setSourceType($sourceType);
-        $document->setEmailMetadata($emailMetadata);
+        $document->setSourceMetadata($sourceMetadata);
+        $document->setContentHash(hash('sha256', $content));
 
         $this->entityManager->persist($document);
 

@@ -209,6 +209,37 @@ InboundEmailController
 Same processing pipeline as manual uploads
 ```
 
+### Portal de Transparencia sync (agent)
+
+```
+PideInfo Agent (Python, local)
+        │
+        ├── Playwright (headed) → Cl@ve + certificado
+        │   └── Returns session cookies
+        │
+        ├── httpx → Portal de Transparencia AGE
+        │   ├── GET /privada/expedientes (JSON in hidden input)
+        │   ├── GET /privada/notificaciones (JSON in hidden input)
+        │   └── GET /.rest/download/v1/descargaDocumento
+        │
+        └── POST /webhook/transparencia-sync
+                │
+                ▼
+        TransparenciaAgentController
+          ├── Validates shared secret
+          ├── Looks up user by UUID
+          ├── Deduplicates by contentHash (SHA-256)
+          ├── Stores documents in S3
+          └── Dispatches ProcessDocumentBatchMessage
+                │
+                ▼
+        Same processing pipeline as manual uploads
+```
+
+The agent lives in `agent/` as a standalone Python project. It handles authentication, scraping, and document download. All document intelligence (AI classification, request matching, state transitions) stays in PideInfo's existing PHP pipeline.
+
+Key design: the agent is thin — it only downloads and forwards. PideInfo is the source of truth for document processing and request state.
+
 ## Configuration and infrastructure
 
 - **Database**: PostgreSQL with pgvector extension for vector similarity search
@@ -218,3 +249,4 @@ Same processing pipeline as manual uploads
 - **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_SMALL_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
 - **Vector stores**: Two pgvector stores — one for CTBG resolutions, one for interpretive criteria
 - **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email`
+- **Portal sync agent**: Python agent (`agent/`) using Playwright for Cl@ve auth + httpx for scraping → webhook at `/webhook/transparencia-sync`
