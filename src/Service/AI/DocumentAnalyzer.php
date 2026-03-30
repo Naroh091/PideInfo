@@ -178,7 +178,7 @@ Cada documento tiene su PROPIO tipo, fecha y resumen. NO clasifiques todos los d
     },
     "documents": [
         {
-            "documentType": "tipo de ESTE documento concreto (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro)",
+            "documentType": "tipo de ESTE documento concreto (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, otro)",
             "documentDate": "fecha de ESTE documento en formato YYYY-MM-DD",
             "summary": "resumen breve de ESTE documento (máximo 200 caracteres)",
             "status": "estado que indica ESTE documento (uno de: enviada, en_tramite, concedida, denegada, silencio, pendiente, null si no aplica)",
@@ -265,9 +265,11 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, otro):
 
-Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante el CTBG u organismo equivalente. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
+Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
+
+Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
@@ -397,9 +399,11 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, otro):
 
-Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante el CTBG u organismo equivalente. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
+Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
+
+Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
