@@ -21,7 +21,7 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Uid\Uuid;
 
-class TransparenciaAgentController extends AbstractController
+class AgentController extends AbstractController
 {
     private const ALLOWED_MIMES = [
         'application/pdf',
@@ -40,14 +40,14 @@ class TransparenciaAgentController extends AbstractController
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly MessageBusInterface $messageBus,
         private readonly LoggerInterface $logger,
-        #[Autowire(env: 'TRANSPARENCIA_AGENT_WEBHOOK_SECRET')]
+        #[Autowire(env: 'AGENT_WEBHOOK_SECRET')]
         private readonly string $webhookSecret,
-        #[Autowire(service: 'limiter.transparencia_agent')]
+        #[Autowire(service: 'limiter.AGENT')]
         private readonly RateLimiterFactory $rateLimiter,
     ) {
     }
 
-    #[Route('/webhook/transparencia-sync', name: 'app_webhook_transparencia_sync', methods: ['POST'])]
+    #[Route('/webhook/agent', name: 'app_webhook_agent', methods: ['POST'])]
     public function __invoke(Request $request): JsonResponse
     {
         // Rate limit by IP
@@ -59,7 +59,7 @@ class TransparenciaAgentController extends AbstractController
         // Authenticate
         $secret = $request->headers->get('X-Webhook-Secret');
         if (!$secret || !hash_equals($this->webhookSecret, $secret)) {
-            $this->logger->warning('Transparencia agent webhook: invalid secret');
+            $this->logger->warning('Agent webhook: invalid secret');
             return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -86,7 +86,7 @@ class TransparenciaAgentController extends AbstractController
 
         $user = $this->userRepository->find($userId);
         if (!$user) {
-            $this->logger->warning('Transparencia agent: unknown user', ['userId' => $userId]);
+            $this->logger->warning('Agent: unknown user', ['userId' => $userId]);
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
@@ -156,7 +156,7 @@ class TransparenciaAgentController extends AbstractController
 
             // Filter by allowed MIME types
             if (!in_array($contentType, self::ALLOWED_MIMES, true)) {
-                $this->logger->info('Transparencia agent: skipping unsupported type', [
+                $this->logger->info('Agent: skipping unsupported type', [
                     'filename' => $filename,
                     'contentType' => $contentType,
                 ]);
@@ -166,7 +166,7 @@ class TransparenciaAgentController extends AbstractController
 
             $content = base64_decode($base64Content, true);
             if ($content === false) {
-                $this->logger->warning('Transparencia agent: failed to decode content', ['filename' => $filename]);
+                $this->logger->warning('Agent: failed to decode content', ['filename' => $filename]);
                 $skipped[] = ['filename' => $filename, 'reason' => 'decode_error'];
                 continue;
             }
@@ -187,7 +187,7 @@ class TransparenciaAgentController extends AbstractController
                 if ($accessRequest !== null && $existing->getAccessRequest() === null) {
                     $accessRequest->addDocument($existing);
                 }
-                $this->logger->info('Transparencia agent: duplicate document skipped', [
+                $this->logger->info('Agent: duplicate document skipped', [
                     'filename' => $filename,
                     'contentHash' => $contentHash,
                 ]);
@@ -229,20 +229,17 @@ class TransparenciaAgentController extends AbstractController
 
         $this->entityManager->flush();
 
-        // Dispatch processing.
-        // - No existing AccessRequest: send as a batch so the AI analyzes all
-        //   documents together and creates the request from the first (SOLICITUD).
-        // - Existing AccessRequest: dispatch individually so each document is
-        //   processed against the known request without re-running batch creation.
-        if ($accessRequest === null && count($documentIds) > 1) {
+        // Dispatch processing — batch when multiple documents so the AI
+        // sees them together and can extract shared context (reference number,
+        // public body, request title). The batch analyzer now returns
+        // per-document classifications.
+        if (count($documentIds) > 1) {
             $this->messageBus->dispatch(new ProcessDocumentBatchMessage($documentIds));
         } else {
-            foreach ($documentIds as $documentId) {
-                $this->messageBus->dispatch(new ProcessDocumentMessage($documentId));
-            }
+            $this->messageBus->dispatch(new ProcessDocumentMessage($documentIds[0]));
         }
 
-        $this->logger->info('Transparencia agent: documents synced', [
+        $this->logger->info('Agent: documents synced', [
             'userId' => $userId,
             'source' => $source,
             'expedienteRef' => $expedienteRef,

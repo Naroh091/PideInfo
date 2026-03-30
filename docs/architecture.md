@@ -222,10 +222,10 @@ PideInfo Agent (Python, local)
         │   ├── GET /privada/notificaciones (JSON in hidden input)
         │   └── GET /.rest/download/v1/descargaDocumento
         │
-        └── POST /webhook/transparencia-sync
+        └── POST /webhook/agent
                 │
                 ▼
-        TransparenciaAgentController
+        AgentController
           ├── Validates shared secret
           ├── Looks up user by UUID
           ├── Deduplicates by contentHash (SHA-256)
@@ -249,4 +249,4 @@ Key design: the agent is thin — it only downloads and forwards. PideInfo is th
 - **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_SMALL_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
 - **Vector stores**: Two pgvector stores — one for CTBG resolutions, one for interpretive criteria
 - **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email`
-- **Portal sync agent**: Python agent (`agent/`) using Playwright for Cl@ve auth + httpx for scraping → webhook at `/webhook/transparencia-sync`
+- **Portal sync agent**: Python agent (`agent/`) using Playwright for Cl@ve auth + httpx for scraping → webhook at `/webhook/agent`
