@@ -148,7 +148,7 @@ Tipos de documento posibles:
 - reclamacion: Reclamación presentada ante el Consejo de Transparencia (por silencio, denegación, etc.)
 - acuse_recibo_reclamacion: Acuse de recibo de la reclamación por el Consejo de Transparencia
 - inicio_tramitacion_reclamacion: Notificación de inicio de tramitación de la reclamación
-- resolucion_ctbg: Resolución del Consejo de Transparencia
+- resolucion_reclamacion: Resolución de un organismo de transparencia (CTBG, GAIP, Comisionado, etc.)
 - otro: Cualquier otro documento que no encaje en las categorías anteriores
 
 Extrae la siguiente información en formato JSON:

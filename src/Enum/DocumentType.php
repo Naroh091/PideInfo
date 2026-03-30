@@ -38,7 +38,7 @@ enum DocumentType: string
             self::Complaint => 'Reclamación',
             self::ComplaintReceipt => 'Acuse recibo reclamación',
             self::ComplaintProcessingStart => 'Inicio tramitación reclamación',
-            self::ComplaintResolution => 'Resolución CTBG',
+            self::ComplaintResolution => 'Resolución de reclamación',
             self::Alegaciones => 'Alegaciones',
             self::AlegationResponse => 'Respuesta a alegaciones',
             self::Subsanacion => 'Subsanación solicitada',
@@ -49,6 +49,22 @@ enum DocumentType: string
             self::Other => 'Otro',
             self::Unprocessed => 'Sin procesar',
         };
+    }
+
+    public function isComplaintRelated(): bool
+    {
+        return in_array($this, [
+            self::Complaint,
+            self::ComplaintReceipt,
+            self::ComplaintProcessingStart,
+            self::ComplaintResolution,
+            self::Alegaciones,
+            self::AlegationResponse,
+            self::Subsanacion,
+            self::SubsanacionResponse,
+            self::Audiencia,
+            self::ComplaintExtension,
+        ], true);
     }
 
     /**
@@ -69,6 +85,7 @@ enum DocumentType: string
             'acuse_recibo_reclamacion' => self::ComplaintReceipt,
             'inicio_tramitacion_reclamacion' => self::ComplaintProcessingStart,
             'resolucion_ctbg' => self::ComplaintResolution,
+            'resolucion_reclamacion' => self::ComplaintResolution,
             'alegaciones' => self::Alegaciones,
             'respuesta_alegaciones' => self::AlegationResponse,
             'subsanacion' => self::Subsanacion,

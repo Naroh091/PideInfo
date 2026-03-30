@@ -1,0 +1,65 @@
+{% import 'components/_notification_macros.html.twig' as macros %}
+
+<div {{ attributes.defaults({class: 'recent-notifications', 'data-action': 'notification_created@window->live#$render documents:processed@window->live#$render'}) }}>
+    {% set notifications = this.notifications %}
+
+    <div class="card animate-fade-in" style="animation-delay: 50ms;">
+        <div class="card-header">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                        <i data-lucide="activity" class="w-5 h-5 text-primary-600"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold text-slate-800">Últimas actualizaciones</h2>
+                        <p class="text-sm text-slate-500">Actividad reciente en tus solicitudes</p>
+                    </div>
+                </div>
+                <a href="{{ path('app_notificaciones_index') }}" class="btn btn-ghost btn-sm">
+                    Ver todo
+                    <i data-lucide="arrow-right" class="w-4 h-4 ml-1"></i>
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if notifications|length > 0 %}
+                <div class="space-y-2">
+                    {% for notification in notifications %}
+                        <a href="{{ path('app_notificaciones_read', {id: notification.id}) }}"
+                           class="flex items-start gap-4 p-4 rounded-lg transition-colors group
+                                  {{ not notification.read ? 'bg-primary-50/50 border-l-2 border-primary-500 hover:bg-primary-50' : 'hover:bg-slate-50' }}">
+                            <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5
+                                        {{ notification.alertLevel == 'warning' ? 'bg-amber-100' : 'bg-slate-100' }}">
+                                <i data-lucide="{{ notification.icon }}" class="w-4 h-4 {{ notification.alertLevel == 'warning' ? 'text-amber-600' : 'text-slate-500' }}"></i>
+                            </div>
+                            <div class="flex-1 min-w-0 space-y-1">
+                                {% if notification.accessRequest %}
+                                    <p class="text-xs font-medium text-primary-600 truncate">{{ notification.accessRequest.title }}</p>
+                                {% endif %}
+                                <p class="text-sm text-slate-700 leading-relaxed {{ not notification.read ? 'font-medium' : '' }}">
+                                    {{ notification.message }}
+                                </p>
+                                {{ macros.status_transition(notification) }}
+                                <div class="flex items-center gap-2 mt-1.5">
+                                    <span class="text-xs text-slate-400">{{ notification.createdAt|date('d/m/Y H:i') }}</span>
+                                    <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{{ notification.typeLabel }}</span>
+                                </div>
+                            </div>
+                            {% if not notification.read %}
+                                <span class="w-2 h-2 rounded-full bg-primary-500 flex-shrink-0 mt-3"></span>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state py-8">
+                    <div class="empty-state-icon">
+                        <i data-lucide="bell-off" class="w-full h-full"></i>
+                    </div>
+                    <p class="empty-state-title">Sin actividad reciente</p>
+                    <p class="empty-state-description">Las acciones automáticas aparecerán aquí</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

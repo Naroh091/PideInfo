@@ -1,0 +1,94 @@
+{% extends '@EasyAdmin/page/content.html.twig' %}
+
+{% block page_title %}Fusionar solicitud{% endblock %}
+
+{% block content_header %}
+    <div class="content-header-title">
+        <h1 class="title">Fusionar solicitud</h1>
+    </div>
+{% endblock %}
+
+{% block main %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            Fusionar: <strong>{{ source.title }}</strong>
+        </h2>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <strong>Esta solicitud se eliminara tras la fusion.</strong>
+            Todos sus documentos ({{ source.documents|length }}), historial de estados ({{ source.statusHistory|length }}),
+            plazos y referencias se transferiran a la solicitud destino.
+        </div>
+
+        <table class="table table-sm mb-4">
+            <tr><th>Titulo</th><td>{{ source.title }}</td></tr>
+            <tr><th>N Expediente</th><td>{{ source.externalId ?? '-' }}</td></tr>
+            <tr><th>Estado</th><td>{{ source.statusLabel }}</td></tr>
+            <tr><th>Organismo</th><td>{{ source.publicBody.name }}</td></tr>
+            <tr><th>Documentos</th><td>{{ source.documents|length }}</td></tr>
+            <tr><th>Usuario</th><td>{{ source.user.fullName }}</td></tr>
+        </table>
+
+        {% if candidates|length > 0 %}
+            <h3 class="mb-3">Selecciona la solicitud destino:</h3>
+
+            <form action="{{ path('admin_access_request_merge') }}" method="post">
+                <input type="hidden" name="_token" value="{{ csrf_token('merge_request') }}">
+                <input type="hidden" name="sourceId" value="{{ source.id }}">
+
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Titulo</th>
+                                <th>N Expediente</th>
+                                <th>Estado</th>
+                                <th>Organismo</th>
+                                <th>Docs</th>
+                                <th>Fecha envio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for candidate in candidates %}
+                                <tr>
+                                    <td>
+                                        <input type="radio" name="targetId" value="{{ candidate.id }}"
+                                               id="target_{{ candidate.id }}" required>
+                                    </td>
+                                    <td>
+                                        <label for="target_{{ candidate.id }}" class="mb-0" style="cursor: pointer">
+                                            {{ candidate.title }}
+                                        </label>
+                                    </td>
+                                    <td>{{ candidate.externalId ?? '-' }}</td>
+                                    <td>{{ candidate.statusLabel }}</td>
+                                    <td>{{ candidate.publicBody.name }}</td>
+                                    <td>{{ candidate.documents|length }}</td>
+                                    <td>{{ candidate.sentAt ? candidate.sentAt|date('d/m/Y') : '-' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 d-flex gap-2">
+                    <button type="submit" class="btn btn-warning"
+                            onclick="return confirm('Estas seguro? La solicitud origen se eliminara y todo su contenido se movera a la solicitud destino.')">
+                        <i class="fa fa-code-merge me-1"></i>
+                        Fusionar
+                    </button>
+                    <a href="javascript:history.back()" class="btn btn-secondary">Cancelar</a>
+                </div>
+            </form>
+        {% else %}
+            <div class="alert alert-info">
+                No hay otras solicitudes del mismo usuario para fusionar.
+            </div>
+            <a href="javascript:history.back()" class="btn btn-secondary">Volver</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

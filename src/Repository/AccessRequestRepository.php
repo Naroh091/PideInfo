@@ -304,6 +304,41 @@ class AccessRequestRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 
+    /**
+     * @return array<array{request: AccessRequest, notifications: array}>
+     */
+    public function findWithPendingPortalNotifications(User $user): array
+    {
+        $requests = $this->createQueryBuilderForUser($user)
+            ->andWhere('ar.pendingPortalNotifications IS NOT NULL')
+            ->orderBy('ar.updatedAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+
+        $results = [];
+        foreach ($requests as $request) {
+            $notifications = $request->getPendingPortalNotifications();
+            if (!empty($notifications)) {
+                // Deduplicate by notificationId (or by tipo+concepto+fechaEmision as fallback)
+                $seen = [];
+                $unique = [];
+                foreach ($notifications as $n) {
+                    $key = $n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['concepto'] ?? '') . '|' . ($n['fechaEmision'] ?? '');
+                    if (!isset($seen[$key])) {
+                        $seen[$key] = true;
+                        $unique[] = $n;
+                    }
+                }
+                $results[] = [
+                    'request' => $request,
+                    'notifications' => $unique,
+                ];
+            }
+        }
+
+        return $results;
+    }
+
     private function createQueryBuilderForUser(User $user): QueryBuilder
     {
         $qb = $this->createQueryBuilder('ar')
