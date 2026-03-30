@@ -36,6 +36,15 @@ class PideInfoClient:
 
         filename = f"{notificacion.tipo} - {notificacion.identificador}{document_path.suffix}"
 
+        accepted_entry = {
+            "notificationId": notificacion.id,
+            "tipo": notificacion.tipo,
+            "concepto": notificacion.concepto,
+            "fechaEmision": notificacion.fecha_emision,
+            "fechaCaducidad": notificacion.fecha_caducidad,
+            "esComunicacion": notificacion.es_comunicacion,
+        }
+
         payload = {
             "userId": self.user_id,
             "source": source,
@@ -61,6 +70,12 @@ class PideInfoClient:
                 "esComunicacion": notificacion.es_comunicacion,
             },
         }
+
+        # When the notification was PENDIENTE, downloading it constitutes accepting it.
+        # Tell Symfony so it can create a UserNotification for the user.
+        if notificacion.estado == "PENDIENTE":
+            key = "acceptedCommunications" if notificacion.es_comunicacion else "acceptedNotifications"
+            payload[key] = [accepted_entry]
 
         async with httpx.AsyncClient(timeout=60) as client:
             response = await client.post(

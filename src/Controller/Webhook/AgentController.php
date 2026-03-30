@@ -92,10 +92,11 @@ class AgentController extends AbstractController
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_NOT_FOUND);
         }
 
-        $pendingNotifications = $data['pendingNotifications'] ?? [];
+        $pendingNotifications = $data['pendingNotifications'] ?? null;
 
         // Pending-notifications report: no documents to store — persist on the AccessRequest.
-        if (empty($documents) && !empty($pendingNotifications)) {
+        // An empty array is a valid signal to clear existing pending notifications.
+        if (empty($documents) && $pendingNotifications !== null) {
             $accessRequest = $expedienteRef
                 ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
                 : null;
@@ -109,12 +110,16 @@ class AgentController extends AbstractController
             }
 
             if ($accessRequest !== null) {
-                $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-                $enriched = array_map(
-                    static fn(array $n) => $n + ['reportedAt' => $reportedAt],
-                    $pendingNotifications
-                );
-                $accessRequest->setPendingPortalNotifications($enriched);
+                if (empty($pendingNotifications)) {
+                    $accessRequest->setPendingPortalNotifications(null);
+                } else {
+                    $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+                    $enriched = array_map(
+                        static fn(array $n) => $n + ['reportedAt' => $reportedAt],
+                        $pendingNotifications
+                    );
+                    $accessRequest->setPendingPortalNotifications($enriched);
+                }
                 $this->entityManager->flush();
             }
 
