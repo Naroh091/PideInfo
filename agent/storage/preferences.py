@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -18,6 +18,17 @@ class AgentPreferences:
     # When True: PENDIENTE notifications are downloaded (= accepted) automatically.
     accept_notifications: bool = False
 
+    # JWT token for PideInfo API authentication
+    jwt_token: str = ""
+
+    # Cached user info from PideInfo (populated on connection)
+    user_email: str = ""
+    user_name: str = ""
+
+    @property
+    def is_connected(self) -> bool:
+        return bool(self.jwt_token)
+
 
 def load_preferences(path: Path) -> AgentPreferences:
     """Load preferences from disk, returning defaults if missing or corrupt."""
@@ -28,6 +39,9 @@ def load_preferences(path: Path) -> AgentPreferences:
         data = json.loads(path.read_text())
         return AgentPreferences(
             accept_notifications=bool(data.get("accept_notifications", False)),
+            jwt_token=data.get("jwt_token", ""),
+            user_email=data.get("user_email", ""),
+            user_name=data.get("user_name", ""),
         )
     except (json.JSONDecodeError, KeyError):
         return AgentPreferences()
@@ -38,7 +52,12 @@ def save_preferences(prefs: AgentPreferences, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
-            {"accept_notifications": prefs.accept_notifications},
+            {
+                "accept_notifications": prefs.accept_notifications,
+                "jwt_token": prefs.jwt_token,
+                "user_email": prefs.user_email,
+                "user_name": prefs.user_name,
+            },
             indent=2,
         )
     )

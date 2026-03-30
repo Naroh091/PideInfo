@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     # Portal
     portal_url: str = "https://transparencia.sede.gob.es"
 
-    # PideInfo webhook
+    # PideInfo
+    pideinfo_base_url: str = "http://localhost:8000"
+
+    # Legacy webhook auth (deprecated — use JWT via agent connection)
     pideinfo_webhook_url: str = "http://localhost:8000/webhook/agent"
     pideinfo_webhook_secret: str = "change-me-in-production"
     pideinfo_user_id: str = ""

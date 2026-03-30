@@ -12,6 +12,12 @@ security:
         dev:
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
+        api:
+            pattern: ^/api/
+            stateless: true
+            provider: app_user_provider
+            user_checker: App\Security\UserChecker
+            jwt: ~
         main:
             lazy: true
             provider: app_user_provider
@@ -37,6 +43,7 @@ security:
         - { path: ^/recuperar-password, roles: PUBLIC_ACCESS }
         - { path: ^/webhook/, roles: PUBLIC_ACCESS }
         - { path: ^/guias/privacidad, roles: PUBLIC_ACCESS }
+        - { path: ^/api/, roles: ROLE_USER }
         - { path: ^/admin, roles: ROLE_ADMIN }
         - { path: ^/, roles: ROLE_USER }
 

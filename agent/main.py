@@ -28,6 +28,21 @@ from storage.state import SyncState, load_state, save_state
 console = Console()
 
 
+def _make_pideinfo_client(settings: Settings, prefs: AgentPreferences) -> PideInfoClient:
+    """Create a PideInfoClient using JWT if connected, legacy auth otherwise."""
+    if prefs.is_connected:
+        return PideInfoClient(
+            base_url=settings.pideinfo_base_url,
+            jwt_token=prefs.jwt_token,
+        )
+    return PideInfoClient(
+        base_url=settings.pideinfo_base_url,
+        webhook_url=settings.pideinfo_webhook_url,
+        webhook_secret=settings.pideinfo_webhook_secret,
+        user_id=settings.pideinfo_user_id,
+    )
+
+
 async def do_auth(settings: Settings) -> dict[str, str]:
     """Authenticate and return cookies."""
     session = SessionManager(
@@ -104,11 +119,9 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
             notify_pending_signatures(len(pending))
 
         # Initialize PideInfo client
-        pideinfo = PideInfoClient(
-            webhook_url=settings.pideinfo_webhook_url,
-            webhook_secret=settings.pideinfo_webhook_secret,
-            user_id=settings.pideinfo_user_id,
-        )
+        if prefs is None:
+            prefs = AgentPreferences()
+        pideinfo = _make_pideinfo_client(settings, prefs)
 
         synced_count = 0
 
@@ -374,7 +387,7 @@ async def do_daemon(settings: Settings) -> None:
 
 
 def _run_tray(settings: Settings) -> None:
-    """Launch the system tray icon with Sincronizar / Resetear / Cerrar."""
+    """Launch the system tray icon with connection-aware menu."""
     from tray import TrayApp
 
     prefs = load_preferences(settings.preferences_file)
@@ -399,11 +412,56 @@ def _run_tray(settings: Settings) -> None:
         state = "activada" if prefs.accept_notifications else "desactivada"
         console.print(f"[yellow]Aceptación automática de notificaciones {state}[/]")
 
+    def connect() -> None:
+        from ui.connect_dialog import show_connect_dialog, show_connected_card, show_error_dialog
+
+        token = show_connect_dialog()
+        if not token:
+            return
+
+        # Validate token against the backend
+        import asyncio as _asyncio
+        client = PideInfoClient(base_url=settings.pideinfo_base_url, jwt_token=token)
+        try:
+            loop = _asyncio.new_event_loop()
+            user_info = loop.run_until_complete(client.validate_token())
+            loop.close()
+        except Exception as e:
+            console.print(f"[red]Error validando token: {e}[/]")
+            show_error_dialog(f"No se pudo validar el token.\n{e}")
+            return
+
+        # Store in preferences
+        prefs.jwt_token = token
+        prefs.user_email = user_info.get("email", "")
+        prefs.user_name = user_info.get("name", "")
+        save_preferences(prefs, settings.preferences_file)
+
+        console.print(f"[green]Conectado como {prefs.user_email}[/]")
+        show_connected_card(prefs.user_name, prefs.user_email)
+
+    def disconnect() -> None:
+        prefs.jwt_token = ""
+        prefs.user_email = ""
+        prefs.user_name = ""
+        save_preferences(prefs, settings.preferences_file)
+        console.print("[yellow]Desconectado de PideInfo[/]")
+
+    def is_connected() -> bool:
+        return prefs.is_connected
+
+    def get_user_email() -> str:
+        return prefs.user_email
+
     TrayApp(
         sync_fn=sync,
         reset_fn=reset,
         get_accept_notifications_fn=get_accept_notifications,
         toggle_accept_notifications_fn=toggle_accept_notifications,
+        connect_fn=connect,
+        disconnect_fn=disconnect,
+        is_connected_fn=is_connected,
+        get_user_email_fn=get_user_email,
     ).run()
 
 
@@ -450,7 +508,7 @@ def main() -> None:
 
     console.print("[bold]PideInfo Agent[/]")
     console.print(f"[dim]Portal: {settings.portal_url}[/]")
-    console.print(f"[dim]PideInfo: {settings.pideinfo_webhook_url}[/]")
+    console.print(f"[dim]PideInfo: {settings.pideinfo_base_url}[/]")
     console.print(f"[dim]Datos: {settings.data_dir}[/]")
 
     if args.auth_only:
