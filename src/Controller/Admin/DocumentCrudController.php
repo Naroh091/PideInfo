@@ -50,8 +50,7 @@ class DocumentCrudController extends AbstractCrudController
     public function configureActions(Actions $actions): Actions
     {
         $downloadAction = Action::new('downloadFile', 'Descargar', 'fa fa-download')
-            ->linkToCrudAction('downloadFile')
-            ->setCssClass('btn btn-sm btn-outline-primary');
+            ->linkToCrudAction('downloadFile');
 
         return $actions
             ->disable(Action::NEW)

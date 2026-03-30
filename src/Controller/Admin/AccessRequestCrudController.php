@@ -78,10 +78,15 @@ class AccessRequestCrudController extends AbstractCrudController
     public function configureActions(Actions $actions): Actions
     {
         $mergeAction = Action::new('mergeRequest', 'Fusionar con otra solicitud', 'fa fa-code-merge')
-            ->linkToCrudAction('mergeForm')
-            ->setCssClass('btn btn-sm btn-outline-warning');
+            ->linkToCrudAction('mergeForm');
+
+        $openAction = Action::new('openFrontend', 'Abrir en PideInfo', 'fa fa-external-link')
+            ->linkToUrl(fn (AccessRequest $ar) => $this->generateUrl('app_solicitudes_show', ['id' => $ar->getId()]))
+            ->setHtmlAttributes(['target' => '_blank']);
 
         return $actions
+            ->add(Crud::PAGE_INDEX, $openAction)
+            ->add(Crud::PAGE_DETAIL, $openAction)
             ->add(Crud::PAGE_DETAIL, $mergeAction)
             ->add(Crud::PAGE_EDIT, $mergeAction);
     }
