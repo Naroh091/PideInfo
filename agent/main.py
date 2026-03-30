@@ -29,17 +29,10 @@ console = Console()
 
 
 def _make_pideinfo_client(settings: Settings, prefs: AgentPreferences) -> PideInfoClient:
-    """Create a PideInfoClient using JWT if connected, legacy auth otherwise."""
-    if prefs.is_connected:
-        return PideInfoClient(
-            base_url=settings.pideinfo_base_url,
-            jwt_token=prefs.jwt_token,
-        )
+    """Create a PideInfoClient from stored JWT token."""
     return PideInfoClient(
         base_url=settings.pideinfo_base_url,
-        webhook_url=settings.pideinfo_webhook_url,
-        webhook_secret=settings.pideinfo_webhook_secret,
-        user_id=settings.pideinfo_user_id,
+        jwt_token=prefs.jwt_token,
     )
 
 
