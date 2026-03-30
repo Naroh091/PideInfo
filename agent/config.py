@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     portal_url: str = "https://transparencia.sede.gob.es"
 
     # PideInfo webhook
-    pideinfo_webhook_url: str = "http://localhost:8000/webhook/transparencia-sync"
+    pideinfo_webhook_url: str = "http://localhost:8000/webhook/agent"
     pideinfo_webhook_secret: str = "change-me-in-production"
     pideinfo_user_id: str = ""
 

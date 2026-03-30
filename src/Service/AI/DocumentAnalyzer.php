@@ -24,20 +24,89 @@ final class DocumentAnalyzer
      * Analyze a document using Gemini AI and extract relevant information
      * @return array<string, mixed>
      */
+    private const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+
     public function analyze(Document $document): array
     {
-        return $this->analyzeMultiple([$document]);
+        if ($document->getFileSize() > self::MAX_FILE_SIZE) {
+            throw new \RuntimeException(sprintf(
+                'Documento demasiado grande para análisis automático (%s). Máximo: 4MB.',
+                $document->getFileSizeFormatted()
+            ));
+        }
+
+        return $this->analyzeSingle($document);
+    }
+
+    private function analyzeSingle(Document $document): array
+    {
+        $content = $this->documentsStorage->read($document->getStoredFilename());
+        $mimeType = $document->getMimeType();
+
+        $parts = [];
+
+        if ($mimeType === 'text/plain') {
+            $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
+            $parts[] = [
+                'text' => sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content),
+            ];
+        } else {
+            $parts[] = [
+                'inline_data' => [
+                    'mime_type' => $mimeType,
+                    'data' => base64_encode($content),
+                ],
+            ];
+
+            $contextLabel = sprintf('[Documento: %s]', $document->getOriginalFilename());
+
+            if ($document->isFromPortal()) {
+                $portalContext = $this->buildPortalContext($document);
+                if ($portalContext) {
+                    $contextLabel .= "\n" . $portalContext;
+                }
+            }
+
+            $parts[] = ['text' => $contextLabel];
+        }
+
+        $parts[] = ['text' => $this->buildPrompt()];
+
+        $response = $this->callGeminiApiWithParts($parts);
+
+        return $this->parseResponse($response);
     }
 
     /**
-     * Analyze multiple related documents together for better context
+     * Analyze multiple related documents together for better context.
+     * Returns an array with per-document analysis results plus shared fields.
+     *
      * @param Document[] $documents
-     * @return array<string, mixed>
+     * @return array{shared: array<string, mixed>, documents: array<int, array<string, mixed>>}
      */
     public function analyzeMultiple(array $documents): array
     {
         if (empty($documents)) {
             throw new \InvalidArgumentException('At least one document is required');
+        }
+
+        // Single document — run single-document analysis directly
+        if (count($documents) === 1) {
+            $result = $this->analyzeSingle($documents[0]);
+            return [
+                'shared' => $result,
+                'documents' => [$result],
+            ];
+        }
+
+        // Filter out documents that are too large
+        $documents = array_values(array_filter(
+            $documents,
+            fn(Document $d) => $d->getFileSize() <= self::MAX_FILE_SIZE,
+        ));
+
+        if (empty($documents)) {
+            throw new \RuntimeException('Todos los documentos superan el tamaño máximo para análisis (4MB).');
         }
 
         $parts = [];
@@ -48,10 +117,9 @@ final class DocumentAnalyzer
             $mimeType = $document->getMimeType();
 
             if ($mimeType === 'text/plain') {
-                // Send text content directly for better token efficiency
                 $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
                 $parts[] = [
-                    'text' => sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content),
+                    'text' => sprintf("[Documento %d - %s: %s]\n%s", $index + 1, $label, $document->getOriginalFilename(), $content),
                 ];
             } else {
                 $parts[] = [
@@ -60,59 +128,73 @@ final class DocumentAnalyzer
                         'data' => base64_encode($content),
                     ],
                 ];
-                // Add context about this document
+                $contextLabel = sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename());
+
+                // Add portal metadata context if available
+                if ($document->isFromPortal()) {
+                    $portalContext = $this->buildPortalContext($document);
+                    if ($portalContext) {
+                        $contextLabel .= "\n" . $portalContext;
+                    }
+                }
+
                 $parts[] = [
-                    'text' => sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename()),
+                    'text' => $contextLabel,
                 ];
             }
         }
 
-        // Add the analysis prompt
-        $prompt = count($documents) > 1
-            ? $this->buildMultiDocumentPrompt(count($documents))
-            : $this->buildPrompt();
-
-        $parts[] = ['text' => $prompt];
+        $parts[] = ['text' => $this->buildMultiDocumentPrompt(count($documents))];
 
         $response = $this->callGeminiApiWithParts($parts);
 
-        return $this->parseResponse($response);
+        return $this->parseMultiResponse($response, count($documents));
     }
 
     private function buildMultiDocumentPrompt(int $documentCount): string
     {
         return <<<PROMPT
 Tienes {$documentCount} documentos relacionados con la MISMA solicitud de acceso a información pública en España.
-Pueden incluir: la solicitud original, el justificante de registro, acuses de recibo, resoluciones, etc.
+Pueden incluir: la solicitud original, el justificante de registro, acuses de recibo, resoluciones, traslados, inicios de tramitación, etc.
 
 Analiza TODOS los documentos juntos para extraer la información más completa y precisa.
 Si un dato aparece en un documento pero no en otro, usa el que tengas.
 El justificante de registro suele tener el número de registro y la administración correcta.
 
-Extrae la siguiente información en formato JSON:
+IMPORTANTE: Devuelve un JSON con DOS secciones:
+1. "shared" — información compartida de la solicitud (extraída de TODOS los documentos juntos)
+2. "documents" — un array con {$documentCount} elementos, uno POR CADA documento, en el mismo orden en que se presentaron (Documento 1, Documento 2, etc.)
+
+Cada documento tiene su PROPIO tipo, fecha y resumen. NO clasifiques todos los documentos con el mismo tipo.
 
 {
-    "documentType": "tipo del documento PRINCIPAL (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro)",
-    "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
-    "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
-    "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
-    "documentDate": "fecha del documento o registro en formato YYYY-MM-DD",
-    "applicableLaw": "SOLO la ley de transparencia principal (Ley 19/2013 o la autonómica equivalente)",
-    "summary": "resumen breve del contenido (máximo 200 caracteres)",
-    "status": "estado que indica el documento (uno de: enviada, en_tramite, concedida, denegada, silencio, pendiente, null si no aplica)",
-    "isExtension": "true si es una notificación de prórroga, false en caso contrario",
-    "extensionDays": "número de días de prórroga (si aplica, null si no)",
-    "newDeadlineDate": "nueva fecha límite si se menciona explícitamente en formato YYYY-MM-DD (null si no)",
-    "denialReason": "motivo de denegación si el documento es una resolución denegatoria (null si no aplica)",
-    "isRedirection": "true si el documento comunica que la solicitud se traslada/redirige a otro órgano porque la información no obra en poder del órgano original (art. 19.1 Ley 19/2013), false en caso contrario",
-    "redirectedToPublicBody": "nombre COMPLETO del órgano al que se traslada, incluyendo el gobierno al que pertenece (ver reglas abajo)",
-    "isThirdPartyRights": "true si el documento notifica que la solicitud afecta a derechos de terceros y se abre plazo de alegaciones (art. 19.3 Ley 19/2013), false en caso contrario",
-    "thirdPartyAllegationsDeadline": "fecha límite para alegaciones de terceros en formato YYYY-MM-DD (si se menciona, null si no)",
-    "isProcessingStart": "true si es un documento de comienzo/inicio de tramitación que notifica el inicio del plazo de 1 mes para resolver (art. 20.1 Ley 19/2013), false en caso contrario",
-    "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
-    "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018'). NO uses 'Solicitud de acceso a información pública'.",
-    "requestDescription": "descripción detallada de la información solicitada, formateada en Markdown. Usa listas, negritas y estructura clara para facilitar la lectura.",
-    "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
+    "shared": {
+        "referenceNumber": "número de expediente o registro (busca 'Nº de registro', 'Expediente', etc.)",
+        "publicBodyName": "ADMINISTRACIÓN COMPETENTE (ver reglas abajo)",
+        "autonomousCommunityCode": "código de la CCAA a la que pertenece la administración (ver tabla abajo, null si es estatal)",
+        "applicableLaw": "SOLO la ley de transparencia principal (Ley 19/2013 o la autonómica equivalente)",
+        "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018'). NO uses 'Solicitud de acceso a información pública'.",
+        "requestDescription": "descripción detallada de la información solicitada, formateada en Markdown. Usa listas, negritas y estructura clara para facilitar la lectura."
+    },
+    "documents": [
+        {
+            "documentType": "tipo de ESTE documento concreto (uno de: solicitud, acuse_recibo, inicio_tramitacion, resolucion, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_ctbg, alegaciones, otro)",
+            "documentDate": "fecha de ESTE documento en formato YYYY-MM-DD",
+            "summary": "resumen breve de ESTE documento (máximo 200 caracteres)",
+            "status": "estado que indica ESTE documento (uno de: enviada, en_tramite, concedida, denegada, silencio, pendiente, null si no aplica)",
+            "isExtension": false,
+            "extensionDays": null,
+            "newDeadlineDate": null,
+            "denialReason": null,
+            "isRedirection": false,
+            "redirectedToPublicBody": null,
+            "isThirdPartyRights": false,
+            "thirdPartyAllegationsDeadline": null,
+            "isProcessingStart": false,
+            "processingStartDate": null,
+            "alegationPoints": null
+        }
+    ]
 }
 
 REGLAS PARA publicBodyName:
@@ -348,6 +430,106 @@ PROMPT;
     }
 
     /**
+     * Map portal notification types to the documentType values used by the AI prompt.
+     * This ensures documents from the transparency portal are classified correctly
+     * regardless of what the AI extracts from the PDF content.
+     */
+    private const PORTAL_TYPE_MAP = [
+        // Expediente lifecycle
+        'Resolución' => 'resolucion',
+        'Aceptación Competencias' => 'inicio_tramitacion',
+        'Requerimiento' => 'otro',
+        'Alegación' => 'alegaciones',
+        'Información Pública' => 'otro',
+        'Audiencia' => 'audiencia',
+        'Prueba' => 'otro',
+        'Informe' => 'otro',
+        'Respuesta de informe' => 'otro',
+        'Pasar a trámite' => 'inicio_tramitacion',
+        'Modificación de plazo' => 'prorroga',
+        'Suspensión' => 'afectacion_terceros',
+        'Cancelación de suspensión' => 'otro',
+        'Silencio administrativo' => 'otro',
+        'Caso de excepción' => 'otro',
+        'Anexo' => 'otro',
+        'Requerimiento de pago' => 'otro',
+        'Traslado de competencias' => 'traslado',
+        'Traslado de expediente' => 'traslado',
+        'Cambiar modo de tramitación' => 'otro',
+        'Aportar documentación' => 'otro',
+        'Finalizar Expediente' => 'resolucion',
+        'Duplicar Expediente' => 'otro',
+    ];
+
+    /**
+     * Map portal notification concept prefixes to documentType values.
+     */
+    private const PORTAL_CONCEPT_MAP = [
+        'COMUNICACIÓN_CAMBIO_ÁMBITO' => 'traslado',
+        'ACEPTACION_COMPETENCIAS' => 'inicio_tramitacion',
+        'RESOLUCION' => 'resolucion',
+    ];
+
+    /**
+     * Build context string from portal source metadata to help AI classify correctly.
+     */
+    private function buildPortalContext(Document $document): ?string
+    {
+        $meta = $document->getSourceMetadata();
+        if (!$meta) {
+            return null;
+        }
+
+        $lines = ['[CONTEXTO DEL PORTAL DE TRANSPARENCIA — usa esta información para clasificar el documento]'];
+
+        // Determine the expected documentType from portal metadata
+        $portalHint = $this->resolvePortalDocumentType($meta);
+        if ($portalHint) {
+            $lines[] = sprintf('IMPORTANTE: Este documento DEBE clasificarse como documentType="%s" según la tipología del portal.', $portalHint);
+        }
+
+        if (!empty($meta['notificationType'])) {
+            $lines[] = sprintf('Tipo de notificación en el portal: %s', $meta['notificationType']);
+        }
+        if (!empty($meta['notificationConcept'])) {
+            $lines[] = sprintf('Concepto: %s', $meta['notificationConcept']);
+        }
+        if (!empty($meta['notificationState'])) {
+            $lines[] = sprintf('Estado en el portal: %s', $meta['notificationState']);
+        }
+        if (!empty($meta['expedienteRef'])) {
+            $lines[] = sprintf('Expediente portal: %s', $meta['expedienteRef']);
+        }
+        if (!empty($meta['expedienteEstado'])) {
+            $lines[] = sprintf('Estado expediente: %s', $meta['expedienteEstado']);
+        }
+
+        return count($lines) > 1 ? implode("\n", $lines) : null;
+    }
+
+    /**
+     * Resolve the expected documentType from portal metadata.
+     */
+    private function resolvePortalDocumentType(array $meta): ?string
+    {
+        // First try concept prefix (more specific)
+        $concept = $meta['notificationConcept'] ?? '';
+        foreach (self::PORTAL_CONCEPT_MAP as $prefix => $type) {
+            if (str_starts_with($concept, $prefix)) {
+                return $type;
+            }
+        }
+
+        // Then try notification type
+        $notifType = $meta['notificationType'] ?? '';
+        if (isset(self::PORTAL_TYPE_MAP[$notifType])) {
+            return self::PORTAL_TYPE_MAP[$notifType];
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $parts
      * @return array<string, mixed>
      */
@@ -365,7 +547,7 @@ PROMPT;
                 'temperature' => 0.1,
                 'topK' => 1,
                 'topP' => 1,
-                'maxOutputTokens' => 8192,
+                'maxOutputTokens' => 16384,
                 'responseMimeType' => 'application/json',
             ],
         ];
@@ -427,6 +609,81 @@ PROMPT;
         }
 
         // If alegationPoints is a non-empty array and type is Other, set to Alegaciones
+        if (!empty($data['alegationPoints']) && is_array($data['alegationPoints']) && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::Alegaciones;
+        }
+
+        return $data;
+    }
+
+    /**
+     * Parse a multi-document response that contains shared + per-document analyses.
+     *
+     * @return array{shared: array<string, mixed>, documents: array<int, array<string, mixed>>}
+     */
+    private function parseMultiResponse(array $response, int $expectedCount): array
+    {
+        $text = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+        $text = preg_replace('/^```json\s*/', '', $text);
+        $text = preg_replace('/\s*```$/', '', $text);
+        $text = trim($text);
+
+        $data = json_decode($text, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \RuntimeException('Failed to parse Gemini multi-response as JSON: ' . $text);
+        }
+
+        $shared = $data['shared'] ?? $data;
+        $docResults = $data['documents'] ?? [];
+
+        // If the AI didn't return the expected structure, fall back to single analysis
+        if (empty($docResults) || !is_array($docResults)) {
+            $single = $this->normalizeDocumentAnalysis($shared);
+            return [
+                'shared' => $single,
+                'documents' => array_fill(0, $expectedCount, $single),
+            ];
+        }
+
+        // Normalize each document analysis and merge with shared fields
+        $documents = [];
+        foreach ($docResults as $i => $docData) {
+            $merged = array_merge($shared, $docData);
+            $documents[] = $this->normalizeDocumentAnalysis($merged);
+        }
+
+        // If AI returned fewer documents than expected, pad with the shared analysis
+        while (count($documents) < $expectedCount) {
+            $documents[] = $this->normalizeDocumentAnalysis($shared);
+        }
+
+        return [
+            'shared' => $this->normalizeDocumentAnalysis($shared),
+            'documents' => $documents,
+        ];
+    }
+
+    /**
+     * Apply documentType enum mapping and flag-based overrides to a single document analysis.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function normalizeDocumentAnalysis(array $data): array
+    {
+        $data['documentType'] = DocumentType::fromAiValue($data['documentType'] ?? 'otro');
+
+        if (($data['isRedirection'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::Redirection;
+        }
+        if (($data['isThirdPartyRights'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::ThirdPartyRights;
+        }
+        if (($data['isProcessingStart'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
+            $data['documentType'] = DocumentType::ProcessingStart;
+        }
         if (!empty($data['alegationPoints']) && is_array($data['alegationPoints']) && $data['documentType'] === DocumentType::Other) {
             $data['documentType'] = DocumentType::Alegaciones;
         }
