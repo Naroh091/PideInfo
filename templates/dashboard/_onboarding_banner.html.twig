@@ -1,0 +1,93 @@
+{# Onboarding banner for users with no requests #}
+{% if totalRequests == 0 %}
+<div id="onboarding-banner" style="display: none;" class="mb-6">
+    <div class="card border-amber-300 bg-gradient-to-br from-amber-100 via-amber-50 to-white shadow-md">
+        <div class="card-body">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-200 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="hand-metal" class="w-5 h-5 text-amber-700"></i>
+                    </div>
+                    <h2 class="text-lg font-bold text-slate-800">¡Hola! Bienvenido/a a PideInfo</h2>
+                </div>
+                <button id="onboarding-dismiss-btn"
+                        class="btn btn-ghost btn-sm flex-shrink-0 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="No volver a mostrar">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <p class="text-slate-600 mb-5">
+                Ahora puedes leer las
+                <a href="{{ path('app_guias_index') }}" class="text-primary-600 font-medium hover:underline">guías</a>
+                para ver cómo funciona PideInfo o registrar tu primera petición. Lo puedes hacer de estas maneras:
+            </p>
+
+            <div class="space-y-4">
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-slate-100">
+                    <span class="text-3xl flex-shrink-0">📄</span>
+                    <div>
+                        <p class="font-semibold text-slate-800 text-sm">Sube los PDF a la barra lateral</p>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Por ejemplo, si has pedido algo en el Portal de Transparencia nacional, puedes bajar el PDF
+                            con tu solicitud y subirlo. El sistema analizará el documento y registrará la solicitud de
+                            acceso con sus plazos.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-slate-100">
+                    <span class="text-3xl flex-shrink-0">📧</span>
+                    <div>
+                        <p class="font-semibold text-slate-800 text-sm">Usa el email virtual</p>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Activa tu email virtual en la barra lateral y reenvía a esa dirección cualquier confirmación
+                            de recepción de tu solicitud de acceso que te haya enviado por email la sede electrónica de
+                            algún organismo. Si además de texto contiene archivos PDF, los analizará y los adjuntará.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-slate-100">
+                    <span class="text-3xl flex-shrink-0">✍️</span>
+                    <div>
+                        <p class="font-semibold text-slate-800 text-sm">Manualmente</p>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Puedes
+                            <a href="{{ path('app_solicitudes_new') }}" class="text-primary-600 font-medium hover:underline">registrar tu petición a mano</a>,
+                            aunque es el método menos recomendable.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <div class="flex items-start gap-2">
+                    <span class="text-xl flex-shrink-0">💡</span>
+                    <p class="text-xs text-amber-700">
+                        <strong>Tip:</strong> Estamos trabajando en implementar sincronización con el Portal de
+                        Transparencia y otros organismos. No nos lo ponen fácil, pero... ¡Te mantendremos informado! :)
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var STORAGE_KEY = 'pideinfo_onboarding_banner_dismissed';
+        var banner = document.getElementById('onboarding-banner');
+        var btn = document.getElementById('onboarding-dismiss-btn');
+
+        if (!localStorage.getItem(STORAGE_KEY)) {
+            banner.style.display = '';
+        }
+
+        btn.addEventListener('click', function () {
+            localStorage.setItem(STORAGE_KEY, '1');
+            banner.style.display = 'none';
+        });
+    })();
+</script>
+{% endif %}
