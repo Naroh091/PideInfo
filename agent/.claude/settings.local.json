@@ -6,7 +6,11 @@
       "Bash(.venv/bin/python -c \"import pystray; from PIL import Image, ImageDraw; print\\('pystray', pystray.__version__\\)\")",
       "Bash(.venv/bin/python -c \"import pystray; from PIL import Image, ImageDraw; print\\('OK'\\)\")",
       "Bash(.venv/bin/python -c \"import playwright; print\\(playwright.__version__\\)\")",
-      "Bash(.venv/bin/pip show:*)"
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''doc keys sample:'''', list\\(d.get\\(''''synced_document_keys'''',[]\\)\\)[:10]\\)\")",
+      "Read(//Users/david/**)",
+      "Bash(python3:*)",
+      "Bash(find /Users/david/IdeaProjects/vigia/agent -name *.json)"
     ]
   }
 }
