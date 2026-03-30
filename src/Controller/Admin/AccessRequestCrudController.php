@@ -179,8 +179,12 @@ class AccessRequestCrudController extends AbstractCrudController
         }
 
         // 8. Merge external references
-        if ($source->getExternalId() && $source->getExternalId() !== $target->getExternalId()) {
-            $target->addAlternativeReference($source->getExternalId());
+        if ($source->getExternalId()) {
+            if (!$target->getExternalId()) {
+                $target->setExternalId($source->getExternalId());
+            } elseif ($source->getExternalId() !== $target->getExternalId()) {
+                $target->addAlternativeReference($source->getExternalId());
+            }
         }
         foreach ($source->getAlternativeReferences() as $ref) {
             $target->addAlternativeReference($ref);

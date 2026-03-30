@@ -110,7 +110,7 @@ class DocumentCrudController extends AbstractCrudController
     {
         $typeChoices = [];
         foreach (DocumentType::cases() as $case) {
-            $typeChoices[$case->label()] = $case->value;
+            $typeChoices[$case->label()] = $case;
         }
 
         yield IdField::new('id')->hideOnForm();
