@@ -14,9 +14,13 @@ framework:
 
 when@prod:
     framework:
+        trusted_proxies: '%env(TRUSTED_PROXIES)%'
+        trusted_headers: ['x-forwarded-for', 'x-forwarded-proto', 'x-forwarded-host', 'x-forwarded-port']
         session:
             handler_id: Symfony\Component\HttpFoundation\Session\Storage\Handler\RedisSessionHandler
+            save_path: '%env(REDIS_URL)%'
             cookie_secure: true
+            cookie_samesite: lax
 
 when@test:
     framework:
