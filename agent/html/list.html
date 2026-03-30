@@ -1,0 +1,611 @@
+
+
+<!DOCTYPE html>
+<html xml:lang="es" lang="es">
+  <head>
+
+
+<meta charset="utf-8" />
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sede Electrónica del Portal de la Transparencia de la Administración General del Estado - Expedientes</title>
+<link rel="icon" type="image/x-icon" href="/.resources/ac2-front/webresources/assets/favicon.ico"/>
+
+<link rel="stylesheet" href="https://estaticos.redsara.es/dintel/2.1.0/dnt-ui/dnt-ui.css"/>
+<link rel="modulepreload" href="https://estaticos.redsara.es/dintel/2.1.0/dnt-ui/dnt-ui.esm.js" as="script">
+<script type="module" src="https://estaticos.redsara.es/dintel/2.1.0/dnt-ui/dnt-ui.esm.js"></script>
+<script nomodule src="https://estaticos.redsara.es/dintel/2.1.0/esm/dnt-ui.js"></script>
+
+
+<script type="module">
+  import { toast } from 'https://estaticos.redsara.es/dintel/2.1/dnt-ui/index.esm.js';
+
+  window.toast = toast;
+</script>
+
+  <script>
+      const linkPrefix = '';
+      const contextPath = '';
+      const restBasePath = '';
+      const restToken = '';
+  </script>
+
+  <link rel="stylesheet" type="text/css" href="/.resources/ac2-front/webresources/css/ac2-commons.css"/>
+  <script src="/.resources/ac2-front/webresources/js/ac2-commons.js"></script>
+<script src="/.resources/ac2-front/webresources/js/ac2-detalleExpediente.js"></script>
+<script src="/.resources/ac2-front/webresources/js/ac2-formularios.js"></script>
+<script src="/.resources/ac2-front/webresources/js/ac2-usuariosLogin.js"></script>
+  </head>
+  <body class="home es">
+
+    <script>
+      document.addEventListener('readystatechange', function(event) {
+        if (document.readyState === "complete") {
+          const loadingDiv = document.getElementById('loading');
+          const spinner = document.getElementById('spinner');
+          loadingDiv.loading = false;
+          spinner.style.display = 'none';
+        }
+      });
+
+      //buscar si hay notificaciones en la url
+      const messageCodes = {
+        1001: {
+          "type": 'success',
+          "title": 'Tu petición se ha completado correctamente.',
+          "message": ''
+        },
+        1002: {
+          "type": 'success',
+          "title: 'Tu petición se ha completado correctamente.',
+          "message": 'Si te encuentras registrado, recibirás un email para cambiar tu contraseña.'
+        },
+        1003: {
+          "type": "success",
+          "title": 'El proceso ha finalizado de manera correcta',
+          "message": 'Se ha activado correctamente tu cuenta'
+        }
+      };
+
+      document.addEventListener('readystatechange', function(event) {
+        if (document.readyState === "complete") {
+          const url = window.location.search;
+          const urlParametro = new URLSearchParams(url);
+          const parametro = urlParametro.get("msg");
+          const message = messageCodes[parametro];
+
+          if (parametro !== null) {
+            console.log('Show notification on load');
+         showNotification(message.type, message.title, message.message);
+          }
+        }
+      });
+    </script>
+
+
+    <dnt-spinner
+      id="loading"
+      size="lg"
+      title-text="Cargando"
+      loading="true"
+      lock-screen="true"
+      description=""
+      background="black">
+      <div id="spinner" class="spinner"></div>
+    </dnt-spinner>
+
+
+<dnt-header
+  show-menu="true"
+  show-help="false"
+  show-search="false"
+  show-link-1="true"
+  search-button-title="Abrir buscador">
+
+
+  <dnt-header-item type="datetime"></dnt-header-item>
+
+    <dnt-header-item text='DAVID ALEJANDRO FERNANDEZ SANCHO (53781829D)' type='login'></dnt-header-item>
+    <dnt-header-item type="link1" text="Cerrar sesión" icon="Logout" icon-position="left" href="/?mgnlLogout=true"></dnt-header-item>
+
+
+
+
+
+
+    <dnt-header-item
+      type="language
+      langs='[ { "value" : "es" , "label" : "Castellano" , "isSelected" : "true" , "url" : "#" } , { "value" : "ca" , "label" : "Catalán" , "isSelected" : "false" , "url" : "/ca/privada/expedientes.html" } , { "value" : "eu" , "label" : "Euskera" , "isSelected" : "false" , "url" : "/eu/privada/expedientes.html" } , { "value" : "gl" , "label" : "Gallego" , "isSelected" : "false" , "url" : "/gl/privada/expedientes.html" } , { "value" : "va" , "label" : "Valenciano" , "isSelected" : "false" , "url" : "/va/privada/expedientes.html" } ]'
+      locale="es">
+    </dnt-header-item>
+
+
+              <dnt-header-logo slot="logos" type="logo-quaternary">
+                <img src="/dam/jcr:4413279f-95bc-4f43-b2f2-7e57fb0932f5/LogoTransparenciaMinisterio.png" alt="Logo del Portal de la Transparencia de l Adminsitración General del Estado"/>
+              </dnt-header-logo>
+
+
+
+  <dnt-horizontal-menu slot="menu" size="large" negative="true">
+
+    <dnt-horizontal-menu-item to="/" active="false">Inicio</dnt-horizontal-menu-item>
+
+    <dnt-horizontal-menu-item active="false">
+      Procedimientos
+
+          <dnt-horizontal-menu-item to="/categoria?idCat=100549">Derecho de Acceso</dnt-horizontal-menu-item>
+    </dnt-horizontal-menu-item>
+
+      <dnt-horizontal-menu-item active="false">
+        Servicios
+
+
+            <dnt-horizontal-menu-item to="/servicio?id=Consulta-de-Unidades-y-Oficinas-en-DIR3">Consulta de Unidads y Oficinas en DIR3</dnt-horizontal-menu-item>
+            <dnt-horizontal-menu-item to="/servicio?id=Oficinas-de-Registro-Cl-ve">Oficinas de Registro Cl@ve</dnt-horizontal-menu-item>
+            <dnt-horizontal-menu-item to="/servicio?id=Registro-Electrónico-General">Registro Electrónico General</dnt-horizontal-menu-item>
+            <dnt-horizontal-menu-item to="/servicio?id=Oficina-de-Registro">Oficina de Registro</dnt-horizontal-menu-item>
+            <dnt-horizontal-menu-item to="/servicio?id=Cita-previa-en-las-Oficinas-de-Asistencia-en-Materiae-Registros">Cita previa en las Oficinas de Asistencia en Materia de Registros</dnt-horizontal-menu-item>
+            <dnt-horizontal-menu-item to="/servicio?id=Validacion-de-certificados-y-firma">Validación de certificados y firma</dnt-horizontal-menu-item>
+      </dnt-horizontal-menu-item>
+    <dnt-horizontal-menu-item active="false">
+      Sobre la sede
+      <dnt-horizontal-menu-item to="/Que-es-la-sede">¿Qué es la sede?</dnt-horizontal-menu-item>
+      <dnt-horizontal-menu-item to="/Fecha-sede">Fecha y hora oficiales</dnt-horizontal-menu-item>
+      <dnt-horizontal-menu-item to="/Calendario-sede">Calendario de días inhábiles</dnt-horizontal-menu-item>
+      <dnt-horizontal-menu-item to="/Normativa-sede">Normativa</dnt-horizontal-menu-item>
+    </dnt-horizontal-menu-item>
+    <dnt-horizontal-menu-item active="false">
+      Ayuda
+      <dnt-horizontal-menu-item to="/faqs">Preguntas frecuentes</dnt-horizontal-menu-item>  <dnt-horizontal-menu-item to="/Requisitos">Requisitos técnicos</dnt-horizontal-menu-item>
+      <dnt-horizontal-menu-item to="/Contacto">Contacto</dnt-horizontal-menu-item>
+    </dnt-horizontal-menu-item>
+      <dnt-horizontal-menu-item active="true">
+        Área privada
+        <dnt-horizontal-menu-item to="/privada/expedientes">Expedientes</dnt-horizontal-menu-item>
+        <dnt-horizontal-menu-item to="/privada/notificaciones">Notificaciones</dnt-horizontal-menu-item>
+      </dnt-horizontal-menu-item>
+  </dnt-horizontal-menu>
+
+</dnt-header>
+
+
+
+
+
+  <script src="/.resources/ac2-front/webresources/js/areaPrivada/ac2-listadosAreaPrivada~2025-12-09-07-37-24-000~cache.js"></script>
+
+<dnt-hero title-text="Mis expedientes" negative="true" h-size="1">
+  <div slot="extended-content">
+    <p class="dnt-txt-body-400 dnt-mb-8">Desde esta pantalla podrás buscar, consultar y gestionar tus expedient/p>
+    <dnt-search
+        id="buscadorGeneral"
+        class="searchFilter"
+        size="m"
+        show-button
+        show-modal="false"
+        show-modal-results="false"
+        show-total-results="false"
+        full
+        value="">
+      <div slot="filters" class="dnt-flex dnt-flex-wrap form-grid dnt-gap-8 dnt-pb-8">
+          <dnt-select
+              id="filtroEstado"
+              class="searchFilter size-md"
+              clearable="true"
+              size="default"
+              value=""
+              required="false"
+              fit-options="true"
+              multiple="false"
+              placeholder="Seleccionar"
+              select-label="Estado"
+              dropdown-strategy="absolute">
+              <dnt-option label="Creado" value="Creado"></dnt-option>
+              <dnt-option label="En tramitación" value="En tramitación"></dnt-tion>
+              <dnt-option label="Finalizado" value="Finalizado"></dnt-option>
+              <dnt-option label="Archivado" value="Archivado"></dnt-option>
+              <dnt-option label="Finalizado y Trasladado" value="Finalizado y Trasladado"></dnt-option>
+              <dnt-option label="Finalizado Traslado de Competencias" value="Finalizado Traslado de Competencias"></dnt-option>
+              <dnt-option label="En Seguimiento" value="En Seguimiento"></dnt-option>
+          </dnt-select>
+
+          <dnt-select
+              id="filtroProcedimiento"
+              class="searchFilter size-md"
+              clearable="true"
+              fit-options="true"
+              size="default"
+              required="false"
+              multiple="false"
+              placeholder="Seleccionar"
+              select-label="Procedimiento asociado"
+              dropdown-strategy="absolute">
+                      <dnt-option label="Ejercicio del derecho de acceso a información pública" value="133628"></dnt-optio
+          </dnt-select>
+
+        <dnt-date-picker
+            id="filtroFechaIni"
+            class="searchFilter size-sm"
+            type="date"
+            size="default"
+            clearable="false"
+            value=""
+            placeholder="Seleccionar Fecha"
+            error-message="La fecha de inicio no puede ser posterior a la fecha actual."
+            status="default"
+            input-label="Fecha desde">
+        </dnt-date-picker>
+        <dnt-date-picker
+            id="filtroFechaFin"
+            class="searchFilter size-sm"
+            type="date"
+            size="default"
+            clearable="false"
+            value=""
+            placeholder="Seleccionar Fecha"
+            error-message="La fecha indicada es anterior a la fecha de inicio."
+            status="default"
+            input-label="Fecha hasta">
+        </dnt-date-picker>
+      </div>
+      <div slot="filters" class="dnt-flex dnt-flex-wrap dnt-gap-8 dnt-pb-8">
+        <dnt-button style="margin-left:auto" type="primary-dark" size="m" onclick="cleanFilters()">Limpiar filtros</dnt-button>
+        <dnt-button type="primary-light" size="m" onclick="handleSearchParametersListados()">Aplicar filtros</dnt-button>
+      </div>
+      <script>
+        document.getElementById('filtroFechaIni').addEventListener('changeEvent', validateDates);
+        document.getElementById('filtroFechaFin').addEventListener('changeEvent', validateDates);
+
+        const dntSearchElement = document.querySelector('dnt-search');
+        dntSearchElement.addEventListener('searchEvent', handleSearchParametersListados);
+
+        window.addEventListener('load', () => {
+          const isSearch = sessionStorage.getItem('isSearch');
+
+          if (isSearch) {
+            const savedFechaIni = sessionStorage.getItem('fechaIni');
+            const savedFechaFin = sessionStorage.getItem('fechaFin');
+
+            if (savedFechaIni) {
+              document.getElementById('filtroFechaIni').value = savedFechaIni;
+            }
+            if (savedFechaFin) {
+              document.getElementById('filtroFechaFin').value = savedFechaFin;
+            }
+          } else {
+            sessionStorage.removeItem('fechaIni');
+            sessionStorage.removeItem('fechaFin');
+          }
+          sessionStorage.removeItem('isSearch');
+        });
+      </script>
+    </dnt-search>
+  </div>
+</dnt-hero>
+
+<!-- PESTAÑAS LISTAS -->
+<dnt-section type="default" class="tabsSection">
+  <div slot="custom">
+    <dnt-tabs value='0' id="tabsExpedientes" stretch='true' center='true' collapsed-label='mas' visible-tabs-count='1'>
+
+      <!-- Expedientes -->
+      <dnt-tab-pane label='Expedientes' disabled='false'>
+  <dnt-table id='table-actions' stripe='true'>
+    <dnt-table-column name='Id. expediente' prop='identificador'></dnt-table-column>
+    <dnt-table-column name='Procedimiento' prop='nombreProcedimiento'></dnt-table-column>
+    <dnt-table-column name='Solicitante' prop='nombreSolicitante'></dnt-table-column>
+    <dnt-table-column name='Fecha Solicitud' prop=fechaCreacion'></dnt-table-column>
+    <dnt-table-column name='Estado'>
+      <dnt-tag
+          type="${row.estadoTagType}"
+          icon="${row.estadoTagIcon}"
+          size="medium"
+          lang="es">
+        ${row.estado}
+      </dnt-tag>
+    </dnt-table-column>
+    <dnt-table-column name='Acciones' id='column-actions' type='actions' align='right'></dnt-table-column>
+  </dnt-table>
+
+  <input id="expedientesData" type="hidden" value='[{"id":611806,"idCliente":100086,"idAmbito":101518,"identificador":"AC2000000611806","fechaCreacion":"2026-03-27T16:09:24.000Z","estado":"Creado","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":580244,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000580244","fechaCreacion":"2026-03-10T02:00:00.000Z","estado":"En tmitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"David Alejandro Fernandez Sancho","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575669,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575669","fechaCreacion":"2026-03-08T05:23:14.000Z","estado":"En tramitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575667,"idClie00086,"idAmbito":101813,"identificador":"AC2000000575667","fechaCreacion":"2026-03-08T05:14:50.000Z","estado":"En tramitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","irrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575666,"idCliente":100086,"idAmbito":100206,"identificador":"AC2000000575666","fechaCreacion":"2026-03-08T05:11:42.000Z","estado":"Creado","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":falseisOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575665,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575665","fechaCreacion":"2026-03-08T05:11:01.000Z","estado":"En tramitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública",mbreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575664,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575664","fechaCreacion":"2026-03-08T05:09:46.000Z","estado":"En tramitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de aceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D",sBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575663,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575663","fechaCreacion":"2026-03-08T05:01:16.000Z","estado":"En tramitación","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a iformación pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 537829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575662,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575662","fechaCreacion":"2026-03-08T04:39:14.000Z","estado":"En tramitación","idProcedimiento":133628,"nomreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575596,"idCliente":100086,"idAmbito":100206,"identificador":"AC2000000575596","fechaCreacion":"2026-03-07T23:21:43.000Z","estado":"Creado","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información ública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitate":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575592,"idCliente":100086,"idAmbito":100206,"identificador":"AC2000000575592","fechaCreacion":"2026-03-07T23:17:38.000Z","estado":"Creado","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO",ifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575590,"idCliente":100086,"idAmbito":100206,"identificador":"AC2000000575590","fechaCreacion":"2026-03-07T23:13:53.000Z","estado":"Creado","idProcedimiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nomeSolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575587,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575587","fechaCreacion":"2026-03-07T23:08:52.000Z","estado":"En tramitación","idProcedimiento":13628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSolicitante":"DAVIDLEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575523,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575523","fechaCreacion":"2026-03-07T20:14:41.000Z","estado":"En tramitación","idProcedmiento":133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombreSicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false},{"id":575517,"idCliente":100086,"idAmbito":101813,"identificador":"AC2000000575517","fechaCreacion":"2026-03-07T20:01:37.000Z","estado":"En tramitación","idProcedimiento"133628,"nombreProcedimiento":"Ejercicio del derecho de acceso a información pública","nombrolicitante":"DAVID ALEJANDRO FERNANDEZ SANCHO","nifSolicitante":"NIF: 53781829D","isBorrador":false,"isOficio":false,"isRepresentante":false,"esAC1":false,"esAcceda1PEE":false}]'/>
+
+  <script>
+    const table = document.querySelector('#table-actions');
+    const inputData = document.querySelector('input#expedientesData');
+
+    const dateFormatter = Intl.DateTimeFormat(undefined, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
+
+    let expedientesList = JSON.parse(inputData.value);
+    expedientesList.forEach(expediente => {
+
+        if (expediente.isOficio && expediente.identificador) {
+          expediente.identificador = expediente.identificador + "</br>(De oficio)";
+        }
+
+        if (expediente.isBorrador && expediente.fechaValidezBorrador) {
+          const fechaValidezBorrador = new Date(expediente.fechaValidezBorrador);
+          const intlFechaValidezBorrador = dateFormatter.format(fechaValidezBorrador);
+
+          expediente.identificador = "Válio hasta: </br>" + intlFechaValidezBorrador;
+        }
+
+          expediente.nombreProcedimiento = (expediente.nombreProcedimiento || "")
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+
+        if (expediente.isRepresentante && expediente.nombreSolicitante) {
+          expediente.nombreSolicitante = expediente.nombreSolicitante + "</br>(Representante)";
+        }
+
+        if (expediente.isOficio && !expediente.isRepresentante && expediente.nombreSolicitante) {
+          expediente.nombreSolicitante += "</br>(Interesado)";
+        }
+
+
+        if (expediente.fechaCreacion) {
+          const date = new Date(expediente.fechaCreacion);
+          expediente.fechaCreacion = dateFormatter.format(date);
+        } else {
+          expediente.fechaCreacion = "";
+        }
+
+        switch (expediente.estado || "") {
+          case "Borrador":
+            expediente.estadoTagType = "default";
+            expediente.estadoTagIcon = "Edit";
+            break;
+          case "Creado":
+            expediente.estadoTagType = "info";
+            expediente.estadoTagIcon = "Status-Info";
+            break;
+          case "En tramitación":
+            expediente.estadoTagType = "warning";
+            expediente.estadoTagIcon = "Clock";
+            break;
+          case "Finalizado":
+            expediente.estadoTagType = "success";
+            expediente.estadoTagIcon = "Tick";
+            break;
+          case "Finalizado y Trasladado":
+            expediente.estadoTagType = "success";
+            expediente.estadoTagIcon = "Tick";
+            break;
+          case "Finalizado Traslado de Competencias":
+            expediente.estadoTagType = "success";
+            expediente.estadoTagIcon = "Tick";
+          case "Archivado":
+            expediente.estadoTagType = "error";
+            expediente.estadoTagIcon = "Copy";
+            break;
+          case "En Seguimiento":
+            expediente.estadoTagType = "warning";
+            expediente.estadoTagcon = "Clock";
+            break;
+          default:
+            expediente.estadoTagType = "default";
+            expediente.estadoTagIcon = "Info";
+            expediente.estado = expediente.estado || "Acceda1PEE";
+            break;
+        }
+
+        expediente.acciones = [];
+
+        if (expediente.esAcceda1PEE) {
+
+          expediente.acciones.push({
+            title: "Ver detalle",
+            to: "/privada/expediente?id=" + expediente.id + "AC1",
+            type: "tertiary-light",
+            size: "small",
+            external: false
+          });
+
+          return;
+        }
+
+        if (expediente.esAC1) {
+
+          expediente.acciones.push({
+            title: "Acceder",
+            to: "https://sede.transparencia.gob.es/expedientes/",
+            type: "tertiary-light",
+            size: "small",
+            external: true
+          });
+        } else {
+          if (expediente.isBorrador) {
+            let action;
+
+            action = {
+              title: "Continuar solicitud",
+              to: "/procedimiento/formulario?idProc=" + expediente.idProcedimiento + "&idAmb=" + expediente.idAmbito + "&borrador=" + expediente.id,
+              type: "tertiary-light",
+              size: "small",
+              external: false
+            }
+            expediente.acciones.push(action);
+
+            action = {
+              title: "Eliminar borrador",
+              type: "tertiary-light",
+              size: "small",
+              external: false
+            }
+            action.deleteBorrador = true;
+            expediente.acciones.push(action);
+
+          } else {
+
+            expediente.acciones.push({
+              title: "Ver detalle",
+              to: "/privada/expediente?id=" + expediente.id,
+              type: "tertiary-light",
+              size: "small",
+              external: false
+            });
+          }
+        }
+    });
+    table.data = expedientesList;
+
+    inputData.remove();
+
+    const renderActionsColumn = (h, data) => {
+      const rowData = data.row;
+
+      return rowData.acciones.map(action => {
+        const buttonOptions = {
+          to: action.to,
+          type: action.type,
+          size: action.size,
+          external: Boolean(action.external)
+        }
+        if (action.deleteBorrador) {
+          buttonOptions.onClick = () => deleteBorrador(rowData.id);
+        }
+
+        return h('dnt-button', buttonOptions, action.title);
+      });
+    }
+
+    const columnActions = document.querySelector('#column-actions');
+    columnActions.customCellTemplate = renderActionsColumn;
+  </script>
+
+  <div class="dnt-mt-4">
+    <dnt-pagination id="pagination"
+                    items-per-page="15"
+                    current-page="1"
+                    total="18"
+                    pager-count="6"
+                    title-page="Página"
+                    title-last-page="Última página"
+                    hide-on-single-page="true"
+                 lang="es">
+    </dnt-pagination>
+    <script>
+      addPaginationListener();
+    </script>  
+  </div>
+      </dnt-tab-pane>
+      <!-- Borradores -->
+      <dnt-tab-pane label='Borradores' disabled='false'>
+      </dnt-tab-pane>
+        <!-- Carpeta Ciudadana (Expedientes AC1) -->
+        <dnt-tab-pane label='Carpeta Ciudadana' disabled='false'>
+        </dnt-tab-pane>
+    </dnt-tabs>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+          const tabs = document.getElementById('tabsExpedientes')
+
+          let activeTabIndex = "0";
+          tabs.value = activeTabIndex;
+
+          tabs.addEventListener('tabClick', ({ detail }) => {
+              activeTabIndex = detail.index;
+
+              toggleLoadingSpinner(true, "Cargando resultados...", "Espera, por favor.");
+
+              if (activeTabIndex != 0) {
+                  const newParams = new URLSearchParams();
+                  newParams.set("subtipo", activeTabIndex);
+
+                  window.location.search = newParams; // Refresh with params
+              } else {
+                  // Refresh without any query string
+                  window.location.href = window.location.pathname;
+              }
+          })
+      })
+    </script>
+  </div>
+</dnt-section>
+<!-- FIN PESTAÑAS LISTAS -->
+
+
+<dnt-footer id="dntFooter"
+            copyright="© Portal de la Transparencia de la Administración General  del Estado"
+            description="Plan de Recuperación, Transformación y Resiliencia - Financiado por la Unión Europea - NextGenerationEU"
+            show-footer-logo="true"
+            secondary-logos-gap="false">
+
+  <dnt-footer-logo slot='primary-logos'>
+    <a href="https://next-generation-eu.europa.eu/index_rget="_blank">
+      <img src="/.resources/ac2-front/webresources/assets/img/logo_financiacion.png"
+           alt="Financiación europea (abre en nueva ventana)"
+           title="Financiación europea (abre en nueva ventana)"
+           width='146'
+           height='36'/>
+    </a>
+  </dnt-footer-logo>
+  <dnt-footer-logo slot='primary-logos'>
+    <a href="https://planderecuperacion.gob.es/" target="_blank">
+      <img src="/.resources/ac2-front/webresources/assets/img/logo_transformacion.png"
+           alt="Transformación digital (abre en nueva ventana)"
+           title="Transformación digital (abre en nueva ventana)"
+           width='156'
+           height='30'/>
+    </a>
+  </dnt-footer-logo>
+  <dnt-footer-logo slot='primary-logos' mobile-center>
+    <a href="https://espanadigital.gob.es" target="_blank">
+      <img src="/.resources/ac2-front/webresources/assets/imgo_españadigital.svg"
+           alt="España digital (abre en nueva ventana)"
+           title="España digital (abre en nueva ventana)"
+           width="175"
+           height="36"/>
+    </a>
+  </dnt-footer-logo>
+
+
+  <dnt-footer-link type="link" url="/sitemap">Mapa Web</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Contacto">Contacto</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Requisitos">Requisitos técnicos</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Accesibilidad">Accesibilidad</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Aviso-legal">Aviso legal</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Proteccion-datos">Protección de Datos</dnt-footer-link>
+  <dnt-footer-link type="link" url="/Cookies">Política de cookies</dnt-footer-link>
+</dnt-footer>
+
+    <dnt-cookies id="cookiesBanner" is-open="true" title-text="Gestión de Cookies" h-size="4" show-policy-button="true" show-reject-button="true" lang="es" position="sticky">
+      <p>Este sitio web utiliza coropias para ofrecer un mejor servicio. Si continúa navegando consideramos que acepta su uso.</p>
+    </dnt-cookies>
+
+    <script>
+      let cookiesBanner = document.querySelector('#cookiesBanner');
+      let cookie = getCookie("CONSENT");
+
+      if (cookie) {
+          cookiesBanner.isOpen = false;
+          cookiesBanner.style.display = 'none';
+      }
+      cookiesBanner.addEventListener('rejectCookies', () => {
+          setCookie('CONSENT', 'OFF');
+         cookiesBanner.isOpen = false;
+          cookiesBanner.style.display = 'none';
+      })
+      cookiesBanner.addEventListener('acceptCookies', () => {
+          setCookie('CONSENT', 'ON');
+          cookiesBanner.isOpen = false;
+          cookiesBanner.style.display = 'none';
+      })
+
+      cookiesBanner.addEventListener('seeCookiesPolicy', () => {
+          window.location = "/Cookies"
+      })
+    </script>
+
+  </body>
+</html>
+

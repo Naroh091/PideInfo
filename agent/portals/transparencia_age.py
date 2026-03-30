@@ -8,7 +8,7 @@ import httpx
 from rich.console import Console
 
 from auth.session_manager import SessionManager, SessionExpiredError
-from models.portal import Expediente, Notificacion
+from models.portal import DocumentoExpediente, Expediente, Notificacion
 
 console = Console()
 
@@ -23,6 +23,13 @@ RE_NOTIFICACIONES_DATA = re.compile(
 )
 RE_PAGINATION_TOTAL = re.compile(
     r'<dnt-pagination[^>]+total="(\d+)"',
+)
+RE_DOCUMENTOS_DATA = re.compile(
+    r'<input\s+id="documentosData"\s+type="hidden"\s+value=\'(.*?)\'',
+    re.DOTALL,
+)
+RE_EXPEDIENTE_PORTAL_ID = re.compile(
+    r'title-text="Expediente:\s*(ES_[^"]+)"',
 )
 
 
@@ -118,6 +125,20 @@ class TransparenciaAGEScraper:
         console.print(f"[dim]Encontradas {len(all_notificaciones)} notificaciones[/]")
         return all_notificaciones
 
+    async def get_expediente_detail(
+        self, expediente_id: int
+    ) -> tuple[str, list[DocumentoExpediente]]:
+        """
+        Fetch the expediente detail page and return (portal_id, documentos).
+        portal_id is the full identifier e.g. 'ES_E04996103_2026_EXP_AC2000000580244'.
+        Returns ('', []) if the page cannot be parsed.
+        """
+        html = await self._get_page(f"/privada/expediente?id={expediente_id}")
+        portal_id_match = RE_EXPEDIENTE_PORTAL_ID.search(html)
+        portal_id = portal_id_match.group(1).strip() if portal_id_match else ""
+        documentos = self._parse_documentos(html)
+        return portal_id, documentos
+
     async def download_document(self, url: str, dest: Path) -> Path:
         """Download a document from the portal."""
         client = await self._get_client()
@@ -137,6 +158,19 @@ class TransparenciaAGEScraper:
     async def close(self) -> None:
         if self._client and not self._client.is_closed:
             await self._client.aclose()
+
+    def _parse_documentos(self, html: str) -> list[DocumentoExpediente]:
+        """Extract documentos JSON from hidden input in expediente detail HTML."""
+        match = RE_DOCUMENTOS_DATA.search(html)
+        if not match:
+            return []
+        try:
+            raw_json = match.group(1).replace("&amp;", "&").replace("&#39;", "'")
+            data = json.loads(raw_json)
+            return [DocumentoExpediente.from_portal_json(item) for item in data]
+        except (json.JSONDecodeError, KeyError) as e:
+            console.print(f"[red]Error parseando documentos: {e}[/]")
+            return []
 
     def _parse_expedientes(self, html: str) -> tuple[list[Expediente], int]:
         """Extract expedientes JSON from hidden input in HTML."""

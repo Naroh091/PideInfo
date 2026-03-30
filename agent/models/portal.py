@@ -41,6 +41,33 @@ class Expediente:
 
 
 @dataclass
+class DocumentoExpediente:
+    id: int               # used in download URL
+    id_documento: int
+    tipo: int
+    nombre: str           # e.g. "SOLICITUD_ES_E04996103_2026_EXP_AC2000000580244"
+    id_entidad: int       # internal expediente id
+    csv: str | None
+    es_ac1: bool
+
+    @property
+    def download_url(self) -> str:
+        return f"/.rest/download/v1/descargaDocumento?id={self.id}&tipoDocumento=docExpediente"
+
+    @classmethod
+    def from_portal_json(cls, data: dict) -> DocumentoExpediente:
+        return cls(
+            id=data["id"],
+            id_documento=data.get("idDocumento", 0),
+            tipo=data.get("tipo", 0),
+            nombre=data.get("nombre", ""),
+            id_entidad=data.get("idEntidad", 0),
+            csv=data.get("csv") or None,
+            es_ac1=data.get("esAC1", False),
+        )
+
+
+@dataclass
 class Notificacion:
     id: int
     id_expediente: int

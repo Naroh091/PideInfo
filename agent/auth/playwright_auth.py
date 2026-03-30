@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import urllib.parse
 from typing import Any
 
 from playwright.async_api import async_playwright, BrowserContext
@@ -45,15 +46,18 @@ async def authenticate(portal_url: str, timeout_seconds: int = 120) -> dict[str,
         page = await context.new_page()
 
         try:
-            # Navigate to a protected page — portal will redirect to Cl@ve
+            # Navigate directly to the Cl@ve authentication endpoint.
+            # The portal does NOT auto-redirect — it shows a 401 page with an
+            # explicit login link pointing to /claveproxy/clave/authenticate.
+            return_url = urllib.parse.quote(f"{portal_url}/privada/expedientes")
             await page.goto(
-                f"{portal_url}/privada/expedientes",
+                f"{portal_url}/claveproxy/clave/authenticate?returnUrl={return_url}",
                 wait_until="domcontentloaded",
             )
 
             console.print("[bold cyan]Esperando autenticación...[/]")
 
-            # Wait for the user to complete auth and return to the portal
+            # Wait for the user to complete auth and be redirected back to the portal
             await page.wait_for_url(
                 f"{portal_url}/privada/**",
                 timeout=timeout_seconds * 1000,

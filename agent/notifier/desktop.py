@@ -1,24 +1,32 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from rich.console import Console
 
 console = Console()
 
 
 def _notify(title: str, message: str) -> None:
-    """Send a desktop notification. Falls back gracefully if plyer is not available."""
-    try:
-        from plyer import notification
-
-        notification.notify(
-            title=title,
-            message=message,
-            app_name="PideInfo Agent",
-            timeout=10,
-        )
-    except Exception:
-        # plyer may fail on headless systems or missing backends
-        console.print(f"[bold]{title}[/]: {message}")
+    """Send a desktop notification. Uses osascript on macOS, falls back to console."""
+    if sys.platform == "darwin":
+        try:
+            safe_title = title.replace('"', '\\"')
+            safe_message = message.replace('"', '\\"')
+            subprocess.run(
+                [
+                    "osascript",
+                    "-e",
+                    f'display notification "{safe_message}" with title "{safe_title}"',
+                ],
+                capture_output=True,
+                timeout=5,
+            )
+            return
+        except Exception:
+            pass
+    console.print(f"[bold]{title}[/]: {message}")
 
 
 def notify_auth_required() -> None:
