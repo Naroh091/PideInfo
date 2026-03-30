@@ -1,0 +1,113 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Notificaciones - PideInfo{% endblock %}
+
+{% block content %}
+<div>
+    {# Page Header #}
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Historial de notificaciones</h1>
+            <p class="text-slate-500 mt-1">{{ total }} notificación{{ total != 1 ? 'es' : '' }} en total</p>
+        </div>
+        {% if total > 0 %}
+            <form action="{{ path('app_notificaciones_read_all') }}" method="post">
+                <input type="hidden" name="_token" value="{{ csrf_token('read_all_notifications') }}">
+                <button type="submit" class="btn btn-secondary btn-sm">
+                    <i data-lucide="check-check" class="w-4 h-4 mr-1"></i>
+                    Marcar todas como leídas
+                </button>
+            </form>
+        {% endif %}
+    </div>
+
+    {# Filters #}
+    <div class="flex flex-wrap gap-2 mb-6">
+        <a href="{{ path('app_notificaciones_index') }}"
+           class="btn btn-sm {{ currentType is null ? 'btn-primary' : 'btn-secondary' }}">
+            Todas
+        </a>
+        {% for typeValue, typeLabel in types %}
+            <a href="{{ path('app_notificaciones_index', {type: typeValue}) }}"
+               class="btn btn-sm {{ currentType == typeValue ? 'btn-primary' : 'btn-secondary' }}">
+                {{ typeLabel }}
+            </a>
+        {% endfor %}
+    </div>
+
+    {# Notification list #}
+    {% if notifications|length > 0 %}
+        <div class="card">
+            <div class="divide-y divide-slate-100">
+                {% for notification in notifications %}
+                    <a href="{{ path('app_notificaciones_read', {id: notification.id}) }}"
+                       class="flex items-start gap-4 px-5 py-4 hover:bg-slate-50 transition-colors
+                              {{ not notification.read ? 'bg-primary-50/30' : '' }}">
+                        <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                                    {{ notification.alertLevel == 'warning' ? 'bg-amber-100' : 'bg-slate-100' }}">
+                            <i data-lucide="{{ notification.icon }}" class="w-5 h-5 {{ notification.alertLevel == 'warning' ? 'text-amber-600' : 'text-slate-500' }}"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-slate-800 {{ not notification.read ? 'font-medium' : '' }}">
+                                {{ notification.message }}
+                            </p>
+                            <div class="flex items-center gap-3 mt-1">
+                                <span class="text-xs text-slate-400">{{ notification.createdAt|date('d/m/Y H:i') }}</span>
+                                <span class="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">{{ notification.typeLabel }}</span>
+                                {% if notification.accessRequest %}
+                                    <span class="text-xs text-primary-600 truncate max-w-xs">{{ notification.accessRequest.title }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if not notification.read %}
+                            <span class="w-2.5 h-2.5 rounded-full bg-primary-500 flex-shrink-0 mt-2"></span>
+                        {% endif %}
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Pagination #}
+        {% if totalPages > 1 %}
+            <div class="flex items-center justify-center gap-2 mt-6">
+                {% if page > 1 %}
+                    <a href="{{ path('app_notificaciones_index', {page: page - 1, type: currentType}) }}" class="btn btn-secondary btn-sm">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% for p in max(1, page - 2)..min(totalPages, page + 2) %}
+                    <a href="{{ path('app_notificaciones_index', {page: p, type: currentType}) }}"
+                       class="btn btn-sm {{ p == page ? 'btn-primary' : 'btn-secondary' }}">
+                        {{ p }}
+                    </a>
+                {% endfor %}
+
+                {% if page < totalPages %}
+                    <a href="{{ path('app_notificaciones_index', {page: page + 1, type: currentType}) }}" class="btn btn-secondary btn-sm">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="card">
+            <div class="card-body">
+                <div class="empty-state py-12">
+                    <div class="empty-state-icon">
+                        <i data-lucide="bell-off" class="w-full h-full"></i>
+                    </div>
+                    <p class="empty-state-title">Sin notificaciones</p>
+                    <p class="empty-state-description">
+                        {% if currentType %}
+                            No hay notificaciones de este tipo
+                        {% else %}
+                            Las acciones automáticas del agente y del correo aparecerán aquí
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

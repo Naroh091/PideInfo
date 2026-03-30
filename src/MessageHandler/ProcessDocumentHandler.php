@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -29,6 +30,7 @@ final class ProcessDocumentHandler
         private readonly ApplicableLawRepository $applicableLawRepository,
         private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
         private readonly AccessRequestManager $accessRequestManager,
+        private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -93,6 +95,18 @@ final class ProcessDocumentHandler
             $document->setProcessingError(null);
 
             $this->entityManager->flush();
+
+            // Create user notifications
+            if ($accessRequest) {
+                $user = $document->getUploadedBy();
+                $this->notificationManager->notifyDocumentImported($user, $document, $accessRequest);
+
+                if ($document->getMatchMethod() === Document::MATCH_CREATED) {
+                    $this->notificationManager->notifyRequestCreated($user, $accessRequest);
+                }
+
+                $this->entityManager->flush();
+            }
 
             $this->logger->info('Document processed successfully', [
                 'documentId' => (string) $document->getId(),
@@ -620,6 +634,11 @@ final class ProcessDocumentHandler
         }
 
         $this->entityManager->persist($history);
+
+        $user = $accessRequest->getUser();
+        if ($user) {
+            $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+        }
     }
 
     /**

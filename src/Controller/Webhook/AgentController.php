@@ -8,6 +8,7 @@ use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\UserRepository;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
@@ -39,6 +40,7 @@ class AgentController extends AbstractController
         private readonly UserRepository $userRepository,
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly MessageBusInterface $messageBus,
+        private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
         #[Autowire(env: 'AGENT_WEBHOOK_SECRET')]
         private readonly string $webhookSecret,
@@ -128,6 +130,31 @@ class AgentController extends AbstractController
                 'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
                 'accessRequestFound' => $accessRequest !== null,
             ]);
+        }
+
+        // Handle accepted notifications/communications from the agent
+        $acceptedNotifications = $data['acceptedNotifications'] ?? [];
+        $acceptedCommunications = $data['acceptedCommunications'] ?? [];
+
+        if (!empty($acceptedNotifications) || !empty($acceptedCommunications)) {
+            $ar = $expedienteRef
+                ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
+                : null;
+
+            if (!$ar && !empty($metadata['expedienteId'])) {
+                $ar = $this->accessRequestRepository->findByExternalId((string) $metadata['expedienteId'], $user);
+            }
+
+            foreach ($acceptedNotifications as $accepted) {
+                $this->notificationManager->notifyNotificationAccepted($user, $ar, $accepted);
+            }
+            foreach ($acceptedCommunications as $accepted) {
+                $this->notificationManager->notifyCommunicationAccepted($user, $ar, $accepted);
+            }
+
+            if (!empty($acceptedNotifications) || !empty($acceptedCommunications)) {
+                $this->entityManager->flush();
+            }
         }
 
         if (empty($documents)) {
