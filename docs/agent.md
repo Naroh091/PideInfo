@@ -255,6 +255,8 @@ When using legacy auth, the payload includes `"userId": "<uuid>"`. With JWT auth
 
 The `expedienteRef` matches `AccessRequestComplaint.externalId` in PideInfo. The backend's `findByExternalId` method also searches complaint external IDs.
 
+Each stored notification is enriched server-side with a `reportedAt` timestamp (ISO 8601) and the `source` field (`transparencia_age` or `consejo_ctbg`). The UI renders Portal de Transparencia and Consejo de Transparencia notifications in separate, visually distinct sections.
+
 ### Accepted notification
 
 Same as document sync, with an additional `acceptedNotifications` or `acceptedCommunications` array containing the metadata of the notifications that were downloaded (and thus accepted) by the agent.

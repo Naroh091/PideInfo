@@ -22,9 +22,9 @@
                             <span>
                                 <strong>{{ n.tipo }}</strong>
                                 {% if n.concepto %} — {{ n.concepto }}{% endif %}
-                                <span class="text-amber-600 ml-1">({{ n.fechaEmision|date('d/m/Y') }})</span>
+                                <span class="text-amber-600 ml-1">({{ n.fechaEmision }})</span>
                                 {% if n.fechaCaducidad %}
-                                    <span class="text-red-600 ml-1">· caduca {{ n.fechaCaducidad|date('d/m/Y') }}</span>
+                                    <span class="text-red-600 ml-1">· caduca {{ n.fechaCaducidad }}</span>
                                 {% endif %}
                             </span>
                         </li>

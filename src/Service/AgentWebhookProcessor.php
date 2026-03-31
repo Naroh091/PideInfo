@@ -45,7 +45,7 @@ class AgentWebhookProcessor
 
         // Pending-notifications report: no documents to store — persist on the AccessRequest.
         if (empty($documents) && $pendingNotifications !== null) {
-            return $this->handlePendingNotifications($user, $expedienteRef, $metadata, $pendingNotifications);
+            return $this->handlePendingNotifications($user, $source, $expedienteRef, $metadata, $pendingNotifications);
         }
 
         // Handle accepted notifications/communications from the agent
@@ -114,7 +114,7 @@ class AgentWebhookProcessor
         ]);
     }
 
-    private function handlePendingNotifications(User $user, string $expedienteRef, array $metadata, array $pendingNotifications): JsonResponse
+    private function handlePendingNotifications(User $user, string $source, string $expedienteRef, array $metadata, array $pendingNotifications): JsonResponse
     {
         $accessRequest = $this->findAccessRequest($expedienteRef, $user, $metadata);
 
@@ -124,7 +124,7 @@ class AgentWebhookProcessor
             } else {
                 $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
                 $enriched = array_map(
-                    static fn(array $n) => $n + ['reportedAt' => $reportedAt],
+                    static fn(array $n) => $n + ['reportedAt' => $reportedAt, 'source' => $source],
                     $pendingNotifications
                 );
                 $accessRequest->setPendingPortalNotifications($enriched);

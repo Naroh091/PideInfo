@@ -74,6 +74,7 @@ The prompt instructs Gemini to return a JSON object with:
 | `isThirdPartyRights` | boolean | Whether third-party rights are affected |
 | `processingStartDate` | string | Date processing formally began |
 | `alegationPoints` | array | Key arguments from administration allegations |
+| `keyPoints` | array | Key points of the document (for responses, complaints, complaint resolutions, and alegation responses) |
 
 ### Document type classification
 
