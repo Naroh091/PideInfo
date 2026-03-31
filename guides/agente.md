@@ -26,9 +26,21 @@ La seguridad es una prioridad fundamental del Agente. Hemos diseñado el sistema
 
 ### Tu certificado nunca sale de tu ordenador
 
-El Agente utiliza un navegador real (el mismo que usarías tú manualmente) para autenticarse en el Portal de Transparencia. La autenticación con certificado digital se produce **íntegramente en tu ordenador**, entre tu navegador y el portal del gobierno. PideInfo no tiene acceso a tu certificado, ni a tu clave privada, ni a tus credenciales de Cl@ve.
+El Agente utiliza un navegador real (el mismo que usarías tú manualmente) para autenticarse en el Portal de Transparencia y en la sede del Consejo de Transparencia. La autenticación con certificado digital se produce **íntegramente en tu ordenador**, entre tu navegador y el portal del gobierno. PideInfo no tiene acceso a tu certificado, ni a tu clave privada, ni a tus credenciales de Cl@ve.
 
 Lo que PideInfo recibe son únicamente los **documentos descargados** (PDFs, resoluciones, acuses de recibo) — exactamente lo mismo que verías si entraras tú manualmente al portal y descargaras los archivos.
+
+### Tus credenciales están protegidas como en un navegador
+
+El Agente almacena tus contraseñas y sesiones de la misma forma segura que lo hacen Chrome, Firefox o Safari: utilizando el **gestor de credenciales de tu sistema operativo**.
+
+- En **macOS**: el Llavero (Keychain)
+- En **Windows**: el Administrador de credenciales de Windows
+- En **Linux**: el Llavero de GNOME o KWallet
+
+Esto significa que la contraseña de tu certificado y las sesiones de los portales están **cifradas y protegidas** por tu sistema operativo, vinculadas a tu cuenta de usuario. Ningún otro programa ni usuario de tu ordenador puede acceder a ellas.
+
+En ningún momento se guarda tu contraseña en un archivo de texto. Los archivos que el Agente necesita en tu disco (datos de configuración, certificado reconvertido) están protegidos con permisos restrictivos para que solo tu usuario pueda leerlos.
 
 ### Conexión segura con PideInfo
 
