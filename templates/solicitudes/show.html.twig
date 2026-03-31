@@ -115,36 +115,260 @@
             </div>
         </div>
 
-        {# Alegation Points Card #}
-        {% set alegacionesDoc = null %}
+        {# Organism name helper #}
+        {% set organismName = request.applicableLaw.complaintOrganism
+            ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
+            : 'organismo competente' %}
+
+        {# Collect all summary blocks and sort by document date #}
+        {% set summaryBlocks = [] %}
         {% for doc in request.documents %}
-            {% if doc.type.value == 'alegaciones' and doc.aiMetadata.alegationPoints is defined and doc.aiMetadata.alegationPoints %}
-                {% set alegacionesDoc = doc %}
+            {% set hasContent = (doc.aiMetadata.summary is defined and doc.aiMetadata.summary) or (doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints) %}
+            {% if doc.type.value == 'response' and hasContent %}
+                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+            {% elseif doc.type.value == 'complaint' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
+                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+            {% elseif doc.type.value == 'alegaciones' and doc.aiMetadata.alegationPoints is defined and doc.aiMetadata.alegationPoints %}
+                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+            {% elseif doc.type.value == 'alegation_response' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
+                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+            {% elseif doc.type.value == 'complaint_resolution' and hasContent %}
+                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
             {% endif %}
         {% endfor %}
-        {% if alegacionesDoc %}
-            <div class="card border-l-4 border-red-400">
-                <div class="card-header">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                            <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
+
+        {% set summaryBlocks = summaryBlocks|sort((a, b) => (a.documentDate ?? a.createdAt) <=> (b.documentDate ?? b.createdAt)) %}
+        {% set complaintCount = 0 %}
+
+        {% for doc in summaryBlocks %}
+            {% set docDate = doc.documentDate ?? doc.createdAt %}
+
+            {% if doc.type.value == 'response' %}
+                {% set responseStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
+                <div class="card border-l-4 {% if responseStatus == 'concedida' %}border-emerald-400{% elseif responseStatus == 'denegada' %}border-red-400{% else %}border-slate-400{% endif %}">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl {% if responseStatus == 'concedida' %}bg-emerald-100{% elseif responseStatus == 'denegada' %}bg-red-100{% else %}bg-slate-100{% endif %} flex items-center justify-center">
+                                <i data-lucide="file-check" class="w-5 h-5 {% if responseStatus == 'concedida' %}text-emerald-600{% elseif responseStatus == 'denegada' %}text-red-600{% else %}text-slate-600{% endif %}"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">Respuesta de la administración</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
+                            </div>
                         </div>
-                        <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
+                    </div>
+                    <div class="card-body">
+                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                            <p class="text-sm text-slate-500 mb-4">Puntos clave de la respuesta:</p>
+                            <ol class="space-y-3">
+                                {% for point in doc.aiMetadata.keyPoints %}
+                                    <li class="flex items-start gap-3">
+                                        <span class="flex-shrink-0 w-6 h-6 rounded-full {% if responseStatus == 'concedida' %}bg-emerald-100 text-emerald-700{% elseif responseStatus == 'denegada' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-700{% endif %} text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                        <span class="text-slate-700">{{ point }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                        {% endif %}
+                        {% if doc.aiMetadata.denialReason is defined and doc.aiMetadata.denialReason %}
+                            <div class="mt-3 p-3 bg-red-50 rounded-lg">
+                                <p class="text-sm font-medium text-red-800">Motivo de denegación:</p>
+                                <p class="text-sm text-red-700 mt-1">{{ doc.aiMetadata.denialReason }}</p>
+                            </div>
+                        {% endif %}
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                {{ doc.originalFilename }}
+                            </a>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <p class="text-sm text-slate-500 mb-4">Argumentos principales presentados por la Administración en su defensa:</p>
-                    <ol class="space-y-3">
-                        {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
-                            <li class="flex items-start gap-3">
-                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                <span class="text-slate-700">{{ point }}</span>
-                            </li>
-                        {% endfor %}
-                    </ol>
+
+            {% elseif doc.type.value == 'complaint' %}
+                {% set complaintCount = complaintCount + 1 %}
+                <div class="card border-l-4 border-amber-400">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                <i data-lucide="scale" class="w-5 h-5 text-amber-600"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">
+                                    {% if complaintCount == 1 %}
+                                        Reclamación ante el {{ organismName }}
+                                    {% else %}
+                                        Ampliación de la reclamación ante el {{ organismName }}
+                                    {% endif %}
+                                </h2>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                            <p class="text-sm text-slate-500 mb-4">Argumentos principales de la reclamación:</p>
+                            <ol class="space-y-3">
+                                {% for point in doc.aiMetadata.keyPoints %}
+                                    <li class="flex items-start gap-3">
+                                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                        <span class="text-slate-700">{{ point }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                        {% endif %}
+                        {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
+                            <div class="mt-3">
+                                <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
+                                <ul class="space-y-2">
+                                    {% for res in doc.aiMetadata.citedResolutions %}
+                                        <li class="text-sm text-slate-600 flex items-start gap-2">
+                                            <i data-lucide="bookmark" class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5"></i>
+                                            <span>
+                                                <strong>{{ res.reference }}</strong>
+                                                {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
+                                                {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
+                                            </span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                {{ doc.originalFilename }}
+                            </a>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        {% endif %}
+
+            {% elseif doc.type.value == 'alegaciones' %}
+                <div class="card border-l-4 border-red-400">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
+                                <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-sm text-slate-500 mb-4">Argumentos principales presentados por la Administración en su defensa:</p>
+                        <ol class="space-y-3">
+                            {% for point in doc.aiMetadata.alegationPoints %}
+                                <li class="flex items-start gap-3">
+                                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                    <span class="text-slate-700">{{ point }}</span>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                {{ doc.originalFilename }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            {% elseif doc.type.value == 'alegation_response' %}
+                <div class="card border-l-4 border-blue-400">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                                <i data-lucide="reply" class="w-5 h-5 text-blue-600"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">Respuesta a las alegaciones</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                            <p class="text-sm text-slate-500 mb-4">Contraargumentos principales:</p>
+                            <ol class="space-y-3">
+                                {% for point in doc.aiMetadata.keyPoints %}
+                                    <li class="flex items-start gap-3">
+                                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                        <span class="text-slate-700">{{ point }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                        {% endif %}
+                        {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
+                            <div class="mt-3">
+                                <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
+                                <ul class="space-y-2">
+                                    {% for res in doc.aiMetadata.citedResolutions %}
+                                        <li class="text-sm text-slate-600 flex items-start gap-2">
+                                            <i data-lucide="bookmark" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
+                                            <span>
+                                                <strong>{{ res.reference }}</strong>
+                                                {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
+                                                {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
+                                            </span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                {{ doc.originalFilename }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            {% elseif doc.type.value == 'complaint_resolution' %}
+                {% set resolutionStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
+                <div class="card border-l-4 {% if resolutionStatus == 'concedida' %}border-emerald-400{% elseif resolutionStatus == 'denegada' %}border-red-400{% else %}border-slate-400{% endif %}">
+                    <div class="card-header">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl {% if resolutionStatus == 'concedida' %}bg-emerald-100{% elseif resolutionStatus == 'denegada' %}bg-red-100{% else %}bg-slate-100{% endif %} flex items-center justify-center">
+                                <i data-lucide="landmark" class="w-5 h-5 {% if resolutionStatus == 'concedida' %}text-emerald-600{% elseif resolutionStatus == 'denegada' %}text-red-600{% else %}text-slate-600{% endif %}"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-semibold text-slate-800">Resolución del {{ organismName }}</h2>
+                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                            <p class="text-sm text-slate-500 mb-4">Fundamentos principales de la resolución:</p>
+                            <ol class="space-y-3">
+                                {% for point in doc.aiMetadata.keyPoints %}
+                                    <li class="flex items-start gap-3">
+                                        <span class="flex-shrink-0 w-6 h-6 rounded-full {% if resolutionStatus == 'concedida' %}bg-emerald-100 text-emerald-700{% elseif resolutionStatus == 'denegada' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-700{% endif %} text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
+                                        <span class="text-slate-700">{{ point }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ol>
+                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                        {% endif %}
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                {{ doc.originalFilename }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
 
         {# Documents #}
         <div class="card"

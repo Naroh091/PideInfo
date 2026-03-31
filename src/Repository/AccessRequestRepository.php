@@ -306,7 +306,7 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array<array{request: AccessRequest, notifications: array}>
+     * @return array{portal: array<array{request: AccessRequest, notifications: array}>, consejo: array<array{request: AccessRequest, notifications: array}>}
      */
     public function findWithPendingPortalNotifications(User $user): array
     {
@@ -316,28 +316,40 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
 
-        $results = [];
+        $portal = [];
+        $consejo = [];
         foreach ($requests as $request) {
             $notifications = $request->getPendingPortalNotifications();
-            if (!empty($notifications)) {
-                // Deduplicate by notificationId (or by tipo+concepto+fechaEmision as fallback)
-                $seen = [];
-                $unique = [];
-                foreach ($notifications as $n) {
-                    $key = $n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['concepto'] ?? '') . '|' . ($n['fechaEmision'] ?? '');
-                    if (!isset($seen[$key])) {
-                        $seen[$key] = true;
-                        $unique[] = $n;
-                    }
+            if (empty($notifications)) {
+                continue;
+            }
+
+            // Deduplicate by notificationId (or by tipo+concepto+fechaEmision as fallback)
+            $seen = [];
+            $portalNotifs = [];
+            $consejoNotifs = [];
+            foreach ($notifications as $n) {
+                $key = $n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['concepto'] ?? '') . '|' . ($n['fechaEmision'] ?? '');
+                if (isset($seen[$key])) {
+                    continue;
                 }
-                $results[] = [
-                    'request' => $request,
-                    'notifications' => $unique,
-                ];
+                $seen[$key] = true;
+                if (($n['source'] ?? 'transparencia_age') === 'consejo_ctbg') {
+                    $consejoNotifs[] = $n;
+                } else {
+                    $portalNotifs[] = $n;
+                }
+            }
+
+            if (!empty($portalNotifs)) {
+                $portal[] = ['request' => $request, 'notifications' => $portalNotifs];
+            }
+            if (!empty($consejoNotifs)) {
+                $consejo[] = ['request' => $request, 'notifications' => $consejoNotifs];
             }
         }
 
-        return $results;
+        return ['portal' => $portal, 'consejo' => $consejo];
     }
 
     private function createQueryBuilderForUser(User $user): QueryBuilder

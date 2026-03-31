@@ -265,11 +265,13 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, otro):
 
 Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
 
-Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
+Usa "alegaciones" SOLO si el documento es un escrito de alegaciones de la ADMINISTRACIÓN (el órgano público) durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano. El remitente debe ser la Administración, no el ciudadano.
+
+Usa "respuesta_alegaciones" si el documento es un escrito del CIUDADANO/INTERESADO respondiendo a las alegaciones de la Administración, o presentando sus propias alegaciones ante el organismo de transparencia (CTBG, etc.) durante el trámite de audiencia o alegaciones. El remitente es el interesado/reclamante, no la Administración.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
@@ -326,7 +328,8 @@ Extrae la siguiente información en formato JSON:
     "processingStartDate": "fecha a partir de la cual comienza el cómputo del plazo en formato YYYY-MM-DD (si isProcessingStart es true)",
     "requestTitle": "RESUMEN CORTO de qué información se solicita (ej: 'Contratos menores Hospital Jarrio 2018', 'Gastos publicidad Ayuntamiento 2023'). NO uses 'Solicitud de acceso a información pública'.",
     "requestDescription": "descripción detallada de la información solicitada, formateada en Markdown. Usa listas, negritas y estructura clara para facilitar la lectura.",
-    "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones"
+    "alegationPoints": "si el documento es un escrito de alegaciones de la Administración (durante proceso de reclamación ante CTBG u organismo equivalente), array con los principales argumentos/puntos de defensa de la Administración. null si no es un escrito de alegaciones",
+    "keyPoints": "array con los puntos clave del documento. Obligatorio para: resoluciones (resolucion), reclamaciones (reclamacion), resoluciones de reclamación (resolucion_reclamacion) y respuestas a alegaciones (respuesta_alegaciones). Para resoluciones: los argumentos principales de la decisión (estimación, denegación, motivos). Para reclamaciones: los argumentos jurídicos principales del reclamante. Para resoluciones de reclamación: los fundamentos y el sentido del fallo del organismo de transparencia. Para respuestas a alegaciones: los contraargumentos principales. null para otros tipos de documento"
 }
 
 REGLAS PARA publicBodyName:
@@ -399,11 +402,13 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, otro):
 
 Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
 
-Usa "alegaciones" si el documento es un escrito de alegaciones de la Administración durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano.
+Usa "alegaciones" SOLO si el documento es un escrito de alegaciones de la ADMINISTRACIÓN (el órgano público) durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano. El remitente debe ser la Administración, no el ciudadano.
+
+Usa "respuesta_alegaciones" si el documento es un escrito del CIUDADANO/INTERESADO respondiendo a las alegaciones de la Administración, o presentando sus propias alegaciones ante el organismo de transparencia (CTBG, etc.) durante el trámite de audiencia o alegaciones. El remitente es el interesado/reclamante, no la Administración.
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada
