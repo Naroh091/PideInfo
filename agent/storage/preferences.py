@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+import os
+from dataclasses import dataclass
 from pathlib import Path
 
+import keyring
 
 # Set to True once the portal comparecencia endpoint has been identified
 # and implemented in the scraper. Until then the feature does not actually
 # accept the notification on the portal and must stay disabled.
 ACCEPT_NOTIFICATIONS_AVAILABLE = False
+
+_KEYRING_SERVICE = "pideinfo-agent"
 
 
 @dataclass
@@ -25,9 +29,9 @@ class AgentPreferences:
     user_email: str = ""
     user_name: str = ""
 
-    # Client certificate (reconverted .p12 stored by the agent)
+    # Client certificate path (reconverted .p12 stored by the agent).
+    # Passphrase is stored in the OS keyring, NOT here.
     client_cert_p12: str = ""
-    client_cert_passphrase: str = ""
 
     @property
     def is_connected(self) -> bool:
@@ -41,14 +45,21 @@ def load_preferences(path: Path) -> AgentPreferences:
 
     try:
         data = json.loads(path.read_text())
-        return AgentPreferences(
+        prefs = AgentPreferences(
             accept_notifications=bool(data.get("accept_notifications", False)),
             jwt_token=data.get("jwt_token", ""),
             user_email=data.get("user_email", ""),
             user_name=data.get("user_name", ""),
             client_cert_p12=data.get("client_cert_p12", ""),
-            client_cert_passphrase=data.get("client_cert_passphrase", ""),
         )
+
+        # Migrate plaintext passphrase from old format to OS keyring
+        old_passphrase = data.get("client_cert_passphrase", "")
+        if old_passphrase:
+            save_cert_passphrase(old_passphrase)
+            save_preferences(prefs, path)
+
+        return prefs
     except (json.JSONDecodeError, KeyError):
         return AgentPreferences()
 
@@ -64,8 +75,29 @@ def save_preferences(prefs: AgentPreferences, path: Path) -> None:
                 "user_email": prefs.user_email,
                 "user_name": prefs.user_name,
                 "client_cert_p12": prefs.client_cert_p12,
-                "client_cert_passphrase": prefs.client_cert_passphrase,
             },
             indent=2,
         )
     )
+    os.chmod(path, 0o600)
+
+
+# --- OS keyring helpers for certificate passphrase ---
+
+
+def save_cert_passphrase(passphrase: str) -> None:
+    """Store the certificate passphrase in the OS credential manager."""
+    keyring.set_password(_KEYRING_SERVICE, "client_cert_passphrase", passphrase)
+
+
+def load_cert_passphrase() -> str:
+    """Read the certificate passphrase from the OS credential manager."""
+    return keyring.get_password(_KEYRING_SERVICE, "client_cert_passphrase") or ""
+
+
+def delete_cert_passphrase() -> None:
+    """Remove the certificate passphrase from the OS credential manager."""
+    try:
+        keyring.delete_password(_KEYRING_SERVICE, "client_cert_passphrase")
+    except keyring.errors.PasswordDeleteError:
+        pass

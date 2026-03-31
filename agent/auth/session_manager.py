@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from pathlib import Path
 
 import httpx
+import keyring
 from rich.console import Console
 
 from auth.playwright_auth import authenticate, AuthTimeoutError, AuthCancelledError, AuthFailedError
 
 console = Console()
+
+_KEYRING_SERVICE = "pideinfo-agent"
 
 
 class SessionExpiredError(Exception):
@@ -40,17 +44,35 @@ class SessionManager:
     def cookies(self) -> dict[str, str]:
         return self._cookies
 
+    @property
+    def _keyring_key(self) -> str:
+        """Unique keyring key derived from the cookies filename."""
+        return f"cookies:{self.cookies_file.stem}"
+
     def load_cookies(self) -> bool:
-        """Load cookies from disk. Returns True if cookies were loaded."""
+        """Load cookies from OS keyring. Returns True if cookies were loaded."""
         if not self.cookies_file.exists():
             return False
 
         try:
+            # Metadata (timestamp) is in the file
             data = json.loads(self.cookies_file.read_text())
-            self._cookies = data.get("cookies", {})
             saved_at = data.get("saved_at", 0)
 
-            # Consider cookies stale after 4 hours
+            # Cookie values are in the keyring
+            raw = keyring.get_password(_KEYRING_SERVICE, self._keyring_key)
+            if not raw:
+                # Migration: try loading cookies from old plaintext JSON format
+                old_cookies = data.get("cookies")
+                if old_cookies:
+                    self._cookies = old_cookies
+                    self.save_cookies(old_cookies)
+                    console.print("[dim]Cookies migradas al keyring del sistema[/]")
+                    return True
+                return False
+
+            self._cookies = json.loads(raw)
+
             if time.time() - saved_at > 4 * 3600:
                 console.print("[dim]Cookies guardadas hace más de 4h, verificando...[/]")
 
@@ -59,16 +81,30 @@ class SessionManager:
             return False
 
     def save_cookies(self, cookies: dict[str, str]) -> None:
-        """Save cookies to disk."""
+        """Save cookies to OS keyring, metadata to disk."""
         self._cookies = cookies
         self.cookies_file.parent.mkdir(parents=True, exist_ok=True)
-        self.cookies_file.write_text(
-            json.dumps(
-                {"cookies": cookies, "saved_at": time.time()},
-                indent=2,
-            )
+
+        # Cookie values go to the OS keyring
+        keyring.set_password(
+            _KEYRING_SERVICE, self._keyring_key, json.dumps(cookies)
         )
-        console.print(f"[dim]Cookies guardadas en {self.cookies_file}[/]")
+
+        # Only metadata on disk (no secrets)
+        self.cookies_file.write_text(
+            json.dumps({"saved_at": time.time()}, indent=2)
+        )
+        os.chmod(self.cookies_file, 0o600)
+        console.print(f"[dim]Cookies guardadas en keyring ({self._keyring_key})[/]")
+
+    def delete_cookies(self) -> None:
+        """Remove cookies from keyring and disk."""
+        try:
+            keyring.delete_password(_KEYRING_SERVICE, self._keyring_key)
+        except keyring.errors.PasswordDeleteError:
+            pass
+        self.cookies_file.unlink(missing_ok=True)
+        self._cookies = {}
 
     async def is_session_valid(self) -> bool:
         """Check if current cookies give us an authenticated session."""

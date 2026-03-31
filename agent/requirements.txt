@@ -5,8 +5,10 @@ python-dotenv>=1.0
 rich>=13.0
 pydantic-settings>=2.0
 beautifulsoup4>=4.12
+truststore>=0.9
+keyring>=25.0
 pystray>=0.19
 Pillow>=10.0
-# macOS backend for pystray (pin to a wheel that builds on Python 3.9)
+# macOS backend for pystray
 pyobjc-core>=9.2; sys_platform == "darwin"
 pyobjc-framework-Cocoa>=9.2; sys_platform == "darwin"
