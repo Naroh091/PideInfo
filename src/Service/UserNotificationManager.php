@@ -24,7 +24,7 @@ final class UserNotificationManager
         return $this->create(
             user: $user,
             type: UserNotification::TYPE_DOCUMENT_IMPORTED,
-            message: sprintf('Añadido el documento %s a la solicitud %s', $document->getDisplayFilename(), $accessRequest->getTitle()),
+            message: sprintf('Añadido el documento %s', $document->getDisplayFilename()),
             accessRequest: $accessRequest,
             metadata: [
                 'documentId' => (string) $document->getId(),
@@ -38,7 +38,7 @@ final class UserNotificationManager
         return $this->create(
             user: $user,
             type: UserNotification::TYPE_REQUEST_CREATED,
-            message: sprintf('Nueva solicitud creada: %s', $accessRequest->getTitle()),
+            message: 'Nueva solicitud creada',
             accessRequest: $accessRequest,
         );
     }
