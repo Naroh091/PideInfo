@@ -164,7 +164,7 @@ class DocumentController extends AbstractController
             if (!$document) {
                 return new JsonResponse(['error' => "Documento $id no encontrado"], Response::HTTP_NOT_FOUND);
             }
-            if ($document->getUploadedBy() !== $user) {
+            if ($document->getUploadedBy() !== $user && !$this->isGranted('ROLE_ADMIN')) {
                 return new JsonResponse(['error' => 'No tienes acceso a uno de los documentos'], Response::HTTP_FORBIDDEN);
             }
             $documents[] = $document;
@@ -569,6 +569,11 @@ class DocumentController extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
+
+        // Admins can access any document
+        if ($this->isGranted('ROLE_ADMIN')) {
+            return true;
+        }
 
         // Direct uploader always has access
         if ($document->getUploadedBy()->getId()->equals($user->getId())) {
