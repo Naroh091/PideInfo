@@ -98,11 +98,13 @@ agent/
 ├── client/
 │   └── pideinfo.py          HTTP client — dual-auth (JWT preferred, shared-secret fallback)
 ├── models/
+│   ├── consejo.py           Dataclass: ConsejoNotificacion (CTBG sede)
 │   └── portal.py            Dataclasses: Expediente, Notificacion, DocumentoExpediente
 ├── notifier/
 │   └── desktop.py           Desktop notifications (osascript on macOS, console fallback)
 ├── portals/
 │   ├── base.py              Base scraper class
+│   ├── consejo_ctbg.py      CTBG sede electrónica scraper (HTML table parsing)
 │   └── transparencia_age.py AGE transparency portal scraper
 ├── storage/
 │   ├── downloads.py         Temporary download directory management
@@ -133,6 +135,7 @@ Settings are loaded from environment variables and/or a `.env` file via `pydanti
 |----------|---------|-------------|
 | `PIDEINFO_BASE_URL` | `http://localhost:8000` | PideInfo server URL (used for JWT auth) |
 | `PORTAL_URL` | `https://transparencia.sede.gob.es` | Portal de Transparencia URL |
+| `PORTAL_CTBG` | `https://sede.consejodetransparencia.gob.es/info.0` | CTBG sede electrónica URL |
 | `AUTH_TIMEOUT_SECONDS` | `120` | Browser auth timeout |
 | `SYNC_INTERVAL_MINUTES` | `30` | Daemon mode sync interval |
 | `DATA_DIR` | `~/.pideinfo-agent` | Directory for cookies, state, preferences, downloads |
@@ -165,7 +168,8 @@ A single sync cycle (`do_sync`) performs:
 4. **Sync expediente documents** — for each expediente, fetch its document list, download new ones, send as a batch to PideInfo. `SOLICITUD` documents are sorted first so the batch handler can create the `AccessRequest` with correct metadata.
 5. **Sync notification documents** — download and send each new notification's document. If a notification was `PENDIENTE` and is now downloaded, the agent marks it as accepted.
 6. **Report pending notifications** — inform PideInfo about `PENDIENTE` notifications without downloading them (so PideInfo can show a banner). Sends an empty list to clear notifications that have been resolved.
-7. **Save state** — mark synced documents in `~/.pideinfo-agent/sync_state.json`
+7. **Sync CTBG notifications** — authenticate against the CTBG sede electrónica (separate session), scrape the notification list from `/enotifications.9`, report any `Pendiente` notifications to PideInfo (source: `consejo_ctbg`). Non-fatal if auth fails. First page only (Wicket AJAX pagination not supported).
+8. **Save state** — mark synced documents in `~/.pideinfo-agent/sync_state.json`
 
 ### Deduplication
 
@@ -227,6 +231,29 @@ When using legacy auth, the payload includes `"userId": "<uuid>"`. With JWT auth
     "metadata": { "expedienteId": 67890 }
 }
 ```
+
+### CTBG pending notifications report
+
+```json
+{
+    "source": "consejo_ctbg",
+    "expedienteRef": "666/2026",
+    "documents": [],
+    "pendingNotifications": [
+        {
+            "notificationId": "2026-S-RE-3781",
+            "tipo": "Notificación Electrónica",
+            "concepto": "",
+            "fechaEmision": "30/03/2026 11:48",
+            "fechaCaducidad": null,
+            "esComunicacion": false
+        }
+    ],
+    "metadata": {}
+}
+```
+
+The `expedienteRef` matches `AccessRequestComplaint.externalId` in PideInfo. The backend's `findByExternalId` method also searches complaint external IDs.
 
 ### Accepted notification
 

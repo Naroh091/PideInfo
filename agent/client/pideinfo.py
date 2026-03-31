@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 from rich.console import Console
 
+from models.consejo import ConsejoNotificacion
 from models.portal import DocumentoExpediente, Expediente, Notificacion
 
 console = Console()
@@ -232,6 +233,53 @@ class PideInfoClient:
         ar_id = result.get("accessRequestId")
         console.print(
             f"[dim]Notificaciones pendientes de {expediente_ref}: "
+            f"{len(notifications)} reportadas"
+            + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
+            + "[/]"
+        )
+        return result
+
+    async def report_consejo_pending_notifications(
+        self,
+        expediente_ref: str,
+        notifications: "list[ConsejoNotificacion]",
+        source: str = "consejo_ctbg",
+    ) -> dict:
+        """Inform PideInfo about pending notifications from CTBG sede electrónica."""
+        payload = {
+            "source": source,
+            "expedienteRef": expediente_ref,
+            "documents": [],
+            "pendingNotifications": [
+                {
+                    "notificationId": n.registro,
+                    "tipo": n.tipo,
+                    "concepto": "",
+                    "fechaEmision": n.fecha_envio,
+                    "fechaCaducidad": None,
+                    "esComunicacion": n.es_comunicacion,
+                }
+                for n in notifications
+            ],
+            "metadata": {},
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        found = result.get("accessRequestFound", False)
+        ar_id = result.get("accessRequestId")
+        console.print(
+            f"[dim]CTBG pendientes de {expediente_ref}: "
             f"{len(notifications)} reportadas"
             + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
             + "[/]"

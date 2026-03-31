@@ -27,6 +27,7 @@ async def authenticate(
     timeout_seconds: int = 120,
     client_cert_p12: "str | None" = None,
     client_cert_passphrase: str = "",
+    target_path: str = "/privada/expedientes",
 ) -> dict[str, str]:
     """
     Open a headed browser, navigate to the portal's private area,
@@ -35,7 +36,7 @@ async def authenticate(
     """
     console.print("[bold yellow]Abriendo navegador para autenticación Cl@ve...[/]")
     console.print(
-        f"[dim]Timeout: {timeout_seconds}s — selecciona tu certificado e introduce el PIN[/]"
+        f"[dim]Timeout: {timeout_seconds}s[/]"
     )
 
     async with async_playwright() as p:
@@ -51,29 +52,48 @@ async def authenticate(
         }
 
         if client_cert_p12:
-            # Playwright's client_certificates bypasses the certificate picker
-            # entirely — the browser presents the cert automatically.
             context_kwargs["client_certificates"] = [
                 {
                     "origin": "https://pasarela-ident.clave.gob.es",
                     "pfxPath": str(client_cert_p12),
                     "passphrase": client_cert_passphrase,
-                }
+                },
+                {
+                    "origin": "https://pasarela.clave.gob.es",
+                    "pfxPath": str(client_cert_p12),
+                    "passphrase": client_cert_passphrase,
+                },
             ]
-            console.print("[dim]Certificado FNMT configurado — selección automática[/]")
+            console.print("[dim]Certificado configurado — selección automática[/]")
 
         context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
 
         try:
-            # Navigate directly to the Cl@ve authentication endpoint.
-            # The portal does NOT auto-redirect — it shows a 401 page with an
-            # explicit login link pointing to /claveproxy/clave/authenticate.
-            return_url = urllib.parse.quote(f"{portal_url}/privada/expedientes")
-            await page.goto(
-                f"{portal_url}/claveproxy/clave/authenticate?returnUrl={return_url}",
-                wait_until="domcontentloaded",
-            )
+            if "/privada/" in target_path:
+                # Portal de Transparencia — navigate to Cl@ve proxy endpoint directly
+                return_url = urllib.parse.quote(f"{portal_url}{target_path}")
+                await page.goto(
+                    f"{portal_url}/claveproxy/clave/authenticate?returnUrl={return_url}",
+                    wait_until="domcontentloaded",
+                )
+            else:
+                # CTBG and other portals — multi-step login:
+                # 1. Go to portal home
+                # 2. Click "Identifícate"
+                # 3. Click "Acceso con sistema Cl@ve"
+                await page.goto(portal_url, wait_until="domcontentloaded")
+                try:
+                    await page.get_by_text("Identifícate").click(timeout=10_000)
+                    console.print("[dim]Clic en 'Identifícate'[/]")
+                except Exception:
+                    console.print("[dim]No se encontró enlace 'Identifícate'[/]")
+
+                try:
+                    await page.locator('a:has-text("Cl@ve")').click(timeout=10_000)
+                    console.print("[dim]Clic en 'Acceso con sistema Cl@ve'[/]")
+                except Exception:
+                    console.print("[dim]No se encontró enlace 'Cl@ve' — selecciónalo manualmente[/]")
 
             # Auto-click "DNIe / Certificado electrónico" (AFIRMA IdP) so the
             # user does not have to select the authentication method manually.
@@ -86,8 +106,9 @@ async def authenticate(
             console.print("[bold cyan]Esperando autenticación...[/]")
 
             # Wait for the user to complete auth and be redirected back to the portal
+            target_base = target_path.split("?")[0]
             await page.wait_for_url(
-                f"{portal_url}/privada/**",
+                f"{portal_url}{target_base}**",
                 timeout=timeout_seconds * 1000,
             )
 

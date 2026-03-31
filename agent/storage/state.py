@@ -20,6 +20,10 @@ class SyncState:
     # pending notifications. Used to send explicit clears when they no longer do.
     pending_notification_expediente_ids: set[str] = field(default_factory=set)
 
+    # Set of CTBG expediente refs (as strings, e.g. "666/2026") that PideInfo
+    # currently shows as having pending notifications.
+    ctbg_pending_expediente_refs: set[str] = field(default_factory=set)
+
     # Last successful sync timestamp
     last_sync_at: float = 0.0
 
@@ -52,6 +56,7 @@ def load_state(path: Path) -> SyncState:
             synced_notification_ids=set(data.get("synced_notification_ids", [])),
             synced_document_keys=set(data.get("synced_document_keys", [])),
             pending_notification_expediente_ids=set(data.get("pending_notification_expediente_ids", [])),
+            ctbg_pending_expediente_refs=set(data.get("ctbg_pending_expediente_refs", [])),
             last_sync_at=data.get("last_sync_at", 0.0),
         )
     except (json.JSONDecodeError, KeyError):
@@ -65,6 +70,7 @@ def save_state(state: SyncState, path: Path) -> None:
         "synced_notification_ids": sorted(state.synced_notification_ids),
         "synced_document_keys": sorted(state.synced_document_keys),
         "pending_notification_expediente_ids": sorted(state.pending_notification_expediente_ids),
+        "ctbg_pending_expediente_refs": sorted(state.ctbg_pending_expediente_refs),
         "last_sync_at": state.last_sync_at,
     }
     path.write_text(json.dumps(data, indent=2))
