@@ -1,6 +1,7 @@
 <div {{ attributes.defaults({class: 'pending-notifications', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set portalItems = this.portalItems %}
     {% set consejoItems = this.consejoItems %}
+    {% set dehuItems = this.dehuItems %}
 
     {% if portalItems|length > 0 %}
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6 animate-fade-in">
@@ -117,6 +118,50 @@
                 {% if firstConsejoNotif.reportedAt is defined %}
                     <p class="text-xs text-purple-500 mt-3">
                         Última actualización: {{ firstConsejoNotif.reportedAt|date('d/m/Y H:i') }}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if dehuItems|length > 0 %}
+    <div class="bg-teal-50 border border-teal-200 rounded-xl p-5 mb-6 animate-fade-in">
+        <div class="flex items-start gap-4">
+            <div class="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="mail-open" class="w-5 h-5 text-teal-600"></i>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-semibold text-teal-800 text-base">
+                    {{ this.dehuCount }} potencial{{ this.dehuCount != 1 ? 'es' : '' }} notificación{{ this.dehuCount != 1 ? 'es' : '' }} a solicitudes de transparencia en DEHú
+                </h3>
+                <p class="text-sm text-teal-700 mt-1">
+                    El agente ha detectado notificaciones en DEHú / RedSARA que podrían estar relacionadas con solicitudes de transparencia.
+                </p>
+
+                <div class="mt-4 space-y-2">
+                    {% for n in dehuItems %}
+                        <div class="p-3 bg-white/70 rounded-lg border border-teal-100">
+                            <div class="flex items-center justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="font-medium text-slate-800 truncate text-sm">
+                                        {{ n.emisor ?? '—' }}
+                                    </p>
+                                    <p class="text-xs text-slate-400 mt-0.5 font-mono">
+                                        ID: {{ (n.notificationId ?? '')|slice(0, 16) }}…
+                                    </p>
+                                </div>
+                                {% if n.fechaEmision is defined and n.fechaEmision %}
+                                    <span class="text-xs text-teal-600 flex-shrink-0">{{ n.fechaEmision }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {% if dehuItems[0].reportedAt is defined %}
+                    <p class="text-xs text-teal-500 mt-3">
+                        Última actualización: {{ dehuItems[0].reportedAt|date('d/m/Y H:i') }}
                     </p>
                 {% endif %}
             </div>

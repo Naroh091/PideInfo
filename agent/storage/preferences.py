@@ -13,6 +13,7 @@ import keyring
 ACCEPT_NOTIFICATIONS_AVAILABLE = False
 
 _KEYRING_SERVICE = "pideinfo-agent"
+_KEYRING_PIDEINFO_JWT_KEY = "pideinfo:jwt"
 
 
 @dataclass
@@ -29,9 +30,9 @@ class AgentPreferences:
     user_email: str = ""
     user_name: str = ""
 
-    # Client certificate path (reconverted .p12 stored by the agent).
-    # Passphrase is stored in the OS keyring, NOT here.
-    client_cert_p12: str = ""
+    # Optional override for the PideInfo backend URL.
+    # Empty string = use the default from config / .env.
+    pideinfo_base_url: str = ""
 
     @property
     def is_connected(self) -> bool:
@@ -45,59 +46,82 @@ def load_preferences(path: Path) -> AgentPreferences:
 
     try:
         data = json.loads(path.read_text())
+
+        # Load JWT from keyring; migrate from plaintext JSON if still there
+        jwt_token = keyring.get_password(_KEYRING_SERVICE, _KEYRING_PIDEINFO_JWT_KEY) or ""
+        if not jwt_token and data.get("jwt_token"):
+            jwt_token = data["jwt_token"]
+            keyring.set_password(_KEYRING_SERVICE, _KEYRING_PIDEINFO_JWT_KEY, jwt_token)
+
         prefs = AgentPreferences(
             accept_notifications=bool(data.get("accept_notifications", False)),
-            jwt_token=data.get("jwt_token", ""),
+            jwt_token=jwt_token,
             user_email=data.get("user_email", ""),
             user_name=data.get("user_name", ""),
-            client_cert_p12=data.get("client_cert_p12", ""),
+            pideinfo_base_url=data.get("pideinfo_base_url", ""),
         )
 
-        # Migrate plaintext passphrase from old format to OS keyring
-        old_passphrase = data.get("client_cert_passphrase", "")
-        if old_passphrase:
-            save_cert_passphrase(old_passphrase)
-            save_preferences(prefs, path)
+        # Migration: remove stale cert artifacts left by older versions of the agent
+        _migrate_remove_cert_artifacts(data, path)
 
         return prefs
     except (json.JSONDecodeError, KeyError):
         return AgentPreferences()
 
 
+def _migrate_remove_cert_artifacts(data: dict, prefs_path: Path) -> None:
+    """One-time cleanup of .p12 files and keyring entries from older agent versions."""
+    # Remove converted .p12 from disk if it was stored by an older version
+    old_cert_path = data.get("client_cert_p12", "")
+    if old_cert_path:
+        try:
+            Path(old_cert_path).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    # Remove passphrase from keyring if it was stored by an older version
+    try:
+        keyring.delete_password(_KEYRING_SERVICE, "client_cert_passphrase")
+    except Exception:
+        pass
+
+    # Rewrite preferences without the cert fields and without the plaintext JWT
+    # (JWT now lives in the OS keyring, cert fields are deprecated)
+    if "client_cert_p12" in data or "client_cert_passphrase" in data or "jwt_token" in data:
+        save_preferences(
+            AgentPreferences(
+                accept_notifications=bool(data.get("accept_notifications", False)),
+                jwt_token=data.get("jwt_token", ""),
+                user_email=data.get("user_email", ""),
+                user_name=data.get("user_name", ""),
+            ),
+            prefs_path,
+        )
+
+
 def save_preferences(prefs: AgentPreferences, path: Path) -> None:
-    """Persist preferences to disk."""
+    """Persist preferences to disk and JWT token to the OS keyring."""
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # JWT goes to the OS keyring — never to disk
+    if prefs.jwt_token:
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_PIDEINFO_JWT_KEY, prefs.jwt_token)
+    else:
+        try:
+            keyring.delete_password(_KEYRING_SERVICE, _KEYRING_PIDEINFO_JWT_KEY)
+        except Exception:
+            pass
+
+    # Non-secret metadata stays on disk (no token)
     path.write_text(
         json.dumps(
             {
                 "accept_notifications": prefs.accept_notifications,
-                "jwt_token": prefs.jwt_token,
                 "user_email": prefs.user_email,
                 "user_name": prefs.user_name,
-                "client_cert_p12": prefs.client_cert_p12,
+                "pideinfo_base_url": prefs.pideinfo_base_url,
             },
             indent=2,
         )
     )
     os.chmod(path, 0o600)
-
-
-# --- OS keyring helpers for certificate passphrase ---
-
-
-def save_cert_passphrase(passphrase: str) -> None:
-    """Store the certificate passphrase in the OS credential manager."""
-    keyring.set_password(_KEYRING_SERVICE, "client_cert_passphrase", passphrase)
-
-
-def load_cert_passphrase() -> str:
-    """Read the certificate passphrase from the OS credential manager."""
-    return keyring.get_password(_KEYRING_SERVICE, "client_cert_passphrase") or ""
-
-
-def delete_cert_passphrase() -> None:
-    """Remove the certificate passphrase from the OS credential manager."""
-    try:
-        keyring.delete_password(_KEYRING_SERVICE, "client_cert_passphrase")
-    except keyring.errors.PasswordDeleteError:
-        pass

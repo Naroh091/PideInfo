@@ -43,8 +43,11 @@ class AgentWebhookProcessor
         $metadata = $data['metadata'] ?? [];
         $pendingNotifications = $data['pendingNotifications'] ?? null;
 
-        // Pending-notifications report: no documents to store — persist on the AccessRequest.
+        // Pending-notifications report: no documents to store.
         if (empty($documents) && $pendingNotifications !== null) {
+            if ($source === 'dehu_redsara') {
+                return $this->handleDehuPendingNotifications($user, $expedienteRef, $pendingNotifications);
+            }
             return $this->handlePendingNotifications($user, $source, $expedienteRef, $metadata, $pendingNotifications);
         }
 
@@ -111,6 +114,35 @@ class AgentWebhookProcessor
             'documents' => count($documents),
             'created' => count($documentIds),
             'skipped' => $skipped,
+        ]);
+    }
+
+    private function handleDehuPendingNotifications(User $user, string $expedienteRef, array $pendingNotifications): JsonResponse
+    {
+        $pool = $user->getPendingDehuNotifications();
+
+        if (empty($pendingNotifications)) {
+            unset($pool[$expedienteRef]);
+        } else {
+            $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+            foreach ($pendingNotifications as $n) {
+                $notificationId = $n['notificationId'] ?? $expedienteRef;
+                $pool[$notificationId] = $n + ['reportedAt' => $reportedAt, 'source' => 'dehu_redsara'];
+            }
+        }
+
+        $user->setPendingDehuNotifications(empty($pool) ? null : $pool);
+        $this->entityManager->flush();
+
+        $this->logger->info('DEHú agent: pending notifications reported', [
+            'expedienteRef' => $expedienteRef,
+            'pendingCount' => count($pendingNotifications),
+            'userId' => (string) $user->getId(),
+        ]);
+
+        return new JsonResponse([
+            'ok' => true,
+            'pendingNotifications' => count($pendingNotifications),
         ]);
     }
 

@@ -9,6 +9,9 @@ truststore>=0.9
 keyring>=25.0
 pystray>=0.19
 Pillow>=10.0
+packaging>=24.0
 # macOS backend for pystray
 pyobjc-core>=9.2; sys_platform == "darwin"
 pyobjc-framework-Cocoa>=9.2; sys_platform == "darwin"
+# macOS AppKit for hide-from-Dock support in tray
+pyobjc-framework-AppKit>=9.2; sys_platform == "darwin"

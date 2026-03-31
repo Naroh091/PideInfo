@@ -2,7 +2,7 @@
 
 > **El Agente está actualmente en desarrollo.** Estamos trabajando en la versión final para Windows, macOS y Linux. Algunas funcionalidades descritas en esta guía pueden no estar disponibles todavía o cambiar antes del lanzamiento.
 
-El Agente de PideInfo es una aplicación que se ejecuta en tu ordenador y se encarga de sincronizar automáticamente tus solicitudes del Portal de Transparencia con PideInfo. Funciona en segundo plano, conectándose periódicamente al portal con tu certificado digital para descargar nuevos documentos y notificaciones.
+El Agente de PideInfo es una aplicación que se ejecuta en tu ordenador y se encarga de sincronizar automáticamente tus solicitudes del Portal de Transparencia, del Consejo de Transparencia (CTBG) y de DEHú / RedSARA con PideInfo. Funciona en segundo plano, conectándose periódicamente a los portales con tu certificado digital para descargar nuevos documentos y notificaciones.
 
 ## ¿Por qué necesito el Agente?
 
@@ -13,8 +13,10 @@ El Agente resuelve esto ejecutándose localmente: tu certificado digital nunca s
 ## Cómo funciona
 
 1. El Agente se ejecuta como un icono en la barra del sistema (junto al reloj)
-2. Periódicamente, abre un navegador en segundo plano para autenticarse en el Portal de Transparencia con tu certificado digital
-3. Una vez autenticado, descarga los expedientes y notificaciones nuevos
+2. Periódicamente, se autentica en los portales del gobierno con tu certificado digital:
+   - **La primera vez**: abre una pequeña ventana de navegador para que elijas tu certificado. Solo ocurre una vez por portal.
+   - **Las veces siguientes**: el navegador funciona en segundo plano completamente invisible, sin abrir ninguna ventana. El Agente recuerda tu certificado del paso anterior.
+3. Una vez autenticado, descarga los expedientes y notificaciones nuevos del Portal de Transparencia, la sede del CTBG y DEHú / RedSARA
 4. Los documentos descargados se envían a PideInfo, donde se analizan con IA y se enlazan automáticamente a tus solicitudes
 5. Los archivos temporales se eliminan de tu ordenador tras la sincronización
 
@@ -38,9 +40,9 @@ El Agente almacena tus contraseñas y sesiones de la misma forma segura que lo h
 - En **Windows**: el Administrador de credenciales de Windows
 - En **Linux**: el Llavero de GNOME o KWallet
 
-Esto significa que la contraseña de tu certificado y las sesiones de los portales están **cifradas y protegidas** por tu sistema operativo, vinculadas a tu cuenta de usuario. Ningún otro programa ni usuario de tu ordenador puede acceder a ellas.
+Esto significa que la contraseña de tu certificado, el token de conexión con PideInfo y las sesiones de los portales están **cifradas y protegidas** por tu sistema operativo, vinculadas a tu cuenta de usuario. Ningún otro programa ni usuario de tu ordenador puede acceder a ellas.
 
-En ningún momento se guarda tu contraseña en un archivo de texto. Los archivos que el Agente necesita en tu disco (datos de configuración, certificado reconvertido) están protegidos con permisos restrictivos para que solo tu usuario pueda leerlos.
+En ningún momento se guarda ningún secreto en un archivo de texto. Los archivos que el Agente necesita en tu disco contienen únicamente metadatos no sensibles (tu email, la fecha de la última sincronización) y están protegidos con permisos restrictivos para que solo tu usuario pueda leerlos.
 
 ### Conexión segura con PideInfo
 
@@ -118,7 +120,7 @@ Por defecto, cada 30 minutos. La frecuencia es configurable.
 
 ### ¿Necesito tener el navegador abierto?
 
-No. El Agente utiliza un navegador propio en segundo plano que se abre solo cuando necesita autenticarse. No interfiere con tu navegación normal.
+No. El Agente utiliza su propio navegador interno que, a partir de la primera vez que te autentiques, funciona completamente en segundo plano sin abrir ninguna ventana. No interfiere con tu navegación normal.
 
 ### ¿El Agente puede hacer algo en mi nombre en el portal?
 
