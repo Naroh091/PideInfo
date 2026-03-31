@@ -370,7 +370,7 @@ body {
 
 /* Status-specific colors for requests */
 .status-sent {
-  @apply bg-primary-100 text-primary-700;
+  @apply bg-slate-100 text-slate-600;
 }
 
 .status-processing {
