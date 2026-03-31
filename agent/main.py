@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -24,7 +25,11 @@ from notifier.desktop import (
 from portals.consejo_ctbg import ConsejoScraper
 from portals.transparencia_age import TransparenciaAGEScraper
 from storage.downloads import DownloadManager
-from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences, load_preferences, save_preferences
+from storage.preferences import (
+    ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences,
+    load_preferences, save_preferences,
+    load_cert_passphrase, save_cert_passphrase, delete_cert_passphrase,
+)
 from storage.state import SyncState, load_state, save_state
 
 console = Console()
@@ -474,7 +479,7 @@ def _run_tray(settings: Settings) -> None:
 
     if prefs.client_cert_p12 and not settings.client_cert_p12:
         settings.client_cert_p12 = Path(prefs.client_cert_p12)
-        settings.client_cert_passphrase = prefs.client_cert_passphrase
+        settings.client_cert_passphrase = load_cert_passphrase()
 
     async def sync() -> None:
         try:
@@ -484,7 +489,13 @@ def _run_tray(settings: Settings) -> None:
 
     async def reset() -> None:
         settings.state_file.unlink(missing_ok=True)
-        settings.cookies_file.unlink(missing_ok=True)
+        # Clear cookies from keyring and disk for both portals
+        SessionManager(
+            portal_url="", cookies_file=settings.cookies_file
+        ).delete_cookies()
+        SessionManager(
+            portal_url="", cookies_file=settings.cookies_ctbg_file
+        ).delete_cookies()
         console.print("[yellow]Estado y sesión reiniciados[/]")
 
     def get_accept_notifications() -> bool:
@@ -528,6 +539,7 @@ def _run_tray(settings: Settings) -> None:
         prefs.jwt_token = ""
         prefs.user_email = ""
         prefs.user_name = ""
+        delete_cert_passphrase()
         save_preferences(prefs, settings.preferences_file)
         console.print("[yellow]Desconectado de PideInfo[/]")
 
@@ -554,11 +566,13 @@ def _run_tray(settings: Settings) -> None:
         dest_path = settings.data_dir / "client_cert.p12"
         pem_path = settings.data_dir / "client_cert.pem"
         settings.data_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(settings.data_dir, 0o700)
 
         extract = subprocess.run(
             ["openssl", "pkcs12", "-in", src_path,
              "-out", str(pem_path), "-nodes",
-             "-legacy", "-passin", f"pass:{passphrase}"],
+             "-legacy", "-passin", "stdin"],
+            input=passphrase,
             capture_output=True, text=True,
         )
         if extract.returncode != 0:
@@ -571,7 +585,8 @@ def _run_tray(settings: Settings) -> None:
             ["openssl", "pkcs12", "-export",
              "-in", str(pem_path),
              "-out", str(dest_path),
-             "-passout", f"pass:{passphrase}"],
+             "-passout", "stdin"],
+            input=passphrase,
             capture_output=True, text=True,
         )
         pem_path.unlink(missing_ok=True)
@@ -580,16 +595,18 @@ def _run_tray(settings: Settings) -> None:
             show_error_dialog(f"Error al reconvertir el certificado:\n{reexport.stderr}")
             return
 
-        # Save to preferences
+        os.chmod(dest_path, 0o600)
+
+        # Save cert path to preferences, passphrase to OS keyring
         prefs.client_cert_p12 = str(dest_path)
-        prefs.client_cert_passphrase = passphrase
+        save_cert_passphrase(passphrase)
         save_preferences(prefs, settings.preferences_file)
 
         # Update settings for current session
         settings.client_cert_p12 = dest_path
         settings.client_cert_passphrase = passphrase
 
-        console.print(f"[green]Certificado configurado correctamente[/]")
+        console.print("[green]Certificado configurado correctamente[/]")
 
     def has_cert() -> bool:
         return bool(prefs.client_cert_p12 and Path(prefs.client_cert_p12).is_file())
@@ -648,6 +665,7 @@ def main() -> None:
     # Load settings
     settings = Settings(_env_file=args.env_file)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(settings.data_dir, 0o700)
 
     console.print("[bold]PideInfo Agent[/]")
     console.print(f"[dim]Portal: {settings.portal_url}[/]")

@@ -7,6 +7,13 @@ from rich.console import Console
 from auth.session_manager import SessionManager
 from models.consejo import ConsejoNotificacion
 
+# Spanish government portals use CAs (FNMT, etc.) that are in the OS trust
+# store but not in Python's bundled certifi. The `truststore` package makes
+# Python's ssl module use the OS certificate store (macOS Keychain, Windows
+# cert store, Linux system certs).
+import truststore
+truststore.inject_into_ssl()
+
 console = Console()
 
 
@@ -26,7 +33,7 @@ class ConsejoScraper:
             self._client = httpx.AsyncClient(
                 cookies=cookies,
                 follow_redirects=True,
-                verify=False,
+                verify=True,
                 timeout=30,
                 headers={
                     "User-Agent": (

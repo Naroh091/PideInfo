@@ -1,0 +1,27 @@
+Collecting keyring
+  Downloading keyring-25.7.0-py3-none-any.whl.metadata (21 kB)
+Collecting importlib_metadata>=4.11.4 (from keyring)
+  Downloading importlib_metadata-9.0.0-py3-none-any.whl.metadata (4.5 kB)
+Collecting jaraco.classes (from keyring)
+  Downloading jaraco.classes-3.4.0-py3-none-any.whl.metadata (2.6 kB)
+Collecting jaraco.functools (from keyring)
+  Downloading jaraco_functools-4.4.0-py3-none-any.whl.metadata (3.0 kB)
+Collecting jaraco.context (from keyring)
+  Downloading jaraco_context-6.1.2-py3-none-any.whl.metadata (4.2 kB)
+Collecting zipp>=3.20 (from importlib_metadata>=4.11.4->keyring)
+  Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+Collecting more-itertools (from jaraco.classes->keyring)
+  Downloading more_itertools-10.8.0-py3-none-any.whl.metadata (39 kB)
+Collecting backports.tarfile (from jaraco.context->keyring)
+  Downloading backports.tarfile-1.2.0-py3-none-any.whl.metadata (2.0 kB)
+Downloading keyring-25.7.0-py3-none-any.whl (39 kB)
+Downloading importlib_metadata-9.0.0-py3-none-any.whl (27 kB)
+Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+Downloading jaraco.classes-3.4.0-py3-none-any.whl (6.8 kB)
+Downloading jaraco_context-6.1.2-py3-none-any.whl (7.9 kB)
+Downloading backports.tarfile-1.2.0-py3-none-any.whl (30 kB)
+Downloading jaraco_functools-4.4.0-py3-none-any.whl (10 kB)
+Downloading more_itertools-10.8.0-py3-none-any.whl (69 kB)
+Installing collected packages: zipp, more-itertools, backports.tarfile, jaraco.functools, jaraco.context, jaraco.classes, importlib_metadata, keyring
+
+Successfully installed backports.tarfile-1.2.0 importlib_metadata-9.0.0 jaraco.classes-3.4.0 jaraco.context-6.1.2 jaraco.functools-4.4.0 keyring-25.7.0 more-itertools-10.8.0 zipp-3.23.0

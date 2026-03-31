@@ -11,7 +11,15 @@
       "Read(//Users/david/**)",
       "Bash(python3:*)",
       "Bash(find /Users/david/IdeaProjects/vigia/agent -name *.json)",
-      "Bash(grep -r notification /Users/david/IdeaProjects/vigia/assets --include=*.js)"
+      "Bash(grep -r notification /Users/david/IdeaProjects/vigia/assets --include=*.js)",
+      "Bash(ls /Users/david/IdeaProjects/vigia/agent/.venv/bin/python*)",
+      "Bash(/opt/homebrew/bin/python3.11 -m venv .venv)",
+      "Bash(.venv/bin/python --version)",
+      "Bash(find /Users/david/IdeaProjects/vigia/agent -name .env* -o -name *.env*)",
+      "Bash(grep -r preferences /Users/david/IdeaProjects/vigia/agent/*.py)",
+      "Bash(.venv/bin/python -m py_compile storage/preferences.py)",
+      "Bash(.venv/bin/python -m py_compile auth/session_manager.py)",
+      "Bash(.venv/bin/python -m py_compile main.py)"
     ]
   }
 }
