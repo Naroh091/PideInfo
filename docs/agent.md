@@ -93,7 +93,7 @@ agent/
 ├── tray.py                  System tray (pystray + Pillow), connection-aware menu
 ├── config.py                Settings (pydantic-settings, reads .env)
 ├── auth/
-│   ├── session_manager.py   Cookie persistence, session validation, re-auth
+│   ├── session_manager.py   Cookie management (OS keyring), session validation, re-auth
 │   └── playwright_auth.py   Headed Playwright browser for Cl@ve + FNMT certificate
 ├── client/
 │   └── pideinfo.py          HTTP client — dual-auth (JWT preferred, shared-secret fallback)
@@ -108,7 +108,7 @@ agent/
 │   └── transparencia_age.py AGE transparency portal scraper
 ├── storage/
 │   ├── downloads.py         Temporary download directory management
-│   ├── preferences.py       User preferences + JWT token (JSON persistence)
+│   ├── preferences.py       User preferences + JWT token (JSON); cert passphrase (OS keyring)
 │   └── state.py             Sync state tracking (which documents are already synced)
 └── ui/
     └── connect_dialog.py    Tkinter dialogs: token input, connection card, error dialog
@@ -140,23 +140,73 @@ Settings are loaded from environment variables and/or a `.env` file via `pydanti
 | `SYNC_INTERVAL_MINUTES` | `30` | Daemon mode sync interval |
 | `DATA_DIR` | `~/.pideinfo-agent` | Directory for cookies, state, preferences, downloads |
 | `CLIENT_CERT_P12` | *(none)* | Path to FNMT certificate (.p12) for auto-selection |
-| `CLIENT_CERT_PASSPHRASE` | *(none)* | Certificate passphrase |
 
 Legacy variables (`PIDEINFO_WEBHOOK_URL`, `PIDEINFO_WEBHOOK_SECRET`, `PIDEINFO_USER_ID`) are still supported for backward compatibility but deprecated in favor of JWT authentication.
 
 ## Portal authentication
 
-The Portal de Transparencia uses Spain's Cl@ve identity system. The agent authenticates using a headed Playwright browser that allows the user to select their FNMT digital certificate:
+Both the Portal de Transparencia and the CTBG sede use Spain's Cl@ve identity system. The agent authenticates using a headed Playwright browser that allows the user to select their FNMT digital certificate.
 
-1. Playwright opens the portal login page
-2. The portal redirects to Cl@ve, which presents certificate selection
-3. If `CLIENT_CERT_P12` is set, the browser auto-selects the certificate
-4. The user may need to enter their certificate passphrase
-5. After authentication, the agent captures the session cookies
-6. Cookies are persisted to `~/.pideinfo-agent/cookies.json` and reused until expired (validated by hitting `/privada/expedientes`)
-7. Cookies are considered stale after 4 hours but are still validated before re-authentication
+### Portal de Transparencia
 
-If a session expires mid-sync, the agent catches the redirect to Cl@ve and raises `SessionExpiredError`.
+1. Playwright navigates to `/claveproxy/clave/authenticate?returnUrl=...`
+2. The portal redirects to Cl@ve (`pasarela-ident.clave.gob.es`)
+3. The agent auto-clicks the "DNIe / Certificado electrónico" (AFIRMA) button
+4. If `CLIENT_CERT_P12` is configured, Playwright auto-selects the certificate
+5. After authentication, the agent captures session cookies
+6. Cookies are stored in the OS keyring and reused until expired (validated by hitting `/privada/expedientes`)
+
+### CTBG sede electrónica
+
+1. Playwright navigates to the CTBG home page
+2. The agent clicks "Identifícate", then "Acceso con sistema Cl@ve"
+3. This redirects to Cl@ve (`pasarela.clave.gob.es`) — same flow as above
+4. After authentication, the portal lands on `/info.3`; cookies are captured
+5. Cookies are stored in the OS keyring under a separate key (`cookies:cookies_ctbg`)
+
+The CTBG portal uses a government CA not in Python's bundled `certifi` store. The agent uses `truststore` to access the OS trust store, and Playwright uses `ignore_https_errors: true` for browser-level SSL.
+
+### Session management
+
+- Cookies are considered stale after 4 hours but are still validated before re-authentication
+- If a session expires mid-sync, the agent catches the redirect to Cl@ve and raises `SessionExpiredError`
+- Each portal has its own `SessionManager` instance with separate cookies and validation paths
+
+## Credential security
+
+All sensitive data is stored using the OS credential manager via the `keyring` package (macOS Keychain, Windows Credential Manager, Linux Secret Service / GNOME Keyring).
+
+| Secret | Storage | Keyring key |
+|--------|---------|-------------|
+| Certificate passphrase | OS keyring | `pideinfo-agent` / `client_cert_passphrase` |
+| Portal cookies | OS keyring | `pideinfo-agent` / `cookies:cookies` |
+| CTBG cookies | OS keyring | `pideinfo-agent` / `cookies:cookies_ctbg` |
+
+Non-secret metadata (timestamps, user email, cert file path) remains in `~/.pideinfo-agent/preferences.json`.
+
+### File permissions
+
+All files in `~/.pideinfo-agent/` are protected:
+
+| Path | Permissions | Contents |
+|------|-------------|----------|
+| `~/.pideinfo-agent/` | `700` (owner only) | Data directory |
+| `preferences.json` | `600` | JWT token, user email, cert path (no passphrase) |
+| `cookies.json` | `600` | Timestamp only (cookie values in keyring) |
+| `cookies_ctbg.json` | `600` | Timestamp only (cookie values in keyring) |
+| `client_cert.p12` | `600` | Reconverted FNMT certificate |
+
+### OpenSSL passphrase handling
+
+When configuring a certificate, the agent reconverts the `.p12` file using OpenSSL for Playwright compatibility. The passphrase is passed via **stdin** (not command-line arguments) to avoid exposure in the process list:
+
+```python
+subprocess.run(["openssl", "pkcs12", ..., "-passin", "stdin"], input=passphrase)
+```
+
+### Migration
+
+Old installations that stored cookies or the passphrase in plaintext JSON are automatically migrated to the OS keyring on first load. The plaintext values are removed from disk after migration.
 
 ## Sync cycle
 
