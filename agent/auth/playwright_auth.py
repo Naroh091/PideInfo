@@ -4,7 +4,7 @@ import asyncio
 import urllib.parse
 from typing import Any
 
-from playwright.async_api import async_playwright, BrowserContext
+from playwright.async_api import async_playwright
 from rich.console import Console
 
 console = Console()
@@ -49,6 +49,9 @@ async def authenticate(
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/131.0.0.0 Safari/537.36"
             ),
+            # Spanish government portals use CAs (FNMT, etc.) not in Node's
+            # bundled trust store. This lets the browser proceed anyway.
+            "ignore_https_errors": True,
         }
 
         if client_cert_p12:
@@ -105,10 +108,10 @@ async def authenticate(
 
             console.print("[bold cyan]Esperando autenticación...[/]")
 
-            # Wait for the user to complete auth and be redirected back to the portal
-            target_base = target_path.split("?")[0]
+            # Wait for the user to complete auth and be redirected back to the portal.
+            # Portal de Transparencia returns to /privada/*, CTBG returns to /info.*
             await page.wait_for_url(
-                f"{portal_url}{target_base}**",
+                f"{portal_url}/**",
                 timeout=timeout_seconds * 1000,
             )
 

@@ -167,10 +167,13 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         if not accept_notifications and not dry_run:
             await _report_pending_notifications(notificaciones, pideinfo, state, expedientes)
 
+        # Save Portal de Transparencia state before moving on to CTBG
+        save_state(state, settings.state_file)
+
         # --- Sync CTBG notifications ---
         await _sync_consejo(settings, pideinfo, state, dry_run)
 
-        # Save state
+        # Save final state (includes CTBG)
         state.mark_sync_complete()
         save_state(state, settings.state_file)
 

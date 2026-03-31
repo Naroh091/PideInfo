@@ -26,6 +26,7 @@ class ConsejoScraper:
             self._client = httpx.AsyncClient(
                 cookies=cookies,
                 follow_redirects=True,
+                verify=False,
                 timeout=30,
                 headers={
                     "User-Agent": (
