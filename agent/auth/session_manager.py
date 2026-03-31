@@ -26,12 +26,14 @@ class SessionManager:
         auth_timeout: int = 120,
         client_cert_p12: "Path | None" = None,
         client_cert_passphrase: str = "",
+        private_path: str = "/privada/expedientes",
     ):
         self.portal_url = portal_url
         self.cookies_file = cookies_file
         self.auth_timeout = auth_timeout
         self.client_cert_p12 = client_cert_p12
         self.client_cert_passphrase = client_cert_passphrase
+        self.private_path = private_path
         self._cookies: dict[str, str] = {}
 
     @property
@@ -79,7 +81,7 @@ class SessionManager:
                 follow_redirects=False,
                 timeout=30,
             ) as client:
-                response = await client.get(f"{self.portal_url}/privada/expedientes")
+                response = await client.get(f"{self.portal_url}{self.private_path}")
 
                 # If we get 200, session is valid
                 # If we get a redirect (302/303) to clave/login, session expired
@@ -109,6 +111,7 @@ class SessionManager:
             self.auth_timeout,
             client_cert_p12=self.client_cert_p12,
             client_cert_passphrase=self.client_cert_passphrase,
+            target_path=self.private_path,
         )
         self.save_cookies(cookies)
         return cookies

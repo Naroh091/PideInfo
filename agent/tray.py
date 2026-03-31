@@ -70,6 +70,8 @@ class TrayApp:
         disconnect_fn: Callable[[], None],
         is_connected_fn: Callable[[], bool],
         get_user_email_fn: Callable[[], str],
+        configure_cert_fn: Callable[[], None],
+        has_cert_fn: Callable[[], bool],
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
@@ -79,6 +81,8 @@ class TrayApp:
         self._disconnect_fn = disconnect_fn
         self._is_connected = is_connected_fn
         self._get_user_email = get_user_email_fn
+        self._configure_cert_fn = configure_cert_fn
+        self._has_cert = has_cert_fn
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
@@ -146,6 +150,10 @@ class TrayApp:
         self._disconnect_fn()
         self._rebuild_menu()
 
+    def _on_configure_cert(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._configure_cert_fn()
+        self._rebuild_menu()
+
     def _on_quit(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
         icon.stop()
@@ -188,9 +196,11 @@ class TrayApp:
                 )
             )
 
+        cert_label = "Certificado ✓" if self._has_cert() else "Configurar certificado…"
         email = self._get_user_email()
         items += [
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(cert_label, self._on_configure_cert),
             pystray.MenuItem("Desconectar", self._on_disconnect),
             pystray.MenuItem(
                 f"Conectado como {email}" if email else "Conectado",

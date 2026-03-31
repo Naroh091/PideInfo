@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -20,6 +21,7 @@ from notifier.desktop import (
     notify_new_documents,
     notify_pending_signatures,
 )
+from portals.consejo_ctbg import ConsejoScraper
 from portals.transparencia_age import TransparenciaAGEScraper
 from storage.downloads import DownloadManager
 from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences, load_preferences, save_preferences
@@ -165,6 +167,9 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         if not accept_notifications and not dry_run:
             await _report_pending_notifications(notificaciones, pideinfo, state, expedientes)
 
+        # --- Sync CTBG notifications ---
+        await _sync_consejo(settings, pideinfo, state, dry_run)
+
         # Save state
         state.mark_sync_complete()
         save_state(state, settings.state_file)
@@ -261,6 +266,82 @@ async def _report_pending_notifications(
             console.print(
                 f"[red]Error reportando pendientes de {expediente_ref}: {e}[/]"
             )
+
+
+async def _sync_consejo(
+    settings: Settings,
+    pideinfo: PideInfoClient,
+    state: SyncState,
+    dry_run: bool,
+) -> None:
+    """Sync pending notifications from CTBG sede electrónica."""
+    from collections import defaultdict
+
+    ctbg_base = settings.portal_ctbg_base
+    console.print(f"\n[bold]Sincronizando con Consejo de Transparencia ({ctbg_base})...[/]")
+
+    ctbg_session = SessionManager(
+        portal_url=ctbg_base,
+        cookies_file=settings.cookies_ctbg_file,
+        auth_timeout=settings.auth_timeout_seconds,
+        client_cert_p12=settings.client_cert_p12,
+        client_cert_passphrase=settings.client_cert_passphrase,
+        private_path="/enotifications.9",
+    )
+
+    try:
+        await ctbg_session.get_valid_session()
+    except Exception as e:
+        console.print(f"[yellow]CTBG: no se pudo autenticar: {e}[/]")
+        return
+
+    scraper = ConsejoScraper(ctbg_session)
+    try:
+        notificaciones = await scraper.get_notificaciones()
+        pending = [n for n in notificaciones if n.estado == "Pendiente"]
+
+        if pending:
+            console.print(
+                f"[yellow]⚠ CTBG: {len(pending)} notificación(es) pendiente(s)[/]"
+            )
+            notify_pending_signatures(len(pending))
+
+        # Build map of currently-pending expediente refs → notifications
+        currently_pending: dict[str, list] = defaultdict(list)
+        for n in pending:
+            currently_pending[n.expediente].append(n)
+
+        currently_pending_refs = set(currently_pending.keys())
+
+        if dry_run:
+            for n in pending:
+                console.print(f"  [dim]• {n.registro} — {n.expediente} ({n.tipo})[/]")
+            return
+
+        # Clear expediente refs previously reported but no longer pending
+        to_clear = state.ctbg_pending_expediente_refs - currently_pending_refs
+        for exp_ref in to_clear:
+            try:
+                await pideinfo.report_consejo_pending_notifications(exp_ref, [])
+                state.ctbg_pending_expediente_refs.discard(exp_ref)
+                console.print(f"[dim]CTBG: pendientes de {exp_ref} limpiadas[/]")
+            except Exception as e:
+                console.print(f"[red]CTBG: error limpiando pendientes de {exp_ref}: {e}[/]")
+
+        if not currently_pending:
+            console.print("[green]CTBG: no hay notificaciones pendientes[/]")
+            return
+
+        # Report currently-pending notifications grouped by expediente
+        for exp_ref, notifs in currently_pending.items():
+            try:
+                await pideinfo.report_consejo_pending_notifications(exp_ref, notifs)
+                state.ctbg_pending_expediente_refs.add(exp_ref)
+            except Exception as e:
+                console.print(f"[red]CTBG: error reportando pendientes de {exp_ref}: {e}[/]")
+
+    finally:
+        await scraper.close()
 
 
 async def _sync_expediente_docs(
@@ -388,6 +469,10 @@ def _run_tray(settings: Settings) -> None:
 
     prefs = load_preferences(settings.preferences_file)
 
+    if prefs.client_cert_p12 and not settings.client_cert_p12:
+        settings.client_cert_p12 = Path(prefs.client_cert_p12)
+        settings.client_cert_passphrase = prefs.client_cert_passphrase
+
     async def sync() -> None:
         try:
             await do_sync(settings, prefs=prefs)
@@ -449,6 +534,63 @@ def _run_tray(settings: Settings) -> None:
     def get_user_email() -> str:
         return prefs.user_email
 
+    def configure_cert() -> None:
+        from ui.connect_dialog import show_cert_dialog, show_error_dialog
+        import subprocess
+
+        result = show_cert_dialog()
+        if not result:
+            return
+        src_path, passphrase = result
+
+        if not Path(src_path).is_file():
+            show_error_dialog(f"No se encontró el archivo:\n{src_path}")
+            return
+
+        # Reconvert .p12 so Playwright's BoringSSL can read it
+        dest_path = settings.data_dir / "client_cert.p12"
+        pem_path = settings.data_dir / "client_cert.pem"
+        settings.data_dir.mkdir(parents=True, exist_ok=True)
+
+        extract = subprocess.run(
+            ["openssl", "pkcs12", "-in", src_path,
+             "-out", str(pem_path), "-nodes",
+             "-legacy", "-passin", f"pass:{passphrase}"],
+            capture_output=True, text=True,
+        )
+        if extract.returncode != 0:
+            console.print(f"[red]openssl error: {extract.stderr}[/]")
+            show_error_dialog(f"No se pudo leer el certificado:\n{extract.stderr}")
+            pem_path.unlink(missing_ok=True)
+            return
+
+        reexport = subprocess.run(
+            ["openssl", "pkcs12", "-export",
+             "-in", str(pem_path),
+             "-out", str(dest_path),
+             "-passout", f"pass:{passphrase}"],
+            capture_output=True, text=True,
+        )
+        pem_path.unlink(missing_ok=True)
+        if reexport.returncode != 0:
+            console.print(f"[red]openssl re-export error: {reexport.stderr}[/]")
+            show_error_dialog(f"Error al reconvertir el certificado:\n{reexport.stderr}")
+            return
+
+        # Save to preferences
+        prefs.client_cert_p12 = str(dest_path)
+        prefs.client_cert_passphrase = passphrase
+        save_preferences(prefs, settings.preferences_file)
+
+        # Update settings for current session
+        settings.client_cert_p12 = dest_path
+        settings.client_cert_passphrase = passphrase
+
+        console.print(f"[green]Certificado configurado correctamente[/]")
+
+    def has_cert() -> bool:
+        return bool(prefs.client_cert_p12 and Path(prefs.client_cert_p12).is_file())
+
     TrayApp(
         sync_fn=sync,
         reset_fn=reset,
@@ -458,6 +600,8 @@ def _run_tray(settings: Settings) -> None:
         disconnect_fn=disconnect,
         is_connected_fn=is_connected,
         get_user_email_fn=get_user_email,
+        configure_cert_fn=configure_cert,
+        has_cert_fn=has_cert,
     ).run()
 
 

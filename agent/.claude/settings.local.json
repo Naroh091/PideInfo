@@ -10,7 +10,8 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''doc keys sample:'''', list\\(d.get\\(''''synced_document_keys'''',[]\\)\\)[:10]\\)\")",
       "Read(//Users/david/**)",
       "Bash(python3:*)",
-      "Bash(find /Users/david/IdeaProjects/vigia/agent -name *.json)"
+      "Bash(find /Users/david/IdeaProjects/vigia/agent -name *.json)",
+      "Bash(grep -r notification /Users/david/IdeaProjects/vigia/assets --include=*.js)"
     ]
   }
 }
