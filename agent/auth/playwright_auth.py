@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import urllib.parse
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import async_playwright
@@ -22,55 +22,73 @@ class AuthFailedError(Exception):
     pass
 
 
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
 async def authenticate(
     portal_url: str,
     timeout_seconds: int = 120,
-    client_cert_p12: "str | None" = None,
-    client_cert_passphrase: str = "",
     target_path: str = "/privada/expedientes",
+    firefox_profile_dir: Path | None = None,
 ) -> dict[str, str]:
     """
-    Open a headed browser, navigate to the portal's private area,
-    wait for the user to complete Cl@ve authentication with their certificate,
+    Open a headed Firefox browser with a persistent profile, navigate to the
+    portal's private area, wait for the user to complete Cl@ve authentication,
     and return the session cookies.
+
+    Uses a persistent Firefox profile so that certificate selections made in
+    Firefox's cert picker are remembered between sessions.  The profile also
+    enables ``security.osclientcerts.autoload`` so all certificates installed
+    in the OS keychain (macOS Keychain, Windows Certificate Store) are
+    automatically available — without exporting or copying the private key.
+
+    On first use the user picks their certificate from Firefox's own picker.
+    On subsequent authentications Firefox selects it automatically from the
+    saved profile preference, with no dialog.
     """
-    console.print("[bold yellow]Abriendo navegador para autenticación Cl@ve...[/]")
-    console.print(
-        f"[dim]Timeout: {timeout_seconds}s[/]"
+    # First launch needs a visible window so the user can pick their certificate
+    # from Firefox's native cert picker.  Once the persistent profile has been
+    # initialised (prefs.js exists) the choice is remembered and we can run
+    # headless — no UI required.
+    profile_ready = (
+        firefox_profile_dir is not None
+        and (firefox_profile_dir / "prefs.js").exists()
     )
 
+    if profile_ready:
+        console.print("[dim]Autenticando Cl@ve en segundo plano...[/]")
+    else:
+        console.print("[bold yellow]Abriendo navegador para autenticación Cl@ve...[/]")
+        console.print("[dim]Primera vez: elige tu certificado. A partir de ahora será silencioso.[/]")
+    console.print(f"[dim]Timeout: {timeout_seconds}s[/]")
+
+    firefox_user_prefs: dict[str, Any] = {
+        # Load client certificates directly from the OS keychain — private key
+        # never leaves the secure store.
+        "security.osclientcerts.autoload": True,
+        # Suppress the "restore previous session?" prompt.
+        "browser.sessionstore.resume_from_crash": False,
+        "browser.startup.page": 0,
+    }
+
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
+        launch_kwargs: dict[str, Any] = dict(
+            headless=profile_ready,
+            firefox_user_prefs=firefox_user_prefs,
+            locale="es-ES",
+            # Spanish government portals use CAs (FNMT, etc.) not always in
+            # Firefox's built-in trust store.
+            ignore_https_errors=True,
+        )
+        if firefox_profile_dir is not None:
+            firefox_profile_dir.mkdir(parents=True, exist_ok=True)
+            launch_kwargs["user_data_dir"] = str(firefox_profile_dir)
 
-        context_kwargs: dict = {
-            "locale": "es-ES",
-            "user_agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
-            # Spanish government portals use CAs (FNMT, etc.) not in Node's
-            # bundled trust store. This lets the browser proceed anyway.
-            "ignore_https_errors": True,
-        }
-
-        if client_cert_p12:
-            context_kwargs["client_certificates"] = [
-                {
-                    "origin": "https://pasarela-ident.clave.gob.es",
-                    "pfxPath": str(client_cert_p12),
-                    "passphrase": client_cert_passphrase,
-                },
-                {
-                    "origin": "https://pasarela.clave.gob.es",
-                    "pfxPath": str(client_cert_p12),
-                    "passphrase": client_cert_passphrase,
-                },
-            ]
-            console.print("[dim]Certificado configurado — selección automática[/]")
-
-        context = await browser.new_context(**context_kwargs)
-        page = await context.new_page()
+        context = await p.firefox.launch_persistent_context(**launch_kwargs)
+        # launch_persistent_context already opens one blank tab — reuse it
+        # rather than opening a second window with new_page().
+        page = context.pages[0] if context.pages else await context.new_page()
 
         try:
             if "/privada/" in target_path:
@@ -81,10 +99,7 @@ async def authenticate(
                     wait_until="domcontentloaded",
                 )
             else:
-                # CTBG and other portals — multi-step login:
-                # 1. Go to portal home
-                # 2. Click "Identifícate"
-                # 3. Click "Acceso con sistema Cl@ve"
+                # CTBG and other portals — multi-step login
                 await page.goto(portal_url, wait_until="domcontentloaded")
                 try:
                     await page.get_by_text("Identifícate").click(timeout=10_000)
@@ -98,18 +113,16 @@ async def authenticate(
                 except Exception:
                     console.print("[dim]No se encontró enlace 'Cl@ve' — selecciónalo manualmente[/]")
 
-            # Auto-click "DNIe / Certificado electrónico" (AFIRMA IdP) so the
-            # user does not have to select the authentication method manually.
+            # Auto-click "DNIe / Certificado electrónico" (AFIRMA IdP)
             try:
                 await page.locator('button[onclick*="AFIRMA"]').click(timeout=10_000)
                 console.print("[dim]Método de autenticación seleccionado automáticamente[/]")
             except Exception:
                 console.print("[dim]No se pudo seleccionar el método automáticamente — selecciónalo manualmente[/]")
 
-            console.print("[bold cyan]Esperando autenticación...[/]")
+            if not profile_ready:
+                console.print("[bold cyan]Esperando autenticación...[/]")
 
-            # Wait for the user to complete auth and be redirected back to the portal.
-            # Portal de Transparencia returns to /privada/*, CTBG returns to /info.*
             await page.wait_for_url(
                 f"{portal_url}/**",
                 timeout=timeout_seconds * 1000,
@@ -117,7 +130,6 @@ async def authenticate(
 
             console.print("[bold green]Autenticación completada[/]")
 
-            # Extract cookies for the portal domain
             cookies = await context.cookies(portal_url)
             return _cookies_to_dict(cookies)
 
@@ -135,7 +147,7 @@ async def authenticate(
             raise AuthFailedError(f"Error de autenticación: {error_msg}") from e
 
         finally:
-            await browser.close()
+            await context.close()
 
 
 def _cookies_to_dict(cookies: list[dict[str, Any]]) -> dict[str, str]:

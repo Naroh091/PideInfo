@@ -8,6 +8,7 @@ import httpx
 from rich.console import Console
 
 from models.consejo import ConsejoNotificacion
+from models.dehu import DehuNotificacion
 from models.portal import DocumentoExpediente, Expediente, Notificacion
 
 console = Console()
@@ -284,6 +285,57 @@ class PideInfoClient:
             + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
             + "[/]"
         )
+        return result
+
+    async def report_dehu_pending_notifications(
+        self,
+        sent_reference: str,
+        notifications: "list[DehuNotificacion]",
+    ) -> dict:
+        """Inform PideInfo about a pending DEHú notification (or clear it when empty)."""
+        payload = {
+            "source": "dehu_redsara",
+            "expedienteRef": sent_reference,
+            "documents": [],
+            "pendingNotifications": [
+                {
+                    "notificationId": n.sent_reference,
+                    "tipo": "Notificación DEHú",
+                    "concepto": n.concept,
+                    "fechaEmision": n.availability_date,
+                    "fechaCaducidad": n.expiration_date,
+                    "emisor": n.emitter_entity,
+                    "esComunicacion": False,
+                }
+                for n in notifications
+            ],
+            "metadata": {
+                "emitterEntity": notifications[0].emitter_entity if notifications else "",
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        found = result.get("accessRequestFound", False)
+        ar_id = result.get("accessRequestId")
+        if notifications:
+            console.print(
+                f"[dim]DEHú pendiente {sent_reference[:12]}…: reportada"
+                + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
+                + "[/]"
+            )
+        else:
+            console.print(f"[dim]DEHú {sent_reference[:12]}…: limpiada[/]")
         return result
 
     @staticmethod

@@ -9,6 +9,12 @@ import os
 import sys
 from pathlib import Path
 
+# Set PLAYWRIGHT_BROWSERS_PATH early, before playwright is imported anywhere.
+# This must happen at module level so it takes effect even if playwright is
+# imported transitively by an early import.
+from runtime import setup_playwright_env
+setup_playwright_env()
+
 from rich.console import Console
 from rich.table import Table
 
@@ -28,7 +34,6 @@ from storage.downloads import DownloadManager
 from storage.preferences import (
     ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences,
     load_preferences, save_preferences,
-    load_cert_passphrase, save_cert_passphrase, delete_cert_passphrase,
 )
 from storage.state import SyncState, load_state, save_state
 
@@ -36,9 +41,9 @@ console = Console()
 
 
 def _make_pideinfo_client(settings: Settings, prefs: AgentPreferences) -> PideInfoClient:
-    """Create a PideInfoClient from stored JWT token."""
+    """Create a PideInfoClient, using the URL override from prefs when set."""
     return PideInfoClient(
-        base_url=settings.pideinfo_base_url,
+        base_url=prefs.pideinfo_base_url or settings.pideinfo_base_url,
         jwt_token=prefs.jwt_token,
     )
 
@@ -49,8 +54,7 @@ async def do_auth(settings: Settings) -> dict[str, str]:
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
     notify_auth_required()
     cookies = await session.get_valid_session()
@@ -65,8 +69,7 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
     downloads = DownloadManager(settings.downloads_dir)
     state = load_state(settings.state_file)
@@ -178,7 +181,10 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         # --- Sync CTBG notifications ---
         await _sync_consejo(settings, pideinfo, state, dry_run)
 
-        # Save final state (includes CTBG)
+        # --- Sync DEHú notifications ---
+        await _sync_dehu(settings, pideinfo, state, dry_run)
+
+        # Save final state (includes CTBG + DEHú)
         state.mark_sync_complete()
         save_state(state, settings.state_file)
 
@@ -292,9 +298,8 @@ async def _sync_consejo(
         portal_url=ctbg_base,
         cookies_file=settings.cookies_ctbg_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
         private_path="/enotifications.9",
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
 
     try:
@@ -347,6 +352,77 @@ async def _sync_consejo(
                 state.ctbg_pending_expediente_refs.add(exp_ref)
             except Exception as e:
                 console.print(f"[red]CTBG: error reportando pendientes de {exp_ref}: {e}[/]")
+
+    finally:
+        await scraper.close()
+
+
+async def _sync_dehu(
+    settings: Settings,
+    pideinfo: PideInfoClient,
+    state: SyncState,
+    dry_run: bool,
+) -> None:
+    """Sync pending notifications from DEHú / RedSARA."""
+    from auth.dehu_session_manager import DehuSessionManager
+    from portals.dehu_redsara import DehuScraper
+
+    console.print(f"\n[bold]Sincronizando con DEHú ({settings.portal_dehu})...[/]")
+
+    dehu_session = DehuSessionManager(
+        portal_url=settings.portal_dehu,
+        cookies_file=settings.cookies_dehu_file,
+        firefox_profile_dir=settings.firefox_profile_dir,
+        auth_timeout=settings.auth_timeout_seconds,
+    )
+
+    try:
+        await dehu_session.get_valid_session()
+    except Exception as e:
+        console.print(f"[yellow]DEHú: no se pudo autenticar: {e}[/]")
+        return
+
+    scraper = DehuScraper(dehu_session)
+    try:
+        notificaciones = await scraper.get_notificaciones()
+        pending = [n for n in notificaciones if n.is_pending]
+
+        if pending:
+            console.print(
+                f"[yellow]⚠ DEHú: {len(pending)} notificación(es) pendiente(s)[/]"
+            )
+            notify_pending_signatures(len(pending))
+
+        currently_pending = {n.sent_reference: n for n in pending}
+        currently_pending_refs = set(currently_pending.keys())
+
+        if dry_run:
+            for n in pending:
+                console.print(
+                    f"  [dim]• {n.sent_reference[:12]}… — {n.concept} ({n.emitter_entity})[/]"
+                )
+            return
+
+        # Clear refs previously reported to PideInfo that are no longer pending
+        to_clear = state.dehu_pending_sent_references - currently_pending_refs
+        for ref in to_clear:
+            try:
+                await pideinfo.report_dehu_pending_notifications(ref, [])
+                state.dehu_pending_sent_references.discard(ref)
+            except Exception as e:
+                console.print(f"[red]DEHú: error limpiando {ref[:12]}…: {e}[/]")
+
+        if not currently_pending:
+            console.print("[green]DEHú: no hay notificaciones pendientes[/]")
+            return
+
+        # Report each currently-pending notification individually by sent_reference
+        for ref, notif in currently_pending.items():
+            try:
+                await pideinfo.report_dehu_pending_notifications(ref, [notif])
+                state.dehu_pending_sent_references.add(ref)
+            except Exception as e:
+                console.print(f"[red]DEHú: error reportando {ref[:12]}…: {e}[/]")
 
     finally:
         await scraper.close()
@@ -477,10 +553,6 @@ def _run_tray(settings: Settings) -> None:
 
     prefs = load_preferences(settings.preferences_file)
 
-    if prefs.client_cert_p12 and not settings.client_cert_p12:
-        settings.client_cert_p12 = Path(prefs.client_cert_p12)
-        settings.client_cert_passphrase = load_cert_passphrase()
-
     async def sync() -> None:
         try:
             await do_sync(settings, prefs=prefs)
@@ -516,7 +588,7 @@ def _run_tray(settings: Settings) -> None:
 
         # Validate token against the backend
         import asyncio as _asyncio
-        client = PideInfoClient(base_url=settings.pideinfo_base_url, jwt_token=token)
+        client = PideInfoClient(base_url=prefs.pideinfo_base_url or settings.pideinfo_base_url, jwt_token=token)
         try:
             loop = _asyncio.new_event_loop()
             user_info = loop.run_until_complete(client.validate_token())
@@ -539,7 +611,6 @@ def _run_tray(settings: Settings) -> None:
         prefs.jwt_token = ""
         prefs.user_email = ""
         prefs.user_name = ""
-        delete_cert_passphrase()
         save_preferences(prefs, settings.preferences_file)
         console.print("[yellow]Desconectado de PideInfo[/]")
 
@@ -549,67 +620,16 @@ def _run_tray(settings: Settings) -> None:
     def get_user_email() -> str:
         return prefs.user_email
 
-    def configure_cert() -> None:
-        from ui.connect_dialog import show_cert_dialog, show_error_dialog
-        import subprocess
-
-        result = show_cert_dialog()
-        if not result:
-            return
-        src_path, passphrase = result
-
-        if not Path(src_path).is_file():
-            show_error_dialog(f"No se encontró el archivo:\n{src_path}")
-            return
-
-        # Reconvert .p12 so Playwright's BoringSSL can read it
-        dest_path = settings.data_dir / "client_cert.p12"
-        pem_path = settings.data_dir / "client_cert.pem"
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(settings.data_dir, 0o700)
-
-        extract = subprocess.run(
-            ["openssl", "pkcs12", "-in", src_path,
-             "-out", str(pem_path), "-nodes",
-             "-legacy", "-passin", "stdin"],
-            input=passphrase,
-            capture_output=True, text=True,
-        )
-        if extract.returncode != 0:
-            console.print(f"[red]openssl error: {extract.stderr}[/]")
-            show_error_dialog(f"No se pudo leer el certificado:\n{extract.stderr}")
-            pem_path.unlink(missing_ok=True)
-            return
-
-        reexport = subprocess.run(
-            ["openssl", "pkcs12", "-export",
-             "-in", str(pem_path),
-             "-out", str(dest_path),
-             "-passout", "stdin"],
-            input=passphrase,
-            capture_output=True, text=True,
-        )
-        pem_path.unlink(missing_ok=True)
-        if reexport.returncode != 0:
-            console.print(f"[red]openssl re-export error: {reexport.stderr}[/]")
-            show_error_dialog(f"Error al reconvertir el certificado:\n{reexport.stderr}")
-            return
-
-        os.chmod(dest_path, 0o600)
-
-        # Save cert path to preferences, passphrase to OS keyring
-        prefs.client_cert_p12 = str(dest_path)
-        save_cert_passphrase(passphrase)
+    def configure() -> None:
+        from ui.connect_dialog import show_settings_dialog
+        current_url = prefs.pideinfo_base_url or settings.pideinfo_base_url
+        new_url = show_settings_dialog(current_url)
+        if new_url is None:
+            return  # cancelled
+        prefs.pideinfo_base_url = new_url
         save_preferences(prefs, settings.preferences_file)
-
-        # Update settings for current session
-        settings.client_cert_p12 = dest_path
-        settings.client_cert_passphrase = passphrase
-
-        console.print("[green]Certificado configurado correctamente[/]")
-
-    def has_cert() -> bool:
-        return bool(prefs.client_cert_p12 and Path(prefs.client_cert_p12).is_file())
+        effective = new_url or settings.pideinfo_base_url
+        console.print(f"[green]URL de PideInfo: {effective}[/]")
 
     TrayApp(
         sync_fn=sync,
@@ -620,8 +640,7 @@ def _run_tray(settings: Settings) -> None:
         disconnect_fn=disconnect,
         is_connected_fn=is_connected,
         get_user_email_fn=get_user_email,
-        configure_cert_fn=configure_cert,
-        has_cert_fn=has_cert,
+        configure_fn=configure,
     ).run()
 
 
@@ -659,8 +678,18 @@ def main() -> None:
         default=".env",
         help="Ruta al fichero .env (default: .env)",
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Mostrar versión y salir",
+    )
 
     args = parser.parse_args()
+
+    if args.version:
+        from version import __version__
+        print(f"PideInfo Agent v{__version__}")
+        return
 
     # Load settings
     settings = Settings(_env_file=args.env_file)
@@ -671,6 +700,14 @@ def main() -> None:
     console.print(f"[dim]Portal: {settings.portal_url}[/]")
     console.print(f"[dim]PideInfo: {settings.pideinfo_base_url}[/]")
     console.print(f"[dim]Datos: {settings.data_dir}[/]")
+
+    # Ensure Firefox is present (downloads on first run if missing)
+    from runtime import ensure_firefox
+    try:
+        ensure_firefox()
+    except Exception as e:
+        console.print(f"[red]No se pudo instalar el navegador: {e}[/]")
+        sys.exit(1)
 
     if args.auth_only:
         asyncio.run(do_auth(settings))

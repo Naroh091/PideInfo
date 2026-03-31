@@ -5,27 +5,31 @@ The PideInfo agent is a standalone Python application that runs on the user's lo
 ## Architecture overview
 
 ```
-User's machine                             PideInfo server
-──────────────                             ───────────────
+User's machine                                  PideInfo server
+──────────────                                  ───────────────
 PideInfo Agent (Python)
   │
-  ├── Playwright (headed browser)
-  │   └── Cl@ve + FNMT certificate ──→ Portal de Transparencia
-  │       └── Returns session cookies
+  ├── Playwright (Firefox, headless after 1st run)
+  │   ├── Cl@ve + FNMT cert ──→ Portal de Transparencia (session cookies)
+  │   ├── Cl@ve + FNMT cert ──→ CTBG sede electrónica  (session cookies)
+  │   └── Cl@ve + FNMT cert ──→ DEHú / RedSARA         (cookies + Bearer JWT)
+  │       └── context.on("request") captures JWT from Angular XHR
   │
   ├── httpx (async HTTP)
-  │   ├── GET /privada/expedientes
-  │   ├── GET /privada/notificaciones
-  │   └── GET /.rest/download/v1/descargaDocumento
+  │   ├── Portal de Transparencia  GET /privada/expedientes
+  │   │                            GET /privada/notificaciones
+  │   │                            GET /.rest/download/v1/descargaDocumento
+  │   ├── CTBG sede                GET /enotifications.9
+  │   └── DEHú                     GET /api/v1/notifications   (Bearer JWT)
   │
-  └── POST /api/agent/webhook ─────────→ AgentApiController
-      (Authorization: Bearer <JWT>)         ├── AgentWebhookProcessor
-                                            ├── Deduplicates by SHA-256
-                                            ├── Stores in S3
-                                            └── Dispatches ProcessDocumentBatchMessage
-                                                    │
-                                                    ▼
-                                            AI pipeline (same as manual uploads)
+  └── POST /api/agent/webhook ──────────────→ AgentApiController
+      (Authorization: Bearer <JWT>)              ├── AgentWebhookProcessor
+                                                 ├── Deduplicates by SHA-256
+                                                 ├── Stores in S3
+                                                 └── Dispatches ProcessDocumentBatchMessage
+                                                         │
+                                                         ▼
+                                                 AI pipeline (same as manual uploads)
 ```
 
 The agent is intentionally thin — it only downloads and forwards. All document intelligence (AI classification, request matching, state transitions) stays in PideInfo's PHP backend.
@@ -89,29 +93,33 @@ The old endpoint `POST /webhook/agent` with `X-Webhook-Secret` header authentica
 
 ```
 agent/
-├── main.py                  Entry point (--once, --daemon, --tray, --auth-only, --dry-run)
-├── tray.py                  System tray (pystray + Pillow), connection-aware menu
-├── config.py                Settings (pydantic-settings, reads .env)
+├── main.py                       Entry point (--once, --daemon, --tray, --auth-only, --dry-run)
+├── tray.py                       System tray (pystray + Pillow), connection-aware menu
+├── config.py                     Settings (pydantic-settings, reads .env)
 ├── auth/
-│   ├── session_manager.py   Cookie management (OS keyring), session validation, re-auth
-│   └── playwright_auth.py   Headed Playwright browser for Cl@ve + FNMT certificate
+│   ├── session_manager.py        Cookie management (OS keyring), session validation, re-auth
+│   ├── playwright_auth.py        Firefox auth: headless after first run, headed on first run
+│   ├── dehu_auth.py              DEHú auth: same Firefox flow + Bearer JWT capture via request listener
+│   └── dehu_session_manager.py   Cookie + JWT management for DEHú; JWT expiry check (local, no network)
 ├── client/
-│   └── pideinfo.py          HTTP client — dual-auth (JWT preferred, shared-secret fallback)
+│   └── pideinfo.py               HTTP client — JWT-authenticated webhook calls
 ├── models/
-│   ├── consejo.py           Dataclass: ConsejoNotificacion (CTBG sede)
-│   └── portal.py            Dataclasses: Expediente, Notificacion, DocumentoExpediente
+│   ├── consejo.py                Dataclass: ConsejoNotificacion (CTBG sede)
+│   ├── dehu.py                   Dataclass: DehuNotificacion (DEHú / RedSARA)
+│   └── portal.py                 Dataclasses: Expediente, Notificacion, DocumentoExpediente
 ├── notifier/
-│   └── desktop.py           Desktop notifications (osascript on macOS, console fallback)
+│   └── desktop.py                Desktop notifications (osascript on macOS, console fallback)
 ├── portals/
-│   ├── base.py              Base scraper class
-│   ├── consejo_ctbg.py      CTBG sede electrónica scraper (HTML table parsing)
-│   └── transparencia_age.py AGE transparency portal scraper
+│   ├── base.py                   Base scraper class
+│   ├── consejo_ctbg.py           CTBG sede electrónica scraper (HTML table parsing)
+│   ├── dehu_redsara.py           DEHú scraper (JSON REST API, httpx + Bearer JWT)
+│   └── transparencia_age.py      AGE transparency portal scraper
 ├── storage/
-│   ├── downloads.py         Temporary download directory management
-│   ├── preferences.py       User preferences + JWT token (JSON); cert passphrase (OS keyring)
-│   └── state.py             Sync state tracking (which documents are already synced)
+│   ├── downloads.py              Temporary download directory management
+│   ├── preferences.py            User preferences + PideInfo JWT token (JSON)
+│   └── state.py                  Sync state: synced docs + pending refs per portal
 └── ui/
-    └── connect_dialog.py    Tkinter dialogs: token input, connection card, error dialog
+    └── connect_dialog.py         Dialogs: token input, settings (URL override), error
 ```
 
 ## Execution modes
@@ -136,25 +144,31 @@ Settings are loaded from environment variables and/or a `.env` file via `pydanti
 | `PIDEINFO_BASE_URL` | `http://localhost:8000` | PideInfo server URL (used for JWT auth) |
 | `PORTAL_URL` | `https://transparencia.sede.gob.es` | Portal de Transparencia URL |
 | `PORTAL_CTBG` | `https://sede.consejodetransparencia.gob.es/info.0` | CTBG sede electrónica URL |
+| `PORTAL_DEHU` | `https://dehu.redsara.es` | DEHú / RedSARA URL |
 | `AUTH_TIMEOUT_SECONDS` | `120` | Browser auth timeout |
 | `SYNC_INTERVAL_MINUTES` | `30` | Daemon mode sync interval |
 | `DATA_DIR` | `~/.pideinfo-agent` | Directory for cookies, state, preferences, downloads |
-| `CLIENT_CERT_P12` | *(none)* | Path to FNMT certificate (.p12) for auto-selection |
-
-Legacy variables (`PIDEINFO_WEBHOOK_URL`, `PIDEINFO_WEBHOOK_SECRET`, `PIDEINFO_USER_ID`) are still supported for backward compatibility but deprecated in favor of JWT authentication.
 
 ## Portal authentication
 
-Both the Portal de Transparencia and the CTBG sede use Spain's Cl@ve identity system. The agent authenticates using a headed Playwright browser that allows the user to select their FNMT digital certificate.
+All three portals use Spain's Cl@ve identity system with an FNMT digital certificate. The agent uses a persistent Firefox profile so the certificate selection only happens once.
+
+### Headed vs headless
+
+Before launching Firefox, the agent checks whether `firefox-profile/prefs.js` exists:
+
+- **First run** (`prefs.js` absent): Firefox opens a visible window. The user picks their certificate from Firefox's native cert picker (populated from the OS keychain). Firefox stores the selection in the profile.
+- **All subsequent runs** (`prefs.js` present): Firefox runs **headless** — no window, no interaction. The certificate is auto-selected from the saved profile. The user sees only a log line.
+
+This applies to all three portals. They share the same `firefox-profile/` directory, so one first-run covers all of them.
 
 ### Portal de Transparencia
 
 1. Playwright navigates to `/claveproxy/clave/authenticate?returnUrl=...`
 2. The portal redirects to Cl@ve (`pasarela-ident.clave.gob.es`)
 3. The agent auto-clicks the "DNIe / Certificado electrónico" (AFIRMA) button
-4. If `CLIENT_CERT_P12` is configured, Playwright auto-selects the certificate
-5. After authentication, the agent captures session cookies
-6. Cookies are stored in the OS keyring and reused until expired (validated by hitting `/privada/expedientes`)
+4. After authentication, the agent captures session cookies
+5. Cookies are stored in the OS keyring and reused until expired (validated by hitting `/privada/expedientes`)
 
 ### CTBG sede electrónica
 
@@ -166,11 +180,23 @@ Both the Portal de Transparencia and the CTBG sede use Spain's Cl@ve identity sy
 
 The CTBG portal uses a government CA not in Python's bundled `certifi` store. The agent uses `truststore` to access the OS trust store, and Playwright uses `ignore_https_errors: true` for browser-level SSL.
 
+### DEHú / RedSARA
+
+DEHú exposes a JSON REST API, but each API request requires both session cookies **and** a short-lived Bearer JWT (~10 min) issued by the Angular frontend. The agent captures the JWT by intercepting the browser's own network requests during authentication:
+
+1. `context.on("request", listener)` is attached before any navigation
+2. After Cl@ve auth lands on the DEHú home, the agent navigates to `/es/notifications`
+3. The Angular app fires `GET /api/v1/notifications` with a Bearer token — the listener captures it
+4. Cookies and JWT are saved to the OS keyring
+
+Before each sync, `DehuSessionManager` checks JWT expiry locally (base64-decode payload, read `exp` claim — no network call). If expired, a full headless re-auth is triggered.
+
 ### Session management
 
 - Cookies are considered stale after 4 hours but are still validated before re-authentication
 - If a session expires mid-sync, the agent catches the redirect to Cl@ve and raises `SessionExpiredError`
 - Each portal has its own `SessionManager` instance with separate cookies and validation paths
+- DEHú additionally tracks JWT expiry independently of cookies
 
 ## Credential security
 
@@ -178,11 +204,13 @@ All sensitive data is stored using the OS credential manager via the `keyring` p
 
 | Secret | Storage | Keyring key |
 |--------|---------|-------------|
-| Certificate passphrase | OS keyring | `pideinfo-agent` / `client_cert_passphrase` |
-| Portal cookies | OS keyring | `pideinfo-agent` / `cookies:cookies` |
+| PideInfo JWT token | OS keyring | `pideinfo-agent` / `pideinfo:jwt` |
+| Portal de Transparencia cookies | OS keyring | `pideinfo-agent` / `cookies:cookies` |
 | CTBG cookies | OS keyring | `pideinfo-agent` / `cookies:cookies_ctbg` |
+| DEHú cookies | OS keyring | `pideinfo-agent` / `cookies:cookies_dehu` |
+| DEHú Bearer JWT | OS keyring | `pideinfo-agent` / `dehu:jwt` |
 
-Non-secret metadata (timestamps, user email, cert file path) remains in `~/.pideinfo-agent/preferences.json`.
+Non-secret metadata (timestamps, user email, URL override) remains in `~/.pideinfo-agent/preferences.json`. The `jwt_token` field is automatically migrated from disk to the keyring on first load if found in an older `preferences.json`.
 
 ### File permissions
 
@@ -219,7 +247,8 @@ A single sync cycle (`do_sync`) performs:
 5. **Sync notification documents** — download and send each new notification's document. If a notification was `PENDIENTE` and is now downloaded, the agent marks it as accepted.
 6. **Report pending notifications** — inform PideInfo about `PENDIENTE` notifications without downloading them (so PideInfo can show a banner). Sends an empty list to clear notifications that have been resolved.
 7. **Sync CTBG notifications** — authenticate against the CTBG sede electrónica (separate session), scrape the notification list from `/enotifications.9`, report any `Pendiente` notifications to PideInfo (source: `consejo_ctbg`). Non-fatal if auth fails. First page only (Wicket AJAX pagination not supported).
-8. **Save state** — mark synced documents in `~/.pideinfo-agent/sync_state.json`
+8. **Sync DEHú notifications** — check JWT expiry locally; re-auth headlessly if expired; call `GET /api/v1/notifications` with Bearer JWT; report pending notifications to PideInfo (source: `dehu_redsara`). Non-fatal if auth fails.
+9. **Save state** — mark synced documents in `~/.pideinfo-agent/sync_state.json`
 
 ### Deduplication
 
@@ -306,6 +335,30 @@ When using legacy auth, the payload includes `"userId": "<uuid>"`. With JWT auth
 The `expedienteRef` matches `AccessRequestComplaint.externalId` in PideInfo. The backend's `findByExternalId` method also searches complaint external IDs.
 
 Each stored notification is enriched server-side with a `reportedAt` timestamp (ISO 8601) and the `source` field (`transparencia_age` or `consejo_ctbg`). The UI renders Portal de Transparencia and Consejo de Transparencia notifications in separate, visually distinct sections.
+
+### DEHú pending notifications report
+
+```json
+{
+    "source": "dehu_redsara",
+    "expedienteRef": "9e177342ba...",
+    "documents": [],
+    "pendingNotifications": [
+        {
+            "notificationId": "9e177342ba...",
+            "tipo": "Notificación DEHú",
+            "concepto": "Suspensión de plazo por TA",
+            "fechaEmision": "2026-01-15T10:30:00Z",
+            "fechaCaducidad": "2026-02-15T10:30:00Z",
+            "emisor": "Autoridad Portuaria de Valencia",
+            "esComunicacion": false
+        }
+    ],
+    "metadata": { "emitterEntity": "Autoridad Portuaria de Valencia" }
+}
+```
+
+The `expedienteRef` is the notification's `sentReference` (used to match against `AccessRequest` in PideInfo). An empty `pendingNotifications` array clears a previously reported notification.
 
 ### Accepted notification
 
