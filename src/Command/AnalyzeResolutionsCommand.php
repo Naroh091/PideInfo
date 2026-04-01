@@ -5,6 +5,7 @@ namespace App\Command;
 use App\Repository\ResolutionRepository;
 use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -14,18 +15,28 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:resolutions:analyze',
-    description: 'Analyze resolutions with AI: clean text, format to markdown, generate summary and keypoints',
+    description: 'Analyze resolutions with AI: clean text, format to HTML, generate summary and keypoints',
 )]
 class AnalyzeResolutionsCommand extends Command
 {
     private const BATCH_SIZE = 10;
 
+    private EntityManagerInterface $entityManager;
+
     public function __construct(
         private readonly ResolutionRepository $resolutionRepository,
         private readonly ResolutionAnalyzer $analyzer,
-        private readonly EntityManagerInterface $entityManager,
+        private readonly ManagerRegistry $managerRegistry,
     ) {
+        $this->entityManager = $managerRegistry->getManager();
         parent::__construct();
+    }
+
+    private function resetEntityManager(): void
+    {
+        if (!$this->entityManager->isOpen()) {
+            $this->entityManager = $this->managerRegistry->resetManager();
+        }
     }
 
     protected function configure(): void
@@ -115,8 +126,14 @@ class AnalyzeResolutionsCommand extends Command
                 $processed++;
 
                 if ($processed % self::BATCH_SIZE === 0) {
-                    $this->entityManager->flush();
-                    $io->text('  <info>Flushed batch</info>');
+                    try {
+                        $this->entityManager->flush();
+                        $io->text('  <info>Flushed batch</info>');
+                    } catch (\Exception $e) {
+                        $io->error("  Flush error: " . $e->getMessage());
+                        $this->resetEntityManager();
+                        $errors++;
+                    }
                 }
                 continue;
             }
@@ -130,26 +147,63 @@ class AnalyzeResolutionsCommand extends Command
                 $resolution->setSummary($result['summary']);
                 $resolution->setKeypoints($result['keypoints']);
 
+                if ($result['resolution_date']) {
+                    try {
+                        $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                        $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
+                    } catch (\Exception) {
+                        $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
+                    }
+                }
+
+                if ($result['claim_date']) {
+                    try {
+                        $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
+                        $io->text(sprintf('  Claim date: %s', $result['claim_date']));
+                    } catch (\Exception) {
+                        $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
+                    }
+                }
+
+                // Calculate days to resolve if both dates are available
+                if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+                    $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+                    $resolution->setDaysToResolve($days);
+                    $io->text(sprintf('  Days to resolve: %d', $days));
+                }
+
                 $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
                 $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
 
                 $processed++;
             } catch (\Exception $e) {
                 $io->error("  Error: " . $e->getMessage());
+                $this->resetEntityManager();
                 $errors++;
                 continue;
             }
 
             if ($processed % self::BATCH_SIZE === 0) {
-                $this->entityManager->flush();
-                $io->text('  <info>Flushed batch</info>');
+                try {
+                    $this->entityManager->flush();
+                    $io->text('  <info>Flushed batch</info>');
+                } catch (\Exception $e) {
+                    $io->error("  Flush error: " . $e->getMessage());
+                    $this->resetEntityManager();
+                    $errors++;
+                }
             }
 
             // Rate limit
             usleep(500_000);
         }
 
-        $this->entityManager->flush();
+        try {
+            $this->entityManager->flush();
+        } catch (\Exception $e) {
+            $io->error("Final flush error: " . $e->getMessage());
+            $errors++;
+        }
 
         $io->success(sprintf('Done. %d processed, %d errors.', $processed, $errors));
 

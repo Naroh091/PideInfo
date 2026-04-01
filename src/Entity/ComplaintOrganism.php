@@ -27,6 +27,13 @@ class ComplaintOrganism
     private ?string $slug = null;
 
     #[ORM\Column(length: 255, nullable: true)]
+    private ?string $image = null;
+
+    #[ORM\ManyToOne(targetEntity: AutonomousCommunity::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?AutonomousCommunity $autonomousCommunity = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
     private ?string $url = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -80,6 +87,28 @@ class ComplaintOrganism
     public function setShortName(?string $shortName): static
     {
         $this->shortName = $shortName;
+        return $this;
+    }
+
+    public function getImage(): ?string
+    {
+        return $this->image;
+    }
+
+    public function setImage(?string $image): static
+    {
+        $this->image = $image;
+        return $this;
+    }
+
+    public function getAutonomousCommunity(): ?AutonomousCommunity
+    {
+        return $this->autonomousCommunity;
+    }
+
+    public function setAutonomousCommunity(?AutonomousCommunity $autonomousCommunity): static
+    {
+        $this->autonomousCommunity = $autonomousCommunity;
         return $this;
     }
 

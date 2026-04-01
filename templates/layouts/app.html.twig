@@ -38,7 +38,7 @@
                     <a href="{{ path('app_resoluciones_index') }}"
                        class="nav-link {{ 'resoluciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
                         <i data-lucide="scale" class="w-4 h-4"></i>
-                        <span>Resoluciones</span>
+                        <span>Repositorio de resoluciones</span>
                     </a>
                 </div>
             </div>
@@ -52,10 +52,9 @@
                 <div class="relative" x-data="{ open: false }">
                     <button @click="open = !open"
                             class="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-medium text-sm">
-                            {{ app.user.fullName|slice(0, 1)|upper }}
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white">
+                            <i data-lucide="user" class="w-4 h-4"></i>
                         </div>
-                        <span class="hidden sm:block text-sm font-medium">{{ app.user.fullName }}</span>
                         <i data-lucide="chevron-down" class="w-4 h-4"></i>
                     </button>
 
@@ -128,7 +127,7 @@
             <a href="{{ path('app_resoluciones_index') }}"
                class="nav-link w-full {{ 'resoluciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
                 <i data-lucide="scale" class="w-4 h-4"></i>
-                <span>Resoluciones</span>
+                <span>Repositorio de resoluciones</span>
             </a>
         </div>
     </div>
