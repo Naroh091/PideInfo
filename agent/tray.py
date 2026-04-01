@@ -77,6 +77,7 @@ class TrayApp:
         debug_mode: bool = False,
         get_headless_disabled_fn: "Callable[[], bool] | None" = None,
         toggle_headless_disabled_fn: "Callable[[], None] | None" = None,
+        sync_interval_minutes: int = 30,
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
@@ -92,6 +93,7 @@ class TrayApp:
         self._debug_mode = debug_mode
         self._get_headless_disabled = get_headless_disabled_fn or (lambda: False)
         self._toggle_headless_disabled = toggle_headless_disabled_fn or (lambda: None)
+        self._sync_interval_minutes = sync_interval_minutes
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
@@ -125,20 +127,22 @@ class TrayApp:
     # Menu callbacks (called from the tray thread)
     # ------------------------------------------------------------------
 
+    async def _scheduled_sync(self) -> None:
+        """Periodic sync — skipped if already syncing."""
+        if self._syncing:
+            return
+        self._set_syncing(True)
+        try:
+            await self._sync_fn()
+        except Exception as exc:
+            console.print(f"[red]Error en sincronización: {exc}[/]")
+        finally:
+            self._set_syncing(False)
+
     def _on_sync(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         if self._syncing:
             return
-
-        async def _run() -> None:
-            self._set_syncing(True)
-            try:
-                await self._sync_fn()
-            except Exception as exc:
-                console.print(f"[red]Error en sincronización: {exc}[/]")
-            finally:
-                self._set_syncing(False)
-
-        self._submit(_run())
+        self._submit(self._scheduled_sync())
 
     def _on_reset(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         async def _run() -> None:
@@ -318,11 +322,18 @@ class TrayApp:
         loop_thread = threading.Thread(target=self._run_loop, daemon=True, name="asyncio-loop")
         loop_thread.start()
 
-        # Schedule update check on startup and every 6 hours
-        def _start_update_scheduler() -> None:
+        # Schedule periodic sync + update check
+        def _start_schedulers() -> None:
             try:
                 from apscheduler.schedulers.asyncio import AsyncIOScheduler
                 scheduler = AsyncIOScheduler()
+                scheduler.add_job(
+                    self._scheduled_sync,
+                    "interval",
+                    minutes=self._sync_interval_minutes,
+                    id="periodic-sync",
+                    max_instances=1,
+                )
                 scheduler.add_job(
                     self._check_for_updates,
                     "interval",
@@ -331,12 +342,16 @@ class TrayApp:
                     max_instances=1,
                 )
                 scheduler.start()
-                # Run immediately
+                # Run both immediately on startup
+                self._submit(self._scheduled_sync())
                 self._submit(self._check_for_updates())
             except Exception as e:
-                console.print(f"[dim]No se pudo iniciar comprobación de actualizaciones: {e}[/]")
+                console.print(f"[dim]No se pudo iniciar los schedulers: {e}[/]")
 
-        threading.Thread(target=_start_update_scheduler, daemon=True, name="update-scheduler").start()
+        threading.Thread(target=_start_schedulers, daemon=True, name="schedulers").start()
+        console.print(
+            f"[dim]Sincronización automática cada {self._sync_interval_minutes} minutos[/]"
+        )
 
         self._icon = pystray.Icon(
             name="PideInfo Agent",

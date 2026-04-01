@@ -859,6 +859,7 @@ def _run_tray(settings: Settings) -> None:
         debug_mode=settings.debug,
         get_headless_disabled_fn=get_headless_disabled,
         toggle_headless_disabled_fn=toggle_headless_disabled,
+        sync_interval_minutes=settings.sync_interval_minutes,
     ).run()
 
 
@@ -929,15 +930,13 @@ def main() -> None:
 
     if args.auth_only:
         asyncio.run(do_auth(settings))
-    elif args.tray:
-        _run_tray(settings)
-    elif args.daemon:
-        asyncio.run(do_daemon(settings))
     elif args.once or args.dry_run:
         asyncio.run(do_sync(settings, dry_run=args.dry_run))
+    elif args.daemon:
+        asyncio.run(do_daemon(settings))
     else:
-        # Default: single sync
-        asyncio.run(do_sync(settings))
+        # Default: tray icon (system tray / menu bar)
+        _run_tray(settings)
 
 
 if __name__ == "__main__":
