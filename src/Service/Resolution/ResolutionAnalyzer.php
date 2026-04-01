@@ -91,9 +91,9 @@ final class ResolutionAnalyzer
     }
 
     /**
-     * Call Gemini to format, summarize and extract keypoints from a resolution.
+     * Call Gemini to format, summarize, extract keypoints and dates from a resolution.
      *
-     * @return array{formatted_text: string, summary: string, keypoints: string[]}
+     * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string}
      */
     public function analyze(string $cleanedText): array
     {
@@ -136,11 +136,21 @@ Extrae entre 3 y 7 puntos clave de la argumentación jurídica del consejo. Cada
 - Los precedentes citados si los hay
 - Las razones específicas de la estimación o desestimación
 
+## 4. EXTRAER FECHA DE RESOLUCIÓN
+
+Busca la fecha de la resolución en el texto. Suele aparecer en la firma final del documento (e.g., "Madrid, 15 de enero de 2025", "En Barcelona, a 3 de febrero de 2026"). Devuélvela en formato ISO 8601 (YYYY-MM-DD). Si no la encuentras, devuelve null.
+
+## 5. EXTRAER FECHA DE RECLAMACIÓN
+
+Busca la fecha en que se presentó la reclamación. Suele mencionarse en los ANTECEDENTES (e.g., "Con fecha 5 de marzo de 2025, tuvo entrada en este Consejo la reclamación...", "La reclamació va ser presentada a la GAIP el dia 10 de febrer de 2026"). Devuélvela en formato ISO 8601 (YYYY-MM-DD). Si no la encuentras, devuelve null.
+
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {
   "formatted_text": "HTML formateado",
   "summary": "resumen en texto plano",
-  "keypoints": ["punto 1", "punto 2", ...]
+  "keypoints": ["punto 1", "punto 2", ...],
+  "resolution_date": "YYYY-MM-DD o null",
+  "claim_date": "YYYY-MM-DD o null"
 }
 PROMPT;
 
@@ -201,6 +211,10 @@ PROMPT;
         if (!$result || !isset($result['formatted_text'], $result['summary'], $result['keypoints'])) {
             throw new \RuntimeException('Invalid JSON structure from Gemini: ' . mb_substr($text, 0, 500));
         }
+
+        // Ensure date fields exist (may be null)
+        $result['resolution_date'] = $result['resolution_date'] ?? null;
+        $result['claim_date'] = $result['claim_date'] ?? null;
 
         return $result;
     }

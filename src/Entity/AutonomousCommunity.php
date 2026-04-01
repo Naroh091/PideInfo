@@ -22,6 +22,9 @@ class AutonomousCommunity
     #[ORM\Column(length: 10, unique: true)]
     private string $code;
 
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $image = null;
+
     /** @var Collection<int, ApplicableLaw> */
     #[ORM\OneToMany(targetEntity: ApplicableLaw::class, mappedBy: 'autonomousCommunity')]
     private Collection $applicableLaws;
@@ -61,6 +64,17 @@ class AutonomousCommunity
     public function setCode(string $code): static
     {
         $this->code = $code;
+        return $this;
+    }
+
+    public function getImage(): ?string
+    {
+        return $this->image;
+    }
+
+    public function setImage(?string $image): static
+    {
+        $this->image = $image;
         return $this;
     }
 

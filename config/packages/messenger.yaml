@@ -27,3 +27,4 @@ framework:
             App\Message\ProcessDocumentMessage: async
             App\Message\ProcessDocumentBatchMessage: async
             App\Message\CheckCustomDeadlinesMessage: async
+            App\Message\ProcessResolutionMessage: async

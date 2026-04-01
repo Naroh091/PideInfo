@@ -245,10 +245,11 @@ Key design: the agent is thin — it only downloads and forwards. PideInfo is th
 ## Configuration and infrastructure
 
 - **Database**: PostgreSQL with pgvector extension for vector similarity search
-- **Storage**: AWS S3 via Flysystem (two buckets: default and documents)
+- **Storage**: AWS S3 via Flysystem (three buckets: default, documents, and resolutions)
 - **Message queue**: Symfony Messenger with Doctrine transport (async document processing)
 - **Real-time**: Mercure hub for live dashboard updates
 - **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_SMALL_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
-- **Vector stores**: Two pgvector stores — one for CTBG resolutions, one for interpretive criteria
+- **Vector stores**: Two pgvector stores — one for resolutions (CTBG national + local/autonomous, GAIP), one for interpretive criteria
+- **Resolution pipeline**: `app:ctbg:load-resolutions` downloads CTBG Excel files (national + local/autonomous), extracts metadata + PDF hyperlinks, downloads PDFs to S3 (`resolutions.storage`), extracts text, runs Gemini analysis (summary, keypoints, resolution/claim dates), and vectorizes full text + keypoints. Sources: `CTBG` (national, 2019+), `CTBG_LOCAL` (autonomous/local, 2021+), `GAIP` (Catalonia, planned)
 - **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email` (see [inbound-email.md](inbound-email.md))
 - **Portal sync agent**: Python agent (`agent/`) using Playwright for Cl@ve auth + httpx for scraping → JWT-authenticated API at `/api/agent/webhook` (see [agent.md](agent.md))
