@@ -10,8 +10,7 @@ keyring>=25.0
 pystray>=0.19
 Pillow>=10.0
 packaging>=24.0
-# macOS backend for pystray
+# macOS backend for pystray + AppKit (for hide-from-Dock support in tray)
+# AppKit is bundled inside pyobjc-framework-Cocoa — no separate package needed
 pyobjc-core>=9.2; sys_platform == "darwin"
 pyobjc-framework-Cocoa>=9.2; sys_platform == "darwin"
-# macOS AppKit for hide-from-Dock support in tray
-pyobjc-framework-AppKit>=9.2; sys_platform == "darwin"
