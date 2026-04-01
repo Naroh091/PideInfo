@@ -8,14 +8,10 @@ use App\Entity\User;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
-use App\Repository\ApplicableLawRepository;
-use App\Repository\PublicBodyRepository;
-use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 class AgentWebhookProcessor
@@ -32,9 +28,6 @@ class AgentWebhookProcessor
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
         private readonly AccessRequestRepository $accessRequestRepository,
-        private readonly PublicBodyRepository $publicBodyRepository,
-        private readonly ApplicableLawRepository $applicableLawRepository,
-        private readonly AccessRequestManager $accessRequestManager,
         private readonly MessageBusInterface $messageBus,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
@@ -60,12 +53,6 @@ class AgentWebhookProcessor
         // Handle accepted notifications/communications from the agent
         $this->handleAcceptedNotifications($user, $data, $expedienteRef, $metadata);
 
-        // Red SARA metadata-only payload (no documents, no pending notifications):
-        // create the AccessRequest from registry metadata if it doesn't exist yet.
-        if ($source === 'redsara_rec' && empty($documents) && $pendingNotifications === null) {
-            return $this->handleRedSaraMetadataOnly($user, $expedienteRef, $metadata);
-        }
-
         if (empty($documents)) {
             return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => 0, 'skipped' => []]);
         }
@@ -73,12 +60,10 @@ class AgentWebhookProcessor
         // Look up an existing AccessRequest matching this expediente reference
         $accessRequest = $this->findAccessRequest($expedienteRef, $user, $metadata);
 
-        // Red SARA: create an AccessRequest if none exists
+        // When documents are present but no AR exists, let the document
+        // processing pipeline create the AccessRequest via AI analysis
+        // instead of building a bare-bones one from metadata alone.
         $accessRequestCreated = false;
-        if ($accessRequest === null && $source === 'redsara_rec') {
-            $accessRequest = $this->createAccessRequestFromRedSara($user, $expedienteRef, $metadata);
-            $accessRequestCreated = $accessRequest !== null;
-        }
 
         // Save portal numeric expedienteId as an alternative reference
         if ($accessRequest !== null && !empty($metadata['expedienteId'])) {
@@ -218,91 +203,6 @@ class AgentWebhookProcessor
         }
 
         $this->entityManager->flush();
-    }
-
-    private function handleRedSaraMetadataOnly(User $user, string $expedienteRef, array $metadata): JsonResponse
-    {
-        $accessRequest = $this->findAccessRequest($expedienteRef, $user, $metadata);
-        $created = false;
-
-        if ($accessRequest === null) {
-            $accessRequest = $this->createAccessRequestFromRedSara($user, $expedienteRef, $metadata);
-            $created = $accessRequest !== null;
-        }
-
-        return new JsonResponse([
-            'ok' => true,
-            'documents' => 0,
-            'created' => 0,
-            'skipped' => [],
-            'accessRequestCreated' => $created,
-            'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
-        ]);
-    }
-
-    private function createAccessRequestFromRedSara(User $user, string $registryNumber, array $metadata): ?AccessRequest
-    {
-        $destinyOrganism = $metadata['destinyOrganism'] ?? '';
-        $subject = $metadata['subject'] ?? '';
-        $entryDate = $metadata['entryDate'] ?? '';
-
-        if (!$destinyOrganism || !$entryDate) {
-            $this->logger->warning('Red SARA: missing metadata for AR creation', [
-                'registryNumber' => $registryNumber,
-                'metadata' => $metadata,
-            ]);
-            return null;
-        }
-
-        // Find or fall back for the public body
-        $publicBody = $this->publicBodyRepository->findOneByNameLike($destinyOrganism);
-        if ($publicBody === null) {
-            // Create a minimal public body so the AR can be persisted
-            $publicBody = new \App\Entity\PublicBody();
-            $publicBody->setName($destinyOrganism);
-            $this->entityManager->persist($publicBody);
-        }
-
-        // Use the state-level law (Ley 19/2013) as default
-        $applicableLaw = $this->applicableLawRepository->findStateLaw();
-        if ($applicableLaw === null) {
-            $this->logger->error('Red SARA: no state law found — cannot create AccessRequest');
-            return null;
-        }
-
-        // Parse the entry date
-        try {
-            $sentAt = new \DateTimeImmutable($entryDate);
-        } catch (\Exception) {
-            $sentAt = new \DateTimeImmutable();
-        }
-
-        $title = $subject ?: 'Solicitud vía registro electrónico';
-        $description = sprintf(
-            'Solicitud enviada a %s a través del Registro Electrónico Común (Red SARA). Número de registro: %s.',
-            $destinyOrganism,
-            $registryNumber
-        );
-
-        $accessRequest = $this->accessRequestManager->create(
-            user: $user,
-            title: $title,
-            description: $description,
-            publicBody: $publicBody,
-            applicableLaw: $applicableLaw,
-            sentAt: $sentAt,
-            externalId: $registryNumber,
-        );
-
-        $this->notificationManager->notifyRequestCreated($user, $accessRequest);
-
-        $this->logger->info('Red SARA: AccessRequest created from registry', [
-            'registryNumber' => $registryNumber,
-            'accessRequestId' => (string) $accessRequest->getId(),
-            'destinyOrganism' => $destinyOrganism,
-        ]);
-
-        return $accessRequest;
     }
 
     private function findAccessRequest(string $expedienteRef, User $user, array $metadata): ?AccessRequest
