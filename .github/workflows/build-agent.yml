@@ -24,17 +24,12 @@ jobs:
       - name: Build matrix
         id: filter
         run: |
-          ALL='[
-            {"os":"macos-14","platform":"macos-arm64","artifact":"PideInfo-Agent-macos-arm64.dmg"},
-            {"os":"windows-latest","platform":"windows-x64","artifact":"PideInfo-Agent-windows-x64-setup.exe"},
-            {"os":"ubuntu-22.04","platform":"linux-x64","artifact":"PideInfo-Agent-linux-x64.AppImage"}
-          ]'
+          ALL='[{"os":"macos-14","platform":"macos-arm64","artifact":"PideInfo-Agent-macos-arm64.dmg"},{"os":"windows-latest","platform":"windows-x64","artifact":"PideInfo-Agent-windows-x64-setup.exe"},{"os":"ubuntu-22.04","platform":"linux-x64","artifact":"PideInfo-Agent-linux-x64.AppImage"}]'
           PLATFORMS="${{ inputs.platforms || 'all' }}"
           if [ "$PLATFORMS" = "all" ] || [ -z "$PLATFORMS" ]; then
             echo "matrix={\"include\":$ALL}" >> $GITHUB_OUTPUT
           else
-            FILTERED=$(echo "$ALL" | jq -c --arg p "$PLATFORMS" \
-              '[.[] | select(.platform as $pl | ($p | split(",") | map(gsub("\\s+";"")) | any(. as $f | $pl | contains($f))))]')
+            FILTERED=$(echo "$ALL" | jq -c --arg p "$PLATFORMS" '[.[] | select(.platform as $pl | ($p | split(",") | map(gsub("\\s+";"")) | any(. as $f | $pl | contains($f))))]')
             echo "matrix={\"include\":$FILTERED}" >> $GITHUB_OUTPUT
           fi
 
