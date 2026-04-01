@@ -17,6 +17,7 @@ class Resolution
     public const OUTCOME_UNFAVORABLE = 'unfavorable';
     public const OUTCOME_PARTIAL = 'partial';
     public const OUTCOME_INADMISSIBLE = 'inadmissible';
+    public const OUTCOME_ARCHIVED = 'archivo';
 
     public const SOURCE_CTBG = 'CTBG';
 
@@ -61,6 +62,14 @@ class Resolution
 
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $claimReason = null;
+
+    /** @var array<string>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $keypoints = null;
+
+    #[ORM\ManyToOne(targetEntity: ComplaintOrganism::class, inversedBy: 'resolutions')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?ComplaintOrganism $complaintOrganism = null;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
@@ -116,6 +125,7 @@ class Resolution
             self::OUTCOME_UNFAVORABLE => 'Desestimada',
             self::OUTCOME_PARTIAL => 'Estimada parcialmente',
             self::OUTCOME_INADMISSIBLE => 'Inadmitida',
+            self::OUTCOME_ARCHIVED => 'Archivada',
             default => $this->outcome,
         };
     }
@@ -225,6 +235,30 @@ class Resolution
     public function setClaimReason(?string $claimReason): static
     {
         $this->claimReason = $claimReason;
+        return $this;
+    }
+
+    /** @return array<string>|null */
+    public function getKeypoints(): ?array
+    {
+        return $this->keypoints;
+    }
+
+    /** @param array<string>|null $keypoints */
+    public function setKeypoints(?array $keypoints): static
+    {
+        $this->keypoints = $keypoints;
+        return $this;
+    }
+
+    public function getComplaintOrganism(): ?ComplaintOrganism
+    {
+        return $this->complaintOrganism;
+    }
+
+    public function setComplaintOrganism(?ComplaintOrganism $complaintOrganism): static
+    {
+        $this->complaintOrganism = $complaintOrganism;
         return $this;
     }
 

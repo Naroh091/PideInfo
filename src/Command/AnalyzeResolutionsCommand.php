@@ -1,0 +1,158 @@
+<?php
+
+namespace App\Command;
+
+use App\Repository\ResolutionRepository;
+use App\Service\Resolution\ResolutionAnalyzer;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
+
+#[AsCommand(
+    name: 'app:resolutions:analyze',
+    description: 'Analyze resolutions with AI: clean text, format to markdown, generate summary and keypoints',
+)]
+class AnalyzeResolutionsCommand extends Command
+{
+    private const BATCH_SIZE = 10;
+
+    public function __construct(
+        private readonly ResolutionRepository $resolutionRepository,
+        private readonly ResolutionAnalyzer $analyzer,
+        private readonly EntityManagerInterface $entityManager,
+    ) {
+        parent::__construct();
+    }
+
+    protected function configure(): void
+    {
+        $this
+            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Re-analyze resolutions that already have summary/keypoints')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview cleaning without calling AI or saving')
+            ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Analyze a specific resolution by reference number')
+            ->addOption('clean-only', null, InputOption::VALUE_NONE, 'Only clean text, do not call AI')
+        ;
+    }
+
+    protected function execute(InputInterface $input, OutputInterface $output): int
+    {
+        $io = new SymfonyStyle($input, $output);
+        $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
+        $force = $input->getOption('force');
+        $dryRun = $input->getOption('dry-run');
+        $reference = $input->getOption('reference');
+        $cleanOnly = $input->getOption('clean-only');
+
+        $io->title('Resolution Analyzer');
+
+        if ($reference) {
+            $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
+            if (!$resolution) {
+                $io->error("Resolution not found: $reference");
+                return Command::FAILURE;
+            }
+            $resolutions = [$resolution];
+        } else {
+            $qb = $this->resolutionRepository->createQueryBuilder('r')
+                ->orderBy('r.resolutionDate', 'DESC');
+
+            if (!$force) {
+                $qb->where('r.summary IS NULL OR r.summary = :empty')
+                    ->setParameter('empty', '');
+            }
+
+            if ($limit) {
+                $qb->setMaxResults($limit);
+            }
+
+            $resolutions = $qb->getQuery()->getResult();
+        }
+
+        if (empty($resolutions)) {
+            $io->success('No resolutions to process.');
+            return Command::SUCCESS;
+        }
+
+        $io->info(sprintf('Found %d resolutions to process.', count($resolutions)));
+
+        $processed = 0;
+        $errors = 0;
+
+        foreach ($resolutions as $resolution) {
+            $ref = $resolution->getReferenceNumber();
+            $io->section($ref);
+
+            $fullText = $resolution->getFullText();
+            if (empty(trim($fullText))) {
+                $io->warning("  Skipped — empty fullText");
+                continue;
+            }
+
+            // Step 1: Clean text
+            $cleanedText = $this->analyzer->cleanText($fullText);
+            $io->text(sprintf('  Cleaned: %d → %d chars (-%d%%)',
+                mb_strlen($fullText),
+                mb_strlen($cleanedText),
+                round((1 - mb_strlen($cleanedText) / mb_strlen($fullText)) * 100)
+            ));
+
+            if ($dryRun) {
+                $io->text('  [dry-run] Would process with AI');
+                $io->text('  First 500 chars of cleaned text:');
+                $io->text('  ' . mb_substr($cleanedText, 0, 500));
+                $processed++;
+                continue;
+            }
+
+            if ($cleanOnly) {
+                $resolution->setFullText($cleanedText);
+                $io->text('  Cleaned text saved (no AI analysis)');
+                $processed++;
+
+                if ($processed % self::BATCH_SIZE === 0) {
+                    $this->entityManager->flush();
+                    $io->text('  <info>Flushed batch</info>');
+                }
+                continue;
+            }
+
+            // Step 2: AI analysis
+            try {
+                $io->text('  Calling Gemini API...');
+                $result = $this->analyzer->analyze($cleanedText);
+
+                $resolution->setFullText($result['formatted_text']);
+                $resolution->setSummary($result['summary']);
+                $resolution->setKeypoints($result['keypoints']);
+
+                $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
+                $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
+
+                $processed++;
+            } catch (\Exception $e) {
+                $io->error("  Error: " . $e->getMessage());
+                $errors++;
+                continue;
+            }
+
+            if ($processed % self::BATCH_SIZE === 0) {
+                $this->entityManager->flush();
+                $io->text('  <info>Flushed batch</info>');
+            }
+
+            // Rate limit
+            usleep(500_000);
+        }
+
+        $this->entityManager->flush();
+
+        $io->success(sprintf('Done. %d processed, %d errors.', $processed, $errors));
+
+        return Command::SUCCESS;
+    }
+}

@@ -12,9 +12,12 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\ArrayField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\UrlField;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\DateTimeFilter;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\EntityFilter;
 
 class ResolutionCrudController extends AbstractCrudController
 {
@@ -26,8 +29,8 @@ class ResolutionCrudController extends AbstractCrudController
     public function configureCrud(Crud $crud): Crud
     {
         return $crud
-            ->setEntityLabelInSingular('Resolución CTBG')
-            ->setEntityLabelInPlural('Resoluciones CTBG')
+            ->setEntityLabelInSingular('Resolución')
+            ->setEntityLabelInPlural('Resoluciones')
             ->setSearchFields(['referenceNumber', 'subject', 'summary'])
             ->setDefaultSort(['resolutionDate' => 'DESC']);
     }
@@ -40,8 +43,10 @@ class ResolutionCrudController extends AbstractCrudController
                 'Desfavorable' => 'unfavorable',
                 'Parcial' => 'partial',
                 'Inadmitida' => 'inadmissible',
+                'Archivada' => 'archivo',
             ]))
-            ->add(DateTimeFilter::new('resolutionDate', 'Fecha resolución'));
+            ->add(DateTimeFilter::new('resolutionDate', 'Fecha resolución'))
+            ->add(EntityFilter::new('complaintOrganism', 'Organismo'));
     }
 
     public function configureFields(string $pageName): iterable
@@ -55,15 +60,19 @@ class ResolutionCrudController extends AbstractCrudController
                 'Desfavorable' => 'unfavorable',
                 'Parcial' => 'partial',
                 'Inadmitida' => 'inadmissible',
+                'Archivada' => 'archivo',
             ])
             ->renderAsBadges([
                 'favorable' => 'success',
                 'unfavorable' => 'danger',
                 'partial' => 'warning',
+                'archivo' => 'info',
                 'inadmissible' => 'secondary',
             ]);
         yield DateField::new('resolutionDate', 'Fecha resolución');
+        yield AssociationField::new('complaintOrganism', 'Organismo');
         yield TextareaField::new('summary', 'Resumen')->hideOnIndex();
+        yield ArrayField::new('keypoints', 'Puntos clave')->hideOnIndex();
         yield TextareaField::new('fullText', 'Texto completo')->hideOnIndex();
         yield UrlField::new('sourceUrl', 'URL origen')->hideOnIndex();
         yield DateTimeField::new('createdAt', 'Fecha creación')->hideOnForm();
