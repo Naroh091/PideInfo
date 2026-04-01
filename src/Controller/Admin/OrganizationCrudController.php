@@ -5,6 +5,7 @@ namespace App\Controller\Admin;
 use App\Entity\Organization;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
+use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
@@ -30,7 +31,9 @@ class OrganizationCrudController extends AbstractCrudController
     {
         yield IdField::new('id')->hideOnForm();
         yield TextField::new('name', 'Nombre');
-        yield TextareaField::new('description', 'Descripción')->hideOnIndex();
+        yield TextField::new('cif', 'CIF')->hideOnIndex();
+        yield TextareaField::new('address', 'Dirección')->hideOnIndex();
+        yield AssociationField::new('users', 'Usuarios')->hideOnForm();
         yield DateTimeField::new('createdAt', 'Creada')->hideOnForm();
     }
 }

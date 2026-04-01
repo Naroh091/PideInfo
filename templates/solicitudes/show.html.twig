@@ -19,6 +19,13 @@
             Estás viendo la solicitud de <strong>{{ request.user.fullName }}</strong> ({{ request.user.email }}).
         </p>
     </div>
+{% elseif request.user != app.user %}
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
+        <i data-lucide="building-2" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
+        <p class="text-sm text-blue-800">
+            Solicitud de <strong>{{ request.user.fullName }}</strong>, miembro de tu organización.
+        </p>
+    </div>
 {% endif %}
 
 {# Header #}
