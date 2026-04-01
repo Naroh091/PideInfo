@@ -38,6 +38,8 @@ services:
               defaults_mode: 'standard'
               use_aws_shared_config_files: false
 
+    Aws\S3\S3Client: '@aws_s3_client'
+
     # Markdown converter with GFM support (tables, strikethrough, etc.)
     League\CommonMark\MarkdownConverter:
         factory: ['App\Factory\MarkdownConverterFactory', 'create']

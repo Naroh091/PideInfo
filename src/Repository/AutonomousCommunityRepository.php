@@ -21,6 +21,16 @@ class AutonomousCommunityRepository extends ServiceEntityRepository
         return $this->findOneBy(['code' => $code]);
     }
 
+    public function findByName(string $name): ?AutonomousCommunity
+    {
+        return $this->createQueryBuilder('ac')
+            ->where('LOWER(ac.name) = LOWER(:name)')
+            ->setParameter('name', trim($name))
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /**
      * @return AutonomousCommunity[]
      */

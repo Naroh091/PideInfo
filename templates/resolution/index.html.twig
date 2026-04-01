@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Resoluciones de Transparencia - PideInfo{% endblock %}
+{% block title %}Repositorio de resoluciones de transparencia - PideInfo{% endblock %}
 
 {% block meta %}
     <meta name="description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
@@ -13,75 +13,169 @@
 
 {% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo %}
 
-{# Compact header with stats #}
+{# Header #}
 <header class="border-b border-slate-200/50 bg-white/60 backdrop-blur-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div>
-                {% if activeOrganism is defined and activeOrganism %}
-                    <nav class="flex items-center gap-2 text-sm text-slate-500 mb-1">
-                        <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
-                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-                        <span class="text-slate-700 font-medium">{{ activeOrganism.name }}</span>
-                    </nav>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% if activeOrganism is defined and activeOrganism %}
+            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-2">
+                <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                <span class="text-slate-700 font-medium">{{ activeOrganism.name }}</span>
+            </nav>
+            <div class="flex items-center justify-between gap-4">
+                <div>
                     <h1 class="text-2xl font-bold text-slate-800">{{ activeOrganism.name }}</h1>
                     <p class="text-sm text-slate-500 mt-1">Resoluciones emitidas por {{ activeOrganism.shortName ?? activeOrganism.name }}</p>
-                {% elseif activePublicBody is defined and activePublicBody %}
-                    <nav class="flex items-center gap-2 text-sm text-slate-500 mb-1">
-                        <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
-                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-                        <span class="text-slate-700 font-medium">{{ activePublicBody.name }}</span>
-                    </nav>
-                    <h1 class="text-2xl font-bold text-slate-800">{{ activePublicBody.name }}</h1>
-                    <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
-                {% else %}
-                    <h1 class="text-2xl font-bold text-slate-800">Resoluciones de Transparencia</h1>
-                    <p class="text-sm text-slate-500 mt-1 max-w-2xl">Los organismos de transparencia tienen la obligación legal de publicar sus resoluciones, pero lo hacen en formatos que dificultan su búsqueda, indexación y reutilización. Esta base de datos nace para hacer accesible ese conocimiento.</p>
+                </div>
+                {% if activeOrganism.image %}
+                    {% if activeOrganism.url %}
+                        <a href="{{ activeOrganism.url }}" target="_blank" rel="noopener">
+                    {% endif %}
+                    <img src="{{ s3_image_url(activeOrganism.image) }}" alt="{{ activeOrganism.name }}"
+                         class="w-60 rounded-xl object-contain bg-white border border-slate-200 p-2 hover:border-primary-300 transition-colors">
+                    {% if activeOrganism.url %}
+                        </a>
+                    {% endif %}
                 {% endif %}
             </div>
-            {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
-            {% if totalResolutions > 0 %}
-            {% set favorable = outcomeStats.favorable|default(0) %}
-            {% set unfavorable = outcomeStats.unfavorable|default(0) %}
-            {% set partial = outcomeStats.partial|default(0) %}
-            {% set inadmissible = outcomeStats.inadmissible|default(0) %}
-            {% set archived = outcomeStats.archivo|default(0) %}
-            {% set pctFav = (favorable / total * 100)|round %}
-            {% set pctUnfav = (unfavorable / total * 100)|round %}
-            {% set pctPartial = (partial / total * 100)|round %}
-            {% set pctArchived = (archived / total * 100)|round %}
-            {% set pctOther = (inadmissible / total * 100)|round %}
-            <div class="flex flex-col items-end gap-3">
-                <div class="flex items-center gap-5 text-sm">
-                    <div class="text-right">
-                        <span class="text-2xl font-bold text-slate-800">{{ total }}</span>
-                        <span class="text-slate-500 ml-1">resoluciones</span>
-                    </div>
-                    <span class="text-slate-200">|</span>
-                    <div class="text-right">
-                        <span class="text-lg font-bold text-slate-800">{{ organisms|length }}</span>
-                        <span class="text-slate-500 ml-1">{{ organisms|length == 1 ? 'consejo de transparencia' : 'consejos de transparencia' }}</span>
-                    </div>
+        {% elseif activePublicBody is defined and activePublicBody %}
+            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-2">
+                <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                <span class="text-slate-700 font-medium">{{ activePublicBody.name }}</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-slate-800">{{ activePublicBody.name }}</h1>
+            <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
+        {% else %}
+            <div class="flex items-center gap-3">
+                <h1 class="text-3xl font-bold text-slate-800">Repositorio de resoluciones de transparencia</h1>
+                {% if globalStats.dateTo %}
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <i data-lucide="calendar-check" class="w-3 h-3"></i>
+                        Actualizado {{ globalStats.dateTo|date('d/m/Y') }}
+                    </span>
+                {% endif %}
+            </div>
+            <p class="text-sm text-slate-500 mt-2 max-w-3xl">Los consejos de transparencia están obligados a publicar sus resoluciones, pero no siempre es fácil realizar búsquedas en las resoluciones indexadas, reutilizar o navegar por las resoluciones. Este repositorio nace para hacer accesible ese conocimiento y para calcular en tiempo real estadísticas sobre el derecho de acceso.</p>
+        {% endif %}
+
+        {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
+        {% if totalResolutions > 0 %}
+        {% set favorable = outcomeStats.favorable|default(0) %}
+        {% set unfavorable = outcomeStats.unfavorable|default(0) %}
+        {% set partial = outcomeStats.partial|default(0) %}
+        {% set inadmissible = outcomeStats.inadmissible|default(0) %}
+        {% set archived = outcomeStats.archivo|default(0) %}
+        {% set pctFav = (favorable / total * 100)|round %}
+        {% set pctUnfav = (unfavorable / total * 100)|round %}
+        {% set pctPartial = (partial / total * 100)|round %}
+        {% set pctArchived = (archived / total * 100)|round %}
+        {% set pctOther = (inadmissible / total * 100)|round %}
+
+        {# Stats #}
+        <h2 class="mt-6 text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Estadísticas totales</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
+            {# Row 1: global metrics #}
+            <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="text-3xl font-extrabold text-slate-800">{{ total }}</div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Resoluciones</div>
+            </div>
+            <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="text-3xl font-extrabold text-primary-600">{{ globalStats.successRate }}%</div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Tasa de estimación</div>
+                <div class="text-xs text-slate-400 mt-0.5">Estimadas + parciales</div>
+            </div>
+            <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="text-3xl font-extrabold text-slate-800">{{ organisms|length }}</div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Consejos</div>
+            </div>
+            <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="text-3xl font-extrabold text-slate-800">{{ globalStats.distinctPublicBodies }}</div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Organismos reclamados</div>
+            </div>
+            {% if globalStats.meanDaysToResolve %}
+            <div class="bg-white rounded-xl border border-slate-200 p-4">
+                <div class="text-3xl font-extrabold text-amber-600">{{ globalStats.meanDaysToResolve }}</div>
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Días de media</div>
+                <div class="text-xs text-slate-400 mt-0.5">En resolver la reclamación</div>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Outcome breakdown #}
+        <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div class="bg-white rounded-xl border border-emerald-200 p-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <span class="text-lg font-extrabold text-emerald-600">{{ favorable }}</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <div class="flex h-2.5 w-56 rounded-full overflow-hidden bg-slate-100">
-                        {% if pctFav > 0 %}<div class="bg-emerald-500 transition-all" style="width:{{ pctFav }}%"></div>{% endif %}
-                        {% if pctUnfav > 0 %}<div class="bg-red-400 transition-all" style="width:{{ pctUnfav }}%"></div>{% endif %}
-                        {% if pctPartial > 0 %}<div class="bg-amber-400 transition-all" style="width:{{ pctPartial }}%"></div>{% endif %}
-                        {% if pctArchived > 0 %}<div class="bg-slate-400 transition-all" style="width:{{ pctArchived }}%"></div>{% endif %}
-                        {% if pctOther > 0 %}<div class="bg-purple-300 transition-all" style="width:{{ pctOther }}%"></div>{% endif %}
-                    </div>
-                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> {{ favorable }} estimadas</span>
-                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400"></span> {{ unfavorable }} desestimadas</span>
-                        {% if partial > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> {{ partial }} parciales</span>{% endif %}
-                        {% if archived > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> {{ archived }} archivadas</span>{% endif %}
-                        {% if inadmissible > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300"></span> {{ inadmissible }} inadmitidas</span>{% endif %}
-                    </div>
+                <div>
+                    <div class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Estimadas</div>
+                    <div class="text-xs text-slate-400">{{ pctFav }}%</div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                    <span class="text-lg font-extrabold text-red-500">{{ unfavorable }}</span>
+                </div>
+                <div>
+                    <div class="text-xs font-medium text-red-500 uppercase tracking-wider">Desestimadas</div>
+                    <div class="text-xs text-slate-400">{{ pctUnfav }}%</div>
+                </div>
+            </div>
+            {% if partial > 0 %}
+            <div class="bg-white rounded-xl border border-amber-200 p-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <span class="text-lg font-extrabold text-amber-600">{{ partial }}</span>
+                </div>
+                <div>
+                    <div class="text-xs font-medium text-amber-600 uppercase tracking-wider">Parciales</div>
+                    <div class="text-xs text-slate-400">{{ pctPartial }}%</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if archived > 0 %}
+            <div class="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                    <span class="text-lg font-extrabold text-slate-500">{{ archived }}</span>
+                </div>
+                <div>
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Archivadas</div>
+                    <div class="text-xs text-slate-400">{{ pctArchived }}%</div>
+                </div>
+            </div>
+            {% endif %}
+            {% if inadmissible > 0 %}
+            <div class="bg-white rounded-xl border border-purple-200 p-3 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                    <span class="text-lg font-extrabold text-purple-500">{{ inadmissible }}</span>
+                </div>
+                <div>
+                    <div class="text-xs font-medium text-purple-500 uppercase tracking-wider">Inadmitidas</div>
+                    <div class="text-xs text-slate-400">{{ pctOther }}%</div>
                 </div>
             </div>
             {% endif %}
         </div>
+
+        {# Organism navigator #}
+        <div class="mt-4 bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex items-center gap-2 text-sm text-slate-600 flex-shrink-0">
+                <i data-lucide="building-2" class="w-4 h-4 text-slate-400"></i>
+                <span class="font-medium">Ver estadísticas por consejo de transparencia</span>
+            </div>
+            <div class="flex-1 sm:max-w-md">
+                <select data-controller="organism-select">
+                    <option value=""></option>
+                    {% for organism in organisms %}
+                        <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
+                                data-shortname="{{ organism.shortName }}">
+                            {{ organism.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </header>
 
@@ -108,11 +202,14 @@
                         {# Organism #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Organismo</label>
-                            <select name="organism" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="organism"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todos"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todos</option>
                                 {% for organism in organisms %}
                                     <option value="{{ organism.id }}" {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
-                                        {{ organism.shortName ?? organism.name }}
+                                        {{ organism.name }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -121,7 +218,10 @@
                         {# Outcome #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Resultado</label>
-                            <select name="outcome" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="outcome"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todos"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todos</option>
                                 <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
                                 <option value="unfavorable" {{ filters.outcome == 'unfavorable' ? 'selected' }}>Desestimada</option>
@@ -134,7 +234,10 @@
                         {# Keyword #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Palabra clave</label>
-                            <select name="keyword" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="keyword"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todas"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todas</option>
                                 {% for kw in allKeywords %}
                                     <option value="{{ kw }}" {{ filters.keyword == kw ? 'selected' }}>{{ kw }}</option>

@@ -108,6 +108,7 @@ class ResolutionController extends AbstractController
             'resolutions' => $resolutions,
             'organisms' => $organismRepository->findAllOrdered(),
             'allKeywords' => $resolutionRepository->findDistinctKeywords(),
+            'globalStats' => $resolutionRepository->getGlobalStats(),
             'filters' => $filters,
             'page' => $page,
             'totalPages' => $totalPages,

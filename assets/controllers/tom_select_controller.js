@@ -6,6 +6,7 @@ export default class extends Controller {
         create: { type: Boolean, default: false },
         createUrl: { type: String, default: '' },
         placeholder: { type: String, default: 'Selecciona...' },
+        autoSubmit: { type: Boolean, default: false },
     };
 
     connect() {
@@ -25,6 +26,13 @@ export default class extends Controller {
                 option_create: (data, escape) => {
                     return `<div class="create">Crear: <strong>${escape(data.input)}</strong></div>`;
                 },
+            };
+        }
+
+        if (this.autoSubmitValue) {
+            config.onChange = () => {
+                const form = this.element.closest('form');
+                if (form) form.requestSubmit();
             };
         }
 
