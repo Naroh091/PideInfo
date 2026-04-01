@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -28,6 +29,16 @@ class PideInfoClient:
     @property
     def _auth_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.jwt_token}"}
+
+    @staticmethod
+    def _format_iso_date(value: str | None) -> str | None:
+        """Convert an ISO-8601 datetime string to 'd/m/Y H:i' format."""
+        if not value:
+            return value
+        try:
+            return datetime.fromisoformat(value).strftime("%d/%m/%Y %H:%M")
+        except (ValueError, TypeError):
+            return value
 
     async def validate_token(self) -> dict:
         """Validate JWT token and return user info from /api/agent/me."""
@@ -302,8 +313,8 @@ class PideInfoClient:
                     "notificationId": n.sent_reference,
                     "tipo": "Notificación DEHú",
                     "concepto": n.concept,
-                    "fechaEmision": n.availability_date,
-                    "fechaCaducidad": n.expiration_date,
+                    "fechaEmision": self._format_iso_date(n.availability_date),
+                    "fechaCaducidad": self._format_iso_date(n.expiration_date),
                     "emisor": n.emitter_entity,
                     "esComunicacion": False,
                 }
