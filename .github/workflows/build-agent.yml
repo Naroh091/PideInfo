@@ -141,17 +141,15 @@ jobs:
       # -----------------------------------------------------------------------
       - name: Install NSIS
         if: runner.os == 'Windows'
-        run: choco install nsis --no-progress -y
+        run: |
+          choco install nsis --no-progress -y
+          echo "C:\Program Files (x86)\NSIS" >> $env:GITHUB_PATH
 
       - name: Build Windows NSIS installer
         if: runner.os == 'Windows'
-        uses: joncloud/makensis-action@v4
-        with:
-          script-file: agent/build/windows/installer.nsi
-          arguments: >
-            /DVERSION=${{ steps.version.outputs.version }}
-            /DDIST_DIR=dist\PideInfo Agent
-            /DOUTFILE=${{ matrix.artifact }}
+        working-directory: agent
+        run: |
+          makensis /DVERSION=${{ steps.version.outputs.version }} "/DDIST_DIR=dist\PideInfo Agent" /DOUTFILE=${{ matrix.artifact }} build\windows\installer.nsi
 
       # -----------------------------------------------------------------------
       # Linux: create AppImage
@@ -196,8 +194,8 @@ jobs:
           cp build/linux/AppRun "$APPDIR/AppRun"
           chmod +x "$APPDIR/AppRun"
 
-          # Package as AppImage
-          ARCH=x86_64 ./appimagetool.AppImage "$APPDIR" "${{ matrix.artifact }}"
+          # Package as AppImage (--appimage-extract-and-run: FUSE unavailable on CI)
+          ARCH=x86_64 ./appimagetool.AppImage --appimage-extract-and-run "$APPDIR" "${{ matrix.artifact }}"
 
       # -----------------------------------------------------------------------
       # Upload artifact
