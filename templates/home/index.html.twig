@@ -5,25 +5,7 @@
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}
-{# Nav #}
-<nav class="glass border-b border-slate-200/50 sticky top-0 z-30">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <a href="/" class="flex items-center gap-2 text-primary-600 font-bold text-xl">
-                <i data-lucide="search" class="w-6 h-6"></i>
-                <span>PideInfo</span>
-            </a>
-            <div class="flex items-center gap-3">
-                <a href="{{ path('app_login') }}" class="text-sm text-slate-600 hover:text-primary-600 transition-colors font-medium">
-                    Iniciar sesión
-                </a>
-                <a href="{{ path('app_register') }}" class="btn btn-primary btn-sm">
-                    Crear cuenta
-                </a>
-            </div>
-        </div>
-    </div>
-</nav>
+{% include '_partials/public_nav.html.twig' with { active_page: 'home' } %}
 
 {# Hero #}
 <section class="py-12 sm:py-20">
@@ -228,20 +210,7 @@
     </div>
 </section>
 
-{# Footer #}
-<footer class="border-t border-slate-200/50 bg-white/50 py-6 mt-auto">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-2 text-slate-500 text-sm">
-                <i data-lucide="search" class="w-4 h-4 text-primary-500"></i>
-                <span>PideInfo</span>
-            </div>
-            <div class="flex items-center gap-4 text-slate-400 text-xs">
-                <a href="{{ path('app_privacidad') }}" class="hover:text-primary-600 transition-colors">Política de privacidad</a>
-            </div>
-        </div>
-    </div>
-</footer>
+{% include '_partials/public_footer.html.twig' %}
 
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% endblock %}
