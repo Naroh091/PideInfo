@@ -1,0 +1,200 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ resolution.subject|default(resolution.referenceNumber) }} - Resoluciones de Transparencia - PideInfo{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="{{ resolution.summary|u.truncate(160, '...') }}">
+{% endblock %}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' with { active_page: 'resoluciones' } %}
+
+{# Compact header bar #}
+<header class="border-b border-slate-200/50 bg-white/60 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <nav class="flex items-center gap-2 text-sm text-slate-500">
+            <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            <span class="text-slate-700 font-medium">{{ resolution.referenceNumber }}</span>
+        </nav>
+    </div>
+</header>
+
+<div class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex flex-col lg:flex-row gap-6">
+
+            {# Sidebar — metadata #}
+            <aside class="lg:w-72 flex-shrink-0 order-2 lg:order-1">
+                <div class="lg:sticky lg:top-20 space-y-4">
+                    {# Metadata card #}
+                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Resultado</label>
+                            <div class="mt-1.5">
+                                <span class="badge {{ resolution.outcome == 'favorable' ? 'badge-success' : (resolution.outcome == 'unfavorable' ? 'badge-danger' : (resolution.outcome == 'partial' ? 'badge-warning' : (resolution.outcome == 'archivo' ? 'badge-info' : 'badge-secondary'))) }}">
+                                    {{ resolution.outcomeLabel }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Referencia</label>
+                            <div class="mt-1 text-sm font-mono text-slate-700">{{ resolution.referenceNumber }}</div>
+                        </div>
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</label>
+                            <div class="mt-1 text-sm text-slate-700">{{ resolution.resolutionDate|date('d/m/Y') }}</div>
+                        </div>
+                        {% if resolution.complaintOrganism %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organismo</label>
+                            <div class="mt-1 text-sm">
+                                {% if resolution.complaintOrganism.slug %}
+                                    <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"
+                                       class="text-primary-600 hover:text-primary-700 transition-colors">
+                                        {{ resolution.complaintOrganism.name }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-slate-700">{{ resolution.complaintOrganism.name }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if resolution.publicBodyName %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organismo reclamado</label>
+                            <div class="mt-1 text-sm text-slate-700">{{ resolution.publicBodyName }}</div>
+                        </div>
+                        {% endif %}
+                        {% if resolution.claimReason %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Motivo de reclamación</label>
+                            <div class="mt-1 text-sm text-slate-600 leading-relaxed">{{ resolution.claimReason }}</div>
+                        </div>
+                        {% endif %}
+                        {% if resolution.keywords is not empty %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Palabras clave</label>
+                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                {% for kw in resolution.keywords %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs text-slate-500">{{ kw }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    {# Actions #}
+                    <div class="flex flex-col gap-2">
+                        {% if resolution.sourceUrl %}
+                            <a href="{{ resolution.sourceUrl }}" target="_blank" rel="noopener"
+                               class="btn btn-outline btn-sm w-full">
+                                <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                                Ver documento original
+                            </a>
+                        {% endif %}
+                        <a href="{{ path('app_resoluciones_index') }}" class="btn btn-ghost btn-sm w-full">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Volver al listado
+                        </a>
+                    </div>
+                </div>
+            </aside>
+
+            {# Main content #}
+            <main class="flex-1 min-w-0 order-1 lg:order-2">
+                {# Title #}
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight mb-6">
+                    {{ resolution.subject|default(resolution.referenceNumber) }}
+                </h1>
+
+                {# Summary #}
+                {% if resolution.summary %}
+                <section class="mb-6">
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        <i data-lucide="file-text" class="w-4 h-4 inline mr-1"></i>
+                        Resumen
+                    </h2>
+                    <div class="bg-white rounded-xl border border-slate-200 p-5 text-slate-700 leading-relaxed">
+                        {{ resolution.summary }}
+                    </div>
+                </section>
+                {% endif %}
+
+                {# Keypoints #}
+                {% if resolution.keypoints is not empty %}
+                <section class="mb-6">
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        <i data-lucide="list-checks" class="w-4 h-4 inline mr-1"></i>
+                        Puntos clave de la argumentación
+                    </h2>
+                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                        {% for keypoint in resolution.keypoints %}
+                            <div class="flex items-start gap-3 p-4">
+                                <i data-lucide="check-circle-2" class="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5"></i>
+                                <span class="text-sm text-slate-700 leading-relaxed">{{ keypoint }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </section>
+                {% endif %}
+
+                {# Full text #}
+                {% if resolution.fullText %}
+                <section>
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        <i data-lucide="scroll-text" class="w-4 h-4 inline mr-1"></i>
+                        Texto completo
+                    </h2>
+                    {% if '<h2' in resolution.fullText or '<p>' in resolution.fullText %}
+                        <div class="bg-white rounded-xl border border-slate-200 p-5 guide-content">
+                            {{ resolution.fullText|raw }}
+                        </div>
+                    {% else %}
+                        <div class="bg-white rounded-xl border border-slate-200 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ resolution.fullText }}</div>
+                    {% endif %}
+                </section>
+                {% endif %}
+            </main>
+
+        </div>
+    </div>
+</div>
+
+{% include '_partials/public_footer.html.twig' %}
+
+{# JSON-LD Structured Data #}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "Resolución {{ resolution.referenceNumber }} - {{ resolution.subject|default('')|e('js') }}",
+    "description": "{{ resolution.summary|u.truncate(300, '...')|e('js') }}",
+    "datePublished": "{{ resolution.resolutionDate|date('Y-m-d') }}",
+    "url": "{{ url('app_resoluciones_show', { id: resolution.id }) }}",
+    {% if resolution.complaintOrganism %}
+    "creator": {
+        "@type": "Organization",
+        "name": "{{ resolution.complaintOrganism.name|e('js') }}"
+    },
+    {% endif %}
+    {% if resolution.sourceUrl %}
+    "distribution": {
+        "@type": "DataDownload",
+        "contentUrl": "{{ resolution.sourceUrl }}",
+        "encodingFormat": "application/pdf"
+    },
+    {% endif %}
+    "keywords": ["transparencia", "derecho de acceso", "información pública"{% if resolution.keywords %}{% for kw in resolution.keywords %}, "{{ kw|e('js') }}"{% endfor %}{% endif %}],
+    "isPartOf": {
+        "@type": "DataCatalog",
+        "name": "Resoluciones de Transparencia",
+        "url": "{{ url('app_resoluciones_index') }}"
+    }
+}
+</script>
+
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% endblock %}

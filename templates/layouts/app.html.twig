@@ -35,17 +35,16 @@
                         <i data-lucide="book-open" class="w-4 h-4"></i>
                         <span>Guías</span>
                     </a>
+                    <a href="{{ path('app_resoluciones_index') }}"
+                       class="nav-link {{ 'resoluciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                        <i data-lucide="scale" class="w-4 h-4"></i>
+                        <span>Resoluciones</span>
+                    </a>
                 </div>
             </div>
 
             {# User menu #}
             <div class="flex items-center gap-4">
-                {# Quick action button #}
-                <a href="{{ path('app_solicitudes_new') }}" class="hidden sm:flex btn btn-primary btn-sm">
-                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
-                    Nueva solicitud
-                </a>
-
                 {# Notification bell #}
                 {{ component('NotificationBell') }}
 
@@ -126,9 +125,10 @@
                 <i data-lucide="list" class="w-4 h-4"></i>
                 <span>Listas</span>
             </a>
-            <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary w-full mt-2">
-                <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
-                Nueva solicitud
+            <a href="{{ path('app_resoluciones_index') }}"
+               class="nav-link w-full {{ 'resoluciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                <i data-lucide="scale" class="w-4 h-4"></i>
+                <span>Resoluciones</span>
             </a>
         </div>
     </div>

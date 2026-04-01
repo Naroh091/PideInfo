@@ -1,0 +1,323 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Resoluciones de Transparencia - PideInfo{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
+{% endblock %}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' with { active_page: 'resoluciones' } %}
+
+{% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo %}
+
+{# Compact header with stats #}
+<header class="border-b border-slate-200/50 bg-white/60 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div>
+                {% if activeOrganism is defined and activeOrganism %}
+                    <nav class="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
+                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                        <span class="text-slate-700 font-medium">{{ activeOrganism.name }}</span>
+                    </nav>
+                    <h1 class="text-2xl font-bold text-slate-800">{{ activeOrganism.name }}</h1>
+                    <p class="text-sm text-slate-500 mt-1">Resoluciones emitidas por {{ activeOrganism.shortName ?? activeOrganism.name }}</p>
+                {% elseif activePublicBody is defined and activePublicBody %}
+                    <nav class="flex items-center gap-2 text-sm text-slate-500 mb-1">
+                        <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
+                        <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+                        <span class="text-slate-700 font-medium">{{ activePublicBody.name }}</span>
+                    </nav>
+                    <h1 class="text-2xl font-bold text-slate-800">{{ activePublicBody.name }}</h1>
+                    <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
+                {% else %}
+                    <h1 class="text-2xl font-bold text-slate-800">Resoluciones de Transparencia</h1>
+                    <p class="text-sm text-slate-500 mt-1 max-w-2xl">Los organismos de transparencia tienen la obligación legal de publicar sus resoluciones, pero lo hacen en formatos que dificultan su búsqueda, indexación y reutilización. Esta base de datos nace para hacer accesible ese conocimiento.</p>
+                {% endif %}
+            </div>
+            {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
+            {% if totalResolutions > 0 %}
+            {% set favorable = outcomeStats.favorable|default(0) %}
+            {% set unfavorable = outcomeStats.unfavorable|default(0) %}
+            {% set partial = outcomeStats.partial|default(0) %}
+            {% set inadmissible = outcomeStats.inadmissible|default(0) %}
+            {% set archived = outcomeStats.archivo|default(0) %}
+            {% set pctFav = (favorable / total * 100)|round %}
+            {% set pctUnfav = (unfavorable / total * 100)|round %}
+            {% set pctPartial = (partial / total * 100)|round %}
+            {% set pctArchived = (archived / total * 100)|round %}
+            {% set pctOther = (inadmissible / total * 100)|round %}
+            <div class="flex flex-col items-end gap-3">
+                <div class="flex items-center gap-5 text-sm">
+                    <div class="text-right">
+                        <span class="text-2xl font-bold text-slate-800">{{ total }}</span>
+                        <span class="text-slate-500 ml-1">resoluciones</span>
+                    </div>
+                    <span class="text-slate-200">|</span>
+                    <div class="text-right">
+                        <span class="text-lg font-bold text-slate-800">{{ organisms|length }}</span>
+                        <span class="text-slate-500 ml-1">{{ organisms|length == 1 ? 'consejo de transparencia' : 'consejos de transparencia' }}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex h-2.5 w-56 rounded-full overflow-hidden bg-slate-100">
+                        {% if pctFav > 0 %}<div class="bg-emerald-500 transition-all" style="width:{{ pctFav }}%"></div>{% endif %}
+                        {% if pctUnfav > 0 %}<div class="bg-red-400 transition-all" style="width:{{ pctUnfav }}%"></div>{% endif %}
+                        {% if pctPartial > 0 %}<div class="bg-amber-400 transition-all" style="width:{{ pctPartial }}%"></div>{% endif %}
+                        {% if pctArchived > 0 %}<div class="bg-slate-400 transition-all" style="width:{{ pctArchived }}%"></div>{% endif %}
+                        {% if pctOther > 0 %}<div class="bg-purple-300 transition-all" style="width:{{ pctOther }}%"></div>{% endif %}
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> {{ favorable }} estimadas</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-400"></span> {{ unfavorable }} desestimadas</span>
+                        {% if partial > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> {{ partial }} parciales</span>{% endif %}
+                        {% if archived > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> {{ archived }} archivadas</span>{% endif %}
+                        {% if inadmissible > 0 %}<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-300"></span> {{ inadmissible }} inadmitidas</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</header>
+
+{# Main layout: sidebar filters + content #}
+<div class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="flex flex-col lg:flex-row gap-6">
+
+            {# Sidebar filters #}
+            <aside class="lg:w-64 flex-shrink-0">
+                <form method="GET" action="{{ path('app_resoluciones_index') }}" class="lg:sticky lg:top-20">
+                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                        {# Search #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Buscar</label>
+                            <div class="relative">
+                                <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                                <input type="text" name="search" value="{{ filters.search }}"
+                                       placeholder="Asunto, referencia..."
+                                       class="input input-icon-left text-sm">
+                            </div>
+                        </div>
+
+                        {# Organism #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Organismo</label>
+                            <select name="organism" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                                <option value="">Todos</option>
+                                {% for organism in organisms %}
+                                    <option value="{{ organism.id }}" {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
+                                        {{ organism.shortName ?? organism.name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        {# Outcome #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Resultado</label>
+                            <select name="outcome" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                                <option value="">Todos</option>
+                                <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
+                                <option value="unfavorable" {{ filters.outcome == 'unfavorable' ? 'selected' }}>Desestimada</option>
+                                <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Parcialmente</option>
+                                <option value="inadmissible" {{ filters.outcome == 'inadmissible' ? 'selected' }}>Inadmitida</option>
+                                <option value="archivo" {{ filters.outcome == 'archivo' ? 'selected' }}>Archivada</option>
+                            </select>
+                        </div>
+
+                        {# Keyword #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Palabra clave</label>
+                            <select name="keyword" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                                <option value="">Todas</option>
+                                {% for kw in allKeywords %}
+                                    <option value="{{ kw }}" {{ filters.keyword == kw ? 'selected' }}>{{ kw }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        {# Dates #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Fecha</label>
+                            <div class="space-y-2">
+                                <input type="date" name="dateFrom" value="{{ filters.dateFrom }}"
+                                       class="input text-sm" onchange="this.form.requestSubmit()">
+                                <input type="date" name="dateTo" value="{{ filters.dateTo }}"
+                                       class="input text-sm" onchange="this.form.requestSubmit()">
+                            </div>
+                        </div>
+
+                        {# Actions #}
+                        <div class="p-4 flex flex-col gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm w-full">
+                                <i data-lucide="search" class="w-3.5 h-3.5 mr-1.5"></i>
+                                Buscar
+                            </button>
+                            {% if hasFilters %}
+                                <a href="{{ path('app_resoluciones_index') }}" class="btn btn-ghost btn-sm w-full">
+                                    <i data-lucide="x" class="w-3.5 h-3.5 mr-1.5"></i>
+                                    Limpiar filtros
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+            </aside>
+
+            {# Results #}
+            <main class="flex-1 min-w-0">
+                {% if hasFilters %}
+                    <div class="flex items-center gap-2 mb-4 text-sm text-slate-500">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        <span>Filtros activos</span>
+                        {% if filters.search %}
+                            <span class="badge badge-secondary">&laquo;{{ filters.search }}&raquo;</span>
+                        {% endif %}
+                        {% if filters.outcome %}
+                            <span class="badge badge-secondary">{{ filters.outcome }}</span>
+                        {% endif %}
+                        {% if filters.keyword %}
+                            <span class="badge badge-secondary">{{ filters.keyword }}</span>
+                        {% endif %}
+                    </div>
+                {% endif %}
+
+                {% if resolutions|length > 0 %}
+                    <div class="space-y-3">
+                        {% for resolution in resolutions %}
+                            <div class="relative bg-white rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-md transition-all duration-150 group">
+                                <div class="p-4 sm:p-5">
+                                    <div class="flex items-start justify-between gap-4">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex flex-wrap items-center gap-2.5 mb-1.5">
+                                                <span class="badge {{ resolution.outcome == 'favorable' ? 'badge-success' : (resolution.outcome == 'unfavorable' ? 'badge-danger' : (resolution.outcome == 'partial' ? 'badge-warning' : (resolution.outcome == 'archivo' ? 'badge-info' : 'badge-secondary'))) }}">
+                                                    {{ resolution.outcomeLabel }}
+                                                </span>
+                                                <span class="text-xs text-slate-400 font-mono">{{ resolution.referenceNumber }}</span>
+                                                {% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
+                                                    <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"
+                                                       class="relative z-10 text-xs text-slate-400 hover:text-primary-600 transition-colors">{{ resolution.complaintOrganism.shortName ?? resolution.complaintOrganism.name }}</a>
+                                                {% elseif resolution.complaintOrganism %}
+                                                    <span class="text-xs text-slate-400">{{ resolution.complaintOrganism.shortName ?? resolution.complaintOrganism.name }}</span>
+                                                {% endif %}
+                                            </div>
+
+                                            <h3 class="font-semibold leading-snug mb-1">
+                                                <a href="{{ path('app_resoluciones_show', { id: resolution.id }) }}"
+                                                   class="text-slate-800 group-hover:text-primary-600 transition-colors after:absolute after:inset-0">
+                                                    {{ resolution.subject|default(resolution.referenceNumber) }}
+                                                </a>
+                                            </h3>
+
+                                            <p class="text-sm text-slate-500 leading-relaxed">
+                                                {{ resolution.summary }}
+                                            </p>
+
+                                            {% if resolution.keywords is not empty %}
+                                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                                    {% for kw in resolution.keywords|slice(0, 5) %}
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs text-slate-500">{{ kw }}</span>
+                                                    {% endfor %}
+                                                    {% if resolution.keywords|length > 5 %}
+                                                        <span class="text-xs text-slate-400">+{{ resolution.keywords|length - 5 }}</span>
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                        </div>
+
+                                        <div class="hidden sm:flex flex-col items-end gap-1 flex-shrink-0 text-right">
+                                            <span class="text-sm text-slate-500">{{ resolution.resolutionDate|date('d/m/Y') }}</span>
+                                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {# Pagination #}
+                    {% if totalPages > 1 %}
+                        <div class="mt-6 flex items-center justify-between">
+                            <p class="text-sm text-slate-500">
+                                {{ ((page - 1) * 12) + 1 }}–{{ min(page * 12, total) }} de {{ total }}
+                            </p>
+                            <nav class="flex items-center gap-1" aria-label="Paginación">
+                                {% if page > 1 %}
+                                    <a href="{{ path('app_resoluciones_index', filters|merge({ page: page - 1 })) }}"
+                                       class="btn btn-ghost btn-sm">
+                                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                                    </a>
+                                {% endif %}
+
+                                {% for p in max(1, page - 2)..min(totalPages, page + 2) %}
+                                    <a href="{{ path('app_resoluciones_index', filters|merge({ page: p })) }}"
+                                       class="btn btn-sm {{ p == page ? 'btn-primary' : 'btn-ghost' }}">
+                                        {{ p }}
+                                    </a>
+                                {% endfor %}
+
+                                {% if page < totalPages %}
+                                    <a href="{{ path('app_resoluciones_index', filters|merge({ page: page + 1 })) }}"
+                                       class="btn btn-ghost btn-sm">
+                                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </a>
+                                {% endif %}
+                            </nav>
+                        </div>
+                    {% endif %}
+
+                {% else %}
+                    <div class="empty-state py-16">
+                        <i data-lucide="file-search" class="empty-state-icon"></i>
+                        <h3 class="empty-state-title">No se encontraron resoluciones</h3>
+                        <p class="empty-state-description">Prueba a cambiar los filtros de búsqueda</p>
+                        {% if hasFilters %}
+                            <a href="{{ path('app_resoluciones_index') }}" class="btn btn-secondary mt-4">
+                                <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                                Limpiar filtros
+                            </a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </main>
+
+        </div>
+    </div>
+</div>
+
+{% include '_partials/public_footer.html.twig' %}
+
+{# JSON-LD Structured Data #}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "DataCatalog",
+    "name": "Resoluciones de Transparencia",
+    "description": "Catálogo de resoluciones de los consejos de transparencia españoles sobre solicitudes de acceso a información pública",
+    "url": "{{ url('app_resoluciones_index') }}",
+    "provider": {
+        "@type": "Organization",
+        "name": "PideInfo"
+    }{% if resolutions|length > 0 %},
+    "dataset": [
+        {% for resolution in resolutions %}
+        {
+            "@type": "Dataset",
+            "name": "Resolución {{ resolution.referenceNumber }}",
+            "description": "{{ resolution.summary|u.truncate(200, '...')|e('js') }}",
+            "datePublished": "{{ resolution.resolutionDate|date('Y-m-d') }}",
+            "url": "{{ url('app_resoluciones_show', { id: resolution.id }) }}"
+        }{{ not loop.last ? ',' }}
+        {% endfor %}
+    ]{% endif %}
+}
+</script>
+
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% endblock %}

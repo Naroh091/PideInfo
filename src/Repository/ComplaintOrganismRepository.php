@@ -16,6 +16,11 @@ class ComplaintOrganismRepository extends ServiceEntityRepository
         parent::__construct($registry, ComplaintOrganism::class);
     }
 
+    public function findBySlug(string $slug): ?ComplaintOrganism
+    {
+        return $this->findOneBy(['slug' => $slug]);
+    }
+
     /**
      * @return ComplaintOrganism[]
      */
