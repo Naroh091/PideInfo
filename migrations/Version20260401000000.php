@@ -16,11 +16,11 @@ final class Version20260401000000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE `user` ADD pending_dehu_notifications JSON DEFAULT NULL');
+        $this->addSql('ALTER TABLE "user" ADD pending_dehu_notifications JSON DEFAULT NULL');
     }
 
     public function down(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE `user` DROP COLUMN pending_dehu_notifications');
+        $this->addSql('ALTER TABLE "user" DROP COLUMN pending_dehu_notifications');
     }
 }
