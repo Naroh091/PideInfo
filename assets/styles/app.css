@@ -415,60 +415,86 @@ body {
   @apply outline-none ring-2 ring-primary-500 ring-offset-2;
 }
 
-/* Tom Select custom styles */
+/* Tom Select — reset aggressive defaults and match our design system */
 .ts-wrapper {
   @apply w-full;
 }
 
 .ts-wrapper .ts-control {
   @apply bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm transition-all duration-200;
-  @apply focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
   box-shadow: none !important;
+  border-color: var(--color-slate-200) !important;
+  background: white !important;
 }
 
 .ts-wrapper.focus .ts-control {
-  @apply border-primary-500 ring-2 ring-primary-500/20;
+  @apply border-primary-500;
+  box-shadow: 0 0 0 2px rgb(14 165 233 / 0.15) !important;
 }
 
 .ts-wrapper .ts-control input {
-  @apply text-slate-800;
+  @apply text-slate-700 text-sm;
 }
 
 .ts-wrapper .ts-control input::placeholder {
   @apply text-slate-400;
 }
 
+.ts-wrapper .ts-control .item {
+  @apply bg-transparent text-slate-700 text-sm;
+}
+
+.ts-wrapper .clear-button {
+  @apply text-slate-300 hover:text-slate-500;
+}
+
 .ts-dropdown {
-  @apply bg-white border border-slate-200 rounded-xl shadow-lg mt-1 overflow-hidden;
+  @apply bg-white border border-slate-200 rounded-xl mt-1 overflow-hidden;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
+  z-index: 9999 !important;
 }
 
 .ts-dropdown .ts-dropdown-content {
-  @apply max-h-60;
+  @apply max-h-64 py-1;
 }
 
 .ts-dropdown .option {
-  @apply px-4 py-2.5 text-sm text-slate-700 cursor-pointer transition-colors;
+  @apply px-3 py-2 text-sm text-slate-600 cursor-pointer transition-colors duration-100;
 }
 
 .ts-dropdown .option:hover,
 .ts-dropdown .option.active {
+  @apply bg-slate-50 text-slate-800;
+}
+
+.ts-dropdown .option.selected {
   @apply bg-primary-50 text-primary-700;
 }
 
 .ts-dropdown .create {
-  @apply px-4 py-2.5 text-sm text-primary-600 border-t border-slate-100 cursor-pointer;
+  @apply px-3 py-2 text-sm text-primary-600 border-t border-slate-100 cursor-pointer;
 }
 
 .ts-dropdown .create:hover {
-  @apply bg-primary-50;
+  @apply bg-slate-50;
 }
 
-.ts-wrapper .ts-control .item {
-  @apply bg-transparent text-slate-800;
+/* Remove TomSelect default caret */
+.ts-wrapper .ts-control::after {
+  display: none !important;
 }
 
-.ts-wrapper .clear-button {
-  @apply text-slate-400 hover:text-slate-600;
+/* Organism select custom renders */
+.organism-option {
+  @apply flex items-center gap-2 py-1;
+}
+
+.organism-badge {
+  @apply inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-primary-100 text-primary-700 text-[0.65rem] font-bold tracking-wide min-w-[3rem] text-center;
+}
+
+.organism-badge-sm {
+  @apply text-[0.6rem] min-w-0 px-1.5;
 }
 
 /* Guide content — markdown rendering */

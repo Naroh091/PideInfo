@@ -62,6 +62,11 @@ class ResolutionRepository extends ServiceEntityRepository
         return $this->findOneBy(['referenceNumber' => $referenceNumber]);
     }
 
+    public function findByReferenceAndSource(string $referenceNumber, string $source): ?Resolution
+    {
+        return $this->findOneBy(['referenceNumber' => $referenceNumber, 'source' => $source]);
+    }
+
     public function countByOutcome(): array
     {
         $results = $this->createQueryBuilder('r')
@@ -115,6 +120,35 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         return $stats;
+    }
+
+    /**
+     * @return array{dateFrom: ?string, dateTo: ?string, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?float}
+     */
+    public function getGlobalStats(): array
+    {
+        $qb = $this->createQueryBuilder('r')
+            ->select(
+                'MIN(r.resolutionDate) as dateFrom',
+                'MAX(r.resolutionDate) as dateTo',
+                'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
+                'COUNT(r.id) as total',
+                'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
+                'AVG(r.daysToResolve) as avgDays'
+            )
+            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL]);
+
+        $result = $qb->getQuery()->getSingleResult();
+
+        $total = (int) $result['total'];
+
+        return [
+            'dateFrom' => $result['dateFrom'],
+            'dateTo' => $result['dateTo'],
+            'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
+            'successRate' => $total > 0 ? round(((int) $result['favorableCount']) / $total * 100) : 0,
+            'meanDaysToResolve' => $result['avgDays'] !== null ? round((float) $result['avgDays']) : null,
+        ];
     }
 
     /**

@@ -2,11 +2,17 @@
 
 namespace App\Command;
 
+use App\DTO\ResolutionData;
+use App\Entity\AutonomousCommunity;
 use App\Entity\Resolution;
+use App\Message\ProcessResolutionMessage;
+use App\Repository\AutonomousCommunityRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\ExcelResolutionReader;
+use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
+use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
@@ -15,33 +21,45 @@ use Symfony\AI\Store\ManagedStoreInterface;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Finder\Finder;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'app:ctbg:load-resolutions',
-    description: 'Load CTBG resolution PDFs into PostgreSQL vector store',
+    description: 'Download CTBG Excel files, extract metadata + PDFs, analyze with AI, and vectorize',
 )]
 class LoadCTBGResolutionsCommand extends Command
 {
+    private const NATIONAL_EXCEL_URL = 'https://consejodetransparencia.es/content/dam/ctransparencia/portal-ctbg/reclamaciones/nuestras-resoluciones/resoluciones-%C3%A1mbito-estatal/ResolucionesAE.xlsx';
+    private const LOCAL_EXCEL_URL = 'https://consejodetransparencia.es/content/dam/ctransparencia/portal-ctbg/reclamaciones/nuestras-resoluciones/resoluciones-%C3%A1mbito-auton%C3%B3mico-y-local/Resoluciones_AAyL.xlsx';
+
     private const MAX_CHUNK_CHARS = 4000;
     private const FLUSH_BATCH_SIZE = 50;
 
+    /** @var array<string, AutonomousCommunity|null> */
+    private array $ccaaCache = [];
+
     public function __construct(
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
-        private readonly StoreInterface $ctbgResolutionsStore,
+        private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        private readonly LoggerInterface $logger,
-        private readonly EntityManagerInterface $entityManager,
         private readonly ExcelResolutionReader $excelReader,
+        private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionRepository $resolutionRepository,
+        private readonly AutonomousCommunityRepository $ccaaRepository,
+        private readonly EntityManagerInterface $entityManager,
+        private readonly HttpClientInterface $httpClient,
+        #[Autowire(service: 'resolutions.storage')]
+        private readonly FilesystemOperator $resolutionsStorage,
+        private readonly MessageBusInterface $messageBus,
+        private readonly LoggerInterface $logger,
     ) {
         parent::__construct();
     }
@@ -49,246 +67,542 @@ class LoadCTBGResolutionsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('path', InputArgument::REQUIRED, 'Path to directory containing resolution PDFs')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source to process: national, local, or all', 'all')
+            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
+            ->addOption('year', null, InputOption::VALUE_REQUIRED, 'Process only a specific year')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
-            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of files to process')
-            ->addOption('skip-empty', null, InputOption::VALUE_NONE, 'Skip PDFs with no extractable text (scanned)')
-            ->addOption('excel', null, InputOption::VALUE_REQUIRED, 'Path to Excel file with resolution metadata', 'data/ResolucionesAE.xlsx')
+            ->addOption('skip-download', null, InputOption::VALUE_NONE, 'Use cached Excel files instead of downloading')
+            ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
+            ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
+            ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('national-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached national Excel file')
+            ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
+            ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $dryRun = $input->getOption('dry-run');
+        $source = $input->getOption('source');
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
-        $skipEmpty = $input->getOption('skip-empty');
-        $path = $input->getArgument('path');
-        $excelPath = $input->getOption('excel');
+        $yearFilter = $input->getOption('year') ? (int) $input->getOption('year') : null;
+        $dryRun = $input->getOption('dry-run');
+        $skipDownload = $input->getOption('skip-download');
+        $skipAnalysis = $input->getOption('skip-analysis');
+        $skipVectors = $input->getOption('skip-vectors');
+        $skipPdf = $input->getOption('skip-pdf');
+        $async = $input->getOption('async');
 
-        $io->title('CTBG Resolutions Loader');
+        $io->title('CTBG Resolution Loader');
 
-        if (!is_dir($path)) {
-            $io->error("Directory not found: $path");
+        if (!in_array($source, ['national', 'local', 'all'], true)) {
+            $io->error('--source must be national, local, or all');
             return Command::FAILURE;
         }
 
-        // Load Excel lookup map
-        $excelMap = [];
-        if ($excelPath && file_exists($excelPath)) {
-            $io->section('Loading Excel metadata...');
-            $excelMap = $this->excelReader->loadLookupMap($excelPath);
-            $io->success(sprintf('Loaded %d resolution entries from Excel.', count($excelMap)));
-        } else {
-            $io->warning('Excel file not found at ' . $excelPath . '. Proceeding without metadata enrichment.');
-        }
-
-        if (!$dryRun && $this->ctbgResolutionsStore instanceof ManagedStoreInterface) {
-            $io->section('Setting up PostgreSQL vector store...');
-            $this->ctbgResolutionsStore->setup([
+        // Step 1: Setup vector store
+        if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
+            $io->section('Setting up vector store...');
+            $this->vectorStore->setup([
                 'vector_type' => 'halfvec',
                 'vector_size' => 3072,
                 'index_method' => 'hnsw',
                 'index_opclass' => 'halfvec_cosine_ops',
             ]);
-            $io->success('Collection created/verified.');
         }
 
-        $finder = new Finder();
-        $finder->files()->in($path)->name('*.pdf')->sortByName();
+        // Step 2: Download/load Excel files and parse DTOs
+        $allDtos = [];
 
-        if (!$finder->hasResults()) {
-            $io->warning('No PDF files found in ' . $path);
+        if (in_array($source, ['national', 'all'], true)) {
+            $io->section('Processing national resolutions...');
+            $nationalPath = $this->resolveExcelPath($input, 'national', $skipDownload, $io);
+            if ($nationalPath === null) {
+                return Command::FAILURE;
+            }
+            $nationalDtos = $this->excelReader->loadNational($nationalPath, 2019);
+            if ($yearFilter) {
+                $nationalDtos = array_filter($nationalDtos, fn (ResolutionData $d) => $d->year === $yearFilter);
+            }
+            $io->success(sprintf('Parsed %d national resolutions from Excel.', count($nationalDtos)));
+            $allDtos = array_merge($allDtos, array_values($nationalDtos));
+        }
+
+        if (in_array($source, ['local', 'all'], true)) {
+            $io->section('Processing local/autonomous resolutions...');
+            $localPath = $this->resolveExcelPath($input, 'local', $skipDownload, $io);
+            if ($localPath === null) {
+                return Command::FAILURE;
+            }
+            $localDtos = $this->excelReader->loadLocal($localPath, 2021);
+            if ($yearFilter) {
+                $localDtos = array_filter($localDtos, fn (ResolutionData $d) => $d->year === $yearFilter);
+            }
+            $io->success(sprintf('Parsed %d local/autonomous resolutions from Excel.', count($localDtos)));
+            $allDtos = array_merge($allDtos, array_values($localDtos));
+        }
+
+        if (empty($allDtos)) {
+            $io->warning('No resolutions to process.');
             return Command::SUCCESS;
         }
 
-        $io->section('Processing resolution PDFs...');
-        $totalChunks = 0;
-        $processed = 0;
-        $skipped = 0;
-        $errors = 0;
-        $matched = 0;
-        $unmatched = 0;
-
-        foreach ($finder as $file) {
-            if ($limit !== null && $processed >= $limit) {
-                break;
-            }
-
-            $filename = $file->getFilename();
-            $reference = $this->referenceFromFilename($filename);
-
-            $io->text("Processing: $filename (ref: $reference)");
-
-            // Look up in Excel map
-            $excelRow = $excelMap[$reference] ?? null;
-            if ($excelRow) {
-                $matched++;
-                $io->text("  <info>Matched in Excel: outcome={$excelRow['outcome']}</info>");
-            } else {
-                $unmatched++;
-                $io->text("  <comment>Not found in Excel</comment>");
-            }
-
-            // Extract text with pdftotext
-            $text = $this->extractText($file->getRealPath());
-
-            if (strlen(trim($text)) < 100) {
-                $skipped++;
-                if ($skipEmpty) {
-                    $io->text('  <comment>Skipped — no extractable text (scanned PDF)</comment>');
-                } else {
-                    $io->warning("  No extractable text (scanned PDF) — skipping");
-                }
-                continue;
-            }
-
-            // Clean text
-            $text = $this->cleanText($text);
-
-            try {
-                // Create/update Resolution entity
-                if (!$dryRun && $excelRow) {
-                    $this->upsertResolution($reference, $excelRow, $text);
-                }
-
-                // Chunk the text
-                $chunks = $this->chunkText($text);
-                $io->text("  Chunks: " . count($chunks));
-
-                // Build metadata from Excel row
-                $extraMetadata = [];
-                if ($excelRow) {
-                    $extraMetadata = array_filter([
-                        'outcome' => $excelRow['outcome'],
-                        'subject' => $this->sanitizeUtf8($excelRow['subject']),
-                        'publicBody' => $this->sanitizeUtf8($excelRow['ministry']),
-                        'topic' => $this->sanitizeUtf8($excelRow['descriptors']),
-                        'keywords' => $this->sanitizeUtf8($excelRow['keywords']),
-                    ], fn ($v) => $v !== null);
-                }
-
-                $documents = [];
-                foreach ($chunks as $index => $chunkText) {
-                    if ($dryRun) {
-                        $totalChunks++;
-                        continue;
-                    }
-
-                    try {
-                        $embedding = $this->embeddingGenerator->generate($chunkText);
-                    } catch (\Exception $e) {
-                        $this->logger->error('Error generating embedding', [
-                            'filename' => $filename,
-                            'chunkIndex' => $index,
-                            'error' => $e->getMessage(),
-                        ]);
-                        $io->error("  Error generating embedding for chunk $index: " . $e->getMessage());
-                        $errors++;
-                        continue;
-                    }
-
-                    $documents[] = new VectorDocument(
-                        id: Uuid::v7(),
-                        vector: new Vector($embedding),
-                        metadata: new Metadata(array_merge([
-                            Metadata::KEY_TEXT => $chunkText,
-                            Metadata::KEY_SOURCE => $filename,
-                            'reference' => $reference,
-                            'chunkIndex' => $index,
-                        ], $extraMetadata)),
-                    );
-
-                    $totalChunks++;
-                }
-
-                if (!$dryRun && !empty($documents)) {
-                    $this->ctbgResolutionsStore->add($documents);
-                    $io->text("  Stored " . count($documents) . " chunks");
-                }
-
-                $processed++;
-
-                // Flush entities in batches
-                if (!$dryRun && $processed % self::FLUSH_BATCH_SIZE === 0) {
-                    $this->entityManager->flush();
-                    $this->entityManager->clear();
-                    $io->text("  <info>Flushed batch ({$processed} processed)</info>");
-                }
-            } catch (\Exception $e) {
-                $this->logger->error('Error processing resolution', [
-                    'filename' => $filename,
-                    'reference' => $reference,
-                    'error' => $e->getMessage(),
-                ]);
-                $io->error("  Skipping $filename: " . $e->getMessage());
-                $errors++;
-                continue;
-            }
-
-            // Rate limit for embedding API
-            usleep(100000);
+        if ($limit !== null) {
+            $allDtos = array_slice($allDtos, 0, $limit);
         }
 
-        // Final flush
+        $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
+
+        // Step 3: Upsert entities from Excel data
+        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
+
+        foreach ($allDtos as $idx => $dto) {
+            $io->text(sprintf('[%d/%d] %s (%s)', $idx + 1, count($allDtos), $dto->referenceNumber, $dto->source));
+
+            try {
+                // 3a: Upsert entity (always synchronous — fast, just DB writes)
+                $resolution = $this->upsertResolution($dto, $dryRun, $io);
+                if ($dryRun) {
+                    $io->text('  [dry-run] Would upsert');
+                    $stats['processed']++;
+                    continue;
+                }
+
+                $stats['processed']++;
+
+                // Flush in batches
+                if ($stats['processed'] % self::FLUSH_BATCH_SIZE === 0) {
+                    $this->entityManager->flush();
+                    $io->text(sprintf('  <info>Flushed batch (%d processed)</info>', $stats['processed']));
+                }
+            } catch (\Exception $e) {
+                $this->logger->error('Error upserting resolution', [
+                    'reference' => $dto->referenceNumber,
+                    'error' => $e->getMessage(),
+                ]);
+                $io->error('  Error: ' . $e->getMessage());
+                $stats['errors']++;
+            }
+        }
+
+        // Final flush before dispatching messages
         if (!$dryRun) {
             $this->entityManager->flush();
         }
 
+        // Step 4: Process heavy work (PDF download, AI analysis, vectorization)
+        if (!$dryRun && $async) {
+            // Async mode: dispatch messages for 6 workers to process in parallel
+            $io->section('Dispatching to Messenger workers...');
+            $resolutions = $this->getResolutionsForProcessing($allDtos);
+
+            foreach ($resolutions as $resolution) {
+                $this->messageBus->dispatch(new ProcessResolutionMessage(
+                    resolutionId: $resolution->getId(),
+                    skipAnalysis: $skipAnalysis,
+                    skipVectors: $skipVectors,
+                    skipPdf: $skipPdf,
+                ));
+                $stats['dispatched']++;
+            }
+
+            $io->success(sprintf('Dispatched %d messages to async workers.', $stats['dispatched']));
+        } elseif (!$dryRun) {
+            // Sync mode: process inline (slower, but good for debugging)
+            $io->section('Processing inline (use --async for 6x faster)...');
+            $resolutions = $this->getResolutionsForProcessing($allDtos);
+
+            foreach ($resolutions as $idx => $resolution) {
+                $ref = $resolution->getReferenceNumber();
+                $io->text(sprintf('[%d/%d] %s', $idx + 1, count($resolutions), $ref));
+
+                try {
+                    if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
+                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                        usleep(200_000);
+                    } elseif (!$resolution->getSourceUrl()) {
+                        $stats['skippedPdf']++;
+                    }
+
+                    if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getSummary())) {
+                        $this->analyzeResolution($resolution, $io);
+                        $stats['analyzed']++;
+                        usleep(500_000);
+                    }
+
+                    if (!$skipVectors && !empty($resolution->getFullText())) {
+                        $this->vectorizeResolution($resolution, $io);
+                        $stats['vectorized']++;
+                    }
+
+                    if (($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
+                        $this->entityManager->flush();
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->error('Error processing resolution', [
+                        'reference' => $ref,
+                        'error' => $e->getMessage(),
+                    ]);
+                    $io->error('  Error: ' . $e->getMessage());
+                    $stats['errors']++;
+                }
+            }
+
+            $this->entityManager->flush();
+        }
+
         $io->newLine();
-        $io->success(sprintf(
-            '%s complete. %d resolutions processed, %d chunks %s, %d skipped, %d errors. Excel: %d matched, %d unmatched.',
-            $dryRun ? 'Dry run' : 'Import',
-            $processed,
-            $totalChunks,
-            $dryRun ? 'found' : 'stored',
-            $skipped,
-            $errors,
-            $matched,
-            $unmatched
-        ));
+        if ($async && !$dryRun) {
+            $io->success(sprintf(
+                'Import complete. %d upserted, %d dispatched to workers, %d errors. Monitor with: bin/console messenger:stats',
+                $stats['processed'],
+                $stats['dispatched'],
+                $stats['errors']
+            ));
+        } else {
+            $io->success(sprintf(
+                '%s complete. %d processed, %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
+                $dryRun ? 'Dry run' : 'Import',
+                $stats['processed'],
+                $stats['analyzed'],
+                $stats['vectorized'],
+                $stats['skippedPdf'],
+                $stats['errors']
+            ));
+        }
 
         return Command::SUCCESS;
     }
 
-    private function sanitizeUtf8(?string $value): ?string
+    /**
+     * @return Resolution[]
+     */
+    private function getResolutionsForProcessing(array $dtos): array
     {
-        if ($value === null) {
+        $resolutions = [];
+        foreach ($dtos as $dto) {
+            $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
+            if ($resolution) {
+                $resolutions[] = $resolution;
+            }
+        }
+
+        return $resolutions;
+    }
+
+    private function resolveExcelPath(InputInterface $input, string $type, bool $skipDownload, SymfonyStyle $io): ?string
+    {
+        $optionKey = $type === 'national' ? 'national-excel' : 'local-excel';
+        $explicitPath = $input->getOption($optionKey);
+
+        if ($explicitPath) {
+            if (!file_exists($explicitPath)) {
+                $io->error("Excel file not found: $explicitPath");
+                return null;
+            }
+            return $explicitPath;
+        }
+
+        $url = $type === 'national' ? self::NATIONAL_EXCEL_URL : self::LOCAL_EXCEL_URL;
+        $filename = $type === 'national' ? 'ResolucionesAE.xlsx' : 'Resoluciones_AAyL.xlsx';
+        $cachePath = sys_get_temp_dir() . '/ctbg_' . $filename;
+
+        if ($skipDownload && file_exists($cachePath)) {
+            $io->text("Using cached Excel: $cachePath");
+            return $cachePath;
+        }
+
+        $io->text("Downloading $filename...");
+        try {
+            $response = $this->httpClient->request('GET', $url);
+            file_put_contents($cachePath, $response->getContent());
+            $io->text(sprintf('  Downloaded %s (%.1f MB)', $filename, filesize($cachePath) / 1024 / 1024));
+            return $cachePath;
+        } catch (\Exception $e) {
+            $io->error("Failed to download $filename: " . $e->getMessage());
+            if (file_exists($cachePath)) {
+                $io->warning("Using previously cached version at $cachePath");
+                return $cachePath;
+            }
             return null;
         }
-
-        $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
-
-        return preg_replace('/[\x{FFFD}]/u', '', $value);
     }
 
-    private function upsertResolution(string $reference, array $excelRow, string $fullText): void
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io): Resolution
     {
-        $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
-        if (!$resolution) {
+        $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
+        $isNew = $resolution === null;
+
+        if ($isNew) {
             $resolution = new Resolution();
-            $resolution->setReferenceNumber($reference);
+            $resolution->setReferenceNumber($dto->referenceNumber);
             $resolution->setResolutionDate(new \DateTimeImmutable());
             $resolution->setSummary('');
-            $this->entityManager->persist($resolution);
+            $resolution->setFullText('');
+            $resolution->setSource($dto->source);
+            if (!$dryRun) {
+                $this->entityManager->persist($resolution);
+            }
+            $io->text('  <info>New resolution</info>');
+        } else {
+            $io->text('  Updating existing');
         }
 
-        $resolution->setOutcome($excelRow['outcome']);
-        $resolution->setFullText($this->sanitizeUtf8($fullText));
-        $resolution->setSubject($this->sanitizeUtf8($excelRow['subject']));
-        $resolution->setClaimReason($this->sanitizeUtf8($excelRow['claimReason']));
-        $resolution->setPublicBodyName($this->sanitizeUtf8($excelRow['ministry']));
+        $resolution->setOutcome($dto->outcome);
+        $resolution->setScope($dto->scope);
+        $resolution->setSubject($dto->subject ? mb_substr($dto->subject, 0, 500) : null);
+        $resolution->setPublicBodyName($dto->publicBodyName);
+        $resolution->setClaimReason($dto->claimReason ? mb_substr($dto->claimReason, 0, 500) : null);
+        $resolution->setEntityType($dto->entityType);
+        $resolution->setEntryYear($dto->entryYear);
 
-        if ($excelRow['descriptors']) {
-            $topics = array_map('trim', preg_split('/[;,]/', $excelRow['descriptors']));
-            $resolution->setTopics(array_values(array_filter($topics)));
+        if ($dto->sourceUrl) {
+            $resolution->setSourceUrl($dto->sourceUrl);
         }
 
-        if ($excelRow['keywords']) {
-            $keywords = array_map('trim', preg_split('/[;,]/', $excelRow['keywords']));
-            $resolution->setKeywords(array_values(array_filter($keywords)));
+        if ($dto->topics) {
+            $resolution->setTopics($dto->topics);
+        }
+
+        if ($dto->keywords) {
+            $resolution->setKeywords($dto->keywords);
+        }
+
+        if ($dto->challengedActs) {
+            $resolution->setChallengedActs($dto->challengedActs);
+        }
+
+        if ($dto->councilCriteria) {
+            $resolution->setCouncilCriteria($dto->councilCriteria);
+        }
+
+        if ($dto->sourceMetadata) {
+            $resolution->setSourceMetadata($dto->sourceMetadata);
+        }
+
+        // Link to AutonomousCommunity if applicable
+        if ($dto->autonomousCommunityName) {
+            $ccaa = $this->findAutonomousCommunity($dto->autonomousCommunityName);
+            if ($ccaa) {
+                $resolution->setAutonomousCommunity($ccaa);
+            }
+        }
+
+        return $resolution;
+    }
+
+    private function findAutonomousCommunity(string $name): ?AutonomousCommunity
+    {
+        $normalized = mb_strtolower(trim($name));
+
+        if (array_key_exists($normalized, $this->ccaaCache)) {
+            return $this->ccaaCache[$normalized];
+        }
+
+        $ccaa = $this->ccaaRepository->findByName($name);
+        $this->ccaaCache[$normalized] = $ccaa;
+
+        return $ccaa;
+    }
+
+    private function downloadAndProcessPdf(Resolution $resolution, string $pdfUrl, SymfonyStyle $io): void
+    {
+        try {
+            $io->text('  Downloading PDF...');
+            $response = $this->httpClient->request('GET', $pdfUrl, [
+                'timeout' => 60,
+            ]);
+            $pdfContent = $response->getContent();
+
+            if (strlen($pdfContent) < 100) {
+                $io->text('  <comment>PDF too small, skipping</comment>');
+                return;
+            }
+
+            // Store in Flysystem
+            $year = $resolution->getEntryYear() ?? date('Y');
+            $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
+            $storagePath = sprintf('%s/%d/%s.pdf', $resolution->getSource(), $year, $safeRef);
+
+            $this->resolutionsStorage->write($storagePath, $pdfContent);
+            $resolution->setPdfStoragePath($storagePath);
+            $io->text("  Stored PDF: $storagePath");
+
+            // Extract text from PDF
+            $tmpFile = tempnam(sys_get_temp_dir(), 'res_pdf_');
+            file_put_contents($tmpFile, $pdfContent);
+
+            $text = $this->extractText($tmpFile);
+            @unlink($tmpFile);
+
+            if (strlen(trim($text)) < 100) {
+                $io->text('  <comment>No extractable text (scanned PDF)</comment>');
+                return;
+            }
+
+            $text = $this->cleanRawText($text);
+            $resolution->setFullText($this->sanitizeUtf8($text));
+            $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
+        } catch (\Exception $e) {
+            $this->logger->warning('PDF download/processing failed', [
+                'reference' => $resolution->getReferenceNumber(),
+                'url' => $pdfUrl,
+                'error' => $e->getMessage(),
+            ]);
+            $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
         }
     }
+
+    private function analyzeResolution(Resolution $resolution, SymfonyStyle $io): void
+    {
+        $fullText = $resolution->getFullText();
+        if (empty(trim($fullText))) {
+            return;
+        }
+
+        $io->text('  Analyzing with AI...');
+        $cleanedText = $this->analyzer->cleanText($fullText);
+
+        try {
+            $result = $this->analyzer->analyze($cleanedText);
+
+            $resolution->setFullText($result['formatted_text']);
+            $resolution->setSummary($result['summary']);
+            $resolution->setKeypoints($result['keypoints']);
+
+            // Set resolution date from AI extraction
+            if ($result['resolution_date']) {
+                try {
+                    $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                } catch (\Exception) {
+                    // Keep existing date
+                }
+            }
+
+            // Set claim date from AI extraction
+            if ($result['claim_date']) {
+                try {
+                    $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
+                } catch (\Exception) {
+                    // Ignore invalid dates
+                }
+            }
+
+            // Calculate days to resolve
+            if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+                $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+                $resolution->setDaysToResolve($days);
+            }
+
+            $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 100) . '...'));
+            $io->text(sprintf('  Keypoints: %d | Dates: res=%s claim=%s',
+                count($result['keypoints']),
+                $result['resolution_date'] ?? 'n/a',
+                $result['claim_date'] ?? 'n/a',
+            ));
+        } catch (\Exception $e) {
+            $this->logger->error('AI analysis failed', [
+                'reference' => $resolution->getReferenceNumber(),
+                'error' => $e->getMessage(),
+            ]);
+            $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+        }
+    }
+
+    private function vectorizeResolution(Resolution $resolution, SymfonyStyle $io): void
+    {
+        $fullText = $resolution->getFullText();
+        if (empty(trim($fullText))) {
+            return;
+        }
+
+        try {
+            // Build shared metadata
+            $baseMeta = array_filter([
+                Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
+                'reference' => $resolution->getReferenceNumber(),
+                'outcome' => $resolution->getOutcome(),
+                'source' => $resolution->getSource(),
+                'scope' => $resolution->getScope(),
+                'subject' => $this->sanitizeUtf8($resolution->getSubject()),
+                'publicBody' => $this->sanitizeUtf8($resolution->getPublicBodyName()),
+                'entityType' => $resolution->getEntityType(),
+            ], fn ($v) => $v !== null);
+
+            if ($resolution->getAutonomousCommunity()) {
+                $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
+            }
+
+            // Vectorize full text chunks
+            $chunks = $this->chunkText($fullText);
+            $documents = [];
+
+            foreach ($chunks as $index => $chunkText) {
+                try {
+                    $embedding = $this->embeddingGenerator->generate($chunkText);
+                } catch (\Exception $e) {
+                    $this->logger->error('Embedding error', [
+                        'reference' => $resolution->getReferenceNumber(),
+                        'chunk' => $index,
+                        'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+
+                $documents[] = new VectorDocument(
+                    id: Uuid::v7(),
+                    vector: new Vector($embedding),
+                    metadata: new Metadata(array_merge($baseMeta, [
+                        Metadata::KEY_TEXT => $chunkText,
+                        'chunkIndex' => $index,
+                        'type' => 'fulltext',
+                    ])),
+                );
+
+                usleep(100_000); // rate limit
+            }
+
+            // Vectorize keypoints as a single document
+            $keypoints = $resolution->getKeypoints();
+            if (!empty($keypoints)) {
+                $keypointsText = implode("\n\n", $keypoints);
+                try {
+                    $embedding = $this->embeddingGenerator->generate($keypointsText);
+                    $documents[] = new VectorDocument(
+                        id: Uuid::v7(),
+                        vector: new Vector($embedding),
+                        metadata: new Metadata(array_merge($baseMeta, [
+                            Metadata::KEY_TEXT => $keypointsText,
+                            'chunkIndex' => -1,
+                            'type' => 'keypoints',
+                        ])),
+                    );
+                } catch (\Exception $e) {
+                    $this->logger->warning('Keypoints embedding error', [
+                        'reference' => $resolution->getReferenceNumber(),
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            if (!empty($documents)) {
+                $this->vectorStore->add($documents);
+                $io->text(sprintf('  Vectorized: %d chunks + %s keypoints',
+                    count($chunks),
+                    !empty($keypoints) ? '1' : '0',
+                ));
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Vectorization failed', [
+                'reference' => $resolution->getReferenceNumber(),
+                'error' => $e->getMessage(),
+            ]);
+            $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
+        }
+    }
+
+    // --- Text extraction utilities (preserved from original) ---
 
     private function extractText(string $filePath): string
     {
@@ -309,12 +623,10 @@ class LoadCTBGResolutionsCommand extends Command
         }
     }
 
-    private function cleanText(string $text): string
+    private function cleanRawText(string $text): string
     {
-        // Fix invalid UTF-8 sequences from PDF extraction
         $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
         $text = preg_replace('/[\x{FFFD}]/u', '', $text);
-
         $text = str_replace("\x00", '', $text);
         $text = preg_replace('/[\x01-\x08\x0B\x0C\x0E-\x1F]/', '', $text);
         $text = preg_replace('/\r\n/', "\n", $text);
@@ -326,69 +638,15 @@ class LoadCTBGResolutionsCommand extends Command
         return trim($text);
     }
 
-    private function referenceFromFilename(string $filename): string
+    private function sanitizeUtf8(?string $value): ?string
     {
-        $name = pathinfo($filename, PATHINFO_FILENAME);
-
-        // Handle _XX URL-encoding (filenames with literal _20 instead of %20)
-        // e.g. R_20CTBG_202025-0500_20_5B... → R CTBG 2025-0500 [...
-        // Only decode printable ASCII characters (0x20-0x7E) to avoid null bytes and control chars
-        if (str_contains($name, '_20')) {
-            $name = preg_replace_callback('/_([0-9A-Fa-f]{2})/', function ($m) {
-                $code = hexdec($m[1]);
-                return ($code >= 0x20 && $code <= 0x7E) ? chr($code) : '_' . $m[1];
-            }, $name);
+        if ($value === null) {
+            return null;
         }
 
-        // Standard URL-decode for any remaining %XX sequences
-        $name = urldecode($name);
+        $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
 
-        // Remove common prefixes like "Estimada_", "Desestimada_", etc.
-        $name = preg_replace('/^(Estimada|Desestimada|Parcial|Inadmitida)_/i', '', $name);
-        $name = preg_replace('/^Acuerdo_de_revocacion_expte\._?/i', '', $name);
-        $name = preg_replace('/_Suspendida$/i', '', $name);
-
-        // R_CTBG_YYYY-NNNN or R CTBG YYYY-NNNN (year first, e.g. 2025-0024)
-        // R_CTBG_NNNN-YYYY (number first, e.g. 0004-2026)
-        if (preg_match('/R[\s_]+CTBG[\s_]+(\d{4})-(\d{4})/i', $name, $m)) {
-            return $this->orderReferenceNumbers($m[1], $m[2]);
-        }
-
-        // R_NNNN_YYYY or R_NNNN-YYYY (underscores as separators)
-        if (preg_match('/^R[_](\d{4})[_\-](\d{4})/', $name, $m)) {
-            return $this->orderReferenceNumbers($m[1], $m[2]);
-        }
-
-        // R-0532-2016 → R/0532/2016 or 0282-2015 → R/0282/2015
-        if (preg_match('/^R?-?(\d{4})-(\d{4})$/', $name, $matches)) {
-            return 'R/' . $matches[1] . '/' . $matches[2];
-        }
-
-        $parts = explode('-', $name);
-        return implode('/', $parts);
-    }
-
-    /**
-     * Given two 4-digit groups, determine which is the year and which is the resolution number.
-     * Years are >= 2015; resolution numbers can be anything.
-     */
-    private function orderReferenceNumbers(string $a, string $b): string
-    {
-        $intA = (int) $a;
-        $intB = (int) $b;
-
-        // If first looks like a year (>=2015) and second doesn't, it's YYYY-NNNN
-        if ($intA >= 2015 && $intB < 2015) {
-            return 'R/' . $b . '/' . $a;
-        }
-
-        // If second looks like a year and first doesn't, it's NNNN-YYYY
-        if ($intB >= 2015 && $intA < 2015) {
-            return 'R/' . $a . '/' . $b;
-        }
-
-        // Both could be years or both could be numbers — assume first is YYYY
-        return 'R/' . $b . '/' . $a;
+        return preg_replace('/[\x{FFFD}]/u', '', $value);
     }
 
     /**
