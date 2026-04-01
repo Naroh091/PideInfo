@@ -3,6 +3,7 @@
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Repository\AccessRequestRepository;
 use App\Service\AgentWebhookProcessor;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -16,6 +17,27 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/agent')]
 class AgentApiController extends AbstractController
 {
+    #[Route('/pending-refs', name: 'api_agent_pending_refs', methods: ['GET'])]
+    public function pendingRefs(AccessRequestRepository $repository): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $grouped = $repository->findWithPendingPortalNotifications($user);
+
+        return new JsonResponse([
+            'portal'  => array_values(array_filter(array_map(
+                static fn(array $item) => $item['request']->getExternalId(),
+                $grouped['portal']
+            ))),
+            'consejo' => array_values(array_filter(array_map(
+                static fn(array $item) => $item['request']->getExternalId(),
+                $grouped['consejo']
+            ))),
+            'dehu'    => array_keys($user->getPendingDehuNotifications()),
+        ]);
+    }
+
     #[Route('/me', name: 'api_agent_me', methods: ['GET'])]
     public function me(): JsonResponse
     {
