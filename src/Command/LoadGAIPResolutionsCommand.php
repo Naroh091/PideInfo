@@ -10,7 +10,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
-use App\Service\Resolution\ExcelResolutionReader;
+use App\Service\Resolution\GaipApiReader;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionProcessingTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,15 +29,12 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
-    name: 'app:ctbg:load-resolutions',
-    description: 'Download CTBG Excel files, extract metadata + PDFs, analyze with AI, and vectorize',
+    name: 'app:gaip:load-resolutions',
+    description: 'Fetch GAIP resolutions from Socrata API, upsert to DB, and optionally process PDFs + AI + vectors',
 )]
-class LoadCTBGResolutionsCommand extends Command
+class LoadGAIPResolutionsCommand extends Command
 {
     use ResolutionProcessingTrait;
-
-    private const NATIONAL_EXCEL_URL = 'https://consejodetransparencia.es/content/dam/ctransparencia/portal-ctbg/reclamaciones/nuestras-resoluciones/resoluciones-%C3%A1mbito-estatal/ResolucionesAE.xlsx';
-    private const LOCAL_EXCEL_URL = 'https://consejodetransparencia.es/content/dam/ctransparencia/portal-ctbg/reclamaciones/nuestras-resoluciones/resoluciones-%C3%A1mbito-auton%C3%B3mico-y-local/Resoluciones_AAyL.xlsx';
 
     private const FLUSH_BATCH_SIZE = 50;
 
@@ -51,7 +48,7 @@ class LoadCTBGResolutionsCommand extends Command
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        private readonly ExcelResolutionReader $excelReader,
+        private readonly GaipApiReader $gaipReader,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionRepository $resolutionRepository,
         private readonly AutonomousCommunityRepository $ccaaRepository,
@@ -69,39 +66,26 @@ class LoadCTBGResolutionsCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source to process: national, local, or all', 'all')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
-            ->addOption('year', null, InputOption::VALUE_REQUIRED, 'Process only a specific year')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
-            ->addOption('skip-download', null, InputOption::VALUE_NONE, 'Use cached Excel files instead of downloading')
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
-            ->addOption('national-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached national Excel file')
-            ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
-            ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
+            ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $source = $input->getOption('source');
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
-        $yearFilter = $input->getOption('year') ? (int) $input->getOption('year') : null;
         $dryRun = $input->getOption('dry-run');
-        $skipDownload = $input->getOption('skip-download');
         $skipAnalysis = $input->getOption('skip-analysis');
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
 
-        $io->title('CTBG Resolution Loader');
-
-        if (!in_array($source, ['national', 'local', 'all'], true)) {
-            $io->error('--source must be national, local, or all');
-            return Command::FAILURE;
-        }
+        $io->title('GAIP Resolution Loader');
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
@@ -114,57 +98,28 @@ class LoadCTBGResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Download/load Excel files and parse DTOs
-        $allDtos = [];
-
-        if (in_array($source, ['national', 'all'], true)) {
-            $io->section('Processing national resolutions...');
-            $nationalPath = $this->resolveExcelPath($input, 'national', $skipDownload, $io);
-            if ($nationalPath === null) {
-                return Command::FAILURE;
-            }
-            $nationalDtos = $this->excelReader->loadNational($nationalPath, 2019);
-            if ($yearFilter) {
-                $nationalDtos = array_filter($nationalDtos, fn (ResolutionData $d) => $d->year === $yearFilter);
-            }
-            $io->success(sprintf('Parsed %d national resolutions from Excel.', count($nationalDtos)));
-            $allDtos = array_merge($allDtos, array_values($nationalDtos));
-        }
-
-        if (in_array($source, ['local', 'all'], true)) {
-            $io->section('Processing local/autonomous resolutions...');
-            $localPath = $this->resolveExcelPath($input, 'local', $skipDownload, $io);
-            if ($localPath === null) {
-                return Command::FAILURE;
-            }
-            $localDtos = $this->excelReader->loadLocal($localPath, 2021);
-            if ($yearFilter) {
-                $localDtos = array_filter($localDtos, fn (ResolutionData $d) => $d->year === $yearFilter);
-            }
-            $io->success(sprintf('Parsed %d local/autonomous resolutions from Excel.', count($localDtos)));
-            $allDtos = array_merge($allDtos, array_values($localDtos));
-        }
+        // Step 2: Fetch from GAIP API
+        $io->section('Fetching resolutions from GAIP API...');
+        $allDtos = $this->gaipReader->fetchAll($limit);
+        $io->success(sprintf('Fetched %d resolutions from GAIP API.', count($allDtos)));
 
         if (empty($allDtos)) {
             $io->warning('No resolutions to process.');
             return Command::SUCCESS;
         }
 
-        if ($limit !== null) {
-            $allDtos = array_slice($allDtos, 0, $limit);
-        }
-
+        // Step 3: Upsert entities
         $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
-
-        // Step 3: Upsert entities from Excel data
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
-        foreach ($allDtos as $idx => $dto) {
-            $io->text(sprintf('[%d/%d] %s (%s)', $idx + 1, count($allDtos), $dto->referenceNumber, $dto->source));
+        $total = count($allDtos);
+        $current = 0;
+        foreach ($allDtos as $dto) {
+            $current++;
+            $io->text(sprintf('[%d/%d] %s', $current, $total, $dto->referenceNumber));
 
             try {
-                // 3a: Upsert entity (always synchronous — fast, just DB writes)
-                $resolution = $this->upsertResolution($dto, $dryRun, $io);
+                $this->upsertResolution($dto, $dryRun, $io, $stats);
                 if ($dryRun) {
                     $io->text('  [dry-run] Would upsert');
                     $stats['processed']++;
@@ -173,13 +128,12 @@ class LoadCTBGResolutionsCommand extends Command
 
                 $stats['processed']++;
 
-                // Flush in batches
                 if ($stats['processed'] % self::FLUSH_BATCH_SIZE === 0) {
                     $this->entityManager->flush();
                     $io->text(sprintf('  <info>Flushed batch (%d processed)</info>', $stats['processed']));
                 }
             } catch (\Exception $e) {
-                $this->logger->error('Error upserting resolution', [
+                $this->logger->error('Error upserting GAIP resolution', [
                     'reference' => $dto->referenceNumber,
                     'error' => $e->getMessage(),
                 ]);
@@ -188,14 +142,12 @@ class LoadCTBGResolutionsCommand extends Command
             }
         }
 
-        // Final flush before dispatching messages
         if (!$dryRun) {
             $this->entityManager->flush();
         }
 
-        // Step 4: Process heavy work (PDF download, AI analysis, vectorization)
+        // Step 4: Process heavy work
         if (!$dryRun && $async) {
-            // Async mode: dispatch messages for 6 workers to process in parallel
             $io->section('Dispatching to Messenger workers...');
             $resolutions = $this->getResolutionsForProcessing($allDtos);
 
@@ -211,8 +163,7 @@ class LoadCTBGResolutionsCommand extends Command
 
             $io->success(sprintf('Dispatched %d messages to async workers.', $stats['dispatched']));
         } elseif (!$dryRun) {
-            // Sync mode: process inline (slower, but good for debugging)
-            $io->section('Processing inline (use --async for 6x faster)...');
+            $io->section('Processing inline (use --async for parallel processing)...');
             $resolutions = $this->getResolutionsForProcessing($allDtos);
 
             foreach ($resolutions as $idx => $resolution) {
@@ -242,7 +193,7 @@ class LoadCTBGResolutionsCommand extends Command
                         $this->entityManager->flush();
                     }
                 } catch (\Exception $e) {
-                    $this->logger->error('Error processing resolution', [
+                    $this->logger->error('Error processing GAIP resolution', [
                         'reference' => $ref,
                         'error' => $e->getMessage(),
                     ]);
@@ -257,16 +208,20 @@ class LoadCTBGResolutionsCommand extends Command
         $io->newLine();
         if ($async && !$dryRun) {
             $io->success(sprintf(
-                'Import complete. %d upserted, %d dispatched to workers, %d errors. Monitor with: bin/console messenger:stats',
+                'Import complete. %d upserted (%d new, %d updated), %d dispatched to workers, %d errors. Monitor with: bin/console messenger:stats',
                 $stats['processed'],
+                $stats['created'],
+                $stats['updated'],
                 $stats['dispatched'],
                 $stats['errors']
             ));
         } else {
             $io->success(sprintf(
-                '%s complete. %d processed, %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
+                '%s complete. %d processed (%d new, %d updated), %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
                 $dryRun ? 'Dry run' : 'Import',
                 $stats['processed'],
+                $stats['created'],
+                $stats['updated'],
                 $stats['analyzed'],
                 $stats['vectorized'],
                 $stats['skippedPdf'],
@@ -284,7 +239,7 @@ class LoadCTBGResolutionsCommand extends Command
     {
         $resolutions = [];
         foreach ($dtos as $dto) {
-            $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
+            $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_GAIP);
             if ($resolution) {
                 $resolutions[] = $resolution;
             }
@@ -293,71 +248,56 @@ class LoadCTBGResolutionsCommand extends Command
         return $resolutions;
     }
 
-    private function resolveExcelPath(InputInterface $input, string $type, bool $skipDownload, SymfonyStyle $io): ?string
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, array &$stats): Resolution
     {
-        $optionKey = $type === 'national' ? 'national-excel' : 'local-excel';
-        $explicitPath = $input->getOption($optionKey);
-
-        if ($explicitPath) {
-            if (!file_exists($explicitPath)) {
-                $io->error("Excel file not found: $explicitPath");
-                return null;
-            }
-            return $explicitPath;
-        }
-
-        $url = $type === 'national' ? self::NATIONAL_EXCEL_URL : self::LOCAL_EXCEL_URL;
-        $filename = $type === 'national' ? 'ResolucionesAE.xlsx' : 'Resoluciones_AAyL.xlsx';
-        $cachePath = sys_get_temp_dir() . '/ctbg_' . $filename;
-
-        if ($skipDownload && file_exists($cachePath)) {
-            $io->text("Using cached Excel: $cachePath");
-            return $cachePath;
-        }
-
-        $io->text("Downloading $filename...");
-        try {
-            $response = $this->httpClient->request('GET', $url);
-            file_put_contents($cachePath, $response->getContent());
-            $io->text(sprintf('  Downloaded %s (%.1f MB)', $filename, filesize($cachePath) / 1024 / 1024));
-            return $cachePath;
-        } catch (\Exception $e) {
-            $io->error("Failed to download $filename: " . $e->getMessage());
-            if (file_exists($cachePath)) {
-                $io->warning("Using previously cached version at $cachePath");
-                return $cachePath;
-            }
-            return null;
-        }
-    }
-
-    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io): Resolution
-    {
-        $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
+        $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_GAIP);
         $isNew = $resolution === null;
 
         if ($isNew) {
             $resolution = new Resolution();
             $resolution->setReferenceNumber($dto->referenceNumber);
-            $resolution->setResolutionDate(new \DateTimeImmutable());
+            $resolution->setSource(Resolution::SOURCE_GAIP);
             $resolution->setSummary('');
             $resolution->setFullText('');
-            $resolution->setSource($dto->source);
             if (!$dryRun) {
                 $this->entityManager->persist($resolution);
             }
             $io->text('  <info>New resolution</info>');
+            $stats['created']++;
         } else {
             $io->text('  Updating existing');
+            $stats['updated']++;
         }
 
         $resolution->setOutcome($dto->outcome);
         $resolution->setScope($dto->scope);
         $resolution->setSubject($dto->subject ? mb_substr($dto->subject, 0, 500) : null);
         $resolution->setPublicBodyName($dto->publicBodyName);
-        $resolution->setClaimReason($dto->claimReason ? mb_substr($dto->claimReason, 0, 500) : null);
+        $resolution->setClaimReason($dto->claimReason);
         $resolution->setEntityType($dto->entityType);
         $resolution->setEntryYear($dto->entryYear);
+
+        // Set dates from API
+        if ($dto->resolutionDate) {
+            $resolution->setResolutionDate($dto->resolutionDate);
+        } else {
+            $resolution->setResolutionDate(new \DateTimeImmutable());
+        }
+
+        if ($dto->claimDate) {
+            $resolution->setClaimDate($dto->claimDate);
+        }
+
+        // Calculate daysToResolve
+        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+            $resolution->setDaysToResolve($days);
+        }
+
+        // Set summary from API (initial, in Catalan — AI will overwrite later)
+        if ($dto->summary && (empty($resolution->getSummary()) || $resolution->getSummary() === '')) {
+            $resolution->setSummary($dto->summary);
+        }
 
         if ($dto->sourceUrl) {
             $resolution->setSourceUrl($dto->sourceUrl);
@@ -375,10 +315,6 @@ class LoadCTBGResolutionsCommand extends Command
             $resolution->setChallengedActs($dto->challengedActs);
         }
 
-        if ($dto->councilCriteria) {
-            $resolution->setCouncilCriteria($dto->councilCriteria);
-        }
-
         if ($dto->sourceMetadata) {
             $resolution->setSourceMetadata($dto->sourceMetadata);
         }
@@ -391,7 +327,7 @@ class LoadCTBGResolutionsCommand extends Command
             }
         }
 
-        // Link to AutonomousCommunity if applicable
+        // Link to AutonomousCommunity
         if ($dto->autonomousCommunityName) {
             $ccaa = $this->findAutonomousCommunity($dto->autonomousCommunityName);
             if ($ccaa) {

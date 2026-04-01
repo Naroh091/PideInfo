@@ -10,7 +10,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ExcelResolutionReader
 {
-    private const OUTCOME_MAP = [
+    public const OUTCOME_MAP = [
         // Spanish CTBG outcomes
         'estimatoria' => Resolution::OUTCOME_FAVORABLE,
         'estimada' => Resolution::OUTCOME_FAVORABLE,
@@ -224,6 +224,7 @@ class ExcelResolutionReader
             councilCriteria: $councilCriteria,
             sourceMetadata: !empty($sourceMetadata) ? $sourceMetadata : null,
             year: $year,
+            complaintOrganismShortName: 'CTBG',
         );
     }
 
@@ -294,6 +295,7 @@ class ExcelResolutionReader
             councilCriteria: $councilCriteria,
             sourceMetadata: !empty($sourceMetadata) ? $sourceMetadata : null,
             year: $year,
+            complaintOrganismShortName: 'CTBG',
         );
     }
 

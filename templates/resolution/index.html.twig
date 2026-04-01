@@ -202,11 +202,14 @@
                         {# Organism #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Organismo</label>
-                            <select name="organism" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="organism"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todos"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todos</option>
                                 {% for organism in organisms %}
                                     <option value="{{ organism.id }}" {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
-                                        {{ organism.shortName ?? organism.name }}
+                                        {{ organism.name }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -215,7 +218,10 @@
                         {# Outcome #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Resultado</label>
-                            <select name="outcome" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="outcome"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todos"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todos</option>
                                 <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
                                 <option value="unfavorable" {{ filters.outcome == 'unfavorable' ? 'selected' }}>Desestimada</option>
@@ -228,7 +234,10 @@
                         {# Keyword #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Palabra clave</label>
-                            <select name="keyword" class="form-select text-sm" onchange="this.form.requestSubmit()">
+                            <select name="keyword"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todas"
+                                    data-tom-select-auto-submit-value="true">
                                 <option value="">Todas</option>
                                 {% for kw in allKeywords %}
                                     <option value="{{ kw }}" {{ filters.keyword == kw ? 'selected' }}>{{ kw }}</option>

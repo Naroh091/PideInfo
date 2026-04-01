@@ -57,7 +57,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToCrud('Organismos públicos', 'fa fa-landmark', PublicBody::class);
 
         yield MenuItem::section('RAG');
-        yield MenuItem::linkToCrud('Resoluciones CTBG', 'fa fa-book', Resolution::class);
+        yield MenuItem::linkToCrud('Resoluciones', 'fa fa-book', Resolution::class);
 
         yield MenuItem::section('');
         yield MenuItem::linkToRoute('Volver a la aplicación', 'fa fa-arrow-left', 'app_dashboard');

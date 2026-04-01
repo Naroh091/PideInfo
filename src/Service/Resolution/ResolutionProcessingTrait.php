@@ -1,124 +1,85 @@
 <?php
 
-namespace App\MessageHandler;
+namespace App\Service\Resolution;
 
 use App\Entity\Resolution;
-use App\Message\ProcessResolutionMessage;
-use App\Repository\ResolutionRepository;
-use App\Service\AI\EmbeddingGenerator;
-use App\Service\Resolution\ResolutionAnalyzer;
-use Doctrine\ORM\EntityManagerInterface;
-use League\Flysystem\FilesystemOperator;
-use Psr\Log\LoggerInterface;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
-use Symfony\AI\Store\StoreInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-#[AsMessageHandler]
-final class ProcessResolutionHandler
+/**
+ * Shared processing methods for resolution import commands (CTBG, GAIP).
+ *
+ * Commands using this trait must provide:
+ * - $this->httpClient (HttpClientInterface)
+ * - $this->resolutionsStorage (FilesystemOperator)
+ * - $this->analyzer (ResolutionAnalyzer)
+ * - $this->embeddingGenerator (EmbeddingGenerator)
+ * - $this->vectorStore (StoreInterface)
+ * - $this->logger (LoggerInterface)
+ */
+trait ResolutionProcessingTrait
 {
     private const MAX_CHUNK_CHARS = 4000;
 
-    public function __construct(
-        private readonly ResolutionRepository $resolutionRepository,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly HttpClientInterface $httpClient,
-        #[Autowire(service: 'resolutions.storage')]
-        private readonly FilesystemOperator $resolutionsStorage,
-        private readonly ResolutionAnalyzer $analyzer,
-        private readonly EmbeddingGenerator $embeddingGenerator,
-        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
-        private readonly StoreInterface $vectorStore,
-        private readonly LoggerInterface $logger,
-    ) {
-    }
-
-    public function __invoke(ProcessResolutionMessage $message): void
-    {
-        $resolution = $this->resolutionRepository->find($message->resolutionId);
-        if (!$resolution) {
-            $this->logger->warning('Resolution not found for processing', ['id' => $message->resolutionId]);
-            return;
-        }
-
-        $ref = $resolution->getReferenceNumber();
-        $this->logger->info("Processing resolution $ref");
-
-        // Step 1: Download PDF if needed
-        if (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
-            $this->downloadAndProcessPdf($resolution);
-        }
-
-        // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
-        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && empty($resolution->getKeypoints())) {
-            $this->analyzeResolution($resolution);
-        }
-
-        // Step 3: Vectorize if needed
-        if (!$message->skipVectors && !empty(trim($resolution->getFullText()))) {
-            $this->vectorizeResolution($resolution);
-        }
-
-        $this->entityManager->flush();
-        $this->logger->info("Finished processing resolution $ref");
-    }
-
-    private function downloadAndProcessPdf(Resolution $resolution): void
+    private function downloadAndProcessPdf(Resolution $resolution, string $pdfUrl, SymfonyStyle $io): void
     {
         try {
-            $response = $this->httpClient->request('GET', $resolution->getSourceUrl(), [
+            $io->text('  Downloading PDF...');
+            $response = $this->httpClient->request('GET', $pdfUrl, [
                 'timeout' => 60,
             ]);
             $pdfContent = $response->getContent();
 
             if (strlen($pdfContent) < 100) {
+                $io->text('  <comment>PDF too small, skipping</comment>');
                 return;
             }
 
-            // Store in Flysystem
             $year = $resolution->getEntryYear() ?? date('Y');
             $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
             $storagePath = sprintf('%s/%d/%s.pdf', $resolution->getSource(), $year, $safeRef);
 
             $this->resolutionsStorage->write($storagePath, $pdfContent);
             $resolution->setPdfStoragePath($storagePath);
+            $io->text("  Stored PDF: $storagePath");
 
-            // Extract text
             $tmpFile = tempnam(sys_get_temp_dir(), 'res_pdf_');
             file_put_contents($tmpFile, $pdfContent);
+
             $text = $this->extractText($tmpFile);
             @unlink($tmpFile);
 
             if (strlen(trim($text)) < 100) {
+                $io->text('  <comment>No extractable text (scanned PDF)</comment>');
                 return;
             }
 
             $text = $this->cleanRawText($text);
             $resolution->setFullText($this->sanitizeUtf8($text));
-
-            $this->logger->info('PDF processed', [
-                'reference' => $resolution->getReferenceNumber(),
-                'chars' => mb_strlen($text),
-                'storage' => $storagePath,
-            ]);
+            $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
         } catch (\Exception $e) {
             $this->logger->warning('PDF download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
-                'url' => $resolution->getSourceUrl(),
+                'url' => $pdfUrl,
                 'error' => $e->getMessage(),
             ]);
+            $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
         }
     }
 
-    private function analyzeResolution(Resolution $resolution): void
+    private function analyzeResolution(Resolution $resolution, SymfonyStyle $io): void
     {
-        $cleanedText = $this->analyzer->cleanText($resolution->getFullText());
+        $fullText = $resolution->getFullText();
+        if (empty(trim($fullText))) {
+            return;
+        }
+
+        $io->text('  Analyzing with AI...');
+        $cleanedText = $this->analyzer->cleanText($fullText);
 
         try {
             $result = $this->analyzer->analyze($cleanedText);
@@ -150,48 +111,59 @@ final class ProcessResolutionHandler
                 $resolution->setDaysToResolve($days);
             }
 
-            $this->logger->info('AI analysis complete', [
-                'reference' => $resolution->getReferenceNumber(),
-                'keypoints' => count($result['keypoints']),
-            ]);
+            $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 100) . '...'));
+            $io->text(sprintf('  Keypoints: %d | Dates: res=%s claim=%s',
+                count($result['keypoints']),
+                $result['resolution_date'] ?? 'n/a',
+                $result['claim_date'] ?? 'n/a',
+            ));
         } catch (\Exception $e) {
             $this->logger->error('AI analysis failed', [
                 'reference' => $resolution->getReferenceNumber(),
                 'error' => $e->getMessage(),
             ]);
-            throw $e; // Let Messenger retry
+            $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
         }
     }
 
-    private function vectorizeResolution(Resolution $resolution): void
+    private function vectorizeResolution(Resolution $resolution, SymfonyStyle $io): void
     {
         $fullText = $resolution->getFullText();
         if (empty(trim($fullText))) {
             return;
         }
 
-        $baseMeta = array_filter([
-            Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
-            'reference' => $resolution->getReferenceNumber(),
-            'outcome' => $resolution->getOutcome(),
-            'source' => $resolution->getSource(),
-            'scope' => $resolution->getScope(),
-            'subject' => $this->sanitizeUtf8($resolution->getSubject()),
-            'publicBody' => $this->sanitizeUtf8($resolution->getPublicBodyName()),
-            'entityType' => $resolution->getEntityType(),
-        ], fn ($v) => $v !== null);
+        try {
+            $baseMeta = array_filter([
+                Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
+                'reference' => $resolution->getReferenceNumber(),
+                'outcome' => $resolution->getOutcome(),
+                'source' => $resolution->getSource(),
+                'scope' => $resolution->getScope(),
+                'subject' => $this->sanitizeUtf8($resolution->getSubject()),
+                'publicBody' => $this->sanitizeUtf8($resolution->getPublicBodyName()),
+                'entityType' => $resolution->getEntityType(),
+            ], fn ($v) => $v !== null);
 
-        if ($resolution->getAutonomousCommunity()) {
-            $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
-        }
+            if ($resolution->getAutonomousCommunity()) {
+                $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
+            }
 
-        $documents = [];
+            $chunks = $this->chunkText($fullText);
+            $documents = [];
 
-        // Full text chunks
-        $chunks = $this->chunkText($fullText);
-        foreach ($chunks as $index => $chunkText) {
-            try {
-                $embedding = $this->embeddingGenerator->generate($chunkText);
+            foreach ($chunks as $index => $chunkText) {
+                try {
+                    $embedding = $this->embeddingGenerator->generate($chunkText);
+                } catch (\Exception $e) {
+                    $this->logger->error('Embedding error', [
+                        'reference' => $resolution->getReferenceNumber(),
+                        'chunk' => $index,
+                        'error' => $e->getMessage(),
+                    ]);
+                    continue;
+                }
+
                 $documents[] = new VectorDocument(
                     id: Uuid::v7(),
                     vector: new Vector($embedding),
@@ -201,45 +173,47 @@ final class ProcessResolutionHandler
                         'type' => 'fulltext',
                     ])),
                 );
+
                 usleep(100_000);
-            } catch (\Exception $e) {
-                $this->logger->error('Embedding error', [
-                    'reference' => $resolution->getReferenceNumber(),
-                    'chunk' => $index,
-                    'error' => $e->getMessage(),
-                ]);
             }
-        }
 
-        // Keypoints as single document
-        $keypoints = $resolution->getKeypoints();
-        if (!empty($keypoints)) {
-            $keypointsText = implode("\n\n", $keypoints);
-            try {
-                $embedding = $this->embeddingGenerator->generate($keypointsText);
-                $documents[] = new VectorDocument(
-                    id: Uuid::v7(),
-                    vector: new Vector($embedding),
-                    metadata: new Metadata(array_merge($baseMeta, [
-                        Metadata::KEY_TEXT => $keypointsText,
-                        'chunkIndex' => -1,
-                        'type' => 'keypoints',
-                    ])),
-                );
-            } catch (\Exception $e) {
-                $this->logger->warning('Keypoints embedding error', [
-                    'reference' => $resolution->getReferenceNumber(),
-                    'error' => $e->getMessage(),
-                ]);
+            $keypoints = $resolution->getKeypoints();
+            if (!empty($keypoints)) {
+                $keypointsText = implode("\n\n", $keypoints);
+                try {
+                    $embedding = $this->embeddingGenerator->generate($keypointsText);
+                    $documents[] = new VectorDocument(
+                        id: Uuid::v7(),
+                        vector: new Vector($embedding),
+                        metadata: new Metadata(array_merge($baseMeta, [
+                            Metadata::KEY_TEXT => $keypointsText,
+                            'chunkIndex' => -1,
+                            'type' => 'keypoints',
+                        ])),
+                    );
+                } catch (\Exception $e) {
+                    $this->logger->warning('Keypoints embedding error', [
+                        'reference' => $resolution->getReferenceNumber(),
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
-        }
 
-        if (!empty($documents)) {
-            $this->vectorStore->add($documents);
+            if (!empty($documents)) {
+                $this->vectorStore->add($documents);
+                $io->text(sprintf('  Vectorized: %d chunks + %s keypoints',
+                    count($chunks),
+                    !empty($keypoints) ? '1' : '0',
+                ));
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Vectorization failed', [
+                'reference' => $resolution->getReferenceNumber(),
+                'error' => $e->getMessage(),
+            ]);
+            $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
         }
     }
-
-    // --- Utilities ---
 
     private function extractText(string $filePath): string
     {
@@ -280,6 +254,7 @@ final class ProcessResolutionHandler
         if ($value === null) {
             return null;
         }
+
         $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
 
         return preg_replace('/[\x{FFFD}]/u', '', $value);

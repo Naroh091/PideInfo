@@ -92,8 +92,6 @@ class Resolution
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
-    // --- New fields ---
-
     #[ORM\Column(length: 20, options: ['default' => self::SCOPE_NATIONAL])]
     private string $scope = self::SCOPE_NATIONAL;
 
