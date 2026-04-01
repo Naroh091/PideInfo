@@ -110,13 +110,14 @@ After analysis, the handler tries to link the document to an existing access req
 
 ### 1. Reference number matching
 
-If the AI extracted a `referenceNumber`, the handler searches for an existing request with that external ID:
+The handler searches for an existing request by reference number. It checks both the AI-extracted `referenceNumber` and the `expedienteRef` from the document's `sourceMetadata` (set by the agent webhook):
 
 ```php
-$existing = $this->accessRequestRepository->findByExternalId($referenceNumber, $user);
+$referenceNumber = $analysis['referenceNumber'] ?? null;
+$sourceRef = $document->getSourceMetadata()['expedienteRef'] ?? null;
 ```
 
-This also searches the `alternativeReferences` JSON field, so a request can be matched by any of its reference numbers.
+Both are tried against `findByExternalId()`, which also searches the `alternativeReferences` JSON field.
 
 Match method recorded: `Document::MATCH_REFERENCE`
 

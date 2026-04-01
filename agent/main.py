@@ -9,6 +9,12 @@ import os
 import sys
 from pathlib import Path
 
+# Set PLAYWRIGHT_BROWSERS_PATH early, before playwright is imported anywhere.
+# This must happen at module level so it takes effect even if playwright is
+# imported transitively by an early import.
+from runtime import setup_playwright_env
+setup_playwright_env()
+
 from rich.console import Console
 from rich.table import Table
 
@@ -28,7 +34,6 @@ from storage.downloads import DownloadManager
 from storage.preferences import (
     ACCEPT_NOTIFICATIONS_AVAILABLE, AgentPreferences,
     load_preferences, save_preferences,
-    load_cert_passphrase, save_cert_passphrase, delete_cert_passphrase,
 )
 from storage.state import SyncState, load_state, save_state
 
@@ -36,9 +41,9 @@ console = Console()
 
 
 def _make_pideinfo_client(settings: Settings, prefs: AgentPreferences) -> PideInfoClient:
-    """Create a PideInfoClient from stored JWT token."""
+    """Create a PideInfoClient, using the URL override from prefs when set."""
     return PideInfoClient(
-        base_url=settings.pideinfo_base_url,
+        base_url=prefs.pideinfo_base_url or settings.pideinfo_base_url,
         jwt_token=prefs.jwt_token,
     )
 
@@ -49,8 +54,7 @@ async def do_auth(settings: Settings) -> dict[str, str]:
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
     notify_auth_required()
     cookies = await session.get_valid_session()
@@ -65,8 +69,7 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
     downloads = DownloadManager(settings.downloads_dir)
     state = load_state(settings.state_file)
@@ -84,15 +87,20 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
     scraper = TransparenciaAGEScraper(session)
 
     try:
-        # Fetch data from portal
-        console.print("\n[bold]Obteniendo expedientes...[/]")
-        expedientes = await scraper.get_expedientes()
+        if prefs and not prefs.sync_transparencia:
+            console.print("\n[dim]Portal de Transparencia desactivado en preferencias — omitiendo[/]")
+            expedientes = []
+            notificaciones = []
+        else:
+            # Fetch data from portal
+            console.print("\n[bold]Obteniendo expedientes...[/]")
+            expedientes = await scraper.get_expedientes()
 
-        console.print("[bold]Obteniendo notificaciones...[/]")
-        notificaciones = await scraper.get_notificaciones()
+            console.print("[bold]Obteniendo notificaciones...[/]")
+            notificaciones = await scraper.get_notificaciones()
 
-        # Show summary
-        _print_summary(expedientes, notificaciones, state)
+            # Show summary
+            _print_summary(expedientes, notificaciones, state)
 
         # Filter: only downloadable notifications not yet synced.
         # When accept_notifications is enabled, also include PENDIENTE ones.
@@ -116,7 +124,7 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
                 f"\n[yellow]⚠ {len(pending)} notificación(es) pendiente(s) de firma "
                 f"(requieren intervención manual en el portal)[/]"
             )
-            notify_pending_signatures(len(pending))
+            notify_pending_signatures(len(pending), portal="Portal de Transparencia")
 
         # Initialize PideInfo client
         if prefs is None:
@@ -124,6 +132,18 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         pideinfo = _make_pideinfo_client(settings, prefs)
 
         synced_count = 0
+
+        # Reconcile any stale pending notifications that the backend still holds
+        # but are no longer pending on the portal. This fixes state-reset scenarios
+        # where state.pending_* sets are empty and the normal clearing logic is blind.
+        if not dry_run:
+            try:
+                backend_refs = await pideinfo.get_pending_refs()
+                await _reconcile_stale_pending(
+                    backend_refs, notificaciones, expedientes, pideinfo, state
+                )
+            except Exception as e:
+                console.print(f"[yellow]No se pudo reconciliar pendientes con PideInfo: {e}[/]")
 
         # --- Sync expediente documents FIRST ---
         console.print("\n[bold]Sincronizando documentos de expedientes...[/]")
@@ -176,14 +196,32 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         save_state(state, settings.state_file)
 
         # --- Sync CTBG notifications ---
-        await _sync_consejo(settings, pideinfo, state, dry_run)
+        if not prefs or prefs.sync_ctbg:
+            await _sync_consejo(settings, pideinfo, state, dry_run)
+        else:
+            console.print("\n[dim]CTBG desactivado en preferencias — omitiendo[/]")
 
-        # Save final state (includes CTBG)
+        # --- Sync DEHú notifications ---
+        headless = not prefs.headless_disabled if prefs else True
+        if not prefs or prefs.sync_dehu:
+            await _sync_dehu(settings, pideinfo, state, dry_run, headless=headless)
+        else:
+            console.print("\n[dim]DEHú desactivado en preferencias — omitiendo[/]")
+
+        # --- Sync Red SARA registries ---
+        redsara_synced = 0
+        if not prefs or prefs.sync_redsara:
+            redsara_synced = await _sync_redsara(settings, pideinfo, downloads, state, dry_run, headless=headless)
+        else:
+            console.print("\n[dim]Red SARA desactivado en preferencias — omitiendo[/]")
+        synced_count += redsara_synced
+
+        # Save final state (includes CTBG + DEHú + Red SARA)
         state.mark_sync_complete()
         save_state(state, settings.state_file)
 
         if synced_count > 0:
-            notify_new_documents(synced_count)
+            notify_new_documents(synced_count, portal="Portal de Transparencia, CTBG, DEHú, Red SARA")
         console.print(f"\n[green]Sincronización completada: {synced_count} documento(s)[/]")
 
     finally:
@@ -213,6 +251,55 @@ async def _sync_notification(
 
     # Cleanup downloaded file
     downloads.cleanup_file(dest)
+
+
+async def _reconcile_stale_pending(
+    backend_refs: "dict[str, list[str]]",
+    notificaciones: "list[Notificacion]",
+    expedientes: "list",
+    pideinfo: PideInfoClient,
+    state: SyncState,
+) -> None:
+    """Clear any pending notifications the backend has stored that are no longer pending on any portal.
+
+    This makes the agent resilient to state resets: even if the state.pending_*
+    sets are empty (e.g. after a reset), we discover what the backend still holds
+    and clean it up.
+
+    For Portal de Transparencia we have the full list of current notifications
+    available, so we clear stale refs directly.
+
+    For CTBG and DEHú we don't have the portal data at this point — instead we
+    seed the state tracking sets so that the existing _sync_consejo / _sync_dehu
+    logic detects and clears the stale refs during their own runs.
+    """
+    # --- Portal de Transparencia ---
+    ref_to_id = {exp.identificador: exp.id for exp in expedientes}
+    currently_pending_portal = {
+        n.identificador
+        for n in notificaciones
+        if n.estado == "PENDIENTE"
+        and not state.is_document_synced(n.id_expediente, n.id_documento)
+    }
+
+    stale_portal = set(backend_refs["portal"]) - currently_pending_portal
+    for ref in stale_portal:
+        exp_id = ref_to_id.get(ref, 0)
+        try:
+            await pideinfo.report_pending_notifications(exp_id, ref, [])
+            state.pending_notification_expediente_ids.discard(str(exp_id))
+            console.print(f"[dim]Reconciliación: notificaciones de {ref} limpiadas[/]")
+        except Exception as e:
+            console.print(f"[red]Reconciliación: error limpiando {ref}: {e}[/]")
+
+    # Seed state for non-stale portal refs so the existing tracking stays consistent
+    for ref in set(backend_refs["portal"]) - stale_portal:
+        if ref in ref_to_id:
+            state.pending_notification_expediente_ids.add(str(ref_to_id[ref]))
+
+    # --- CTBG and DEHú: seed state, let _sync_consejo / _sync_dehu clear stale refs ---
+    state.ctbg_pending_expediente_refs |= set(backend_refs["consejo"])
+    state.dehu_pending_sent_references |= set(backend_refs["dehu"])
 
 
 async def _report_pending_notifications(
@@ -292,9 +379,8 @@ async def _sync_consejo(
         portal_url=ctbg_base,
         cookies_file=settings.cookies_ctbg_file,
         auth_timeout=settings.auth_timeout_seconds,
-        client_cert_p12=settings.client_cert_p12,
-        client_cert_passphrase=settings.client_cert_passphrase,
         private_path="/enotifications.9",
+        firefox_profile_dir=settings.firefox_profile_dir,
     )
 
     try:
@@ -312,7 +398,7 @@ async def _sync_consejo(
             console.print(
                 f"[yellow]⚠ CTBG: {len(pending)} notificación(es) pendiente(s)[/]"
             )
-            notify_pending_signatures(len(pending))
+            notify_pending_signatures(len(pending), portal="Consejo de Transparencia (CTBG)")
 
         # Build map of currently-pending expediente refs → notifications
         currently_pending: dict[str, list] = defaultdict(list)
@@ -350,6 +436,180 @@ async def _sync_consejo(
 
     finally:
         await scraper.close()
+
+
+async def _sync_dehu(
+    settings: Settings,
+    pideinfo: PideInfoClient,
+    state: SyncState,
+    dry_run: bool,
+    headless: bool = True,
+) -> None:
+    """Sync pending notifications from DEHú / RedSARA."""
+    from auth.dehu_session_manager import DehuSessionManager
+    from portals.dehu_redsara import DehuScraper
+
+    console.print(f"\n[bold]Sincronizando con DEHú ({settings.portal_dehu})...[/]")
+
+    dehu_session = DehuSessionManager(
+        portal_url=settings.portal_dehu,
+        cookies_file=settings.cookies_dehu_file,
+        firefox_profile_dir=settings.firefox_profile_dir,
+        auth_timeout=settings.auth_timeout_seconds,
+        headless=headless,
+    )
+
+    try:
+        await dehu_session.get_valid_session()
+    except Exception as e:
+        console.print(f"[yellow]DEHú: no se pudo autenticar: {e}[/]")
+        return
+
+    scraper = DehuScraper(dehu_session)
+    try:
+        notificaciones = await scraper.get_notificaciones()
+        pending = [n for n in notificaciones if n.is_pending]
+
+        if pending:
+            console.print(
+                f"[yellow]⚠ DEHú: {len(pending)} notificación(es) pendiente(s)[/]"
+            )
+            notify_pending_signatures(len(pending), portal="DEHú")
+
+        currently_pending = {n.sent_reference: n for n in pending}
+        currently_pending_refs = set(currently_pending.keys())
+
+        if dry_run:
+            for n in pending:
+                console.print(
+                    f"  [dim]• {n.sent_reference[:12]}… — {n.concept} ({n.emitter_entity})[/]"
+                )
+            return
+
+        # Clear refs previously reported to PideInfo that are no longer pending
+        to_clear = state.dehu_pending_sent_references - currently_pending_refs
+        for ref in to_clear:
+            try:
+                await pideinfo.report_dehu_pending_notifications(ref, [])
+                state.dehu_pending_sent_references.discard(ref)
+            except Exception as e:
+                console.print(f"[red]DEHú: error limpiando {ref[:12]}…: {e}[/]")
+
+        if not currently_pending:
+            console.print("[green]DEHú: no hay notificaciones pendientes[/]")
+            return
+
+        # Report each currently-pending notification individually by sent_reference
+        for ref, notif in currently_pending.items():
+            try:
+                await pideinfo.report_dehu_pending_notifications(ref, [notif])
+                state.dehu_pending_sent_references.add(ref)
+            except Exception as e:
+                console.print(f"[red]DEHú: error reportando {ref[:12]}…: {e}[/]")
+
+    finally:
+        await scraper.close()
+
+
+async def _sync_redsara(
+    settings: Settings,
+    pideinfo: PideInfoClient,
+    downloads: DownloadManager,
+    state: SyncState,
+    dry_run: bool,
+    headless: bool = True,
+) -> int:
+    """Sync access-request registries from Red SARA REC. Returns count synced."""
+    from datetime import datetime, timedelta, timezone
+
+    from auth.redsara_session_manager import RedSaraSessionManager
+    from portals.redsara_rec import RedSaraRecScraper
+
+    console.print(f"\n[bold]Sincronizando con Red SARA REC ({settings.portal_redsara})...[/]")
+
+    redsara_session = RedSaraSessionManager(
+        portal_url=settings.portal_redsara,
+        cookies_file=settings.cookies_redsara_file,
+        firefox_profile_dir=settings.firefox_profile_dir,
+        auth_timeout=settings.auth_timeout_seconds,
+        headless=headless,
+    )
+
+    try:
+        await redsara_session.get_valid_session()
+    except Exception as e:
+        console.print(f"[yellow]Red SARA: no se pudo autenticar: {e}[/]")
+        return 0
+
+    scraper = RedSaraRecScraper(redsara_session)
+    synced = 0
+    try:
+        # Determine the "since" date: last sync or 7 days ago
+        if state.redsara_last_sync_at > 0:
+            since = datetime.fromtimestamp(state.redsara_last_sync_at, tz=timezone.utc)
+        else:
+            since = datetime.now(timezone.utc) - timedelta(days=7)
+
+        registries = await scraper.get_all_registries_since(since)
+
+        # Filter out already-synced entries
+        to_sync = [
+            r for r in registries
+            if r.registry_number not in state.redsara_synced_registry_numbers
+        ]
+
+        if not to_sync:
+            console.print("[green]Red SARA: no hay registros nuevos para sincronizar[/]")
+            return 0
+
+        console.print(f"[bold]{len(to_sync)} registro(s) nuevo(s) de Red SARA para sincronizar[/]")
+
+        if dry_run:
+            for r in to_sync:
+                console.print(
+                    f"  [dim]• {r.registry_number} — {r.destiny_organism} ({r.status})[/]"
+                )
+            return 0
+
+        for registro in to_sync:
+            dest = downloads.get_download_path(registro.registry_number, "justificante")
+            try:
+                console.print(
+                    f"[dim]Red SARA: descargando justificante de {registro.registry_number}...[/]"
+                )
+                downloaded = await scraper.download_justificante(registro.uuid, dest)
+
+                if downloaded:
+                    await pideinfo.sync_redsara_document(registro, dest)
+                    downloads.cleanup_file(dest)
+                else:
+                    console.print(
+                        f"[yellow]Red SARA: no se pudo descargar justificante de "
+                        f"{registro.registry_number} — sincronizando sin documento[/]"
+                    )
+                    # Still sync the registry metadata even without the PDF
+                    await pideinfo.sync_redsara_document_metadata_only(registro)
+
+                state.redsara_synced_registry_numbers.add(registro.registry_number)
+                synced += 1
+
+            except Exception as e:
+                console.print(
+                    f"[red]Red SARA: error sincronizando {registro.registry_number}: {e}[/]"
+                )
+                # Clean up partial download
+                if dest.exists():
+                    downloads.cleanup_file(dest)
+
+        # Update the last sync timestamp to the most recent entry
+        if to_sync:
+            import time as _time
+            state.redsara_last_sync_at = _time.time()
+
+    finally:
+        await scraper.close()
+
+    return synced
 
 
 async def _sync_expediente_docs(
@@ -477,10 +737,6 @@ def _run_tray(settings: Settings) -> None:
 
     prefs = load_preferences(settings.preferences_file)
 
-    if prefs.client_cert_p12 and not settings.client_cert_p12:
-        settings.client_cert_p12 = Path(prefs.client_cert_p12)
-        settings.client_cert_passphrase = load_cert_passphrase()
-
     async def sync() -> None:
         try:
             await do_sync(settings, prefs=prefs)
@@ -507,6 +763,26 @@ def _run_tray(settings: Settings) -> None:
         state = "activada" if prefs.accept_notifications else "desactivada"
         console.print(f"[yellow]Aceptación automática de notificaciones {state}[/]")
 
+    _PORTAL_ATTRS = {
+        "transparencia": "sync_transparencia",
+        "ctbg": "sync_ctbg",
+        "dehu": "sync_dehu",
+        "redsara": "sync_redsara",
+    }
+
+    def get_portal_enabled(portal_id: str) -> bool:
+        return bool(getattr(prefs, _PORTAL_ATTRS.get(portal_id, ""), True))
+
+    def toggle_portal(portal_id: str) -> None:
+        attr = _PORTAL_ATTRS.get(portal_id)
+        if not attr:
+            return
+        new_val = not getattr(prefs, attr)
+        setattr(prefs, attr, new_val)
+        save_preferences(prefs, settings.preferences_file)
+        state = "activado" if new_val else "desactivado"
+        console.print(f"[yellow]{portal_id} {state}[/]")
+
     def connect() -> None:
         from ui.connect_dialog import show_connect_dialog, show_connected_card, show_error_dialog
 
@@ -516,7 +792,7 @@ def _run_tray(settings: Settings) -> None:
 
         # Validate token against the backend
         import asyncio as _asyncio
-        client = PideInfoClient(base_url=settings.pideinfo_base_url, jwt_token=token)
+        client = PideInfoClient(base_url=prefs.pideinfo_base_url or settings.pideinfo_base_url, jwt_token=token)
         try:
             loop = _asyncio.new_event_loop()
             user_info = loop.run_until_complete(client.validate_token())
@@ -539,7 +815,6 @@ def _run_tray(settings: Settings) -> None:
         prefs.jwt_token = ""
         prefs.user_email = ""
         prefs.user_name = ""
-        delete_cert_passphrase()
         save_preferences(prefs, settings.preferences_file)
         console.print("[yellow]Desconectado de PideInfo[/]")
 
@@ -549,67 +824,25 @@ def _run_tray(settings: Settings) -> None:
     def get_user_email() -> str:
         return prefs.user_email
 
-    def configure_cert() -> None:
-        from ui.connect_dialog import show_cert_dialog, show_error_dialog
-        import subprocess
-
-        result = show_cert_dialog()
-        if not result:
-            return
-        src_path, passphrase = result
-
-        if not Path(src_path).is_file():
-            show_error_dialog(f"No se encontró el archivo:\n{src_path}")
-            return
-
-        # Reconvert .p12 so Playwright's BoringSSL can read it
-        dest_path = settings.data_dir / "client_cert.p12"
-        pem_path = settings.data_dir / "client_cert.pem"
-        settings.data_dir.mkdir(parents=True, exist_ok=True)
-        os.chmod(settings.data_dir, 0o700)
-
-        extract = subprocess.run(
-            ["openssl", "pkcs12", "-in", src_path,
-             "-out", str(pem_path), "-nodes",
-             "-legacy", "-passin", "stdin"],
-            input=passphrase,
-            capture_output=True, text=True,
-        )
-        if extract.returncode != 0:
-            console.print(f"[red]openssl error: {extract.stderr}[/]")
-            show_error_dialog(f"No se pudo leer el certificado:\n{extract.stderr}")
-            pem_path.unlink(missing_ok=True)
-            return
-
-        reexport = subprocess.run(
-            ["openssl", "pkcs12", "-export",
-             "-in", str(pem_path),
-             "-out", str(dest_path),
-             "-passout", "stdin"],
-            input=passphrase,
-            capture_output=True, text=True,
-        )
-        pem_path.unlink(missing_ok=True)
-        if reexport.returncode != 0:
-            console.print(f"[red]openssl re-export error: {reexport.stderr}[/]")
-            show_error_dialog(f"Error al reconvertir el certificado:\n{reexport.stderr}")
-            return
-
-        os.chmod(dest_path, 0o600)
-
-        # Save cert path to preferences, passphrase to OS keyring
-        prefs.client_cert_p12 = str(dest_path)
-        save_cert_passphrase(passphrase)
+    def configure() -> None:
+        from ui.connect_dialog import show_settings_dialog
+        current_url = prefs.pideinfo_base_url or settings.pideinfo_base_url
+        new_url = show_settings_dialog(current_url)
+        if new_url is None:
+            return  # cancelled
+        prefs.pideinfo_base_url = new_url
         save_preferences(prefs, settings.preferences_file)
+        effective = new_url or settings.pideinfo_base_url
+        console.print(f"[green]URL de PideInfo: {effective}[/]")
 
-        # Update settings for current session
-        settings.client_cert_p12 = dest_path
-        settings.client_cert_passphrase = passphrase
+    def get_headless_disabled() -> bool:
+        return prefs.headless_disabled
 
-        console.print("[green]Certificado configurado correctamente[/]")
-
-    def has_cert() -> bool:
-        return bool(prefs.client_cert_p12 and Path(prefs.client_cert_p12).is_file())
+    def toggle_headless_disabled() -> None:
+        prefs.headless_disabled = not prefs.headless_disabled
+        save_preferences(prefs, settings.preferences_file)
+        state = "deshabilitado (headed)" if prefs.headless_disabled else "habilitado"
+        console.print(f"[yellow]Modo headless {state}[/]")
 
     TrayApp(
         sync_fn=sync,
@@ -620,8 +853,12 @@ def _run_tray(settings: Settings) -> None:
         disconnect_fn=disconnect,
         is_connected_fn=is_connected,
         get_user_email_fn=get_user_email,
-        configure_cert_fn=configure_cert,
-        has_cert_fn=has_cert,
+        configure_fn=configure,
+        get_portal_enabled_fn=get_portal_enabled,
+        toggle_portal_fn=toggle_portal,
+        debug_mode=settings.debug,
+        get_headless_disabled_fn=get_headless_disabled,
+        toggle_headless_disabled_fn=toggle_headless_disabled,
     ).run()
 
 
@@ -659,8 +896,18 @@ def main() -> None:
         default=".env",
         help="Ruta al fichero .env (default: .env)",
     )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Mostrar versión y salir",
+    )
 
     args = parser.parse_args()
+
+    if args.version:
+        from version import __version__
+        print(f"PideInfo Agent v{__version__}")
+        return
 
     # Load settings
     settings = Settings(_env_file=args.env_file)
@@ -671,6 +918,14 @@ def main() -> None:
     console.print(f"[dim]Portal: {settings.portal_url}[/]")
     console.print(f"[dim]PideInfo: {settings.pideinfo_base_url}[/]")
     console.print(f"[dim]Datos: {settings.data_dir}[/]")
+
+    # Ensure Firefox is present (downloads on first run if missing)
+    from runtime import ensure_firefox
+    try:
+        ensure_firefox()
+    except Exception as e:
+        console.print(f"[red]No se pudo instalar el navegador: {e}[/]")
+        sys.exit(1)
 
     if args.auth_only:
         asyncio.run(do_auth(settings))

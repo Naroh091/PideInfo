@@ -52,33 +52,6 @@ def _show_connected_card_macos(name: str, email: str) -> None:
     )
 
 
-def _show_cert_dialog_macos() -> "tuple[str, str] | None":
-    """File picker for .p12 + passphrase prompt. Returns (path, passphrase) or None."""
-    code, path = _osascript(
-        'set f to choose file with prompt '
-        '"Selecciona tu certificado digital (.p12):" '
-        'of type {"public.data"}\n'
-        'return POSIX path of f'
-    )
-    if code != 0 or not path:
-        return None
-
-    code, passphrase = _osascript(
-        'set t to text returned of (display dialog '
-        '"Introduce la contraseña del certificado:" '
-        'default answer "" '
-        'with title "PideInfo Agent — Certificado" '
-        'buttons {"Cancelar", "Guardar"} '
-        'default button "Guardar" '
-        'with hidden answer)\n'
-        'return t'
-    )
-    if code != 0:
-        return None
-
-    return path, passphrase
-
-
 def _show_error_dialog_macos(message: str) -> None:
     safe = message.replace('"', '\\"')
     _osascript(
@@ -166,65 +139,6 @@ def _show_connected_card_tk(name: str, email: str) -> None:
     root.mainloop()
 
 
-def _show_cert_dialog_tk() -> "tuple[str, str] | None":
-    """File picker for .p12 + passphrase (Tkinter). Returns (path, passphrase) or None."""
-    import tkinter as tk
-    from tkinter import ttk, filedialog
-
-    result: list[tuple[str, str] | None] = [None]
-    root = tk.Tk()
-    root.title("PideInfo Agent — Certificado")
-    root.geometry("520x220")
-    root.resizable(False, False)
-    root.update_idletasks()
-    x = (root.winfo_screenwidth() - 520) // 2
-    y = (root.winfo_screenheight() - 220) // 2
-    root.geometry(f"+{x}+{y}")
-
-    ttk.Label(root, text="Configurar certificado digital", font=("", 14, "bold")).pack(pady=(20, 5))
-    frame = ttk.Frame(root)
-    frame.pack(padx=30, fill="x")
-
-    ttk.Label(frame, text="Certificado (.p12):").pack(anchor="w")
-    path_var = tk.StringVar()
-    path_frame = ttk.Frame(frame)
-    path_frame.pack(fill="x", pady=(2, 8))
-    ttk.Entry(path_frame, textvariable=path_var, width=45).pack(side="left", fill="x", expand=True)
-
-    def browse() -> None:
-        f = filedialog.askopenfilename(
-            title="Selecciona tu certificado digital",
-            filetypes=[("PKCS#12", "*.p12 *.pfx"), ("Todos", "*.*")],
-        )
-        if f:
-            path_var.set(f)
-
-    ttk.Button(path_frame, text="Examinar…", command=browse).pack(side="left", padx=(5, 0))
-
-    ttk.Label(frame, text="Contraseña:").pack(anchor="w")
-    pass_var = tk.StringVar()
-    ttk.Entry(frame, textvariable=pass_var, show="*", width=60).pack(fill="x", pady=(2, 0))
-
-    btn_frame = ttk.Frame(root)
-    btn_frame.pack(pady=15)
-
-    def on_save() -> None:
-        p = path_var.get().strip()
-        if not p:
-            return
-        result[0] = (p, pass_var.get())
-        root.destroy()
-
-    ttk.Button(btn_frame, text="Cancelar", command=root.destroy).pack(side="left", padx=(0, 10))
-    ttk.Button(btn_frame, text="Guardar", command=on_save).pack(side="left")
-    root.bind("<Return>", lambda e: on_save())
-    root.bind("<Escape>", lambda e: root.destroy())
-    root.attributes("-topmost", True)
-    root.lift()
-    root.mainloop()
-    return result[0]
-
-
 def _show_error_dialog_tk(message: str) -> None:
     import tkinter as tk
     from tkinter import ttk
@@ -246,8 +160,83 @@ def _show_error_dialog_tk(message: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Settings dialog
+# ---------------------------------------------------------------------------
+
+def _show_settings_dialog_macos(current_url: str) -> "str | None":
+    safe_url = current_url.replace('"', '\\"')
+    code, url = _osascript(
+        f'set r to display dialog '
+        f'"URL del servidor PideInfo:\\n(deja vacío para restaurar el valor por defecto)" '
+        f'default answer "{safe_url}" '
+        'with title "PideInfo Agent — Configuración" '
+        'buttons {"Cancelar", "Guardar"} '
+        'default button "Guardar"\n'
+        'return text returned of r'
+    )
+    if code != 0:
+        return None  # cancelled
+    return url.strip()
+
+
+def _show_settings_dialog_tk(current_url: str) -> "str | None":
+    import tkinter as tk
+    from tkinter import ttk
+
+    result: list[str | None] = [None]
+    root = tk.Tk()
+    root.title("PideInfo Agent — Configuración")
+    root.geometry("520x185")
+    root.resizable(False, False)
+    root.update_idletasks()
+    x = (root.winfo_screenwidth() - 520) // 2
+    y = (root.winfo_screenheight() - 185) // 2
+    root.geometry(f"+{x}+{y}")
+
+    ttk.Label(root, text="Configuración", font=("", 14, "bold")).pack(pady=(20, 12))
+
+    frame = ttk.Frame(root)
+    frame.pack(padx=30, fill="x")
+    ttk.Label(frame, text="URL del servidor PideInfo:").pack(anchor="w")
+    url_var = tk.StringVar(value=current_url)
+    entry = ttk.Entry(frame, textvariable=url_var, width=62)
+    entry.pack(fill="x", pady=(2, 2))
+    ttk.Label(
+        frame,
+        text="Deja vacío para usar el valor por defecto.",
+        foreground="#888888",
+        font=("", 9),
+    ).pack(anchor="w")
+    entry.focus_set()
+
+    btn_frame = ttk.Frame(root)
+    btn_frame.pack(pady=15)
+
+    def on_save() -> None:
+        result[0] = url_var.get().strip()
+        root.destroy()
+
+    ttk.Button(btn_frame, text="Cancelar", command=root.destroy).pack(side="left", padx=(0, 10))
+    ttk.Button(btn_frame, text="Guardar", command=on_save).pack(side="left")
+    root.bind("<Return>", lambda e: on_save())
+    root.bind("<Escape>", lambda e: root.destroy())
+    root.attributes("-topmost", True)
+    root.lift()
+    root.mainloop()
+    return result[0]
+
+
+# ---------------------------------------------------------------------------
 # Public API — dispatches to the right backend
 # ---------------------------------------------------------------------------
+
+def show_settings_dialog(current_url: str) -> "str | None":
+    """Show the settings modal. Returns the new URL string (may be empty to
+    clear the override), or None if the user cancelled."""
+    if sys.platform == "darwin":
+        return _show_settings_dialog_macos(current_url)
+    return _show_settings_dialog_tk(current_url)
+
 
 def show_connect_dialog() -> "str | None":
     if sys.platform == "darwin":
@@ -260,13 +249,6 @@ def show_connected_card(name: str, email: str) -> None:
         _show_connected_card_macos(name, email)
     else:
         _show_connected_card_tk(name, email)
-
-
-def show_cert_dialog() -> "tuple[str, str] | None":
-    """Show a dialog to select a .p12 certificate. Returns (path, passphrase) or None."""
-    if sys.platform == "darwin":
-        return _show_cert_dialog_macos()
-    return _show_cert_dialog_tk()
 
 
 def show_error_dialog(message: str) -> None:

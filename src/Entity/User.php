@@ -62,6 +62,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\OneToMany(targetEntity: AccessRequest::class, mappedBy: 'user')]
     private Collection $accessRequests;
 
+    /**
+     * Pending DEHú notifications keyed by notificationId.
+     * Not tied to a specific AccessRequest because DEHú sent_references don't map
+     * to transparency expediente refs — shown as a global user-level list instead.
+     * @var array<string, array>|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $pendingDehuNotifications = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -231,6 +240,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function removeAccessRequest(AccessRequest $accessRequest): static
     {
         $this->accessRequests->removeElement($accessRequest);
+        return $this;
+    }
+
+    public function getPendingDehuNotifications(): array
+    {
+        return $this->pendingDehuNotifications ?? [];
+    }
+
+    public function setPendingDehuNotifications(?array $notifications): static
+    {
+        $this->pendingDehuNotifications = $notifications;
         return $this;
     }
 

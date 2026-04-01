@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,6 +12,8 @@ class Settings(BaseSettings):
     # Portal
     portal_url: str = "https://transparencia.sede.gob.es"
     portal_ctbg: str = "https://sede.consejodetransparencia.gob.es/info.0"
+    portal_dehu: str = "https://dehu.redsara.es"
+    portal_redsara: str = "https://reg.redsara.es"
 
     # PideInfo
     pideinfo_base_url: str = "http://localhost:8000"
@@ -21,10 +22,7 @@ class Settings(BaseSettings):
     auth_timeout_seconds: int = 120
     sync_interval_minutes: int = 30
     data_dir: Path = Path.home() / ".pideinfo-agent"
-
-    # Optional: path to FNMT client certificate (.p12) for automatic selection
-    client_cert_p12: Optional[Path] = None
-    client_cert_passphrase: str = ""
+    debug: bool = False
 
     @property
     def portal_ctbg_base(self) -> str:
@@ -46,9 +44,28 @@ class Settings(BaseSettings):
         return self.data_dir / "cookies_ctbg.json"
 
     @property
+    def cookies_dehu_file(self) -> Path:
+        return self.data_dir / "cookies_dehu.json"
+
+    @property
+    def cookies_redsara_file(self) -> Path:
+        return self.data_dir / "cookies_redsara.json"
+
+    @property
     def state_file(self) -> Path:
         return self.data_dir / "sync_state.json"
 
     @property
     def downloads_dir(self) -> Path:
         return self.data_dir / "downloads"
+
+    @property
+    def playwright_browsers_dir(self) -> Path:
+        """Platform-appropriate directory for Playwright browser binaries."""
+        from runtime import get_playwright_browsers_dir
+        return get_playwright_browsers_dir()
+
+    @property
+    def firefox_profile_dir(self) -> Path:
+        """Persistent Firefox profile that remembers certificate selections."""
+        return self.data_dir / "firefox-profile"

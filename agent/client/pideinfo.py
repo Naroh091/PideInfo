@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from datetime import datetime
 from pathlib import Path
 
 import httpx
 from rich.console import Console
 
 from models.consejo import ConsejoNotificacion
+from models.dehu import DehuNotificacion
 from models.portal import DocumentoExpediente, Expediente, Notificacion
+from models.redsara import RedSaraRegistro
 
 console = Console()
 
@@ -28,6 +31,16 @@ class PideInfoClient:
     def _auth_headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.jwt_token}"}
 
+    @staticmethod
+    def _format_iso_date(value: str | None) -> str | None:
+        """Convert an ISO-8601 datetime string to 'd/m/Y H:i' format."""
+        if not value:
+            return value
+        try:
+            return datetime.fromisoformat(value).strftime("%d/%m/%Y %H:%M")
+        except (ValueError, TypeError):
+            return value
+
     async def validate_token(self) -> dict:
         """Validate JWT token and return user info from /api/agent/me."""
         async with httpx.AsyncClient(timeout=10) as client:
@@ -37,6 +50,24 @@ class PideInfoClient:
             )
             response.raise_for_status()
             return response.json()
+
+    async def get_pending_refs(self) -> dict[str, list[str]]:
+        """Return refs currently stored as pending in PideInfo, grouped by portal source.
+
+        Returns a dict with keys 'portal', 'consejo', 'dehu', each a list of ref strings.
+        """
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                f"{self.base_url}/api/agent/pending-refs",
+                headers=self._auth_headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+        return {
+            "portal": data.get("portal", []),
+            "consejo": data.get("consejo", []),
+            "dehu": data.get("dehu", []),
+        }
 
     async def sync_notification(
         self,
@@ -284,6 +315,173 @@ class PideInfoClient:
             + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
             + "[/]"
         )
+        return result
+
+    async def report_dehu_pending_notifications(
+        self,
+        sent_reference: str,
+        notifications: "list[DehuNotificacion]",
+    ) -> dict:
+        """Inform PideInfo about a pending DEHú notification (or clear it when empty)."""
+        payload = {
+            "source": "dehu_redsara",
+            "expedienteRef": sent_reference,
+            "documents": [],
+            "pendingNotifications": [
+                {
+                    "notificationId": n.sent_reference,
+                    "tipo": "Notificación DEHú",
+                    "concepto": n.concept,
+                    "fechaEmision": self._format_iso_date(n.availability_date),
+                    "fechaCaducidad": self._format_iso_date(n.expiration_date),
+                    "emisor": n.emitter_entity,
+                    "esComunicacion": False,
+                }
+                for n in notifications
+            ],
+            "metadata": {
+                "emitterEntity": notifications[0].emitter_entity if notifications else "",
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        found = result.get("accessRequestFound", False)
+        ar_id = result.get("accessRequestId")
+        if notifications:
+            console.print(
+                f"[dim]DEHú pendiente {sent_reference[:12]}…: reportada"
+                + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
+                + "[/]"
+            )
+        else:
+            console.print(f"[dim]DEHú {sent_reference[:12]}…: limpiada[/]")
+        return result
+
+    async def sync_redsara_document(
+        self,
+        registro: RedSaraRegistro,
+        document_path: Path,
+    ) -> dict:
+        """
+        Send a downloaded justificante from a Red SARA registry entry to PideInfo.
+
+        The webhook payload includes registry metadata so the backend can
+        create a new AccessRequest if none exists for this registryNumber.
+        """
+        content = document_path.read_bytes()
+        content_hash = hashlib.sha256(content).hexdigest()
+        content_b64 = base64.b64encode(content).decode("ascii")
+
+        filename = f"Justificante - {registro.registry_number}.pdf"
+
+        payload = {
+            "source": "redsara_rec",
+            "expedienteRef": registro.registry_number,
+            "documents": [
+                {
+                    "filename": filename,
+                    "contentType": "application/pdf",
+                    "content": content_b64,
+                    "contentHash": content_hash,
+                    "portalDate": registro.entry_date,
+                }
+            ],
+            "metadata": {
+                "registryNumber": registro.registry_number,
+                "registryStatus": registro.status,
+                "entryDate": registro.entry_date,
+                "destinyOrganism": registro.destiny_organism,
+                "subject": registro.subject,
+                "registryUuid": registro.uuid,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        created = result.get("created", 0)
+        skipped = result.get("skipped", [])
+        ar_created = result.get("accessRequestCreated", False)
+
+        if ar_created:
+            console.print(
+                f"[green]Red SARA: nueva solicitud creada para {registro.registry_number} → PideInfo[/]"
+            )
+        elif created > 0:
+            console.print(
+                f"[green]Red SARA: sincronizado {filename} → PideInfo[/]"
+            )
+        for s in skipped:
+            console.print(f"[yellow]Red SARA: saltado {s['filename']} ({s['reason']})[/]")
+
+        return result
+
+    async def sync_redsara_document_metadata_only(
+        self,
+        registro: RedSaraRegistro,
+    ) -> dict:
+        """
+        Send Red SARA registry metadata without a document.
+
+        Used when the justificante PDF could not be downloaded, so the backend
+        can still create an AccessRequest from the registry metadata.
+        """
+        payload = {
+            "source": "redsara_rec",
+            "expedienteRef": registro.registry_number,
+            "documents": [],
+            "metadata": {
+                "registryNumber": registro.registry_number,
+                "registryStatus": registro.status,
+                "entryDate": registro.entry_date,
+                "destinyOrganism": registro.destiny_organism,
+                "subject": registro.subject,
+                "registryUuid": registro.uuid,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        ar_created = result.get("accessRequestCreated", False)
+        if ar_created:
+            console.print(
+                f"[green]Red SARA: solicitud creada (sin documento) para {registro.registry_number}[/]"
+            )
+        else:
+            console.print(
+                f"[dim]Red SARA: metadatos enviados para {registro.registry_number}[/]"
+            )
+
         return result
 
     @staticmethod

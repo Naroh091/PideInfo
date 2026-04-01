@@ -1,0 +1,237 @@
+name: Build PideInfo Agent
+
+on:
+  push:
+    tags:
+      - 'agent-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 1.0.0)'
+        required: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: macos-arm64
+            artifact: PideInfo-Agent-macos-arm64.dmg
+          - os: macos-13
+            platform: macos-x64
+            artifact: PideInfo-Agent-macos-x64.dmg
+          - os: windows-latest
+            platform: windows-x64
+            artifact: PideInfo-Agent-windows-x64-setup.exe
+          - os: ubuntu-22.04
+            platform: linux-x64
+            artifact: PideInfo-Agent-linux-x64.AppImage
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform }})
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libayatana-appindicator3-1 \
+            libayatana-appindicator3-dev \
+            libgirepository1.0-dev \
+            gir1.2-appindicator3-0.1
+
+      - name: Install Python dependencies
+        working-directory: agent
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller packaging
+
+      - name: Install macOS-specific dependencies
+        if: runner.os == 'macOS'
+        working-directory: agent
+        run: pip install "pyobjc-core>=9.2" "pyobjc-framework-Cocoa>=9.2"
+
+      - name: Install Playwright driver (no browser — downloaded at runtime)
+        working-directory: agent
+        run: python -c "import playwright; print('Playwright driver ready')"
+
+      - name: Read version from version.py
+        id: version
+        working-directory: agent
+        run: |
+          VERSION=$(python -c "from version import __version__; print(__version__)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Build with PyInstaller
+        working-directory: agent
+        run: pyinstaller build/pideinfo-agent.spec --distpath dist --workpath build/work
+        shell: bash
+
+      # -----------------------------------------------------------------------
+      # macOS: create DMG
+      # -----------------------------------------------------------------------
+      - name: Create macOS DMG
+        if: runner.os == 'macOS'
+        working-directory: agent
+        run: |
+          APP="dist/PideInfo Agent.app"
+          DMG_NAME="${{ matrix.artifact }}"
+          hdiutil create \
+            -volname "PideInfo Agent" \
+            -srcfolder "$APP" \
+            -ov \
+            -format UDZO \
+            "$DMG_NAME"
+
+      # -----------------------------------------------------------------------
+      # macOS: code signing (only if secrets are available)
+      # -----------------------------------------------------------------------
+      - name: Import macOS signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "" build.keychain
+          security list-keychain -d user -s build.keychain
+
+      - name: Sign macOS app
+        if: runner.os == 'macOS' && env.MACOS_SIGN_IDENTITY != ''
+        env:
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+        working-directory: agent
+        run: |
+          codesign --force --deep --options runtime \
+            --entitlements build/macos/entitlements.plist \
+            --sign "$MACOS_SIGN_IDENTITY" \
+            "dist/PideInfo Agent.app"
+          codesign --verify --deep --strict "dist/PideInfo Agent.app"
+
+      - name: Notarize macOS DMG
+        if: runner.os == 'macOS' && env.APPLE_ID != ''
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        working-directory: agent
+        run: |
+          xcrun notarytool submit "${{ matrix.artifact }}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APP_SPECIFIC_PASSWORD" \
+            --team-id "$TEAM_ID" \
+            --wait
+          xcrun stapler staple "${{ matrix.artifact }}"
+
+      # -----------------------------------------------------------------------
+      # Windows: create NSIS installer
+      # -----------------------------------------------------------------------
+      - name: Build Windows NSIS installer
+        if: runner.os == 'Windows'
+        uses: joncloud/makensis-action@v4
+        with:
+          script-file: agent/build/windows/installer.nsi
+          arguments: >
+            /DVERSION=${{ steps.version.outputs.version }}
+            /DDIST_DIR=dist\PideInfo Agent
+            /DOUTFILE=${{ matrix.artifact }}
+
+      # -----------------------------------------------------------------------
+      # Linux: create AppImage
+      # -----------------------------------------------------------------------
+      - name: Create Linux AppImage
+        if: runner.os == 'Linux'
+        working-directory: agent
+        run: |
+          # Download appimagetool
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
+            -O appimagetool.AppImage
+          chmod +x appimagetool.AppImage
+
+          # Build AppDir structure
+          APPDIR="dist/PideInfo-Agent.AppDir"
+          mkdir -p "$APPDIR/usr/bin"
+
+          # Copy PyInstaller output into AppDir
+          cp -r "dist/PideInfo Agent/"* "$APPDIR/usr/bin/"
+
+          # Copy AppImage metadata
+          cp build/linux/pideinfo-agent.desktop "$APPDIR/"
+          cp build/linux/icon.png "$APPDIR/pideinfo-agent.png"
+          cp build/linux/AppRun "$APPDIR/AppRun"
+          chmod +x "$APPDIR/AppRun"
+
+          # Package as AppImage
+          ARCH=x86_64 ./appimagetool.AppImage "$APPDIR" "${{ matrix.artifact }}"
+
+      # -----------------------------------------------------------------------
+      # Upload artifact
+      # -----------------------------------------------------------------------
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: agent/${{ matrix.artifact }}
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Release: collect all artifacts and create a GitHub Release
+  # ---------------------------------------------------------------------------
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/agent-v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "PideInfo Agent ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          files: artifacts/**/*
+          body: |
+            ## PideInfo Agent ${{ github.ref_name }}
+
+            ### Descargas
+
+            | Plataforma | Archivo |
+            |---|---|
+            | macOS (Apple Silicon) | PideInfo-Agent-macos-arm64.dmg |
+            | macOS (Intel) | PideInfo-Agent-macos-x64.dmg |
+            | Windows | PideInfo-Agent-windows-x64-setup.exe |
+            | Linux | PideInfo-Agent-linux-x64.AppImage |
+
+            ### Instalación
+
+            **macOS**: Abre el DMG y arrastra PideInfo Agent a tu carpeta de Aplicaciones.
+            Al primer lanzamiento, el agente descargará el navegador automáticamente (~170 MB).
+
+            **Windows**: Ejecuta el instalador. El navegador se descarga en el primer inicio.
+
+            **Linux**: Haz el AppImage ejecutable (`chmod +x`) y ejecútalo.
+            El navegador se descarga en el primer inicio.

@@ -58,10 +58,25 @@ final class PendingNotifications extends AbstractController
         return array_merge($this->getPortalItems(), $this->getConsejoItems());
     }
 
+    /**
+     * @return array<array<string, mixed>>
+     */
+    public function getDehuItems(): array
+    {
+        /** @var User|null $user */
+        $user = $this->security->getUser();
+        return $user ? array_values($user->getPendingDehuNotifications()) : [];
+    }
+
+    public function getDehuCount(): int
+    {
+        return count($this->getDehuItems());
+    }
+
     public function hasNotifications(): bool
     {
         $grouped = $this->getGrouped();
-        return !empty($grouped['portal']) || !empty($grouped['consejo']);
+        return !empty($grouped['portal']) || !empty($grouped['consejo']) || $this->getDehuCount() > 0;
     }
 
     public function getTotalCount(): int
@@ -70,7 +85,7 @@ final class PendingNotifications extends AbstractController
         foreach ($this->getRequestsWithNotifications() as $item) {
             $total += count($item['notifications']);
         }
-        return $total;
+        return $total + $this->getDehuCount();
     }
 
     public function getPortalCount(): int

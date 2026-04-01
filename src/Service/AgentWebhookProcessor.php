@@ -12,7 +12,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
 
 class AgentWebhookProcessor
@@ -43,8 +42,11 @@ class AgentWebhookProcessor
         $metadata = $data['metadata'] ?? [];
         $pendingNotifications = $data['pendingNotifications'] ?? null;
 
-        // Pending-notifications report: no documents to store — persist on the AccessRequest.
+        // Pending-notifications report: no documents to store.
         if (empty($documents) && $pendingNotifications !== null) {
+            if ($source === 'dehu_redsara') {
+                return $this->handleDehuPendingNotifications($user, $expedienteRef, $pendingNotifications);
+            }
             return $this->handlePendingNotifications($user, $source, $expedienteRef, $metadata, $pendingNotifications);
         }
 
@@ -57,6 +59,11 @@ class AgentWebhookProcessor
 
         // Look up an existing AccessRequest matching this expediente reference
         $accessRequest = $this->findAccessRequest($expedienteRef, $user, $metadata);
+
+        // When documents are present but no AR exists, let the document
+        // processing pipeline create the AccessRequest via AI analysis
+        // instead of building a bare-bones one from metadata alone.
+        $accessRequestCreated = false;
 
         // Save portal numeric expedienteId as an alternative reference
         if ($accessRequest !== null && !empty($metadata['expedienteId'])) {
@@ -81,6 +88,7 @@ class AgentWebhookProcessor
                 'documents' => count($documents),
                 'created' => 0,
                 'skipped' => $skipped,
+                'accessRequestCreated' => $accessRequestCreated,
             ]);
         }
 
@@ -111,6 +119,36 @@ class AgentWebhookProcessor
             'documents' => count($documents),
             'created' => count($documentIds),
             'skipped' => $skipped,
+            'accessRequestCreated' => $accessRequestCreated,
+        ]);
+    }
+
+    private function handleDehuPendingNotifications(User $user, string $expedienteRef, array $pendingNotifications): JsonResponse
+    {
+        $pool = $user->getPendingDehuNotifications();
+
+        if (empty($pendingNotifications)) {
+            unset($pool[$expedienteRef]);
+        } else {
+            $reportedAt = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
+            foreach ($pendingNotifications as $n) {
+                $notificationId = $n['notificationId'] ?? $expedienteRef;
+                $pool[$notificationId] = $n + ['reportedAt' => $reportedAt, 'source' => 'dehu_redsara'];
+            }
+        }
+
+        $user->setPendingDehuNotifications(empty($pool) ? null : $pool);
+        $this->entityManager->flush();
+
+        $this->logger->info('DEHú agent: pending notifications reported', [
+            'expedienteRef' => $expedienteRef,
+            'pendingCount' => count($pendingNotifications),
+            'userId' => (string) $user->getId(),
+        ]);
+
+        return new JsonResponse([
+            'ok' => true,
+            'pendingNotifications' => count($pendingNotifications),
         ]);
     }
 

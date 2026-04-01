@@ -28,16 +28,14 @@ class SessionManager:
         portal_url: str,
         cookies_file: Path,
         auth_timeout: int = 120,
-        client_cert_p12: "Path | None" = None,
-        client_cert_passphrase: str = "",
         private_path: str = "/privada/expedientes",
+        firefox_profile_dir: "Path | None" = None,
     ):
         self.portal_url = portal_url
         self.cookies_file = cookies_file
         self.auth_timeout = auth_timeout
-        self.client_cert_p12 = client_cert_p12
-        self.client_cert_passphrase = client_cert_passphrase
         self.private_path = private_path
+        self.firefox_profile_dir = firefox_profile_dir
         self._cookies: dict[str, str] = {}
 
     @property
@@ -145,9 +143,8 @@ class SessionManager:
         cookies = await authenticate(
             self.portal_url,
             self.auth_timeout,
-            client_cert_p12=self.client_cert_p12,
-            client_cert_passphrase=self.client_cert_passphrase,
             target_path=self.private_path,
+            firefox_profile_dir=self.firefox_profile_dir,
         )
         self.save_cookies(cookies)
         return cookies
