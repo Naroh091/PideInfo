@@ -43,7 +43,8 @@ _is_linux = sys.platform.startswith("linux")
 
 # Spec file lives at agent/build/ — use absolute paths so codesign/PyInstaller
 # can find assets regardless of the working directory the build is invoked from.
-_spec_dir = Path(__file__).parent
+# PyInstaller injects SPECPATH (the spec file's directory) into the exec context.
+_spec_dir = Path(SPECPATH)
 
 _hidden_imports = [
     "truststore",
