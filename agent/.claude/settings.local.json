@@ -49,7 +49,10 @@
       "Bash(python -m py_compile storage/state.py)",
       "Bash(python -m py_compile main.py)",
       "Bash(php:*)",
-      "Bash(/Applications/MAMP/bin/php/php8.2.0/bin/php -l /Users/david/IdeaProjects/vigia/src/Service/AgentWebhookProcessor.php)"
+      "Bash(/Applications/MAMP/bin/php/php8.2.0/bin/php -l /Users/david/IdeaProjects/vigia/src/Service/AgentWebhookProcessor.php)",
+      "Bash(cat:*)",
+      "Bash(find /Users/david/IdeaProjects/vigia/agent -name requirements*.txt -o -name *.spec -o -name build.yml -o -name *.yaml)",
+      "Bash(find /Users/david/IdeaProjects/vigia -name *.yml -path */.github/*)"
     ]
   }
 }
