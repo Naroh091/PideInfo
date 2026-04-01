@@ -137,13 +137,15 @@ final class ProcessDocumentHandler
             return $document->getAccessRequest();
         }
 
-        // Try to find by reference number
+        // Try to find by reference number (AI-extracted or from source metadata)
         $referenceNumber = $analysis['referenceNumber'] ?? null;
-        if ($referenceNumber) {
-            $existing = $this->accessRequestRepository->findByExternalId($referenceNumber, $user);
+        $sourceRef = $document->getSourceMetadata()['expedienteRef'] ?? null;
+
+        foreach (array_filter(array_unique([$referenceNumber, $sourceRef])) as $ref) {
+            $existing = $this->accessRequestRepository->findByExternalId($ref, $user);
             if ($existing) {
                 $this->logger->info('Matched request by reference number', [
-                    'referenceNumber' => $referenceNumber,
+                    'referenceNumber' => $ref,
                     'accessRequestId' => (string) $existing->getId(),
                 ]);
                 $document->setMatchMethod(Document::MATCH_REFERENCE);
@@ -261,7 +263,7 @@ final class ProcessDocumentHandler
                 publicBody: $publicBody,
                 applicableLaw: $applicableLaw,
                 sentAt: $sentAt,
-                externalId: $referenceNumber,
+                externalId: $referenceNumber ?? $sourceRef,
             );
 
             $this->logger->info('Created new access request from document', [

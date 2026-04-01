@@ -15,6 +15,7 @@ import asyncio
 import threading
 
 from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE
+from version import __version__
 from typing import Callable, Coroutine, Any
 
 from rich.console import Console
@@ -70,8 +71,12 @@ class TrayApp:
         disconnect_fn: Callable[[], None],
         is_connected_fn: Callable[[], bool],
         get_user_email_fn: Callable[[], str],
-        configure_cert_fn: Callable[[], None],
-        has_cert_fn: Callable[[], bool],
+        configure_fn: Callable[[], None],
+        get_portal_enabled_fn: "Callable[[str], bool] | None" = None,
+        toggle_portal_fn: "Callable[[str], None] | None" = None,
+        debug_mode: bool = False,
+        get_headless_disabled_fn: "Callable[[], bool] | None" = None,
+        toggle_headless_disabled_fn: "Callable[[], None] | None" = None,
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
@@ -81,11 +86,17 @@ class TrayApp:
         self._disconnect_fn = disconnect_fn
         self._is_connected = is_connected_fn
         self._get_user_email = get_user_email_fn
-        self._configure_cert_fn = configure_cert_fn
-        self._has_cert = has_cert_fn
+        self._configure_fn = configure_fn
+        self._get_portal_enabled = get_portal_enabled_fn or (lambda _: True)
+        self._toggle_portal = toggle_portal_fn or (lambda _: None)
+        self._debug_mode = debug_mode
+        self._get_headless_disabled = get_headless_disabled_fn or (lambda: False)
+        self._toggle_headless_disabled = toggle_headless_disabled_fn or (lambda: None)
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
+        # Update state: (version_str, download_url) or None
+        self._pending_update: "tuple[str, str] | None" = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -142,6 +153,12 @@ class TrayApp:
         self._toggle_accept_notifications()
         self._rebuild_menu()
 
+    def _make_portal_toggle(self, portal_id: str) -> "Callable":
+        def _handler(icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+            self._toggle_portal(portal_id)
+            self._rebuild_menu()
+        return _handler
+
     def _on_connect(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._connect_fn()
         self._rebuild_menu()
@@ -150,13 +167,50 @@ class TrayApp:
         self._disconnect_fn()
         self._rebuild_menu()
 
-    def _on_configure_cert(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
-        self._configure_cert_fn()
+    def _on_toggle_headless_disabled(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._toggle_headless_disabled()
         self._rebuild_menu()
+
+    def _on_configure(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._configure_fn()
 
     def _on_quit(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
         icon.stop()
+
+    def _on_update(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        if not self._pending_update:
+            return
+        version_str, download_url = self._pending_update
+
+        async def _run() -> None:
+            from updater.github_updater import download_update, apply_update
+            console.print(f"[bold]Descargando actualización v{version_str}...[/]")
+            try:
+                path = await download_update(download_url)
+                apply_update(path)
+            except Exception as e:
+                console.print(f"[red]Error descargando actualización: {e}[/]")
+
+        self._submit(_run())
+
+    async def _check_for_updates(self) -> None:
+        """Background task: check GitHub for a newer agent version."""
+        from updater.github_updater import check_for_update
+        result = await check_for_update()
+        if result:
+            version_str, download_url = result
+            self._pending_update = (version_str, download_url)
+            self._rebuild_menu()
+            console.print(f"[bold yellow]Nueva versión disponible: v{version_str}[/]")
+            try:
+                from notifier.desktop import _notify
+                _notify(
+                    "PideInfo Agent — Actualización disponible",
+                    f"Nueva versión v{version_str} disponible. Haz clic en el menú para actualizar.",
+                )
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Public API
@@ -165,10 +219,12 @@ class TrayApp:
     def _build_menu(self) -> "pystray.Menu":
         """Build (or rebuild) the tray menu with current state."""
         if not self._is_connected():
-            # Disconnected: only show Connect + Cerrar
+            # Disconnected: show Connect + Configurar + Cerrar
             return pystray.Menu(
                 pystray.MenuItem("Conectar", self._on_connect),
+                pystray.MenuItem("Configurar...", self._on_configure),
                 pystray.Menu.SEPARATOR,
+                pystray.MenuItem(f"PideInfo Agent v{__version__}", None, enabled=False),
                 pystray.MenuItem("Cerrar", self._on_quit),
             )
 
@@ -196,11 +252,28 @@ class TrayApp:
                 )
             )
 
-        cert_label = "Certificado ✓" if self._has_cert() else "Configurar certificado…"
+        # Portal sync toggles
+        _portals = [
+            ("transparencia", "Portal de Transparencia"),
+            ("ctbg", "Consejo de Transparencia (CTBG)"),
+            ("dehu", "DEHú"),
+            ("redsara", "Red SARA REC"),
+        ]
+        items.append(pystray.Menu.SEPARATOR)
+        for portal_id, label in _portals:
+            _pid = portal_id  # capture for closure
+            items.append(
+                pystray.MenuItem(
+                    label,
+                    self._make_portal_toggle(_pid),
+                    checked=lambda item, pid=_pid: self._get_portal_enabled(pid),
+                )
+            )
+
         email = self._get_user_email()
         items += [
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem(cert_label, self._on_configure_cert),
+            pystray.MenuItem("Configurar...", self._on_configure),
             pystray.MenuItem("Desconectar", self._on_disconnect),
             pystray.MenuItem(
                 f"Conectado como {email}" if email else "Conectado",
@@ -208,6 +281,26 @@ class TrayApp:
                 enabled=False,
             ),
             pystray.Menu.SEPARATOR,
+        ]
+
+        if self._pending_update:
+            ver, _ = self._pending_update
+            items.append(
+                pystray.MenuItem(f"Actualizar a v{ver}...", self._on_update)
+            )
+
+        if self._debug_mode:
+            items += [
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Deshabilitar headless",
+                    self._on_toggle_headless_disabled,
+                    checked=lambda item: self._get_headless_disabled(),
+                ),
+            ]
+
+        items += [
+            pystray.MenuItem(f"PideInfo Agent v{__version__}", None, enabled=False),
             pystray.MenuItem("Cerrar", self._on_quit),
         ]
         return pystray.Menu(*items)
@@ -224,6 +317,26 @@ class TrayApp:
         # Event loop lives in a background daemon thread
         loop_thread = threading.Thread(target=self._run_loop, daemon=True, name="asyncio-loop")
         loop_thread.start()
+
+        # Schedule update check on startup and every 6 hours
+        def _start_update_scheduler() -> None:
+            try:
+                from apscheduler.schedulers.asyncio import AsyncIOScheduler
+                scheduler = AsyncIOScheduler()
+                scheduler.add_job(
+                    self._check_for_updates,
+                    "interval",
+                    hours=6,
+                    id="update-check",
+                    max_instances=1,
+                )
+                scheduler.start()
+                # Run immediately
+                self._submit(self._check_for_updates())
+            except Exception as e:
+                console.print(f"[dim]No se pudo iniciar comprobación de actualizaciones: {e}[/]")
+
+        threading.Thread(target=_start_update_scheduler, daemon=True, name="update-scheduler").start()
 
         self._icon = pystray.Icon(
             name="PideInfo Agent",
