@@ -79,8 +79,6 @@ _datas = [
     # Playwright driver: Node.js binary + package (cli.js, etc.)
     (str(_playwright_driver / _node_bin), "playwright/driver"),
     (str(_playwright_driver / "package"), "playwright/driver/package"),
-    # HTML reference templates (scrapers may read these at runtime)
-    ("html", "html"),
 ]
 
 # ---------------------------------------------------------------------------
