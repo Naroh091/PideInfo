@@ -34,6 +34,15 @@ class AgentPreferences:
     # Empty string = use the default from config / .env.
     pideinfo_base_url: str = ""
 
+    # Portal sync toggles — all enabled by default
+    sync_transparencia: bool = True
+    sync_ctbg: bool = True
+    sync_dehu: bool = True
+    sync_redsara: bool = True
+
+    # Debug: launch browsers in headed mode (visible window)
+    headless_disabled: bool = False
+
     @property
     def is_connected(self) -> bool:
         return bool(self.jwt_token)
@@ -59,6 +68,11 @@ def load_preferences(path: Path) -> AgentPreferences:
             user_email=data.get("user_email", ""),
             user_name=data.get("user_name", ""),
             pideinfo_base_url=data.get("pideinfo_base_url", ""),
+            sync_transparencia=bool(data.get("sync_transparencia", True)),
+            sync_ctbg=bool(data.get("sync_ctbg", True)),
+            sync_dehu=bool(data.get("sync_dehu", True)),
+            sync_redsara=bool(data.get("sync_redsara", True)),
+            headless_disabled=bool(data.get("headless_disabled", False)),
         )
 
         # Migration: remove stale cert artifacts left by older versions of the agent
@@ -120,6 +134,11 @@ def save_preferences(prefs: AgentPreferences, path: Path) -> None:
                 "user_email": prefs.user_email,
                 "user_name": prefs.user_name,
                 "pideinfo_base_url": prefs.pideinfo_base_url,
+                "sync_transparencia": prefs.sync_transparencia,
+                "sync_ctbg": prefs.sync_ctbg,
+                "sync_dehu": prefs.sync_dehu,
+                "sync_redsara": prefs.sync_redsara,
+                "headless_disabled": prefs.headless_disabled,
             },
             indent=2,
         )

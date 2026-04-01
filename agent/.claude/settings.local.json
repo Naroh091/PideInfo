@@ -39,7 +39,17 @@
       "Bash(find /Users/david -name Imagen_31_3_26*)",
       "WebFetch(domain:playwright.dev)",
       "WebFetch(domain:stackoverflow.com)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(python -m py_compile models/redsara.py)",
+      "Bash(python -m py_compile auth/redsara_session_manager.py)",
+      "Bash(python -m py_compile auth/redsara_auth.py)",
+      "Bash(python -m py_compile portals/redsara_rec.py)",
+      "Bash(python -m py_compile client/pideinfo.py)",
+      "Bash(python -m py_compile config.py)",
+      "Bash(python -m py_compile storage/state.py)",
+      "Bash(python -m py_compile main.py)",
+      "Bash(php:*)",
+      "Bash(/Applications/MAMP/bin/php/php8.2.0/bin/php -l /Users/david/IdeaProjects/vigia/src/Service/AgentWebhookProcessor.php)"
     ]
   }
 }
