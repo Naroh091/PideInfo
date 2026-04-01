@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     portal_url: str = "https://transparencia.sede.gob.es"
     portal_ctbg: str = "https://sede.consejodetransparencia.gob.es/info.0"
     portal_dehu: str = "https://dehu.redsara.es"
+    portal_redsara: str = "https://reg.redsara.es"
 
     # PideInfo
     pideinfo_base_url: str = "http://localhost:8000"
@@ -21,6 +22,7 @@ class Settings(BaseSettings):
     auth_timeout_seconds: int = 120
     sync_interval_minutes: int = 30
     data_dir: Path = Path.home() / ".pideinfo-agent"
+    debug: bool = False
 
     @property
     def portal_ctbg_base(self) -> str:
@@ -44,6 +46,10 @@ class Settings(BaseSettings):
     @property
     def cookies_dehu_file(self) -> Path:
         return self.data_dir / "cookies_dehu.json"
+
+    @property
+    def cookies_redsara_file(self) -> Path:
+        return self.data_dir / "cookies_redsara.json"
 
     @property
     def state_file(self) -> Path:

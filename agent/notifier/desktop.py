@@ -36,17 +36,20 @@ def notify_auth_required() -> None:
     )
 
 
-def notify_new_documents(count: int, expediente_ref: str = "") -> None:
+def notify_new_documents(count: int, expediente_ref: str = "", portal: str = "") -> None:
     msg = f"Se han sincronizado {count} documento(s) nuevo(s)"
     if expediente_ref:
         msg += f" del expediente {expediente_ref}"
+    if portal:
+        msg += f" ({portal})"
     _notify("PideInfo Agent — Nuevos documentos", msg)
 
 
-def notify_pending_signatures(count: int) -> None:
+def notify_pending_signatures(count: int, portal: str = "") -> None:
+    portal_txt = f" en {portal}" if portal else " en el portal"
     _notify(
         "PideInfo Agent — Firmas pendientes",
-        f"Hay {count} notificación(es) pendiente(s) de firma en el portal.",
+        f"Hay {count} notificación(es) pendiente(s) de firma{portal_txt}.",
     )
 
 

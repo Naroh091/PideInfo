@@ -50,6 +50,16 @@ class DehuScraper:
             )
         return self._client
 
+    def _api_headers(self) -> dict[str, str]:
+        """Build headers required by the DEHú Angular API."""
+        return {
+            "Authorization": f"Bearer {self.session_manager.jwt_token}",
+            "Accept": "application/json",
+            "Accept-Language": "es",
+            "Origin": self._base_url,
+            "Referer": f"{self._base_url}/es/notifications",
+        }
+
     async def get_notificaciones(
         self,
         page: int = 1,
@@ -60,12 +70,10 @@ class DehuScraper:
         response = await client.get(
             f"{self._base_url}/api/v1/notifications",
             params={"page": page, "limit": limit},
-            headers={
-                "Authorization": f"Bearer {self.session_manager.jwt_token}",
-                "Accept": "application/json",
-                "Accept-Language": "es",
-            },
+            headers=self._api_headers(),
         )
+        if response.status_code == 401:
+            console.print(f"[red]DEHú 401: {response.text[:300]}[/]")
         response.raise_for_status()
         data = response.json()
 

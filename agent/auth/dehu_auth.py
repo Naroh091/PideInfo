@@ -21,6 +21,7 @@ async def authenticate_dehu(
     portal_url: str,
     firefox_profile_dir: Path,
     timeout_seconds: int = 120,
+    headless: bool = True,
 ) -> tuple[dict[str, str], str]:
     """
     Authenticate to DEHú via Cl@ve and capture the short-lived Bearer JWT.
@@ -61,7 +62,7 @@ async def authenticate_dehu(
     async with async_playwright() as p:
         context = await p.firefox.launch_persistent_context(
             user_data_dir=str(firefox_profile_dir),
-            headless=profile_ready,
+            headless=headless,
             firefox_user_prefs=firefox_user_prefs,
             locale="es-ES",
             ignore_https_errors=True,
@@ -116,6 +117,26 @@ async def authenticate_dehu(
             # page right now; give the event loop a chance to fire our listener
             # before we navigate away.
             await asyncio.sleep(1.5)
+
+            # Detect and dismiss a session-expired popup before proceeding.
+            # DEHú shows a <dnt-modal> web component when the persisted session has
+            # expired.  The dismiss button is a <dnt-button> web component (not a
+            # native <button>), so we must target it by tag + text content.
+            try:
+                expired_btn = page.locator(
+                    'dnt-modal[visible] dnt-button:has-text("Aceptar"), '
+                    'dnt-modal[visible] dnt-button:has-text("Renovar"), '
+                    'dnt-modal[visible] dnt-button:has-text("Iniciar sesión")'
+                ).first
+                if await expired_btn.is_visible(timeout=3_000):
+                    console.print("[yellow]DEHú: detectado popup de sesión expirada — clicando Aceptar...[/]")
+                    await expired_btn.click()
+                    # Wait for re-authentication to complete
+                    await page.wait_for_url(f"{portal_url}/**", timeout=timeout_seconds * 1000)
+                    console.print("[green]DEHú: re-autenticación completada tras popup[/]")
+                    await asyncio.sleep(1.5)
+            except Exception:
+                pass  # No popup — session is fine
 
             if not captured_jwt:
                 # Navigate to notifications page — triggers Angular to call the

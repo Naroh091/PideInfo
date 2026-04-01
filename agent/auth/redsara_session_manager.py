@@ -1,14 +1,8 @@
 """
-Session manager for the DEHú / RedSARA portal.
+Session manager for Red SARA REC (Registro Electrónico Común).
 
-DEHú requires both session cookies AND a short-lived Bearer JWT (typically
-valid for ~10 minutes) issued by the Angular frontend.  This manager:
-
-- Stores cookies via the standard ``SessionManager`` helper (OS keyring).
-- Stores the JWT separately in the OS keyring under ``"dehu:jwt"``.
-- Checks JWT expiry client-side (base64-decode payload, inspect ``exp`` claim)
-  so no network request is needed to decide whether re-auth is required.
-- Triggers a full Playwright re-auth when the JWT is missing or expired.
+Same pattern as DEHú: session cookies + short-lived Bearer JWT (~1 hour).
+JWT is stored in the OS keyring and checked client-side for expiry.
 """
 from __future__ import annotations
 
@@ -25,11 +19,12 @@ from auth.session_manager import SessionManager
 console = Console()
 
 _KEYRING_SERVICE = "pideinfo-agent"
-_KEYRING_JWT_KEY = "dehu:jwt"
+_KEYRING_JWT_KEY = "redsara:jwt"           # RS256 ROLE_API — search/list calls
+_KEYRING_DOWNLOAD_JWT_KEY = "redsara:download_jwt"  # HS256 ROLE_USER — document downloads
 
 
-class DehuSessionManager:
-    """Manages cookies + Bearer JWT for the DEHú portal."""
+class RedSaraSessionManager:
+    """Manages cookies + Bearer JWT for the Red SARA REC portal."""
 
     def __init__(
         self,
@@ -64,27 +59,42 @@ class DehuSessionManager:
 
     @property
     def jwt_token(self) -> str:
+        """RS256 ROLE_API token — used for search/list/detail API calls."""
         return keyring.get_password(_KEYRING_SERVICE, _KEYRING_JWT_KEY) or ""
+
+    @property
+    def download_jwt_token(self) -> str:
+        """HS256 ROLE_USER token — used for document download calls."""
+        return keyring.get_password(_KEYRING_SERVICE, _KEYRING_DOWNLOAD_JWT_KEY) or ""
 
     def _save_jwt(self, jwt: str) -> None:
         keyring.set_password(_KEYRING_SERVICE, _KEYRING_JWT_KEY, jwt)
 
-    def jwt_is_valid(self) -> bool:
-        """Check JWT expiry client-side — no network needed."""
-        token = self.jwt_token
+    def _save_download_jwt(self, jwt: str) -> None:
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_DOWNLOAD_JWT_KEY, jwt)
+
+    @staticmethod
+    def _check_jwt_expiry(token: str, min_remaining: int = 60) -> bool:
+        """Return True if the token exists and has at least ``min_remaining`` seconds left."""
         if not token:
             return False
         try:
             payload_part = token.split(".")[1]
-            # Base64url decode (add padding as required)
             padding = (4 - len(payload_part) % 4) % 4
             payload_bytes = base64.urlsafe_b64decode(payload_part + "=" * padding)
             payload = json.loads(payload_bytes)
             exp = payload.get("exp", 0)
-            # Require at least 60 seconds of remaining validity
-            return exp > time.time() + 60
+            return exp > time.time() + min_remaining
         except Exception:
             return False
+
+    def jwt_is_valid(self) -> bool:
+        """Check API JWT expiry client-side — no network needed."""
+        return self._check_jwt_expiry(self.jwt_token)
+
+    def download_jwt_is_valid(self) -> bool:
+        """Check document download JWT expiry client-side — no network needed."""
+        return self._check_jwt_expiry(self.download_jwt_token)
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -92,22 +102,19 @@ class DehuSessionManager:
 
     async def get_valid_session(self) -> None:
         """
-        Ensure both cookies and JWT are valid.
+        Ensure both cookies and both JWTs (search + download) are valid.
 
-        If the JWT is still valid we assume the cookies are too (they were
+        If both JWTs are still valid we assume the cookies are too (they were
         saved together during the same auth session and expire later).
-
-        If the JWT is missing or expired we trigger a full Playwright
-        re-authentication which captures fresh cookies and a new JWT.
         """
-        if self.jwt_is_valid():
+        if self.jwt_is_valid() and self.download_jwt_is_valid():
             self._inner.load_cookies()
-            console.print("[green]DEHú: sesión JWT válida[/]")
+            console.print("[green]Red SARA: sesión JWT válida[/]")
             return
 
-        console.print("[yellow]DEHú: JWT expirado o ausente, re-autenticando...[/]")
-        from auth.dehu_auth import authenticate_dehu
-        cookies, jwt = await authenticate_dehu(
+        console.print("[yellow]Red SARA: JWT expirado o ausente, re-autenticando...[/]")
+        from auth.redsara_auth import authenticate_redsara
+        cookies, jwt, download_jwt = await authenticate_redsara(
             portal_url=self.portal_url,
             firefox_profile_dir=self.firefox_profile_dir,
             timeout_seconds=self.auth_timeout,
@@ -117,4 +124,8 @@ class DehuSessionManager:
         if jwt:
             self._save_jwt(jwt)
         else:
-            console.print("[yellow]DEHú: no se obtuvo JWT — las llamadas API pueden fallar[/]")
+            console.print("[yellow]Red SARA: no se obtuvo JWT de búsqueda — las llamadas API pueden fallar[/]")
+        if download_jwt:
+            self._save_download_jwt(download_jwt)
+        else:
+            console.print("[yellow]Red SARA: no se obtuvo JWT de descarga — las descargas fallarán[/]")

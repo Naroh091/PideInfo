@@ -27,6 +27,13 @@ class SyncState:
     # Set of DEHú sent_reference values that PideInfo currently shows as pending.
     dehu_pending_sent_references: set[str] = field(default_factory=set)
 
+    # Set of Red SARA registry numbers already synced (justificante downloaded + sent).
+    redsara_synced_registry_numbers: set[str] = field(default_factory=set)
+
+    # Timestamp of the most recent Red SARA registry entry that was synced.
+    # Used to fetch only newer entries on subsequent syncs.
+    redsara_last_sync_at: float = 0.0
+
     # Last successful sync timestamp
     last_sync_at: float = 0.0
 
@@ -61,6 +68,8 @@ def load_state(path: Path) -> SyncState:
             pending_notification_expediente_ids=set(data.get("pending_notification_expediente_ids", [])),
             ctbg_pending_expediente_refs=set(data.get("ctbg_pending_expediente_refs", [])),
             dehu_pending_sent_references=set(data.get("dehu_pending_sent_references", [])),
+            redsara_synced_registry_numbers=set(data.get("redsara_synced_registry_numbers", [])),
+            redsara_last_sync_at=data.get("redsara_last_sync_at", 0.0),
             last_sync_at=data.get("last_sync_at", 0.0),
         )
     except (json.JSONDecodeError, KeyError):
@@ -76,6 +85,8 @@ def save_state(state: SyncState, path: Path) -> None:
         "pending_notification_expediente_ids": sorted(state.pending_notification_expediente_ids),
         "ctbg_pending_expediente_refs": sorted(state.ctbg_pending_expediente_refs),
         "dehu_pending_sent_references": sorted(state.dehu_pending_sent_references),
+        "redsara_synced_registry_numbers": sorted(state.redsara_synced_registry_numbers),
+        "redsara_last_sync_at": state.redsara_last_sync_at,
         "last_sync_at": state.last_sync_at,
     }
     path.write_text(json.dumps(data, indent=2))

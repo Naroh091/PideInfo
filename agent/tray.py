@@ -72,6 +72,11 @@ class TrayApp:
         is_connected_fn: Callable[[], bool],
         get_user_email_fn: Callable[[], str],
         configure_fn: Callable[[], None],
+        get_portal_enabled_fn: "Callable[[str], bool] | None" = None,
+        toggle_portal_fn: "Callable[[str], None] | None" = None,
+        debug_mode: bool = False,
+        get_headless_disabled_fn: "Callable[[], bool] | None" = None,
+        toggle_headless_disabled_fn: "Callable[[], None] | None" = None,
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
@@ -82,6 +87,11 @@ class TrayApp:
         self._is_connected = is_connected_fn
         self._get_user_email = get_user_email_fn
         self._configure_fn = configure_fn
+        self._get_portal_enabled = get_portal_enabled_fn or (lambda _: True)
+        self._toggle_portal = toggle_portal_fn or (lambda _: None)
+        self._debug_mode = debug_mode
+        self._get_headless_disabled = get_headless_disabled_fn or (lambda: False)
+        self._toggle_headless_disabled = toggle_headless_disabled_fn or (lambda: None)
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
@@ -143,12 +153,22 @@ class TrayApp:
         self._toggle_accept_notifications()
         self._rebuild_menu()
 
+    def _make_portal_toggle(self, portal_id: str) -> "Callable":
+        def _handler(icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+            self._toggle_portal(portal_id)
+            self._rebuild_menu()
+        return _handler
+
     def _on_connect(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._connect_fn()
         self._rebuild_menu()
 
     def _on_disconnect(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._disconnect_fn()
+        self._rebuild_menu()
+
+    def _on_toggle_headless_disabled(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._toggle_headless_disabled()
         self._rebuild_menu()
 
     def _on_configure(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
@@ -232,6 +252,24 @@ class TrayApp:
                 )
             )
 
+        # Portal sync toggles
+        _portals = [
+            ("transparencia", "Portal de Transparencia"),
+            ("ctbg", "Consejo de Transparencia (CTBG)"),
+            ("dehu", "DEHú"),
+            ("redsara", "Red SARA REC"),
+        ]
+        items.append(pystray.Menu.SEPARATOR)
+        for portal_id, label in _portals:
+            _pid = portal_id  # capture for closure
+            items.append(
+                pystray.MenuItem(
+                    label,
+                    self._make_portal_toggle(_pid),
+                    checked=lambda item, pid=_pid: self._get_portal_enabled(pid),
+                )
+            )
+
         email = self._get_user_email()
         items += [
             pystray.Menu.SEPARATOR,
@@ -250,6 +288,16 @@ class TrayApp:
             items.append(
                 pystray.MenuItem(f"Actualizar a v{ver}...", self._on_update)
             )
+
+        if self._debug_mode:
+            items += [
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Deshabilitar headless",
+                    self._on_toggle_headless_disabled,
+                    checked=lambda item: self._get_headless_disabled(),
+                ),
+            ]
 
         items += [
             pystray.MenuItem(f"PideInfo Agent v{__version__}", None, enabled=False),
