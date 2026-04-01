@@ -72,6 +72,13 @@ if _is_mac:
 if not _is_mac:
     _excludes += ["AppKit", "Foundation", "Cocoa"]
 
+# Icon — optional: if the file doesn't exist the build proceeds without one
+_icon_candidate = (
+    "macos/icon.icns" if _is_mac
+    else ("windows/icon.ico" if _is_win else "linux/icon.png")
+)
+_icon_path = _icon_candidate if Path(_icon_candidate).exists() else None
+
 # ---------------------------------------------------------------------------
 # Data files to bundle
 # ---------------------------------------------------------------------------
@@ -115,11 +122,8 @@ exe = EXE(
     argv_emulation=_is_mac,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file="build/macos/entitlements.plist" if _is_mac else None,
-    icon=(
-        "build/macos/icon.icns" if _is_mac
-        else ("build/windows/icon.ico" if _is_win else "build/linux/icon.png")
-    ),
+    entitlements_file="macos/entitlements.plist" if _is_mac else None,
+    icon=_icon_path,
 )
 
 coll = COLLECT(
@@ -136,7 +140,7 @@ if _is_mac:
     app = BUNDLE(
         coll,
         name="PideInfo Agent.app",
-        icon="build/macos/icon.icns",
+        icon=_icon_path,
         bundle_identifier="com.pideinfo.agent",
         info_plist={
             "CFBundleName": "PideInfo Agent",
