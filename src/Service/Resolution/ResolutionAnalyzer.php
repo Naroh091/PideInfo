@@ -100,6 +100,8 @@ final class ResolutionAnalyzer
         $prompt = <<<'PROMPT'
 Eres un experto en derecho administrativo español y transparencia. Se te proporciona el texto de una resolución de un consejo de transparencia sobre una reclamación de acceso a información pública.
 
+IMPORTANTE: Si el texto está en catalán, gallego, euskera o cualquier otro idioma distinto del castellano, TODA tu salida (formatted_text, summary, keypoints) debe estar traducida al castellano. Traduce el contenido manteniendo la terminología jurídica correcta en castellano.
+
 Tu tarea tiene tres partes:
 
 ## 1. FORMATEAR EL TEXTO
@@ -123,10 +125,11 @@ Reglas:
 
 ## 2. GENERAR RESUMEN
 
-Escribe un resumen de 2-4 frases en texto plano que explique:
+Escribe un resumen conciso en texto plano (máximo 350-400 caracteres) que explique:
 - Qué información se solicitó y a qué organismo
-- Cuál fue la respuesta de la administración
 - Cuál fue la decisión del consejo de transparencia y por qué
+
+El resumen NO debe superar los 400 caracteres. Sé directo y evita redundancias.
 
 ## 3. EXTRAER PUNTOS CLAVE
 
@@ -144,13 +147,18 @@ Busca la fecha de la resolución en el texto. Suele aparecer en la firma final d
 
 Busca la fecha en que se presentó la reclamación. Suele mencionarse en los ANTECEDENTES (e.g., "Con fecha 5 de marzo de 2025, tuvo entrada en este Consejo la reclamación...", "La reclamació va ser presentada a la GAIP el dia 10 de febrer de 2026"). Devuélvela en formato ISO 8601 (YYYY-MM-DD). Si no la encuentras, devuelve null.
 
+## 6. EXTRAER ASUNTO
+
+Extrae una descripción breve (máximo 500 caracteres) de la información que se solicitó. Debe estar en castellano. Si el texto original está en otro idioma, tradúcelo. Si no puedes determinar el asunto, devuelve null.
+
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {
   "formatted_text": "HTML formateado",
   "summary": "resumen en texto plano",
   "keypoints": ["punto 1", "punto 2", ...],
   "resolution_date": "YYYY-MM-DD o null",
-  "claim_date": "YYYY-MM-DD o null"
+  "claim_date": "YYYY-MM-DD o null",
+  "subject": "asunto en castellano o null"
 }
 PROMPT;
 
@@ -212,9 +220,10 @@ PROMPT;
             throw new \RuntimeException('Invalid JSON structure from Gemini: ' . mb_substr($text, 0, 500));
         }
 
-        // Ensure date fields exist (may be null)
+        // Ensure optional fields exist (may be null)
         $result['resolution_date'] = $result['resolution_date'] ?? null;
         $result['claim_date'] = $result['claim_date'] ?? null;
+        $result['subject'] = $result['subject'] ?? null;
 
         return $result;
     }

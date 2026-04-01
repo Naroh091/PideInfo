@@ -29,6 +29,10 @@ class ResolutionData
         /** @var array<string, mixed>|null */
         public ?array $sourceMetadata = null,
         public ?int $year = null,
+        public ?\DateTimeImmutable $resolutionDate = null,
+        public ?\DateTimeImmutable $claimDate = null,
+        public ?string $summary = null,
+        public ?string $complaintOrganismShortName = null,
     ) {
     }
 }
