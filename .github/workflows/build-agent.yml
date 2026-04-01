@@ -15,28 +15,37 @@ on:
         default: 'all'
 
 jobs:
+  # Filter the build matrix based on the 'platforms' input
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.filter.outputs.matrix }}
+    steps:
+      - name: Build matrix
+        id: filter
+        run: |
+          ALL='[
+            {"os":"macos-14","platform":"macos-arm64","artifact":"PideInfo-Agent-macos-arm64.dmg"},
+            {"os":"windows-latest","platform":"windows-x64","artifact":"PideInfo-Agent-windows-x64-setup.exe"},
+            {"os":"ubuntu-22.04","platform":"linux-x64","artifact":"PideInfo-Agent-linux-x64.AppImage"}
+          ]'
+          PLATFORMS="${{ inputs.platforms || 'all' }}"
+          if [ "$PLATFORMS" = "all" ] || [ -z "$PLATFORMS" ]; then
+            echo "matrix={\"include\":$ALL}" >> $GITHUB_OUTPUT
+          else
+            FILTERED=$(echo "$ALL" | jq -c --arg p "$PLATFORMS" \
+              '[.[] | select(.platform as $pl | ($p | split(",") | map(gsub("\\s+";"")) | any(. as $f | $pl | contains($f))))]')
+            echo "matrix={\"include\":$FILTERED}" >> $GITHUB_OUTPUT
+          fi
+
   build:
+    needs: prepare
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            platform: macos-arm64
-            artifact: PideInfo-Agent-macos-arm64.dmg
-          - os: windows-latest
-            platform: windows-x64
-            artifact: PideInfo-Agent-windows-x64-setup.exe
-          - os: ubuntu-22.04
-            platform: linux-x64
-            artifact: PideInfo-Agent-linux-x64.AppImage
+      matrix: ${{ fromJson(needs.prepare.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.platform }})
-    if: >-
-      github.event_name == 'push' ||
-      inputs.platforms == 'all' ||
-      inputs.platforms == '' ||
-      contains(inputs.platforms, matrix.platform)
 
     steps:
       - name: Checkout repository
@@ -223,7 +232,7 @@ jobs:
   # Release: collect all artifacts and create a GitHub Release
   # ---------------------------------------------------------------------------
   release:
-    needs: build
+    needs: [prepare, build]
     if: ${{ !cancelled() && needs.build.result != 'failure' }}
     runs-on: ubuntu-latest
     permissions:
