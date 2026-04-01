@@ -19,9 +19,6 @@ jobs:
           - os: macos-14
             platform: macos-arm64
             artifact: PideInfo-Agent-macos-arm64.dmg
-          - os: macos-13
-            platform: macos-x64
-            artifact: PideInfo-Agent-macos-x64.dmg
           - os: windows-latest
             platform: windows-x64
             artifact: PideInfo-Agent-windows-x64-setup.exe
@@ -142,6 +139,10 @@ jobs:
       # -----------------------------------------------------------------------
       # Windows: create NSIS installer
       # -----------------------------------------------------------------------
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        run: choco install nsis --no-progress -y
+
       - name: Build Windows NSIS installer
         if: runner.os == 'Windows'
         uses: joncloud/makensis-action@v4
@@ -155,6 +156,24 @@ jobs:
       # -----------------------------------------------------------------------
       # Linux: create AppImage
       # -----------------------------------------------------------------------
+      - name: Generate Linux icon
+        if: runner.os == 'Linux'
+        working-directory: agent
+        run: |
+          python - <<'EOF'
+          from PIL import Image, ImageDraw
+          size = 256
+          img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+          draw = ImageDraw.Draw(img)
+          m = int(size * 0.06)
+          draw.ellipse([m, m, size - m, size - m], fill="#1D4ED8")
+          draw.rectangle([size//4, size//6, size//4+size//9, size*5//6], fill="white")
+          draw.ellipse([size//4, size//6, size*3//4, size//2], fill="white")
+          draw.ellipse([size//4+6, size//6+6, size*3//4-6, size//2-6], fill="#1D4ED8")
+          img.save("build/linux/icon.png")
+          print("icon.png generated")
+          EOF
+
       - name: Create Linux AppImage
         if: runner.os == 'Linux'
         working-directory: agent
@@ -221,14 +240,14 @@ jobs:
 
             | Plataforma | Archivo |
             |---|---|
-            | macOS (Apple Silicon) | PideInfo-Agent-macos-arm64.dmg |
-            | macOS (Intel) | PideInfo-Agent-macos-x64.dmg |
+            | macOS (Apple Silicon + Intel vía Rosetta 2) | PideInfo-Agent-macos-arm64.dmg |
             | Windows | PideInfo-Agent-windows-x64-setup.exe |
             | Linux | PideInfo-Agent-linux-x64.AppImage |
 
             ### Instalación
 
             **macOS**: Abre el DMG y arrastra PideInfo Agent a tu carpeta de Aplicaciones.
+            Funciona en Apple Silicon y en Intel vía Rosetta 2.
             Al primer lanzamiento, el agente descargará el navegador automáticamente (~170 MB).
 
             **Windows**: Ejecuta el instalador. El navegador se descarga en el primer inicio.

@@ -41,6 +41,10 @@ _is_mac = sys.platform == "darwin"
 _is_win = sys.platform == "win32"
 _is_linux = sys.platform.startswith("linux")
 
+# Spec file lives at agent/build/ — use absolute paths so codesign/PyInstaller
+# can find assets regardless of the working directory the build is invoked from.
+_spec_dir = Path(__file__).parent
+
 _hidden_imports = [
     "truststore",
     "pydantic_settings",
@@ -74,10 +78,10 @@ if not _is_mac:
 
 # Icon — optional: if the file doesn't exist the build proceeds without one
 _icon_candidate = (
-    "macos/icon.icns" if _is_mac
-    else ("windows/icon.ico" if _is_win else "linux/icon.png")
+    _spec_dir / "macos" / "icon.icns" if _is_mac
+    else (_spec_dir / "windows" / "icon.ico" if _is_win else _spec_dir / "linux" / "icon.png")
 )
-_icon_path = _icon_candidate if Path(_icon_candidate).exists() else None
+_icon_path = str(_icon_candidate) if _icon_candidate.exists() else None
 
 # ---------------------------------------------------------------------------
 # Data files to bundle
@@ -122,7 +126,7 @@ exe = EXE(
     argv_emulation=_is_mac,
     target_arch=None,
     codesign_identity=None,
-    entitlements_file="macos/entitlements.plist" if _is_mac else None,
+    entitlements_file=str(_spec_dir / "macos" / "entitlements.plist") if _is_mac else None,
     icon=_icon_path,
 )
 
