@@ -23,6 +23,9 @@ class ComplaintOrganism
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $shortName = null;
 
+    #[ORM\Column(length: 255, unique: true, nullable: true)]
+    private ?string $slug = null;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $url = null;
 
@@ -42,10 +45,15 @@ class ComplaintOrganism
     #[ORM\OneToMany(targetEntity: ApplicableLaw::class, mappedBy: 'complaintOrganism')]
     private Collection $applicableLaws;
 
+    /** @var Collection<int, Resolution> */
+    #[ORM\OneToMany(targetEntity: Resolution::class, mappedBy: 'complaintOrganism')]
+    private Collection $resolutions;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
         $this->applicableLaws = new ArrayCollection();
+        $this->resolutions = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -72,6 +80,17 @@ class ComplaintOrganism
     public function setShortName(?string $shortName): static
     {
         $this->shortName = $shortName;
+        return $this;
+    }
+
+    public function getSlug(): ?string
+    {
+        return $this->slug;
+    }
+
+    public function setSlug(?string $slug): static
+    {
+        $this->slug = $slug;
         return $this;
     }
 
@@ -153,6 +172,12 @@ class ComplaintOrganism
             }
         }
         return $this;
+    }
+
+    /** @return Collection<int, Resolution> */
+    public function getResolutions(): Collection
+    {
+        return $this->resolutions;
     }
 
     public function __toString(): string
