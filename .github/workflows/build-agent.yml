@@ -8,7 +8,11 @@ on:
     inputs:
       version:
         description: 'Version to build (e.g., 1.0.0)'
-        required: true
+        required: false
+      platforms:
+        description: 'Platforms to build (comma-separated: macos,windows,linux or "all")'
+        required: false
+        default: 'all'
 
 jobs:
   build:
@@ -28,6 +32,11 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     name: Build (${{ matrix.platform }})
+    if: >-
+      github.event_name == 'push' ||
+      inputs.platforms == 'all' ||
+      inputs.platforms == '' ||
+      contains(inputs.platforms, matrix.platform)
 
     steps:
       - name: Checkout repository
@@ -148,8 +157,11 @@ jobs:
       - name: Build Windows NSIS installer
         if: runner.os == 'Windows'
         working-directory: agent
+        shell: pwsh
         run: |
-          makensis /DVERSION=${{ steps.version.outputs.version }} "/DDIST_DIR=dist\PideInfo Agent" /DOUTFILE=${{ matrix.artifact }} build\windows\installer.nsi
+          $distDir = Join-Path $pwd "dist\PideInfo Agent"
+          $outFile = Join-Path $pwd "${{ matrix.artifact }}"
+          makensis /DVERSION=${{ steps.version.outputs.version }} "/DDIST_DIR=$distDir" "/DOUTFILE=$outFile" build\windows\installer.nsi
 
       # -----------------------------------------------------------------------
       # Linux: create AppImage
@@ -212,43 +224,75 @@ jobs:
   # ---------------------------------------------------------------------------
   release:
     needs: build
+    if: ${{ !cancelled() && needs.build.result != 'failure' }}
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/agent-v')
     permissions:
       contents: write
 
     steps:
+      - name: Checkout (to read version.py and generate notes)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version and tag
+        id: ver
+        run: |
+          VERSION=$(python3 -c "exec(open('agent/version.py').read()); print(__version__)")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          if [[ "${{ github.ref }}" == refs/tags/agent-v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "title=PideInfo Agent ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "flags=" >> $GITHUB_OUTPUT
+          else
+            TAG="agent-dev-v${VERSION}-$(date +%Y%m%d%H%M%S)"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+            echo "title=PideInfo Agent v${VERSION} (dev build)" >> $GITHUB_OUTPUT
+            echo "flags=--draft --prerelease" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
 
+      - name: Collect release assets
+        id: assets
+        run: |
+          # Flatten: upload-artifact nests each file in a directory named after the artifact
+          mkdir -p release-assets
+          find artifacts/ -type f -exec cp {} release-assets/ \;
+          echo "Collected assets:"
+          ls -lh release-assets/
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "PideInfo Agent ${{ github.ref_name }}"
-          draft: false
-          prerelease: false
-          files: artifacts/**/*
-          body: |
-            ## PideInfo Agent ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/release-body.md <<'EOF'
+          ### Descargas
 
-            ### Descargas
+          | Plataforma | Archivo |
+          |---|---|
+          | macOS (Apple Silicon + Intel vía Rosetta 2) | PideInfo-Agent-macos-arm64.dmg |
+          | Windows | PideInfo-Agent-windows-x64-setup.exe |
+          | Linux | PideInfo-Agent-linux-x64.AppImage |
 
-            | Plataforma | Archivo |
-            |---|---|
-            | macOS (Apple Silicon + Intel vía Rosetta 2) | PideInfo-Agent-macos-arm64.dmg |
-            | Windows | PideInfo-Agent-windows-x64-setup.exe |
-            | Linux | PideInfo-Agent-linux-x64.AppImage |
+          ### Instalación
 
-            ### Instalación
+          **macOS**: Abre el DMG y arrastra PideInfo Agent a Aplicaciones.
+          Funciona en Apple Silicon y en Intel vía Rosetta 2.
+          Al primer lanzamiento se descargará el navegador automáticamente (~80 MB).
 
-            **macOS**: Abre el DMG y arrastra PideInfo Agent a tu carpeta de Aplicaciones.
-            Funciona en Apple Silicon y en Intel vía Rosetta 2.
-            Al primer lanzamiento, el agente descargará el navegador automáticamente (~170 MB).
+          **Windows**: Ejecuta el instalador. El navegador se descarga en el primer inicio.
 
-            **Windows**: Ejecuta el instalador. El navegador se descarga en el primer inicio.
+          **Linux**: Haz el AppImage ejecutable (`chmod +x`) y ejecútalo.
+          El navegador se descarga en el primer inicio.
+          EOF
 
-            **Linux**: Haz el AppImage ejecutable (`chmod +x`) y ejecútalo.
-            El navegador se descarga en el primer inicio.
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            --title "${{ steps.ver.outputs.title }}" \
+            --notes-file /tmp/release-body.md \
+            --generate-notes \
+            ${{ steps.ver.outputs.flags }} \
+            release-assets/*
