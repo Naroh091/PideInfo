@@ -67,12 +67,14 @@ async def authenticate_dehu(
             ignore_https_errors=True,
         )
 
-        # Attach JWT capture listener BEFORE any navigation so we don't miss it
+        # Attach JWT capture listener BEFORE any navigation so we don't miss it.
+        # Capture ANY Bearer token sent to the DEHú domain — don't restrict by path
+        # because the exact API route structure is subject to change.
         def _capture_bearer(request) -> None:
             if captured_jwt:
                 return
             auth = request.headers.get("authorization", "")
-            if auth.startswith("Bearer ") and "/api/v1/" in request.url:
+            if auth.startswith("Bearer ") and portal_url.split("//")[-1].split("/")[0] in request.url:
                 captured_jwt.append(auth[len("Bearer "):])
 
         context.on("request", _capture_bearer)
@@ -108,27 +110,53 @@ async def authenticate_dehu(
             )
             console.print("[bold green]DEHú: autenticación completada[/]")
 
-            # Navigate to notifications page — this triggers Angular to call
-            # GET /api/v1/notifications? with the Bearer token we want to capture.
-            # Use domcontentloaded (fast) then poll briefly for the JWT rather than
-            # waiting for networkidle, which times out on Angular SPAs that keep
-            # long-polling connections open.
-            console.print("[dim]DEHú: navegando a notificaciones para capturar JWT...[/]")
             import asyncio
-            try:
-                await page.goto(
-                    f"{portal_url}/es/notifications",
-                    wait_until="domcontentloaded",
-                    timeout=15_000,
-                )
-            except Exception as e:
-                console.print(f"[dim]DEHú: {e} — continuando[/]")
 
-            # Poll up to 8 seconds for the Angular XHR to fire
-            for _ in range(80):
+            # Brief pause — Angular may already be making API calls on the home
+            # page right now; give the event loop a chance to fire our listener
+            # before we navigate away.
+            await asyncio.sleep(1.5)
+
+            if not captured_jwt:
+                # Navigate to notifications page — triggers Angular to call the
+                # notifications API with its Bearer token.
+                # Use domcontentloaded (fast) then poll briefly for the JWT rather
+                # than waiting for networkidle, which times out on Angular SPAs.
+                console.print("[dim]DEHú: navegando a notificaciones para capturar JWT...[/]")
+                try:
+                    await page.goto(
+                        f"{portal_url}/es/notifications",
+                        wait_until="domcontentloaded",
+                        timeout=15_000,
+                    )
+                except Exception as e:
+                    console.print(f"[dim]DEHú: {e} — continuando[/]")
+
+            # Poll up to 12 seconds for the Angular XHR to fire
+            for _ in range(120):
                 if captured_jwt:
                     break
                 await asyncio.sleep(0.1)
+
+            # Fallback: Angular may store the JWT in sessionStorage or localStorage
+            if not captured_jwt:
+                try:
+                    js_jwt = await page.evaluate("""() => {
+                        for (const s of [sessionStorage, localStorage]) {
+                            for (let i = 0; i < s.length; i++) {
+                                const v = s.getItem(s.key(i));
+                                if (v && v.startsWith('ey') && v.split('.').length === 3) {
+                                    return v;
+                                }
+                            }
+                        }
+                        return '';
+                    }""")
+                    if js_jwt:
+                        captured_jwt.append(js_jwt)
+                        console.print("[green]DEHú: JWT extraído de almacenamiento JS[/]")
+                except Exception:
+                    pass
 
             if captured_jwt:
                 console.print("[green]DEHú: JWT capturado correctamente[/]")
