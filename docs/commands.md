@@ -59,6 +59,62 @@ php bin/console app:ctbg:load-resolutions --source=national --async
 
 ---
 
+### `app:ctg:load-resolutions`
+
+Scrapea resoluciones del CTG (Galicia) desde comisiondatransparencia.gal, las inserta/actualiza en BD y opcionalmente descarga PDFs, analiza con IA y vectoriza.
+
+```bash
+php bin/console app:ctg:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+
+---
+
+### `app:cvaip:load-resolutions`
+
+Scrapea resoluciones de la CVAIP (País Vasco) desde legegunea.euskadi.eus. Las resoluciones vienen en documentos Word (.docx) que se descargan y parsean durante el scraping para extraer el texto, el sentido (outcome) y la fecha de resolución.
+
+```bash
+php bin/console app:cvaip:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga de documento (el texto ya se extrae durante el scraping) |
+| `--async` | Despachar procesamiento a workers de Messenger |
+
+**Particularidades:**
+- El texto se extrae del Word (.docx) con PhpWord durante la fase de scraping, no durante el procesamiento posterior.
+- El outcome se parsea del texto de la cláusula "Primero.-" tras "RESUELVE".
+- La fecha se extrae de la línea FIRMANTE (2025+) o del título/cierre del documento (2022-2024).
+- Se limpian bloques LOKALIZATZAILEA/LOCALIZADOR, avisos de documento electrónico y boilerplate de cierre.
+- El asunto se deja temporal ("Resolución de reclamación de acceso a la información pública") y se extrae con IA en el análisis posterior (≤170 caracteres).
+- En modo `--async`, se envía `skipPdf=true` ya que el texto ya está cargado.
+
+**Ejemplo — importar solo metadatos + texto:**
+```bash
+php bin/console app:cvaip:load-resolutions --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar con análisis async:**
+```bash
+php bin/console app:cvaip:load-resolutions --async
+```
+
+---
+
 ## Procesamiento batch con Gemini
 
 El procesamiento batch usa la [Gemini Batch API](https://ai.google.dev/gemini-api/docs/batch-api) para procesar grandes volúmenes a mitad de precio. Los resultados se entregan de forma asíncrona (normalmente en menos de 24 h).

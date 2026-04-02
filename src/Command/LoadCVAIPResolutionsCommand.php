@@ -6,11 +6,12 @@ use App\DTO\ResolutionData;
 use App\Entity\AutonomousCommunity;
 use App\Entity\Resolution;
 use App\Message\ProcessResolutionMessage;
+use App\MessageHandler\ProcessResolutionHandler;
 use App\Repository\AutonomousCommunityRepository;
 use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
-use App\Service\Resolution\CtgWebReader;
+use App\Service\Resolution\CvaipWebReader;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
@@ -31,10 +32,10 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
-    name: 'app:ctg:load-resolutions',
-    description: 'Scrape CTG resolutions from comisiondatransparencia.gal, upsert to DB, and optionally process PDFs + AI + vectors',
+    name: 'app:cvaip:load-resolutions',
+    description: 'Scrape CVAIP resolutions from legegunea.euskadi.eus, upsert to DB, and optionally process AI + vectors',
 )]
-class LoadCTGResolutionsCommand extends Command
+class LoadCVAIPResolutionsCommand extends Command
 {
     use ResolutionProcessingTrait;
 
@@ -50,7 +51,7 @@ class LoadCTGResolutionsCommand extends Command
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        private readonly CtgWebReader $ctgReader,
+        private readonly CvaipWebReader $cvaipReader,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionDateExtractor $dateExtractor,
         private readonly ResolutionRepository $resolutionRepository,
@@ -74,9 +75,9 @@ class LoadCTGResolutionsCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
-            ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip document download (text already extracted during scrape)')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
-            ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only scrape resolutions that have no sourceUrl in DB')
+            ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Skip resolutions that already have a sourceUrl in the DB')
         ;
     }
 
@@ -89,8 +90,9 @@ class LoadCTGResolutionsCommand extends Command
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
+        $onlyNew = $input->getOption('only-missing-url');
 
-        $io->title('CTG Resolution Loader');
+        $io->title('CVAIP Resolution Loader (País Vasco)');
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
@@ -103,9 +105,9 @@ class LoadCTGResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Fetch listing entries (fast — only listing pages)
-        $io->section('Fetching resolution list from CTG website...');
-        $entries = $this->ctgReader->fetchEntries($limit, fn (string $msg) => $io->text($msg));
+        // Step 2: Fetch listing entries
+        $io->section('Fetching resolution list from CVAIP website...');
+        $entries = $this->cvaipReader->fetchEntries($limit, fn (string $msg) => $io->text($msg));
         $totalEntries = count($entries);
         $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
 
@@ -114,7 +116,7 @@ class LoadCTGResolutionsCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Deduplicate entries by reference (listing may contain the same resolution on different pages)
+        // Deduplicate by reference
         $seen = [];
         $entries = array_filter($entries, function (array $entry) use (&$seen) {
             if (isset($seen[$entry['reference']])) {
@@ -126,23 +128,7 @@ class LoadCTGResolutionsCommand extends Command
         $entries = array_values($entries);
         $totalEntries = count($entries);
 
-        // Filter to only resolutions missing sourceUrl in DB
-        if ($input->getOption('only-missing-url')) {
-            $entries = array_filter($entries, function (array $entry) {
-                $resolution = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CTG);
-                return $resolution === null || $resolution->getSourceUrl() === null;
-            });
-            $entries = array_values($entries);
-            $io->text(sprintf('Filtered to %d resolutions without URL (from %d total).', count($entries), $totalEntries));
-            $totalEntries = count($entries);
-
-            if ($totalEntries === 0) {
-                $io->success('All resolutions already have URLs.');
-                return Command::SUCCESS;
-            }
-        }
-
-        // Step 3: Process in batches — scrape detail pages, upsert, dispatch
+        // Step 3: Process in batches — scrape detail pages + download Word docs, upsert, dispatch
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
         $batches = array_chunk($entries, self::BATCH_SIZE);
 
@@ -151,18 +137,34 @@ class LoadCTGResolutionsCommand extends Command
             $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
             $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
 
-            // 3a: Scrape detail pages for this batch
-            $batchDtos = [];
+            // 3a: Scrape detail pages + download documents for this batch
+            $batchResults = [];
             foreach ($batch as $i => $entry) {
                 $globalIdx = $batchStart + $i;
+
+                // Skip if already imported (has sourceUrl in DB)
+                if ($onlyNew) {
+                    $existing = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CVAIP);
+                    if ($existing !== null && $existing->getSourceUrl()) {
+                        $io->text(sprintf('[%d/%d] %s — already imported, skipping', $globalIdx, $totalEntries, $entry['reference']));
+                        $stats['skipped']++;
+                        continue;
+                    }
+                }
+
                 $io->text(sprintf('[%d/%d] Fetching %s...', $globalIdx, $totalEntries, $entry['reference']));
 
                 try {
-                    $dto = $this->ctgReader->fetchResolution($entry);
-                    if ($dto !== null) {
-                        $batchDtos[] = $dto;
+                    $result = $this->cvaipReader->fetchResolution($entry);
+                    if ($result !== null) {
+                        $batchResults[] = $result;
+                        $io->text(sprintf('  Outcome: %s | Date: %s | Text: %d chars',
+                            $result['dto']->outcome,
+                            $result['dto']->resolutionDate?->format('Y-m-d') ?? 'n/a',
+                            mb_strlen($result['fullText']),
+                        ));
                     } else {
-                        $io->text(sprintf('  <comment>Skipped (no outcome)</comment>'));
+                        $io->text('  <comment>Skipped (no document or no outcome)</comment>');
                         $stats['skipped']++;
                     }
                 } catch (\Exception $e) {
@@ -173,22 +175,22 @@ class LoadCTGResolutionsCommand extends Command
                 usleep(500_000);
             }
 
-            if (empty($batchDtos) || $dryRun) {
-                $stats['processed'] += count($batchDtos);
+            if (empty($batchResults) || $dryRun) {
+                $stats['processed'] += count($batchResults);
                 if ($dryRun) {
-                    $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchDtos)));
+                    $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchResults)));
                 }
                 continue;
             }
 
             // 3b: Upsert this batch
-            foreach ($batchDtos as $dto) {
+            foreach ($batchResults as $result) {
                 try {
-                    $this->upsertResolution($dto, $io, $stats);
+                    $this->upsertResolution($result['dto'], $result['fullText'], $io, $stats);
                     $stats['processed']++;
                 } catch (\Exception $e) {
-                    $this->logger->error('Error upserting CTG resolution', [
-                        'reference' => $dto->referenceNumber,
+                    $this->logger->error('Error upserting CVAIP resolution', [
+                        'reference' => $result['dto']->referenceNumber,
                         'error' => $e->getMessage(),
                     ]);
                     $io->error('  Upsert error: ' . $e->getMessage());
@@ -210,22 +212,22 @@ class LoadCTGResolutionsCommand extends Command
                 continue;
             }
 
-            // 3c: Dispatch async or process inline for this batch
+            // 3c: Dispatch async or process inline
             if ($async) {
-                foreach ($batchDtos as $dto) {
-                    $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTG);
+                foreach ($batchResults as $result) {
+                    $resolution = $this->resolutionRepository->findByReferenceAndSource($result['dto']->referenceNumber, Resolution::SOURCE_CVAIP);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
                             resolutionId: $resolution->getId(),
                             skipAnalysis: $skipAnalysis,
                             skipVectors: $skipVectors,
-                            skipPdf: $skipPdf,
+                            skipPdf: true, // Text already extracted from Word during scrape
                         ));
                         $stats['dispatched']++;
                     }
                 }
-            } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($batchDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+            } elseif (!$skipAnalysis || !$skipVectors) {
+                $this->processInline($batchResults, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
@@ -257,7 +259,7 @@ class LoadCTGResolutionsCommand extends Command
             ));
         } else {
             $io->success(sprintf(
-                '%s complete. %d processed (%d new, %d updated), %d skipped, %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
+                '%s complete. %d processed (%d new, %d updated), %d skipped, %d analyzed, %d vectorized, %d errors.',
                 $dryRun ? 'Dry run' : 'Import',
                 $stats['processed'],
                 $stats['created'],
@@ -265,7 +267,6 @@ class LoadCTGResolutionsCommand extends Command
                 $stats['skipped'],
                 $stats['analyzed'],
                 $stats['vectorized'],
-                $stats['skippedPdf'],
                 $stats['errors']
             ));
         }
@@ -273,22 +274,16 @@ class LoadCTGResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function processInline(array $dtos, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats): void
+    private function processInline(array $batchResults, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats): void
     {
-        foreach ($dtos as $dto) {
-            $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTG);
+        foreach ($batchResults as $result) {
+            $resolution = $this->resolutionRepository->findByReferenceAndSource($result['dto']->referenceNumber, Resolution::SOURCE_CVAIP);
             if (!$resolution) {
                 continue;
             }
 
             try {
-                if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
-                    $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
-                    usleep(200_000);
-                } elseif (!$resolution->getSourceUrl()) {
-                    $stats['skippedPdf']++;
-                }
-
+                // Text already extracted from Word — skip document download
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
@@ -300,7 +295,7 @@ class LoadCTGResolutionsCommand extends Command
                     $stats['vectorized']++;
                 }
             } catch (\Exception $e) {
-                $this->logger->error('Error processing CTG resolution', [
+                $this->logger->error('Error processing CVAIP resolution', [
                     'reference' => $resolution->getReferenceNumber(),
                     'error' => $e->getMessage(),
                 ]);
@@ -310,15 +305,15 @@ class LoadCTGResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): Resolution
+    private function upsertResolution(ResolutionData $dto, string $fullText, SymfonyStyle $io, array &$stats): Resolution
     {
-        $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTG);
+        $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CVAIP);
         $isNew = $resolution === null;
 
         if ($isNew) {
             $resolution = new Resolution();
             $resolution->setReferenceNumber($dto->referenceNumber);
-            $resolution->setSource(Resolution::SOURCE_CTG);
+            $resolution->setSource(Resolution::SOURCE_CVAIP);
             $resolution->setSummary('');
             $resolution->setFullText('');
             $this->entityManager->persist($resolution);
@@ -362,16 +357,13 @@ class LoadCTGResolutionsCommand extends Command
             $resolution->setTopics($dto->topics);
         }
 
-        if ($dto->keywords) {
-            $resolution->setKeywords($dto->keywords);
-        }
-
-        if ($dto->challengedActs) {
-            $resolution->setChallengedActs($dto->challengedActs);
-        }
-
         if ($dto->sourceMetadata) {
             $resolution->setSourceMetadata($dto->sourceMetadata);
+        }
+
+        // Set full text extracted from Word document
+        if (!empty($fullText) && (empty($resolution->getFullText()) || $resolution->getKeypoints() === null)) {
+            $resolution->setFullText($fullText);
         }
 
         if ($dto->complaintOrganismShortName) {
@@ -393,13 +385,7 @@ class LoadCTGResolutionsCommand extends Command
 
     protected function cleanTextForSource(string $text): string
     {
-        // Strip everything before "ASUNTO:" (header/identification block)
-        $pos = mb_stripos($text, 'ASUNTO:');
-        if ($pos !== false) {
-            $text = mb_substr($text, $pos);
-        }
-
-        return trim($text);
+        return ProcessResolutionHandler::cleanCvaipText($text);
     }
 
     private function findComplaintOrganism(string $shortName): ?\App\Entity\ComplaintOrganism
