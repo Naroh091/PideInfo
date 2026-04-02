@@ -54,13 +54,9 @@ final class ResolutionDateExtractor
             }
         }
 
-        // Pattern 5: CVAIP title date "RESOLUCIÓN XX/YYYY, DE DD DE MONTH,"
-        if (preg_match('/RESOLUCI[ÓO]N\s+\d+\/\d{4}\s*,\s*DE\s+(\d{1,2})\s+DE\s+(\w+)\b/iu', $searchText, $matches)) {
-            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], 0);
-            // Year comes from the reference, try to get it from context
-            if ($date === null && preg_match('/RESOLUCI[ÓO]N\s+\d+\/(\d{4})/u', $searchText, $yearMatch)) {
-                $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $yearMatch[1]);
-            }
+        // Pattern 5: CVAIP title date "RESOLUCIÓN XX/YYYY, DE DD DE MONTH DE YYYY,"
+        if (preg_match('/RESOLUCI[ÓO]N\s+\d+\/\d{4}\s*,\s*[Dd][Ee]\s+(\d{1,2})\s+[Dd][Ee]\s+(\w+)\s+[Dd][Ee]\s+(\d{4})/u', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $matches[3]);
             if ($date !== null) {
                 return ['date' => $date, 'source' => 'regex'];
             }

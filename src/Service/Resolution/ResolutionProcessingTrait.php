@@ -32,13 +32,10 @@ trait ResolutionProcessingTrait
             $extension = strtolower(pathinfo(parse_url($documentUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
             $io->text(sprintf('  Downloading %s...', $extension ?: 'document'));
 
-            $response = $this->httpClient->request('GET', $documentUrl, [
-                'timeout' => 60,
-            ]);
-            $content = $response->getContent();
+            $content = $this->fetchDocumentContent($documentUrl, $io);
 
-            if (strlen($content) < 100) {
-                $io->text('  <comment>Document too small, skipping</comment>');
+            if ($content === null || strlen($content) < 100) {
+                $io->text('  <comment>Document too small or unavailable, skipping</comment>');
                 return;
             }
 
@@ -70,14 +67,16 @@ trait ResolutionProcessingTrait
             $resolution->setFullText($this->sanitizeUtf8($text));
             $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
 
-            // Try regex-based date extraction from raw text
-            $dateResult = $this->dateExtractor->extractFromText($text);
-            if ($dateResult['date'] !== null) {
-                $resolution->setResolutionDate($dateResult['date']);
-                $meta = $resolution->getSourceMetadata() ?? [];
-                $meta['FECHA_RESOLUCION'] = 'regex';
-                $resolution->setSourceMetadata($meta);
-                $io->text(sprintf('  Date extracted (regex): %s', $dateResult['date']->format('Y-m-d')));
+            // Try regex-based date extraction from raw text (only if no date set yet)
+            if ($resolution->getResolutionDate() === null) {
+                $dateResult = $this->dateExtractor->extractFromText($text);
+                if ($dateResult['date'] !== null) {
+                    $resolution->setResolutionDate($dateResult['date']);
+                    $meta = $resolution->getSourceMetadata() ?? [];
+                    $meta['FECHA_RESOLUCION'] = 'regex';
+                    $resolution->setSourceMetadata($meta);
+                    $io->text(sprintf('  Date extracted (regex): %s', $dateResult['date']->format('Y-m-d')));
+                }
             }
         } catch (\Exception $e) {
             $this->logger->warning('Document download/processing failed', [
@@ -111,7 +110,7 @@ trait ResolutionProcessingTrait
             }
 
             $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
-            if ($result['resolution_date'] && $existingDateSource !== 'regex') {
+            if ($result['resolution_date'] && $existingDateSource === null) {
                 try {
                     $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
                     $meta = $resolution->getSourceMetadata() ?? [];
@@ -329,6 +328,61 @@ trait ResolutionProcessingTrait
     protected function cleanTextForSource(string $text): string
     {
         return $text;
+    }
+
+    private function encodeUrlPath(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!isset($parts['path'])) {
+            return $url;
+        }
+
+        $segments = explode('/', $parts['path']);
+        $encoded = array_map(fn (string $s) => rawurlencode(rawurldecode($s)), $segments);
+        $parts['path'] = implode('/', $encoded);
+
+        $result = '';
+        if (isset($parts['scheme'])) {
+            $result .= $parts['scheme'] . '://';
+        }
+        if (isset($parts['host'])) {
+            $result .= $parts['host'];
+        }
+        $result .= $parts['path'];
+        if (isset($parts['query'])) {
+            $result .= '?' . $parts['query'];
+        }
+
+        return $result;
+    }
+
+    private function fetchDocumentContent(string $url, SymfonyStyle $io): ?string
+    {
+        $url = $this->encodeUrlPath($url);
+        $timeout = str_contains($url, 'gobiernoabierto.navarra.es') ? 2 : 60;
+        try {
+            $response = $this->httpClient->request('GET', $url, ['timeout' => $timeout]);
+            return $response->getContent();
+        } catch (\Exception $e) {
+            $io->text(sprintf('  <comment>Direct download failed: %s</comment>', $e->getMessage()));
+        }
+
+        // Fallback: Wayback Machine
+        $waybackUrl = 'https://web.archive.org/web/' . $url;
+        $io->text('  Retrying via Wayback Machine...');
+        try {
+            $response = $this->httpClient->request('GET', $waybackUrl, ['timeout' => 60]);
+            $content = $response->getContent();
+            $io->text('  <info>Fetched from Wayback Machine</info>');
+            return $content;
+        } catch (\Exception $e) {
+            $this->logger->warning('Wayback Machine fallback also failed', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+            $io->text(sprintf('  <comment>Wayback fallback failed: %s</comment>', $e->getMessage()));
+            return null;
+        }
     }
 
     /**

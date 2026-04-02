@@ -100,6 +100,10 @@ class CleanResolutionTextCommand extends Command
                 }
             } elseif ($resolution->getSource() === Resolution::SOURCE_CVAIP) {
                 $result = ProcessResolutionHandler::cleanCvaipText($result);
+            } elseif ($resolution->getSource() === Resolution::SOURCE_CTAR) {
+                $result = ProcessResolutionHandler::cleanCtarText($result);
+            } elseif ($resolution->getSource() === Resolution::SOURCE_CTCYL) {
+                $result = ProcessResolutionHandler::cleanCtcylText($result);
             }
 
             $charsBefore = mb_strlen($original);

@@ -28,6 +28,8 @@ class Resolution
     public const OUTCOME_LOSS_OF_PURPOSE = 'perdida_objeto';
     public const OUTCOME_MEDIATION_AGREEMENT = 'acuerdo_mediacion';
     public const OUTCOME_REFERRAL = 'derivacion';
+    public const OUTCOME_ROLLBACK = 'retrotraer';
+    public const OUTCOME_INHIBITION = 'inhibicion';
 
     // Sources
     public const SOURCE_CTBG = 'CTBG';
@@ -35,6 +37,9 @@ class Resolution
     public const SOURCE_GAIP = 'GAIP';
     public const SOURCE_CTG = 'CTG';
     public const SOURCE_CVAIP = 'CVAIP';
+    public const SOURCE_CTAR = 'CTAR';
+    public const SOURCE_CTCYL = 'CTCYL';
+    public const SOURCE_CTN = 'CTN';
 
     // Scopes
     public const SCOPE_NATIONAL = 'national';
