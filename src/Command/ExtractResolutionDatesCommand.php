@@ -14,6 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 #[AsCommand(
     name: 'app:ctbg:extract-dates',
@@ -29,6 +30,7 @@ class ExtractResolutionDatesCommand extends Command
         private readonly EntityManagerInterface $entityManager,
         #[Autowire(service: 'resolutions.storage')]
         private readonly FilesystemOperator $resolutionsStorage,
+        private readonly HttpClientInterface $httpClient,
     ) {
         parent::__construct();
     }
@@ -87,22 +89,34 @@ class ExtractResolutionDatesCommand extends Command
             $ref = $resolution->getReferenceNumber();
             $storagePath = $resolution->getPdfStoragePath();
 
+            $pdfContent = null;
             try {
                 $pdfContent = $this->resolutionsStorage->read($storagePath);
-            } catch (\Exception $e) {
-                $stats['pdf_error']++;
-                if ($output->isVerbose()) {
-                    $io->text(sprintf('[%d/%d] %s → PDF read error: %s', $idx + 1, $total, $ref, $e->getMessage()));
+            } catch (\Exception) {
+                // S3 miss — try external URL below
+            }
+
+            if ($pdfContent === null) {
+                $sourceUrl = $resolution->getSourceUrl();
+                if (!$sourceUrl) {
+                    $stats['pdf_error']++;
+                    $io->text(sprintf('[%d/%d] %s → <error>not in S3 and no sourceUrl</error>', $idx + 1, $total, $ref));
+                    continue;
                 }
-                continue;
+                try {
+                    $pdfContent = $this->httpClient->request('GET', $sourceUrl, ['timeout' => 60])->getContent();
+                    $io->text(sprintf('[%d/%d] %s → <comment>downloaded from sourceUrl</comment>', $idx + 1, $total, $ref));
+                } catch (\Exception $e) {
+                    $stats['pdf_error']++;
+                    $io->text(sprintf('[%d/%d] %s → <error>download failed: %s</error>', $idx + 1, $total, $ref, $e->getMessage()));
+                    continue;
+                }
             }
 
             $text = $this->extractTextFromPdf($pdfContent);
             if ($text === null) {
                 $stats['pdf_error']++;
-                if ($output->isVerbose()) {
-                    $io->text(sprintf('[%d/%d] %s → no text extractable', $idx + 1, $total, $ref));
-                }
+                $io->text(sprintf('[%d/%d] %s → <error>no text extractable</error>', $idx + 1, $total, $ref));
                 continue;
             }
 
@@ -110,7 +124,7 @@ class ExtractResolutionDatesCommand extends Command
 
             if ($result['date'] !== null) {
                 $stats['found']++;
-                $io->text(sprintf('[%d/%d] %s → %s (regex)', $idx + 1, $total, $ref, $result['date']->format('Y-m-d')));
+                $io->text(sprintf('[%d/%d] %s → <info>%s</info> (regex)', $idx + 1, $total, $ref, $result['date']->format('Y-m-d')));
 
                 if (!$dryRun) {
                     $resolution->setResolutionDate($result['date']);
@@ -125,14 +139,12 @@ class ExtractResolutionDatesCommand extends Command
                 }
             } else {
                 $stats['not_found']++;
-                if ($output->isVerbose()) {
-                    $io->text(sprintf('[%d/%d] %s → no match', $idx + 1, $total, $ref));
-                }
+                $io->text(sprintf('[%d/%d] %s → no match', $idx + 1, $total, $ref));
             }
 
             if (!$dryRun && ($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
                 $this->entityManager->flush();
-                $io->text(sprintf('  <info>Flushed batch (%d processed)</info>', $idx + 1));
+                $io->text(sprintf('  <info>Flushed (%d/%d, found %d so far)</info>', $idx + 1, $total, $stats['found']));
             }
         }
 
@@ -159,17 +171,30 @@ class ExtractResolutionDatesCommand extends Command
         file_put_contents($tmpFile, $pdfContent);
 
         try {
-            // Extract first page
-            $firstPage = $this->pdftotext($tmpFile, 1, 1);
-            // Extract last page — use a high number, pdftotext clamps to actual page count
-            $lastPage = $this->pdftotext($tmpFile, 9999, 9999);
+            $lastPage = $this->getPdfPageCount($tmpFile);
 
-            $text = trim($firstPage . "\n" . $lastPage);
+            $firstPageText = $this->pdftotext($tmpFile, 1, 1);
+            $lastPageText = $lastPage > 1 ? $this->pdftotext($tmpFile, $lastPage, $lastPage) : '';
+
+            $text = trim($firstPageText . "\n" . $lastPageText);
 
             return $text !== '' ? $text : null;
         } finally {
             @unlink($tmpFile);
         }
+    }
+
+    private function getPdfPageCount(string $filePath): int
+    {
+        $process = new Process(['pdfinfo', $filePath]);
+        $process->setTimeout(10);
+        $process->run();
+
+        if ($process->isSuccessful() && preg_match('/^Pages:\s+(\d+)/m', $process->getOutput(), $m)) {
+            return (int) $m[1];
+        }
+
+        return 1;
     }
 
     private function pdftotext(string $filePath, int $firstPage, int $lastPage): string
