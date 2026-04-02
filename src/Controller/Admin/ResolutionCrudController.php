@@ -39,11 +39,25 @@ class ResolutionCrudController extends AbstractCrudController
     {
         return $filters
             ->add(ChoiceFilter::new('outcome', 'Resultado')->setChoices([
-                'Favorable' => 'favorable',
-                'Desfavorable' => 'unfavorable',
-                'Parcial' => 'partial',
-                'Inadmitida' => 'inadmissible',
-                'Archivada' => 'archivo',
+                'Favorable' => Resolution::OUTCOME_FAVORABLE,
+                'Desfavorable' => Resolution::OUTCOME_UNFAVORABLE,
+                'Parcial' => Resolution::OUTCOME_PARTIAL,
+                'Inadmitida' => Resolution::OUTCOME_INADMISSIBLE,
+                'Archivada' => Resolution::OUTCOME_ARCHIVED,
+                'Desistimiento' => Resolution::OUTCOME_WITHDRAWAL,
+                'Pérdida de objeto' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+                'Acuerdo de mediación' => Resolution::OUTCOME_MEDIATION_AGREEMENT,
+                'Derivación' => Resolution::OUTCOME_REFERRAL,
+            ]))
+            ->add(ChoiceFilter::new('source', 'Fuente')->setChoices([
+                'CTBG' => Resolution::SOURCE_CTBG,
+                'CTBG Local' => Resolution::SOURCE_CTBG_LOCAL,
+                'GAIP' => Resolution::SOURCE_GAIP,
+            ]))
+            ->add(ChoiceFilter::new('scope', 'Ámbito')->setChoices([
+                'Nacional' => Resolution::SCOPE_NATIONAL,
+                'Autonómico' => Resolution::SCOPE_AUTONOMOUS,
+                'Local' => Resolution::SCOPE_LOCAL,
             ]))
             ->add(DateTimeFilter::new('resolutionDate', 'Fecha resolución'))
             ->add(EntityFilter::new('complaintOrganism', 'Organismo'));
@@ -56,18 +70,26 @@ class ResolutionCrudController extends AbstractCrudController
         yield TextField::new('subject', 'Asunto');
         yield ChoiceField::new('outcome', 'Resultado')
             ->setChoices([
-                'Favorable' => 'favorable',
-                'Desfavorable' => 'unfavorable',
-                'Parcial' => 'partial',
-                'Inadmitida' => 'inadmissible',
-                'Archivada' => 'archivo',
+                'Favorable' => Resolution::OUTCOME_FAVORABLE,
+                'Desfavorable' => Resolution::OUTCOME_UNFAVORABLE,
+                'Parcial' => Resolution::OUTCOME_PARTIAL,
+                'Inadmitida' => Resolution::OUTCOME_INADMISSIBLE,
+                'Archivada' => Resolution::OUTCOME_ARCHIVED,
+                'Desistimiento' => Resolution::OUTCOME_WITHDRAWAL,
+                'Pérdida de objeto' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+                'Acuerdo de mediación' => Resolution::OUTCOME_MEDIATION_AGREEMENT,
+                'Derivación' => Resolution::OUTCOME_REFERRAL,
             ])
             ->renderAsBadges([
-                'favorable' => 'success',
-                'unfavorable' => 'danger',
-                'partial' => 'warning',
-                'archivo' => 'info',
-                'inadmissible' => 'secondary',
+                Resolution::OUTCOME_FAVORABLE => 'success',
+                Resolution::OUTCOME_UNFAVORABLE => 'danger',
+                Resolution::OUTCOME_PARTIAL => 'warning',
+                Resolution::OUTCOME_ARCHIVED => 'info',
+                Resolution::OUTCOME_INADMISSIBLE => 'secondary',
+                Resolution::OUTCOME_WITHDRAWAL => 'secondary',
+                Resolution::OUTCOME_LOSS_OF_PURPOSE => 'secondary',
+                Resolution::OUTCOME_MEDIATION_AGREEMENT => 'primary',
+                Resolution::OUTCOME_REFERRAL => 'primary',
             ]);
         yield DateField::new('resolutionDate', 'Fecha resolución');
         yield AssociationField::new('complaintOrganism', 'Organismo');
