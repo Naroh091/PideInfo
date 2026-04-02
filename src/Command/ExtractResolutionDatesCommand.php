@@ -93,19 +93,25 @@ class ExtractResolutionDatesCommand extends Command
             try {
                 $pdfContent = $this->resolutionsStorage->read($storagePath);
             } catch (\Exception) {
-                // S3 miss — try external URL below
+                // S3 miss — will try sourceUrl below
             }
 
-            if ($pdfContent === null) {
+            $text = $pdfContent !== null ? $this->extractTextFromPdf($pdfContent) : null;
+
+            // S3 content missing or invalid (corrupt/error page stored) — fall back to sourceUrl
+            if ($text === null) {
                 $sourceUrl = $resolution->getSourceUrl();
                 if (!$sourceUrl) {
                     $stats['pdf_error']++;
-                    $io->text(sprintf('[%d/%d] %s → <error>not in S3 and no sourceUrl</error>', $idx + 1, $total, $ref));
+                    $io->text(sprintf('[%d/%d] %s → <error>no text and no sourceUrl</error>', $idx + 1, $total, $ref));
                     continue;
                 }
                 try {
                     $pdfContent = $this->httpClient->request('GET', $sourceUrl, ['timeout' => 60])->getContent();
-                    $io->text(sprintf('[%d/%d] %s → <comment>downloaded from sourceUrl</comment>', $idx + 1, $total, $ref));
+                    $text = $this->extractTextFromPdf($pdfContent);
+                    if ($text !== null) {
+                        $io->text(sprintf('[%d/%d] %s → <comment>used sourceUrl fallback</comment>', $idx + 1, $total, $ref));
+                    }
                 } catch (\Exception $e) {
                     $stats['pdf_error']++;
                     $io->text(sprintf('[%d/%d] %s → <error>download failed: %s</error>', $idx + 1, $total, $ref, $e->getMessage()));
@@ -113,7 +119,6 @@ class ExtractResolutionDatesCommand extends Command
                 }
             }
 
-            $text = $this->extractTextFromPdf($pdfContent);
             if ($text === null) {
                 $stats['pdf_error']++;
                 $io->text(sprintf('[%d/%d] %s → <error>no text extractable</error>', $idx + 1, $total, $ref));
