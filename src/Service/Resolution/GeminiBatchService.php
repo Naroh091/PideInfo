@@ -282,6 +282,24 @@ PROMPT;
     }
 
     /**
+     * Cancel a batch job.
+     *
+     * @param string $batchName e.g. "batches/12345"
+     */
+    public function cancelBatch(string $batchName): void
+    {
+        $url = sprintf('%s/%s:cancel?key=%s', self::BASE_URL, $batchName, $this->apiKey);
+
+        $response = $this->httpClient->request('POST', $url, ['timeout' => 30]);
+
+        if ($response->getStatusCode() !== 200) {
+            throw new \RuntimeException('Failed to cancel batch: ' . $response->getContent(false));
+        }
+
+        $this->logger->info('Cancelled batch job', ['name' => $batchName]);
+    }
+
+    /**
      * Download the output JSONL file when a batch job has succeeded.
      *
      * @param string $resultFileName e.g. "files/result-abc123"

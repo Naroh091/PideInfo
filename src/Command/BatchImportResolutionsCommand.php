@@ -40,6 +40,7 @@ class BatchImportResolutionsCommand extends Command
             ->addOption('job', null, InputOption::VALUE_REQUIRED, 'DB UUID of the GeminiBatchJob to import')
             ->addOption('wait', null, InputOption::VALUE_NONE, 'Poll until the job finishes, then import automatically')
             ->addOption('status', null, InputOption::VALUE_NONE, 'Only refresh and display job statuses, do not import')
+            ->addOption('cancel', null, InputOption::VALUE_NONE, 'Cancel the specified job (requires --job) or all pending jobs')
         ;
     }
 
@@ -49,8 +50,14 @@ class BatchImportResolutionsCommand extends Command
         $jobId = $input->getOption('job');
         $wait = (bool) $input->getOption('wait');
         $statusOnly = (bool) $input->getOption('status');
+        $cancel = (bool) $input->getOption('cancel');
 
         $io->title('Gemini Batch Import');
+
+        // --- Cancel mode ---
+        if ($cancel) {
+            return $this->cancelJobs($jobId, $io);
+        }
 
         // --- No specific job: list all and refresh ---
         if ($jobId === null) {
@@ -142,11 +149,57 @@ class BatchImportResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
+    private function cancelJobs(?string $jobId, SymfonyStyle $io): int
+    {
+        if ($jobId !== null) {
+            $job = $this->batchJobRepository->find(Uuid::fromString($jobId));
+            if (!$job) {
+                $io->error('GeminiBatchJob not found: ' . $jobId);
+                return Command::FAILURE;
+            }
+            $jobs = [$job];
+        } else {
+            $jobs = array_filter(
+                $this->batchJobRepository->findAll(),
+                fn (GeminiBatchJob $j) => !$j->isTerminal(),
+            );
+        }
+
+        if (empty($jobs)) {
+            $io->warning('No non-terminal jobs to cancel.');
+            return Command::SUCCESS;
+        }
+
+        $cancelled = 0;
+        foreach ($jobs as $job) {
+            if ($job->isTerminal()) {
+                $io->text(sprintf('Skipping %s (already %s)', $job->getBatchName(), $job->getState()));
+                continue;
+            }
+
+            try {
+                $this->batchService->cancelBatch($job->getBatchName());
+                $job->setState(GeminiBatchJob::STATE_CANCELLED);
+                $io->text(sprintf('Cancelled %s', $job->getBatchName()));
+                $cancelled++;
+            } catch (\Exception $e) {
+                $io->warning(sprintf('Failed to cancel %s: %s', $job->getBatchName(), $e->getMessage()));
+                $job->setState(GeminiBatchJob::STATE_CANCELLED);
+                $cancelled++;
+            }
+        }
+
+        $this->entityManager->flush();
+        $io->success(sprintf('Cancelled %d job(s).', $cancelled));
+
+        return Command::SUCCESS;
+    }
+
     private function refreshJob(GeminiBatchJob $job, SymfonyStyle $io): void
     {
         try {
             $data = $this->batchService->getBatch($job->getBatchName());
-            $geminiState = $data['state'] ?? null;
+            $geminiState = $data['metadata']['state'] ?? $data['state'] ?? null;
             if ($geminiState) {
                 $job->applyGeminiState($geminiState);
             }

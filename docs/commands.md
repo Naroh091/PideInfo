@@ -115,6 +115,88 @@ php bin/console app:cvaip:load-resolutions --async
 
 ---
 
+### `app:ctar:load-resolutions`
+
+Scrapea resoluciones del CTAR (Aragón) desde transparencia.aragon.es. Todos los metadatos (referencia, entidad, motivo, tema, fecha, sentido, URL del documento) se extraen directamente de las páginas del listado, sin necesidad de visitar páginas de detalle. Los documentos son PDFs.
+
+```bash
+php bin/console app:ctar:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin sourceUrl en BD |
+
+**Particularidades:**
+- Todos los metadatos se extraen del listado paginado (páginas de 25, 446 resoluciones 2016–2026).
+- El campo "Tema" del listado se usa como resumen (`summary`) — es un resumen de calidad elaborado por el propio CTAR.
+- Los documentos son PDFs descargados vía `BRSCGI?CMD=VEROBJ&MLKOB=X`.
+- Las fechas del listado usan formato DD/MM/AA (año de 2 dígitos).
+- Se limpian del texto PDF: cabecera "Reclamación XX/YYYY", pies de página "Página X de Y", y boilerplate de cierre desde "Esta Resolución es definitiva en la vía administrativa".
+
+**Ejemplo — importar solo metadatos (sin PDFs ni IA):**
+```bash
+php bin/console app:ctar:load-resolutions --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar con procesamiento async:**
+```bash
+php bin/console app:ctar:load-resolutions --async
+```
+
+### `app:ctcyl:load-resolutions`
+
+Importa resoluciones del Comisionado de Transparencia de Castilla y León (CTCYL) usando dos fuentes de datos: archivos Excel publicados en ctcyl.es (2019–2025, ~2500 resoluciones) y scraping web del listado paginado + páginas de detalle (para URLs de PDF y años anteriores).
+
+```bash
+php bin/console app:ctcyl:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin sourceUrl en BD |
+| `--fetch-details` | Scrapear listado + páginas de detalle para URLs de PDF |
+| `--skip-excel` | Omitir importación Excel, usar solo scraping web |
+
+**Fuentes de datos:**
+- **Excel** (por defecto): Descarga 7 archivos xlsx de ctcyl.es/listado-resoluciones-anyos/1/ con resoluciones 2019–2025. Mapeo de columnas flexible (los encabezados varían entre años).
+- **Web** (`--fetch-details` o `--skip-excel`): Pagina el listado en /reclamaciones-resueltas/ (6 por página, ~2870 resoluciones) y visita páginas de detalle para obtener URL del PDF, entidad, provincia, materia e índice doctrinal.
+
+**Particularidades:**
+- Las referencias se normalizan: `CT-0431/2024` → `CT-431/2024` (sin ceros a la izquierda) para evitar duplicados entre Excel y web.
+- Los outcomes del Excel (Estimación, Desestimación, Estimación parcial, etc.) ofrecen mayor granularidad que las categorías de la web (Estimadas, Desestimadas, Otras).
+- Las fechas del Excel son números seriales de Excel, convertidos automáticamente.
+- Se limpian del texto PDF: pie de página "Comisionado de Transparencia de Castilla y León" + dirección + URL, caracteres `\f`, y boilerplate de cierre desde "Esta Resolución es ejecutiva" o "Contra esta resolución, que pone fin a la vía administrativa".
+
+**Ejemplo — importar solo metadatos desde Excel:**
+```bash
+php bin/console app:ctcyl:load-resolutions --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar y obtener URLs de PDF:**
+```bash
+php bin/console app:ctcyl:load-resolutions --fetch-details --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar desde web (sin Excel):**
+```bash
+php bin/console app:ctcyl:load-resolutions --skip-excel --limit=50
+```
+
+---
+
 ## Procesamiento batch con Gemini
 
 El procesamiento batch usa la [Gemini Batch API](https://ai.google.dev/gemini-api/docs/batch-api) para procesar grandes volúmenes a mitad de precio. Los resultados se entregan de forma asíncrona (normalmente en menos de 24 h).

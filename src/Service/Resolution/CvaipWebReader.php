@@ -159,6 +159,7 @@ class CvaipWebReader
             return null;
         }
 
+        $documentUrl = $this->encodeUrlPath($documentUrl);
         $fullDocumentUrl = str_starts_with($documentUrl, 'http') ? $documentUrl : self::BASE_URL . $documentUrl;
 
         // Step 2: Download and extract text from document (Word or PDF)
@@ -265,6 +266,36 @@ class CvaipWebReader
         });
 
         return $url;
+    }
+
+    /**
+     * Encode non-ASCII characters in the path/filename portion of a URL.
+     * e.g. "Resolución 8.pdf" → "Resoluci%C3%B3n%208.pdf"
+     */
+    private function encodeUrlPath(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!isset($parts['path'])) {
+            return $url;
+        }
+
+        $segments = explode('/', $parts['path']);
+        $encoded = array_map(fn (string $s) => rawurlencode(rawurldecode($s)), $segments);
+        $parts['path'] = implode('/', $encoded);
+
+        $result = '';
+        if (isset($parts['scheme'])) {
+            $result .= $parts['scheme'] . '://';
+        }
+        if (isset($parts['host'])) {
+            $result .= $parts['host'];
+        }
+        $result .= $parts['path'];
+        if (isset($parts['query'])) {
+            $result .= '?' . $parts['query'];
+        }
+
+        return $result;
     }
 
     private function downloadAndExtractDocument(string $url): ?string

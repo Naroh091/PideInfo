@@ -78,12 +78,9 @@ final class ProcessResolutionHandler
         try {
             $extension = strtolower(pathinfo(parse_url($documentUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
 
-            $response = $this->httpClient->request('GET', $documentUrl, [
-                'timeout' => 60,
-            ]);
-            $content = $response->getContent();
+            $content = $this->fetchDocumentContent($documentUrl);
 
-            if (strlen($content) < 100) {
+            if ($content === null || strlen($content) < 100) {
                 return;
             }
 
@@ -114,9 +111,10 @@ final class ProcessResolutionHandler
             $text = $this->cleanTextForSource($text, $resolution->getSource());
             $resolution->setFullText($this->sanitizeUtf8($text));
 
-            // Try regex-based date extraction from raw text
+            // Try regex-based date extraction from raw text (only if no date source already set)
+            $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
             $dateResult = $this->dateExtractor->extractFromText($text);
-            if ($dateResult['date'] !== null) {
+            if ($dateResult['date'] !== null && $existingDateSource === null) {
                 $resolution->setResolutionDate($dateResult['date']);
                 $meta = $resolution->getSourceMetadata() ?? [];
                 $meta['FECHA_RESOLUCION'] = 'regex';
@@ -154,7 +152,7 @@ final class ProcessResolutionHandler
             }
 
             $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
-            if ($result['resolution_date'] && $existingDateSource !== 'regex') {
+            if ($result['resolution_date'] && $existingDateSource === null) {
                 try {
                     $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
                     $meta = $resolution->getSourceMetadata() ?? [];
@@ -267,6 +265,61 @@ final class ProcessResolutionHandler
 
     // --- Utilities ---
 
+    private function encodeUrlPath(string $url): string
+    {
+        $parts = parse_url($url);
+        if (!isset($parts['path'])) {
+            return $url;
+        }
+
+        $segments = explode('/', $parts['path']);
+        $encoded = array_map(fn (string $s) => rawurlencode(rawurldecode($s)), $segments);
+        $parts['path'] = implode('/', $encoded);
+
+        $result = '';
+        if (isset($parts['scheme'])) {
+            $result .= $parts['scheme'] . '://';
+        }
+        if (isset($parts['host'])) {
+            $result .= $parts['host'];
+        }
+        $result .= $parts['path'];
+        if (isset($parts['query'])) {
+            $result .= '?' . $parts['query'];
+        }
+
+        return $result;
+    }
+
+    private function fetchDocumentContent(string $url): ?string
+    {
+        $url = $this->encodeUrlPath($url);
+        $timeout = str_contains($url, 'gobiernoabierto.navarra.es') ? 2 : 60;
+        try {
+            $response = $this->httpClient->request('GET', $url, ['timeout' => $timeout]);
+            return $response->getContent();
+        } catch (\Exception $e) {
+            $this->logger->info('Direct download failed, trying Wayback Machine', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $waybackUrl = 'https://web.archive.org/web/' . $url;
+        try {
+            $response = $this->httpClient->request('GET', $waybackUrl, ['timeout' => 60]);
+            $content = $response->getContent();
+            $this->logger->info('Fetched from Wayback Machine', ['url' => $url]);
+            return $content;
+        } catch (\Exception $e) {
+            $this->logger->warning('Wayback Machine fallback also failed', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     private function extractTextFromDoc(string $filePath): string
     {
         $process = new Process(['antiword', $filePath]);
@@ -355,6 +408,14 @@ final class ProcessResolutionHandler
             $text = self::cleanCvaipText($text);
         }
 
+        if ($source === Resolution::SOURCE_CTAR) {
+            $text = self::cleanCtarText($text);
+        }
+
+        if ($source === Resolution::SOURCE_CTCYL) {
+            $text = self::cleanCtcylText($text);
+        }
+
         return trim($text);
     }
 
@@ -373,6 +434,51 @@ final class ProcessResolutionHandler
 
         // Strip everything from closing boilerplate onwards (signatures, appeals info)
         $pos = mb_stripos($text, 'Esta Resolución pone fin a la vía administrativa');
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCtarText(string $text): string
+    {
+        // Remove "Reclamación XX/YYYY" header line at the top
+        $text = preg_replace('/^Reclamación\s+\d+\/\d{4}\s*$/mu', '', $text);
+
+        // Remove page footers: "Página X de Y"
+        $text = preg_replace('/^\s*Página\s+\d+\s+de\s+\d+\s*$/mu', '', $text);
+
+        // Strip everything from closing boilerplate onwards (appeal info + signatures)
+        $pos = mb_stripos($text, 'Esta Resolución es definitiva en la vía administrativa');
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCtcylText(string $text): string
+    {
+        // Remove form feed characters (page boundaries)
+        $text = str_replace("\f", '', $text);
+
+        // Remove 3-line page footer: "Comisionado de Transparencia de Castilla y León" + address + url
+        $text = preg_replace('/^\s*Comisionado de Transparencia de Castilla y Le[oó]n\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*C\/\s*Sierra Pambley.*$/mu', '', $text);
+        $text = preg_replace('/^\s*www\.ctcyl\.es.*$/mu', '', $text);
+
+        // Strip closing boilerplate (appeal info + signatures)
+        $pos = mb_stripos($text, 'Esta Resolución es ejecutiva');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Contra esta resolución, que pone fin a la vía administrativa');
+        }
         if ($pos !== false) {
             $text = mb_substr($text, 0, $pos);
         }

@@ -21,13 +21,13 @@ class GeminiBatchJob
     public const STATE_FAILED = 'failed';
     public const STATE_CANCELLED = 'cancelled';
 
-    /** Maps Gemini API job states to local states */
+    /** Maps Gemini API batch states to local states */
     private const GEMINI_STATE_MAP = [
-        'JOB_STATE_PENDING' => self::STATE_PENDING,
-        'JOB_STATE_RUNNING' => self::STATE_RUNNING,
-        'JOB_STATE_SUCCEEDED' => self::STATE_SUCCEEDED,
-        'JOB_STATE_FAILED' => self::STATE_FAILED,
-        'JOB_STATE_CANCELLED' => self::STATE_CANCELLED,
+        'BATCH_STATE_PENDING' => self::STATE_PENDING,
+        'BATCH_STATE_RUNNING' => self::STATE_RUNNING,
+        'BATCH_STATE_SUCCEEDED' => self::STATE_SUCCEEDED,
+        'BATCH_STATE_FAILED' => self::STATE_FAILED,
+        'BATCH_STATE_CANCELLED' => self::STATE_CANCELLED,
     ];
 
     #[ORM\Id]
