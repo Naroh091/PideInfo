@@ -60,6 +60,7 @@ trait ResolutionProcessingTrait
             }
 
             $text = $this->cleanRawText($text);
+            $text = $this->cleanTextForSource($text);
             $resolution->setFullText($this->sanitizeUtf8($text));
             $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
 
@@ -259,7 +260,7 @@ trait ResolutionProcessingTrait
         $text = preg_replace('/[ \t]+/', ' ', $text);
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
         $text = preg_replace('/^FIRMANTE\(.*$/m', '', $text);
-        $text = preg_replace('/^\d+\s*$/m', '', $text);
+        $text = preg_replace('/^\s*\d{1,3}\s*$/m', '', $text);
 
         return trim($text);
     }
@@ -273,6 +274,14 @@ trait ResolutionProcessingTrait
         $value = mb_convert_encoding($value, 'UTF-8', 'UTF-8');
 
         return preg_replace('/[\x{FFFD}]/u', '', $value);
+    }
+
+    /**
+     * Source-specific text cleaning hook. Override in commands for custom cleaning.
+     */
+    protected function cleanTextForSource(string $text): string
+    {
+        return $text;
     }
 
     /**

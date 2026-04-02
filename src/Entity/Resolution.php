@@ -33,6 +33,7 @@ class Resolution
     public const SOURCE_CTBG = 'CTBG';
     public const SOURCE_CTBG_LOCAL = 'CTBG_LOCAL';
     public const SOURCE_GAIP = 'GAIP';
+    public const SOURCE_CTG = 'CTG';
 
     // Scopes
     public const SCOPE_NATIONAL = 'national';
