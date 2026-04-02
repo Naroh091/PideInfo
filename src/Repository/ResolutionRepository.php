@@ -73,14 +73,14 @@ class ResolutionRepository extends ServiceEntityRepository
      *
      * @return Resolution[]
      */
-    public function findUnformatted(?string $source = null, int $limit = 100): array
+    public function findUnformatted(?string $source = null, int $limit = 100, string $sortDirection = 'ASC'): array
     {
         $qb = $this->createQueryBuilder('r')
             ->where('r.fullText IS NOT NULL')
             ->andWhere('r.fullText != :empty')
             ->andWhere('r.keypoints IS NULL')
             ->setParameter('empty', '')
-            ->orderBy('r.createdAt', 'ASC')
+            ->orderBy('r.resolutionDate', $sortDirection)
             ->setMaxResults($limit);
 
         if ($source !== null) {

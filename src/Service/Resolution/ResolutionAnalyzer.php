@@ -78,6 +78,26 @@ final class ResolutionAnalyzer
                 continue;
             }
 
+            // Skip standalone URLs (footnote references)
+            if (preg_match('#^\s*https?://\S+\s*$#', $trimmed)) {
+                continue;
+            }
+
+            // Skip "RA CTBG Número: XXXX-XXXX Fecha: XX/XX/XXXX" lines
+            if (preg_match('/^RA\s+CTBG\s+N[úu]mero:/i', $trimmed)) {
+                continue;
+            }
+
+            // Skip resolution metadata block lines
+            if (preg_match('/^(Número y fecha de (la )?resolución|Número de expediente|Reclamante|Organismo|Sentido de la resolución|Palabras clave)\s*:/i', $trimmed)) {
+                continue;
+            }
+
+            // Skip signer lines like "JOSE LUIS RODRIGUEZ ALVAREZ (1 de 1) Presidente"
+            if (preg_match('/^\s*[A-ZÁÉÍÓÚÑ\s]{10,}\(\d+\s+de\s+\d+\)\s+\w+/u', $trimmed)) {
+                continue;
+            }
+
             $cleaned[] = $line;
         }
 
@@ -88,6 +108,37 @@ final class ResolutionAnalyzer
 
         // Remove leading/trailing whitespace
         return trim($text);
+    }
+
+    /**
+     * Clean HTML-formatted resolution text: remove footnote URLs, metadata blocks, and signer lines.
+     */
+    public function cleanHtml(string $html): string
+    {
+        // Remove <p> containing only a link (footnote URLs from PDF)
+        $html = preg_replace('#<p>\s*<a\s[^>]*>https?://[^<]*</a>\s*</p>#i', '', $html);
+
+        // Remove metadata <ul> block (contains "Número y fecha de resolución:", "Organismo:", etc.)
+        $html = preg_replace(
+            '#<ul>\s*<li>\s*Número y fecha de (la )?resolución:.*?</ul>#is',
+            '',
+            $html
+        );
+
+        // Remove standalone metadata lines in <p> tags
+        $html = preg_replace(
+            '#<p>\s*(Número y fecha de (la )?resolución|Número de expediente|Reclamante|Organismo|Sentido de la resolución|Palabras clave)\s*:.*?</p>#is',
+            '',
+            $html
+        );
+
+        // Remove "RA CTBG Número:" lines
+        $html = preg_replace('#<p>\s*RA\s+CTBG\s+N[úu]mero:.*?</p>#is', '', $html);
+
+        // Remove signer lines like "JOSE LUIS RODRIGUEZ ALVAREZ (1 de 1) Presidente"
+        $html = preg_replace('#<p>\s*[A-ZÁÉÍÓÚÑ\s]{10,}\(\d+\s+de\s+\d+\)\s+\w+.*?</p>#us', '', $html);
+
+        return trim($html);
     }
 
     /**
@@ -115,13 +166,15 @@ Reglas:
 - <em> para citas textuales de solicitudes o alegaciones
 - <blockquote> para citas literales extensas (texto de solicitudes, alegaciones, artículos de ley)
 - <ol>/<li> donde el texto original tiene listas numeradas
-- <a href="..." target="_blank" rel="noopener"> para URLs de BOE u otras referencias legales
 - <cite> para nombres de leyes cuando se mencionan por primera vez
 - Elimina artefactos de la extracción PDF (saltos de línea incorrectos dentro de párrafos, espacios extra)
 - Reconstruye párrafos completos uniendo líneas que fueron cortadas por el formato PDF
 - NO uses etiquetas <html>, <head>, <body> — solo el fragmento de contenido
 - NO añadas estilos inline ni clases CSS
 - NO inventes ni añadas contenido que no esté en el original
+- ELIMINA las URLs sueltas que aparecen como notas a pie de página o referencias bibliográficas del PDF (ej: líneas que solo contienen una URL a boe.es u otros sitios). Estas NO deben aparecer en el HTML resultante, ni como <a> ni como texto. Solo conserva URLs que estén integradas dentro del texto de una cita o alegación del reclamante.
+- ELIMINA el bloque de metadatos de la resolución que suele aparecer al principio o al final: "Número y fecha de resolución:", "Número de expediente:", "Reclamante:", "Organismo:", "Sentido de la resolución:", "Palabras clave:". Este bloque ya se extrae por separado y no debe formar parte del texto formateado.
+- ELIMINA líneas de tipo "RA CTBG Número: XXXX-XXXX Fecha: XX/XX/XXXX" y líneas de firmante como "JOSE LUIS RODRIGUEZ ALVAREZ (1 de 1) Presidente".
 
 ## 2. GENERAR RESUMEN
 

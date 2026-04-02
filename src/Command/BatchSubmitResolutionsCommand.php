@@ -40,6 +40,7 @@ class BatchSubmitResolutionsCommand extends Command
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (GAIP, CTBG, CTBG_LOCAL); default: all')
             ->addOption('model', null, InputOption::VALUE_REQUIRED, 'Override Gemini model (default: $GEMINI_SMALL_MODEL)')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without uploading or creating a job')
+            ->addOption('newest', null, InputOption::VALUE_NONE, 'Process newest resolutions first (default: oldest first)')
         ;
     }
 
@@ -61,6 +62,8 @@ class BatchSubmitResolutionsCommand extends Command
         $source = $input->getOption('source');
         $model = $input->getOption('model') ?? $this->defaultModel;
         $dryRun = (bool) $input->getOption('dry-run');
+        $newest = (bool) $input->getOption('newest');
+        $sortDirection = $newest ? 'DESC' : 'ASC';
 
         $io->title('Gemini Batch Submit');
         $io->definitionList(
@@ -68,12 +71,13 @@ class BatchSubmitResolutionsCommand extends Command
             ['Model' => $model],
             ['Source filter' => $source ?? 'all'],
             ['Limit' => $limit],
+            ['Order' => $newest ? 'newest first' : 'oldest first'],
             ['Dry run' => $dryRun ? 'yes' : 'no'],
         );
 
         // --- 1. Fetch unformatted resolutions ---
         $io->section('Fetching unformatted resolutions…');
-        $resolutions = $this->resolutionRepository->findUnformatted($source, $limit);
+        $resolutions = $this->resolutionRepository->findUnformatted($source, $limit, $sortDirection);
 
         if (empty($resolutions)) {
             $io->warning('No unformatted resolutions found (need fullText + no keypoints).');
