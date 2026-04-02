@@ -188,7 +188,7 @@ class Resolution
 
     public function isFavorable(): bool
     {
-        return in_array($this->outcome, [self::OUTCOME_FAVORABLE, self::OUTCOME_PARTIAL], true);
+        return in_array($this->outcome, [self::OUTCOME_FAVORABLE, self::OUTCOME_PARTIAL, self::OUTCOME_MEDIATION_AGREEMENT], true);
     }
 
     public function getSummary(): string

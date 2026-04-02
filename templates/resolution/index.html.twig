@@ -62,15 +62,14 @@
         {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
         {% if totalResolutions > 0 %}
         {% set favorable = outcomeStats.favorable|default(0) %}
-        {% set unfavorable = outcomeStats.unfavorable|default(0) %}
         {% set partial = outcomeStats.partial|default(0) %}
+        {% set mediation = outcomeStats.acuerdo_mediacion|default(0) %}
+        {% set unfavorable = outcomeStats.unfavorable|default(0) %}
         {% set inadmissible = outcomeStats.inadmissible|default(0) %}
         {% set archived = outcomeStats.archivo|default(0) %}
-        {% set pctFav = (favorable / total * 100)|round %}
-        {% set pctUnfav = (unfavorable / total * 100)|round %}
-        {% set pctPartial = (partial / total * 100)|round %}
-        {% set pctArchived = (archived / total * 100)|round %}
-        {% set pctOther = (inadmissible / total * 100)|round %}
+        {% set lossOfPurpose = outcomeStats.perdida_objeto|default(0) %}
+        {% set withdrawal = outcomeStats.desistimiento|default(0) %}
+        {% set referral = outcomeStats.derivacion|default(0) %}
 
         {# Stats #}
         <h2 class="mt-6 text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Estadísticas totales</h2>
@@ -83,7 +82,7 @@
             <div class="bg-white rounded-xl border border-slate-200 p-4">
                 <div class="text-3xl font-extrabold text-primary-600">{{ globalStats.successRate }}%</div>
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Tasa de estimación</div>
-                <div class="text-xs text-slate-400 mt-0.5">Estimadas + parciales</div>
+                <div class="text-xs text-slate-400 mt-0.5">Estimadas + parciales + mediación</div>
             </div>
             <div class="bg-white rounded-xl border border-slate-200 p-4">
                 <div class="text-3xl font-extrabold text-slate-800">{{ organisms|length }}</div>
@@ -103,58 +102,31 @@
         </div>
 
         {# Outcome breakdown #}
+        {% set outcomes = [
+            { count: favorable, label: 'Estimadas', color: 'emerald', border: 'emerald-200', bg: 'emerald-100', text: 'emerald-600' },
+            { count: partial, label: 'Parciales', color: 'amber', border: 'amber-200', bg: 'amber-100', text: 'amber-600' },
+            { count: mediation, label: 'Mediación', color: 'teal', border: 'teal-200', bg: 'teal-100', text: 'teal-600' },
+            { count: unfavorable, label: 'Desestimadas', color: 'red', border: 'red-200', bg: 'red-100', text: 'red-500' },
+            { count: inadmissible, label: 'Inadmitidas', color: 'purple', border: 'purple-200', bg: 'purple-100', text: 'purple-500' },
+            { count: archived, label: 'Archivadas', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-500' },
+            { count: lossOfPurpose, label: 'Pérdida de objeto', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
+            { count: withdrawal, label: 'Desistimiento', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
+            { count: referral, label: 'Derivadas', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
+        ] %}
         <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <div class="bg-white rounded-xl border border-emerald-200 p-3 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <span class="text-lg font-extrabold text-emerald-600">{{ favorable }}</span>
+            {% for o in outcomes %}
+                {% if o.count > 0 %}
+                <div class="bg-white rounded-xl border border-{{ o.border }} p-3 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-{{ o.bg }} flex items-center justify-center">
+                        <span class="text-lg font-extrabold text-{{ o.text }}">{{ o.count }}</span>
+                    </div>
+                    <div>
+                        <div class="text-xs font-medium text-{{ o.text }} uppercase tracking-wider">{{ o.label }}</div>
+                        <div class="text-xs text-slate-400">{{ (o.count / total * 100)|round }}%</div>
+                    </div>
                 </div>
-                <div>
-                    <div class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Estimadas</div>
-                    <div class="text-xs text-slate-400">{{ pctFav }}%</div>
-                </div>
-            </div>
-            <div class="bg-white rounded-xl border border-red-200 p-3 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-                    <span class="text-lg font-extrabold text-red-500">{{ unfavorable }}</span>
-                </div>
-                <div>
-                    <div class="text-xs font-medium text-red-500 uppercase tracking-wider">Desestimadas</div>
-                    <div class="text-xs text-slate-400">{{ pctUnfav }}%</div>
-                </div>
-            </div>
-            {% if partial > 0 %}
-            <div class="bg-white rounded-xl border border-amber-200 p-3 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <span class="text-lg font-extrabold text-amber-600">{{ partial }}</span>
-                </div>
-                <div>
-                    <div class="text-xs font-medium text-amber-600 uppercase tracking-wider">Parciales</div>
-                    <div class="text-xs text-slate-400">{{ pctPartial }}%</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if archived > 0 %}
-            <div class="bg-white rounded-xl border border-slate-200 p-3 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                    <span class="text-lg font-extrabold text-slate-500">{{ archived }}</span>
-                </div>
-                <div>
-                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider">Archivadas</div>
-                    <div class="text-xs text-slate-400">{{ pctArchived }}%</div>
-                </div>
-            </div>
-            {% endif %}
-            {% if inadmissible > 0 %}
-            <div class="bg-white rounded-xl border border-purple-200 p-3 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-                    <span class="text-lg font-extrabold text-purple-500">{{ inadmissible }}</span>
-                </div>
-                <div>
-                    <div class="text-xs font-medium text-purple-500 uppercase tracking-wider">Inadmitidas</div>
-                    <div class="text-xs text-slate-400">{{ pctOther }}%</div>
-                </div>
-            </div>
-            {% endif %}
+                {% endif %}
+            {% endfor %}
         </div>
 
         {# Organism navigator #}
@@ -224,10 +196,14 @@
                                     data-tom-select-auto-submit-value="true">
                                 <option value="">Todos</option>
                                 <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
+                                <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Parcial</option>
+                                <option value="acuerdo_mediacion" {{ filters.outcome == 'acuerdo_mediacion' ? 'selected' }}>Acuerdo de mediación</option>
                                 <option value="unfavorable" {{ filters.outcome == 'unfavorable' ? 'selected' }}>Desestimada</option>
-                                <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Parcialmente</option>
                                 <option value="inadmissible" {{ filters.outcome == 'inadmissible' ? 'selected' }}>Inadmitida</option>
                                 <option value="archivo" {{ filters.outcome == 'archivo' ? 'selected' }}>Archivada</option>
+                                <option value="perdida_objeto" {{ filters.outcome == 'perdida_objeto' ? 'selected' }}>Pérdida de objeto</option>
+                                <option value="desistimiento" {{ filters.outcome == 'desistimiento' ? 'selected' }}>Desistimiento</option>
+                                <option value="derivacion" {{ filters.outcome == 'derivacion' ? 'selected' }}>Derivada</option>
                             </select>
                         </div>
 
@@ -299,7 +275,18 @@
                                     <div class="flex items-start justify-between gap-4">
                                         <div class="flex-1 min-w-0">
                                             <div class="flex flex-wrap items-center gap-2.5 mb-1.5">
-                                                <span class="badge {{ resolution.outcome == 'favorable' ? 'badge-success' : (resolution.outcome == 'unfavorable' ? 'badge-danger' : (resolution.outcome == 'partial' ? 'badge-warning' : (resolution.outcome == 'archivo' ? 'badge-info' : 'badge-secondary'))) }}">
+                                                {% set badgeClass = {
+                                                    favorable: 'badge-success',
+                                                    partial: 'badge-warning',
+                                                    acuerdo_mediacion: 'badge-success',
+                                                    unfavorable: 'badge-danger',
+                                                    inadmissible: 'badge-secondary',
+                                                    archivo: 'badge-info',
+                                                    perdida_objeto: 'badge-secondary',
+                                                    desistimiento: 'badge-secondary',
+                                                    derivacion: 'badge-secondary',
+                                                } %}
+                                                <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
                                                     {{ resolution.outcomeLabel }}
                                                 </span>
                                                 <span class="text-xs text-slate-400 font-mono">{{ resolution.referenceNumber }}</span>

@@ -61,6 +61,16 @@ final class Version20260402000000 extends AbstractMigration
         $this->addSql('CREATE INDEX IF NOT EXISTS idx_resolution_topics_gin ON resolution USING GIN (topics jsonb_path_ops)');
         $this->addSql('CREATE INDEX IF NOT EXISTS idx_resolution_keywords_gin ON resolution USING GIN (keywords jsonb_path_ops)');
 
+        // Remove duplicates before adding unique constraint (keep the most recent)
+        $this->addSql(<<<'SQL'
+            DELETE FROM resolution
+            WHERE id NOT IN (
+                SELECT DISTINCT ON (reference_number, source) id
+                FROM resolution
+                ORDER BY reference_number, source, created_at DESC
+            )
+        SQL);
+
         // Unique constraint on reference_number + source
         $this->addSql(<<<'SQL'
             DO $$
