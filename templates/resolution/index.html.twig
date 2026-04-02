@@ -176,8 +176,7 @@
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Organismo</label>
                             <select name="organism"
                                     data-controller="tom-select"
-                                    data-tom-select-placeholder-value="Todos"
-                                    data-tom-select-auto-submit-value="true">
+                                    data-tom-select-placeholder-value="Todos">
                                 <option value="">Todos</option>
                                 {% for organism in organisms %}
                                     <option value="{{ organism.id }}" {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
@@ -192,8 +191,7 @@
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Resultado</label>
                             <select name="outcome"
                                     data-controller="tom-select"
-                                    data-tom-select-placeholder-value="Todos"
-                                    data-tom-select-auto-submit-value="true">
+                                    data-tom-select-placeholder-value="Todos">
                                 <option value="">Todos</option>
                                 <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
                                 <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Parcial</option>
@@ -212,8 +210,7 @@
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Palabra clave</label>
                             <select name="keyword"
                                     data-controller="tom-select"
-                                    data-tom-select-placeholder-value="Todas"
-                                    data-tom-select-auto-submit-value="true">
+                                    data-tom-select-placeholder-value="Todas">
                                 <option value="">Todas</option>
                                 {% for kw in allKeywords %}
                                     <option value="{{ kw }}" {{ filters.keyword == kw ? 'selected' }}>{{ kw }}</option>
@@ -226,9 +223,9 @@
                             <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Fecha</label>
                             <div class="space-y-2">
                                 <input type="date" name="dateFrom" value="{{ filters.dateFrom }}"
-                                       class="input text-sm" onchange="this.form.requestSubmit()">
+                                       class="input text-sm">
                                 <input type="date" name="dateTo" value="{{ filters.dateTo }}"
-                                       class="input text-sm" onchange="this.form.requestSubmit()">
+                                       class="input text-sm">
                             </div>
                         </div>
 

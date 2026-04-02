@@ -14,7 +14,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:resolutions:clean-text',
-    description: 'Clean raw PDF text of resolutions (remove headers, footers, page numbers, boilerplate)',
+    description: 'Clean resolution text: raw PDF artifacts and/or HTML footnote URLs and metadata blocks',
 )]
 class CleanResolutionTextCommand extends Command
 {
@@ -34,6 +34,7 @@ class CleanResolutionTextCommand extends Command
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTBG_LOCAL, GAIP)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
+            ->addOption('html', null, InputOption::VALUE_NONE, 'Clean already-formatted HTML resolutions (removes footnote URLs, metadata blocks)')
         ;
     }
 
@@ -43,16 +44,23 @@ class CleanResolutionTextCommand extends Command
         $source = $input->getOption('source');
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
         $dryRun = $input->getOption('dry-run');
+        $htmlMode = $input->getOption('html');
 
-        $io->title('Resolution Text Cleaner');
+        $io->title($htmlMode ? 'Resolution HTML Cleaner' : 'Resolution Raw Text Cleaner');
 
-        // Only process resolutions with raw text (not yet AI-analyzed: keypoints is null)
         $qb = $this->resolutionRepository->createQueryBuilder('r')
             ->where('r.fullText IS NOT NULL')
             ->andWhere('r.fullText != :empty')
-            ->andWhere('r.keypoints IS NULL')
             ->setParameter('empty', '')
             ->orderBy('r.createdAt', 'ASC');
+
+        if ($htmlMode) {
+            // Only already-analyzed resolutions (have keypoints = HTML formatted)
+            $qb->andWhere('r.keypoints IS NOT NULL');
+        } else {
+            // Only raw text resolutions (not yet AI-analyzed)
+            $qb->andWhere('r.keypoints IS NULL');
+        }
 
         if ($source !== null) {
             $qb->andWhere('r.source = :source')
@@ -66,7 +74,7 @@ class CleanResolutionTextCommand extends Command
         $resolutions = $qb->getQuery()->getResult();
         $total = count($resolutions);
 
-        $io->text(sprintf('Found %d resolutions with raw text to clean.', $total));
+        $io->text(sprintf('Found %d resolutions to process.', $total));
 
         if ($total === 0) {
             $io->success('Nothing to process.');
@@ -77,11 +85,13 @@ class CleanResolutionTextCommand extends Command
 
         foreach ($resolutions as $idx => $resolution) {
             $ref = $resolution->getReferenceNumber();
-            $rawText = $resolution->getFullText();
-            $cleanedText = $this->analyzer->cleanText($rawText);
+            $original = $resolution->getFullText();
+            $result = $htmlMode
+                ? $this->analyzer->cleanHtml($original)
+                : $this->analyzer->cleanText($original);
 
-            $charsBefore = mb_strlen($rawText);
-            $charsAfter = mb_strlen($cleanedText);
+            $charsBefore = mb_strlen($original);
+            $charsAfter = mb_strlen($result);
             $removed = $charsBefore - $charsAfter;
 
             if ($removed > 0) {
@@ -91,7 +101,7 @@ class CleanResolutionTextCommand extends Command
                 }
 
                 if (!$dryRun) {
-                    $resolution->setFullText($cleanedText);
+                    $resolution->setFullText($result);
                 }
             } else {
                 if ($output->isVerbose()) {

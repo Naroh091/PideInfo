@@ -55,6 +55,14 @@ class ExtractResolutionDatesCommand extends Command
 
         $io->title('Resolution Date Extractor (regex from PDF)');
 
+        // Verify pdftotext is available
+        $check = new Process(['which', 'pdftotext']);
+        $check->run();
+        if (!$check->isSuccessful()) {
+            $io->error('pdftotext not found in PATH. Install poppler-utils: apt-get install poppler-utils');
+            return Command::FAILURE;
+        }
+
         $qb = $this->resolutionRepository->createQueryBuilder('r')
             ->where('r.pdfStoragePath IS NOT NULL')
             ->orderBy('r.createdAt', 'ASC');
@@ -90,25 +98,29 @@ class ExtractResolutionDatesCommand extends Command
             $storagePath = $resolution->getPdfStoragePath();
 
             $pdfContent = null;
+            $s3Error = null;
             try {
                 $pdfContent = $this->resolutionsStorage->read($storagePath);
-            } catch (\Exception) {
-                // S3 miss — will try sourceUrl below
+            } catch (\Exception $e) {
+                $s3Error = $e->getMessage();
             }
 
-            $text = $pdfContent !== null ? $this->extractTextFromPdf($pdfContent) : null;
+            $diagnostic = null;
+            $text = $pdfContent !== null ? $this->extractTextFromPdf($pdfContent, $diagnostic) : null;
 
             // S3 content missing or invalid (corrupt/error page stored) — fall back to sourceUrl
             if ($text === null) {
                 $sourceUrl = $resolution->getSourceUrl();
                 if (!$sourceUrl) {
                     $stats['pdf_error']++;
-                    $io->text(sprintf('[%d/%d] %s → <error>no text and no sourceUrl</error>', $idx + 1, $total, $ref));
+                    $reason = $s3Error ? "S3 error: $s3Error" : ($diagnostic ?? 'no text');
+                    $io->text(sprintf('[%d/%d] %s → <error>no text and no sourceUrl (%s)</error>', $idx + 1, $total, $ref, $reason));
                     continue;
                 }
                 try {
                     $pdfContent = $this->httpClient->request('GET', $sourceUrl, ['timeout' => 60])->getContent();
-                    $text = $this->extractTextFromPdf($pdfContent);
+                    $diagnostic = null;
+                    $text = $this->extractTextFromPdf($pdfContent, $diagnostic);
                     if ($text !== null) {
                         $io->text(sprintf('[%d/%d] %s → <comment>used sourceUrl fallback</comment>', $idx + 1, $total, $ref));
                     }
@@ -121,7 +133,9 @@ class ExtractResolutionDatesCommand extends Command
 
             if ($text === null) {
                 $stats['pdf_error']++;
-                $io->text(sprintf('[%d/%d] %s → <error>no text extractable</error>', $idx + 1, $total, $ref));
+                $reason = $s3Error ? "S3: $s3Error" : '';
+                $reason .= $diagnostic ? ($reason ? ', ' : '') . $diagnostic : '';
+                $io->text(sprintf('[%d/%d] %s → <error>no text extractable%s</error>', $idx + 1, $total, $ref, $reason ? " ($reason)" : ''));
                 continue;
             }
 
@@ -170,18 +184,29 @@ class ExtractResolutionDatesCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function extractTextFromPdf(string $pdfContent): ?string
+    private function extractTextFromPdf(string $pdfContent, ?string &$diagnostic = null): ?string
     {
+        if ($pdfContent === '') {
+            $diagnostic = 'empty PDF content';
+            return null;
+        }
+
         $tmpFile = tempnam(sys_get_temp_dir(), 'res_date_');
         file_put_contents($tmpFile, $pdfContent);
 
         try {
             $lastPage = $this->getPdfPageCount($tmpFile);
 
-            $firstPageText = $this->pdftotext($tmpFile, 1, 1);
-            $lastPageText = $lastPage > 1 ? $this->pdftotext($tmpFile, $lastPage, $lastPage) : '';
+            $pdftextError = null;
+            $firstPageText = $this->pdftotext($tmpFile, 1, 1, $pdftextError);
+            $lastPageText = $lastPage > 1 ? $this->pdftotext($tmpFile, $lastPage, $lastPage, $pdftextError) : '';
 
             $text = trim($firstPageText . "\n" . $lastPageText);
+
+            if ($text === '') {
+                $diagnostic = $pdftextError
+                    ?? sprintf('pdftotext returned empty (%d pages, %d bytes)', $lastPage, strlen($pdfContent));
+            }
 
             return $text !== '' ? $text : null;
         } finally {
@@ -202,11 +227,15 @@ class ExtractResolutionDatesCommand extends Command
         return 1;
     }
 
-    private function pdftotext(string $filePath, int $firstPage, int $lastPage): string
+    private function pdftotext(string $filePath, int $firstPage, int $lastPage, ?string &$error = null): string
     {
         $process = new Process(['pdftotext', '-f', (string) $firstPage, '-l', (string) $lastPage, '-layout', $filePath, '-']);
         $process->setTimeout(15);
         $process->run();
+
+        if (!$process->isSuccessful()) {
+            $error = trim($process->getErrorOutput()) ?: sprintf('pdftotext exit code %d', $process->getExitCode());
+        }
 
         return $process->isSuccessful() ? $process->getOutput() : '';
     }
