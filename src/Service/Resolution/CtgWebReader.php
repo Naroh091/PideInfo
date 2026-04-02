@@ -162,14 +162,14 @@ class CtgWebReader
             $outcomeFromResultado = trim(strip_tags($matches[1]));
         }
 
-        // Extract PDF URL - look for links to wp-content/uploads/*.pdf within article content
-        $pdfUrl = null;
+        // Extract document URL - look for links to wp-content/uploads/*.pdf or *.docx within article content
+        $documentUrl = null;
         $subject = null;
-        $contentCrawler->filter('a[href]')->each(function (Crawler $node) use (&$pdfUrl, &$subject) {
+        $contentCrawler->filter('a[href]')->each(function (Crawler $node) use (&$documentUrl, &$subject) {
             $href = $node->attr('href');
-            if ($href !== null && preg_match('/wp-content\/uploads\/.*\.pdf$/i', $href)) {
-                if ($pdfUrl === null) {
-                    $pdfUrl = $href;
+            if ($href !== null && preg_match('/wp-content\/uploads\/.*\.(pdf|docx?)$/i', $href)) {
+                if ($documentUrl === null) {
+                    $documentUrl = $href;
                     $linkText = trim($node->text());
                     if ($linkText !== '' && mb_strlen($linkText) > 10) {
                         $subject = $linkText;
@@ -194,7 +194,7 @@ class CtgWebReader
 
         return [
             'outcome' => $outcome,
-            'pdfUrl' => $pdfUrl,
+            'pdfUrl' => $documentUrl,
             'subject' => $subject,
             'tags' => $tags,
             'pageUrl' => $url,

@@ -26,36 +26,42 @@ trait ResolutionProcessingTrait
 {
     private const MAX_CHUNK_CHARS = 4000;
 
-    private function downloadAndProcessPdf(Resolution $resolution, string $pdfUrl, SymfonyStyle $io): void
+    private function downloadAndProcessPdf(Resolution $resolution, string $documentUrl, SymfonyStyle $io): void
     {
         try {
-            $io->text('  Downloading PDF...');
-            $response = $this->httpClient->request('GET', $pdfUrl, [
+            $extension = strtolower(pathinfo(parse_url($documentUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+            $io->text(sprintf('  Downloading %s...', $extension ?: 'document'));
+
+            $response = $this->httpClient->request('GET', $documentUrl, [
                 'timeout' => 60,
             ]);
-            $pdfContent = $response->getContent();
+            $content = $response->getContent();
 
-            if (strlen($pdfContent) < 100) {
-                $io->text('  <comment>PDF too small, skipping</comment>');
+            if (strlen($content) < 100) {
+                $io->text('  <comment>Document too small, skipping</comment>');
                 return;
             }
 
             $year = $resolution->getEntryYear() ?? date('Y');
             $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
-            $storagePath = sprintf('%s/%d/%s.pdf', $resolution->getSource(), $year, $safeRef);
+            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $extension ?: 'pdf');
 
-            $this->resolutionsStorage->write($storagePath, $pdfContent);
+            $this->resolutionsStorage->write($storagePath, $content);
             $resolution->setPdfStoragePath($storagePath);
-            $io->text("  Stored PDF: $storagePath");
+            $io->text("  Stored: $storagePath");
 
-            $tmpFile = tempnam(sys_get_temp_dir(), 'res_pdf_');
-            file_put_contents($tmpFile, $pdfContent);
+            $tmpFile = tempnam(sys_get_temp_dir(), 'res_doc_');
+            file_put_contents($tmpFile, $content);
 
-            $text = $this->extractText($tmpFile);
+            $text = match ($extension) {
+                'docx' => $this->extractTextFromDocx($tmpFile),
+                'doc' => $this->extractTextFromDoc($tmpFile),
+                default => $this->extractText($tmpFile),
+            };
             @unlink($tmpFile);
 
             if (strlen(trim($text)) < 100) {
-                $io->text('  <comment>No extractable text (scanned PDF)</comment>');
+                $io->text('  <comment>No extractable text</comment>');
                 return;
             }
 
@@ -74,12 +80,12 @@ trait ResolutionProcessingTrait
                 $io->text(sprintf('  Date extracted (regex): %s', $dateResult['date']->format('Y-m-d')));
             }
         } catch (\Exception $e) {
-            $this->logger->warning('PDF download/processing failed', [
+            $this->logger->warning('Document download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
-                'url' => $pdfUrl,
+                'url' => $documentUrl,
                 'error' => $e->getMessage(),
             ]);
-            $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+            $io->text('  <comment>Error: ' . $e->getMessage() . '</comment>');
         }
     }
 
@@ -248,6 +254,47 @@ trait ResolutionProcessingTrait
         } catch (\Exception) {
             return '';
         }
+    }
+
+    private function extractTextFromDoc(string $filePath): string
+    {
+        $process = new Process(['antiword', $filePath]);
+        $process->setTimeout(30);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            return $process->getOutput();
+        }
+
+        return '';
+    }
+
+    private function extractTextFromDocx(string $filePath): string
+    {
+        $phpWord = \PhpOffice\PhpWord\IOFactory::load($filePath);
+        $text = '';
+
+        foreach ($phpWord->getSections() as $section) {
+            foreach ($section->getElements() as $element) {
+                if (method_exists($element, 'getText')) {
+                    $t = $element->getText();
+                    if (is_string($t)) {
+                        $text .= $t . "\n";
+                    } elseif (is_object($t) && method_exists($t, 'getText')) {
+                        $text .= $t->getText() . "\n";
+                    }
+                } elseif (method_exists($element, 'getElements')) {
+                    foreach ($element->getElements() as $child) {
+                        if (method_exists($child, 'getText')) {
+                            $text .= $child->getText();
+                        }
+                    }
+                    $text .= "\n";
+                }
+            }
+        }
+
+        return $text;
     }
 
     private function cleanRawText(string $text): string

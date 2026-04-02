@@ -2,6 +2,8 @@
 
 namespace App\Command;
 
+use App\Entity\Resolution;
+use App\MessageHandler\ProcessResolutionHandler;
 use App\Repository\ResolutionRepository;
 use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
@@ -89,6 +91,16 @@ class CleanResolutionTextCommand extends Command
             $result = $htmlMode
                 ? $this->analyzer->cleanHtml($original)
                 : $this->analyzer->cleanText($original);
+
+            // Source-specific cleaning
+            if ($resolution->getSource() === Resolution::SOURCE_CTG) {
+                $pos = mb_stripos($result, 'ASUNTO:');
+                if ($pos !== false) {
+                    $result = trim(mb_substr($result, $pos));
+                }
+            } elseif ($resolution->getSource() === Resolution::SOURCE_CVAIP) {
+                $result = ProcessResolutionHandler::cleanCvaipText($result);
+            }
 
             $charsBefore = mb_strlen($original);
             $charsAfter = mb_strlen($result);

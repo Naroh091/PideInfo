@@ -73,28 +73,37 @@ final class ProcessResolutionHandler
 
     private function downloadAndProcessPdf(Resolution $resolution): void
     {
+        $documentUrl = $resolution->getSourceUrl();
+
         try {
-            $response = $this->httpClient->request('GET', $resolution->getSourceUrl(), [
+            $extension = strtolower(pathinfo(parse_url($documentUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+
+            $response = $this->httpClient->request('GET', $documentUrl, [
                 'timeout' => 60,
             ]);
-            $pdfContent = $response->getContent();
+            $content = $response->getContent();
 
-            if (strlen($pdfContent) < 100) {
+            if (strlen($content) < 100) {
                 return;
             }
 
             // Store in Flysystem
             $year = $resolution->getEntryYear() ?? date('Y');
             $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
-            $storagePath = sprintf('%s/%d/%s.pdf', $resolution->getSource(), $year, $safeRef);
+            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $extension ?: 'pdf');
 
-            $this->resolutionsStorage->write($storagePath, $pdfContent);
+            $this->resolutionsStorage->write($storagePath, $content);
             $resolution->setPdfStoragePath($storagePath);
 
             // Extract text
-            $tmpFile = tempnam(sys_get_temp_dir(), 'res_pdf_');
-            file_put_contents($tmpFile, $pdfContent);
-            $text = $this->extractText($tmpFile);
+            $tmpFile = tempnam(sys_get_temp_dir(), 'res_doc_');
+            file_put_contents($tmpFile, $content);
+
+            $text = match ($extension) {
+                'docx' => $this->extractTextFromDocx($tmpFile),
+                'doc' => $this->extractTextFromDoc($tmpFile),
+                default => $this->extractText($tmpFile),
+            };
             @unlink($tmpFile);
 
             if (strlen(trim($text)) < 100) {
@@ -102,6 +111,7 @@ final class ProcessResolutionHandler
             }
 
             $text = $this->cleanRawText($text);
+            $text = $this->cleanTextForSource($text, $resolution->getSource());
             $resolution->setFullText($this->sanitizeUtf8($text));
 
             // Try regex-based date extraction from raw text
@@ -113,15 +123,16 @@ final class ProcessResolutionHandler
                 $resolution->setSourceMetadata($meta);
             }
 
-            $this->logger->info('PDF processed', [
+            $this->logger->info('Document processed', [
                 'reference' => $resolution->getReferenceNumber(),
+                'type' => $extension,
                 'chars' => mb_strlen($text),
                 'storage' => $storagePath,
             ]);
         } catch (\Exception $e) {
-            $this->logger->warning('PDF download/processing failed', [
+            $this->logger->warning('Document download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
-                'url' => $resolution->getSourceUrl(),
+                'url' => $documentUrl,
                 'error' => $e->getMessage(),
             ]);
         }
@@ -256,6 +267,47 @@ final class ProcessResolutionHandler
 
     // --- Utilities ---
 
+    private function extractTextFromDoc(string $filePath): string
+    {
+        $process = new Process(['antiword', $filePath]);
+        $process->setTimeout(30);
+        $process->run();
+
+        if ($process->isSuccessful()) {
+            return $process->getOutput();
+        }
+
+        return '';
+    }
+
+    private function extractTextFromDocx(string $filePath): string
+    {
+        $phpWord = \PhpOffice\PhpWord\IOFactory::load($filePath);
+        $text = '';
+
+        foreach ($phpWord->getSections() as $section) {
+            foreach ($section->getElements() as $element) {
+                if (method_exists($element, 'getText')) {
+                    $t = $element->getText();
+                    if (is_string($t)) {
+                        $text .= $t . "\n";
+                    } elseif (is_object($t) && method_exists($t, 'getText')) {
+                        $text .= $t->getText() . "\n";
+                    }
+                } elseif (method_exists($element, 'getElements')) {
+                    foreach ($element->getElements() as $child) {
+                        if (method_exists($child, 'getText')) {
+                            $text .= $child->getText();
+                        }
+                    }
+                    $text .= "\n";
+                }
+            }
+        }
+
+        return $text;
+    }
+
     private function extractText(string $filePath): string
     {
         $process = new Process(['pdftotext', '-layout', $filePath, '-']);
@@ -285,7 +337,48 @@ final class ProcessResolutionHandler
         $text = preg_replace('/[ \t]+/', ' ', $text);
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
         $text = preg_replace('/^FIRMANTE\(.*$/m', '', $text);
-        $text = preg_replace('/^\d+\s*$/m', '', $text);
+        $text = preg_replace('/^\s*\d{1,3}\s*$/m', '', $text);
+
+        return trim($text);
+    }
+
+    private function cleanTextForSource(string $text, string $source): string
+    {
+        if ($source === Resolution::SOURCE_CTG) {
+            $pos = mb_stripos($text, 'ASUNTO:');
+            if ($pos !== false) {
+                $text = mb_substr($text, $pos);
+            }
+        }
+
+        if ($source === Resolution::SOURCE_CVAIP) {
+            $text = self::cleanCvaipText($text);
+        }
+
+        return trim($text);
+    }
+
+    public static function cleanCvaipText(string $text): string
+    {
+        // Remove page number footers: "Resolución XX/YYYY    N/M"
+        $text = preg_replace('/^Resolución\s+\d+\/\d+\s+\d+\/\d+\s*$/mu', '', $text);
+
+        // Remove LOKALIZATZAILEA/LOCALIZADOR blocks (electronic signature footers)
+        $text = preg_replace('/^LOKALIZATZAILEA\s*\/\s*LOCALIZADOR\s*:.*$/mu', '', $text);
+        $text = preg_replace('/^EGOITZA ELEKTRONIKOA\s*\/\s*SEDE ELECTR[OÓ]NICA\s*:.*$/mu', '', $text);
+        $text = preg_replace('/^SINATZAILEA\s*\/\s*FIRMANTE\s*:.*$/mu', '', $text);
+
+        // Remove electronic document notice
+        $text = preg_replace('/Este documento es una representación del documento original electrónico[^.]*\./u', '', $text);
+
+        // Strip everything from closing boilerplate onwards (signatures, appeals info)
+        $pos = mb_stripos($text, 'Esta Resolución pone fin a la vía administrativa');
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
 
         return trim($text);
     }

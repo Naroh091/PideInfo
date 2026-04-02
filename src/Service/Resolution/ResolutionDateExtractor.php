@@ -45,6 +45,35 @@ final class ResolutionDateExtractor
             }
         }
 
+        // Pattern 4: CVAIP FIRMANTE line "FIRMANTE: NAME | YYYY/MM/DD HH:MM:SS"
+        if (preg_match('/FIRMANTE\s*:\s*[^|]+\|\s*(\d{4})\/(\d{2})\/(\d{2})\s+\d{2}:\d{2}:\d{2}/u', $searchText, $matches)) {
+            try {
+                $date = (new \DateTimeImmutable(sprintf('%s-%s-%s', $matches[1], $matches[2], $matches[3])))->setTime(0, 0);
+                return ['date' => $date, 'source' => 'regex'];
+            } catch (\Exception) {
+            }
+        }
+
+        // Pattern 5: CVAIP title date "RESOLUCIÓN XX/YYYY, DE DD DE MONTH,"
+        if (preg_match('/RESOLUCI[ÓO]N\s+\d+\/\d{4}\s*,\s*DE\s+(\d{1,2})\s+DE\s+(\w+)\b/iu', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], 0);
+            // Year comes from the reference, try to get it from context
+            if ($date === null && preg_match('/RESOLUCI[ÓO]N\s+\d+\/(\d{4})/u', $searchText, $yearMatch)) {
+                $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $yearMatch[1]);
+            }
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
+        // Pattern 6: CVAIP closing "En Vitoria-Gasteiz, a DD de MONTH de YYYY"
+        if (preg_match('/En\s+Vitoria[- ]Gasteiz\s*,\s*a\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/iu', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $matches[3]);
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
         return ['date' => null, 'source' => 'none'];
     }
 
