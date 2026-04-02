@@ -11,7 +11,7 @@ final class ResolutionAnalyzer
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        #[Autowire(env: 'GEMINI_MID_MODEL')]
         private readonly string $geminiModel,
     ) {
     }

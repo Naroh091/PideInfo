@@ -41,7 +41,7 @@ Maximum file size: 50 MB.
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-The analyzer reads the document from S3, encodes it to base64, and sends it to Google Gemini's multimodal API. It uses the smaller Gemini model configured via `GEMINI_SMALL_MODEL` for fast, cost-effective analysis.
+The analyzer reads the document from S3, encodes it to base64, and sends it to Google Gemini's multimodal API. It uses the smaller Gemini model configured via `GEMINI_MID_MODEL` for fast, cost-effective analysis.
 
 **API call structure:**
 - Model: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`

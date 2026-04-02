@@ -7,6 +7,7 @@ use App\Message\ProcessResolutionMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\ResolutionAnalyzer;
+use App\Service\Resolution\ResolutionDateExtractor;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
@@ -32,6 +33,7 @@ final class ProcessResolutionHandler
         #[Autowire(service: 'resolutions.storage')]
         private readonly FilesystemOperator $resolutionsStorage,
         private readonly ResolutionAnalyzer $analyzer,
+        private readonly ResolutionDateExtractor $dateExtractor,
         private readonly EmbeddingGenerator $embeddingGenerator,
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $vectorStore,
@@ -102,6 +104,15 @@ final class ProcessResolutionHandler
             $text = $this->cleanRawText($text);
             $resolution->setFullText($this->sanitizeUtf8($text));
 
+            // Try regex-based date extraction from raw text
+            $dateResult = $this->dateExtractor->extractFromText($text);
+            if ($dateResult['date'] !== null) {
+                $resolution->setResolutionDate($dateResult['date']);
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['FECHA_RESOLUCION'] = 'regex';
+                $resolution->setSourceMetadata($meta);
+            }
+
             $this->logger->info('PDF processed', [
                 'reference' => $resolution->getReferenceNumber(),
                 'chars' => mb_strlen($text),
@@ -131,9 +142,13 @@ final class ProcessResolutionHandler
                 $resolution->setSubject(mb_substr($result['subject'], 0, 500));
             }
 
-            if ($result['resolution_date']) {
+            $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
+            if ($result['resolution_date'] && $existingDateSource !== 'regex') {
                 try {
                     $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                    $meta = $resolution->getSourceMetadata() ?? [];
+                    $meta['FECHA_RESOLUCION'] = 'LLM';
+                    $resolution->setSourceMetadata($meta);
                 } catch (\Exception) {
                 }
             }

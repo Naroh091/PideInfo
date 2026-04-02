@@ -12,6 +12,7 @@ use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\ExcelResolutionReader;
 use App\Service\Resolution\ResolutionAnalyzer;
+use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -53,6 +54,7 @@ class LoadCTBGResolutionsCommand extends Command
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly ExcelResolutionReader $excelReader,
         private readonly ResolutionAnalyzer $analyzer,
+        private readonly ResolutionDateExtractor $dateExtractor,
         private readonly ResolutionRepository $resolutionRepository,
         private readonly AutonomousCommunityRepository $ccaaRepository,
         private readonly ComplaintOrganismRepository $complaintOrganismRepository,
