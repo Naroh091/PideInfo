@@ -67,6 +67,30 @@ class ResolutionRepository extends ServiceEntityRepository
         return $this->findOneBy(['referenceNumber' => $referenceNumber, 'source' => $source]);
     }
 
+    /**
+     * Resolutions that have raw PDF text but have not yet been AI-analyzed
+     * (fullText is set, keypoints is null).
+     *
+     * @return Resolution[]
+     */
+    public function findUnformatted(?string $source = null, int $limit = 100): array
+    {
+        $qb = $this->createQueryBuilder('r')
+            ->where('r.fullText IS NOT NULL')
+            ->andWhere('r.fullText != :empty')
+            ->andWhere('r.keypoints IS NULL')
+            ->setParameter('empty', '')
+            ->orderBy('r.createdAt', 'ASC')
+            ->setMaxResults($limit);
+
+        if ($source !== null) {
+            $qb->andWhere('r.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
     public function countByOutcome(): array
     {
         $results = $this->createQueryBuilder('r')

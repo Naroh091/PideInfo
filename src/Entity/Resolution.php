@@ -89,6 +89,10 @@ class Resolution
     #[ORM\JoinColumn(nullable: true)]
     private ?ComplaintOrganism $complaintOrganism = null;
 
+    #[ORM\ManyToOne(targetEntity: GeminiBatchJob::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?GeminiBatchJob $batchJob = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -448,6 +452,17 @@ class Resolution
     public function setSourceMetadata(?array $sourceMetadata): static
     {
         $this->sourceMetadata = $sourceMetadata;
+        return $this;
+    }
+
+    public function getBatchJob(): ?GeminiBatchJob
+    {
+        return $this->batchJob;
+    }
+
+    public function setBatchJob(?GeminiBatchJob $batchJob): static
+    {
+        $this->batchJob = $batchJob;
         return $this;
     }
 

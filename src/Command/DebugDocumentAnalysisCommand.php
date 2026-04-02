@@ -27,7 +27,7 @@ class DebugDocumentAnalysisCommand extends Command
         private readonly FilesystemOperator $documentsStorage,
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        #[Autowire(env: 'GEMINI_MID_MODEL')]
         private readonly string $geminiModel,
     ) {
         parent::__construct();

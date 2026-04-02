@@ -17,6 +17,7 @@ use Symfony\Component\Uid\Uuid;
  * - $this->httpClient (HttpClientInterface)
  * - $this->resolutionsStorage (FilesystemOperator)
  * - $this->analyzer (ResolutionAnalyzer)
+ * - $this->dateExtractor (ResolutionDateExtractor)
  * - $this->embeddingGenerator (EmbeddingGenerator)
  * - $this->vectorStore (StoreInterface)
  * - $this->logger (LoggerInterface)
@@ -61,6 +62,16 @@ trait ResolutionProcessingTrait
             $text = $this->cleanRawText($text);
             $resolution->setFullText($this->sanitizeUtf8($text));
             $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
+
+            // Try regex-based date extraction from raw text
+            $dateResult = $this->dateExtractor->extractFromText($text);
+            if ($dateResult['date'] !== null) {
+                $resolution->setResolutionDate($dateResult['date']);
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['FECHA_RESOLUCION'] = 'regex';
+                $resolution->setSourceMetadata($meta);
+                $io->text(sprintf('  Date extracted (regex): %s', $dateResult['date']->format('Y-m-d')));
+            }
         } catch (\Exception $e) {
             $this->logger->warning('PDF download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
@@ -92,9 +103,13 @@ trait ResolutionProcessingTrait
                 $resolution->setSubject(mb_substr($result['subject'], 0, 500));
             }
 
-            if ($result['resolution_date']) {
+            $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
+            if ($result['resolution_date'] && $existingDateSource !== 'regex') {
                 try {
                     $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                    $meta = $resolution->getSourceMetadata() ?? [];
+                    $meta['FECHA_RESOLUCION'] = 'LLM';
+                    $resolution->setSourceMetadata($meta);
                 } catch (\Exception) {
                 }
             }

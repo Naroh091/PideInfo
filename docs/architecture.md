@@ -248,7 +248,7 @@ Key design: the agent is thin — it only downloads and forwards. PideInfo is th
 - **Storage**: AWS S3 via Flysystem (three buckets: default, documents, and resolutions)
 - **Message queue**: Symfony Messenger with Doctrine transport (async document processing)
 - **Real-time**: Mercure hub for live dashboard updates
-- **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_SMALL_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
+- **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_MID_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
 - **Vector stores**: Two pgvector stores — one for resolutions (CTBG national + local/autonomous, GAIP), one for interpretive criteria
 - **Resolution pipeline**: `app:ctbg:load-resolutions` downloads CTBG Excel files (national + local/autonomous), extracts metadata + PDF hyperlinks, downloads PDFs to S3 (`resolutions.storage`), extracts text, runs Gemini analysis (summary, keypoints, resolution/claim dates), and vectorizes full text + keypoints. Sources: `CTBG` (national, 2019+), `CTBG_LOCAL` (autonomous/local, 2021+), `GAIP` (Catalonia, planned)
 - **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email` (see [inbound-email.md](inbound-email.md))
