@@ -32,7 +32,49 @@ final class ResolutionDateExtractor
             }
         }
 
+        // Pattern 3: CTG session date in Galician/Spanish
+        // "na sesión celebrada o día 30 de Abril de 2024"
+        // "en sesión celebrada el día 28 de Maio de 2024"
+        // "en la sesión celebrada el 26 de setembro de 2023"
+        // "en sesión de 26 de junio de 2018"
+        // "en sesión do 26 de xuño de 2018"
+        if (preg_match('/sesi[oó]n\s+(?:celebrada\s+(?:o|el)\s+(?:d[ií]a\s+)?|(?:de|do)\s+)(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/iu', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $matches[3]);
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
         return ['date' => null, 'source' => 'none'];
+    }
+
+    private const GALICIAN_MONTHS = [
+        'xaneiro' => 1, 'enero' => 1,
+        'febreiro' => 2, 'febrero' => 2,
+        'marzo' => 3,
+        'abril' => 4,
+        'maio' => 5, 'mayo' => 5,
+        'xuño' => 6, 'junio' => 6,
+        'xullo' => 7, 'julio' => 7,
+        'agosto' => 8,
+        'setembro' => 9, 'septiembre' => 9,
+        'outubro' => 10, 'octubre' => 10,
+        'novembro' => 11, 'noviembre' => 11,
+        'decembro' => 12, 'diciembre' => 12,
+    ];
+
+    private function parseGalicianDate(int $day, string $monthName, int $year): ?\DateTimeImmutable
+    {
+        $month = self::GALICIAN_MONTHS[mb_strtolower($monthName)] ?? null;
+        if ($month === null) {
+            return null;
+        }
+
+        try {
+            return (new \DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day)))->setTime(0, 0);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private function parseDate(string $raw): ?\DateTimeImmutable
