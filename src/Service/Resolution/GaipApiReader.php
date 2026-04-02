@@ -216,7 +216,7 @@ class GaipApiReader
         $outcomeRaw = $record['sentit_de_la_resoluci'] ?? null;
         $outcome = $this->mapOutcome($outcomeRaw);
         if ($outcome === null) {
-            $this->logger->warning('Unknown GAIP outcome', ['outcome' => $outcomeRaw, 'reference' => $reference]);
+            $this->logger->warning('Skipping GAIP record without outcome', ['reference' => $reference]);
             return null;
         }
 
@@ -330,7 +330,7 @@ class GaipApiReader
 
     private function mapOutcome(?string $raw): ?string
     {
-        if ($raw === null) {
+        if ($raw === null || trim($raw) === '') {
             return null;
         }
 
@@ -346,7 +346,16 @@ class GaipApiReader
             return self::EXTRA_OUTCOME_MAP[$normalized];
         }
 
-        return null;
+        // Partial matching for compound values
+        foreach (ExcelResolutionReader::OUTCOME_MAP as $key => $value) {
+            if (str_starts_with($normalized, $key)) {
+                return $value;
+            }
+        }
+
+        $this->logger->warning('Unmapped GAIP outcome, storing raw value', ['outcome' => $raw]);
+
+        return $normalized;
     }
 
     private function parseDate(?string $raw): ?\DateTimeImmutable

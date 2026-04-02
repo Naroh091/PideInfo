@@ -136,7 +136,7 @@ class ResolutionRepository extends ServiceEntityRepository
                 'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
                 'AVG(r.daysToResolve) as avgDays'
             )
-            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL]);
+            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT]);
 
         $result = $qb->getQuery()->getSingleResult();
 
