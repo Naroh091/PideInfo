@@ -95,7 +95,7 @@ class AnalyzeResolutionsCommand extends Command
 
         // Count total
         $countQb = $this->buildQueryBuilder($force, $source);
-        $total = (int) $countQb->select('COUNT(r.id)')->getQuery()->getSingleScalarResult();
+        $total = (int) $countQb->select('COUNT(r.id)')->resetDQLPart('orderBy')->getQuery()->getSingleScalarResult();
 
         if ($limit !== null) {
             $total = min($total, $limit);
@@ -330,8 +330,8 @@ class AnalyzeResolutionsCommand extends Command
             ->where('r.fullText IS NOT NULL')
             ->andWhere('r.fullText != :empty')
             ->setParameter('empty', '')
-            ->orderBy('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END', 'ASC')
-            ->addOrderBy('r.resolutionDate', 'DESC');
+            ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate')
+            ->orderBy('sortDate', 'DESC');
 
         if (!$force) {
             $qb->andWhere('r.summary IS NULL OR r.summary = :emptySummary')
