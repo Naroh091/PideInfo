@@ -52,13 +52,15 @@ final class ProcessResolutionHandler
         $ref = $resolution->getReferenceNumber();
         $this->logger->info("Processing resolution $ref");
 
-        // Step 1: Download PDF if needed
-        if (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
+        // Step 1: Download/extract PDF text
+        if ($message->forceReExtractText) {
+            $this->reExtractTextFromStorage($resolution);
+        } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
             $this->downloadAndProcessPdf($resolution);
         }
 
         // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
-        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && empty($resolution->getKeypoints())) {
+        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && ($message->forceAnalysis || empty($resolution->getKeypoints()))) {
             $this->analyzeResolution($resolution);
         }
 
@@ -131,6 +133,102 @@ final class ProcessResolutionHandler
             $this->logger->warning('Document download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
                 'url' => $documentUrl,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private function reExtractTextFromStorage(Resolution $resolution): void
+    {
+        $storagePath = $resolution->getPdfStoragePath();
+        $ref = $resolution->getReferenceNumber();
+
+        try {
+            $content = null;
+
+            // Try reading from Flysystem storage first
+            if ($storagePath) {
+                try {
+                    $content = $this->resolutionsStorage->read($storagePath);
+                } catch (\Exception $e) {
+                    $this->logger->warning('Could not read stored file, will try sourceUrl', [
+                        'reference' => $ref,
+                        'storagePath' => $storagePath,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            // Fall back to re-downloading from sourceUrl
+            if ($content === null || strlen($content) < 100) {
+                $sourceUrl = $resolution->getSourceUrl();
+                if (!$sourceUrl) {
+                    $this->logger->warning('No stored file and no sourceUrl for re-extraction', [
+                        'reference' => $ref,
+                    ]);
+                    return;
+                }
+                $content = $this->fetchDocumentContent($sourceUrl);
+                if ($content === null || strlen($content) < 100) {
+                    return;
+                }
+            }
+
+            // Determine file extension from storage path or sourceUrl
+            $extension = 'pdf';
+            if ($storagePath) {
+                $extension = strtolower(pathinfo($storagePath, PATHINFO_EXTENSION));
+            } elseif ($resolution->getSourceUrl()) {
+                $extension = strtolower(pathinfo(
+                    parse_url($resolution->getSourceUrl(), PHP_URL_PATH) ?? '',
+                    PATHINFO_EXTENSION
+                ));
+            }
+
+            $tmpFile = tempnam(sys_get_temp_dir(), 'res_doc_');
+            file_put_contents($tmpFile, $content);
+
+            $text = match ($extension) {
+                'docx' => $this->extractTextFromDocx($tmpFile),
+                'doc' => $this->extractTextFromDoc($tmpFile),
+                default => $this->extractText($tmpFile),
+            };
+            @unlink($tmpFile);
+
+            if (strlen(trim($text)) < 100) {
+                $this->logger->warning('Re-extracted text too short', [
+                    'reference' => $ref,
+                    'chars' => strlen(trim($text)),
+                ]);
+                return;
+            }
+
+            $text = $this->cleanRawText($text);
+            $text = $this->cleanTextForSource($text, $resolution->getSource());
+            $resolution->setFullText($this->sanitizeUtf8($text));
+
+            // Clear stale analysis data so downstream steps re-analyze
+            $resolution->setSummary('');
+            $resolution->setKeypoints(null);
+            $resolution->setSubject(null);
+
+            // Re-run regex date extraction
+            $dateResult = $this->dateExtractor->extractFromText($text);
+            if ($dateResult['date'] !== null) {
+                $resolution->setResolutionDate($dateResult['date']);
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['FECHA_RESOLUCION'] = 'regex';
+                $resolution->setSourceMetadata($meta);
+            }
+
+            $this->logger->info('Text re-extracted from stored file', [
+                'reference' => $ref,
+                'type' => $extension,
+                'chars' => mb_strlen($text),
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->warning('Re-extraction failed', [
+                'reference' => $ref,
                 'error' => $e->getMessage(),
             ]);
         }
