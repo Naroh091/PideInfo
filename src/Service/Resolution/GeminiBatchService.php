@@ -72,6 +72,7 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
   "claim_date": "YYYY-MM-DD o null",
   "subject": "asunto en castellano o null"
 }
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 PROMPT;
 
     /**
@@ -108,6 +109,7 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
   "summary": "resumen en texto plano",
   "keypoints": ["punto 1", "punto 2", ...]
 }
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 PROMPT;
 
     public function __construct(

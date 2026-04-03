@@ -5,14 +5,17 @@ namespace App\Repository;
 use App\Entity\Resolution;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
+use Symfony\Contracts\Cache\CacheInterface;
 
 /**
  * @extends ServiceEntityRepository<Resolution>
  */
 class ResolutionRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
-    {
+    public function __construct(
+        ManagerRegistry $registry,
+        private readonly CacheInterface $cache,
+    ) {
         parent::__construct($registry, Resolution::class);
     }
 
@@ -151,28 +154,30 @@ class ResolutionRepository extends ServiceEntityRepository
      */
     public function getGlobalStats(): array
     {
-        $qb = $this->createQueryBuilder('r')
-            ->select(
-                'MIN(r.resolutionDate) as dateFrom',
-                'MAX(r.resolutionDate) as dateTo',
-                'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
-                'COUNT(r.id) as total',
-                'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
-                'AVG(r.daysToResolve) as avgDays'
-            )
-            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT]);
+        return $this->cache->get('resolutions_global_stats', function (): array {
+            $qb = $this->createQueryBuilder('r')
+                ->select(
+                    'MIN(r.resolutionDate) as dateFrom',
+                    'MAX(r.resolutionDate) as dateTo',
+                    'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
+                    'COUNT(r.id) as total',
+                    'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
+                    'AVG(r.daysToResolve) as avgDays'
+                )
+                ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT]);
 
-        $result = $qb->getQuery()->getSingleResult();
+            $result = $qb->getQuery()->getSingleResult();
 
-        $total = (int) $result['total'];
+            $total = (int) $result['total'];
 
-        return [
-            'dateFrom' => $result['dateFrom'],
-            'dateTo' => $result['dateTo'],
-            'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
-            'successRate' => $total > 0 ? round(((int) $result['favorableCount']) / $total * 100) : 0,
-            'meanDaysToResolve' => $result['avgDays'] !== null ? round((float) $result['avgDays']) : null,
-        ];
+            return [
+                'dateFrom' => $result['dateFrom'],
+                'dateTo' => $result['dateTo'],
+                'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
+                'successRate' => $total > 0 ? round(((int) $result['favorableCount']) / $total * 100) : 0,
+                'meanDaysToResolve' => $result['avgDays'] !== null ? round((float) $result['avgDays']) : null,
+            ];
+        });
     }
 
     /**
@@ -180,28 +185,24 @@ class ResolutionRepository extends ServiceEntityRepository
      */
     public function findDistinctKeywords(): array
     {
-        $rows = $this->createQueryBuilder('r')
-            ->select('r.keywords')
-            ->where('r.keywords IS NOT NULL')
-            ->getQuery()
-            ->getScalarResult();
+        return $this->cache->get('resolutions_distinct_keywords', function (): array {
+            $conn = $this->getEntityManager()->getConnection();
+            $rows = $conn->fetchAllAssociative(
+                "SELECT DISTINCT LOWER(TRIM(kw)) AS normalized, TRIM(kw) AS keyword
+                 FROM resolution, jsonb_array_elements_text(keywords) AS kw
+                 WHERE keywords IS NOT NULL
+                 ORDER BY normalized"
+            );
 
-        $keywords = [];
-        foreach ($rows as $row) {
-            $decoded = json_decode($row['keywords'], true);
-            if (is_array($decoded)) {
-                foreach ($decoded as $kw) {
-                    $normalized = mb_strtolower(trim($kw));
-                    if ($normalized !== '') {
-                        $keywords[$normalized] = $kw;
-                    }
+            $keywords = [];
+            foreach ($rows as $row) {
+                if ($row['normalized'] !== '') {
+                    $keywords[$row['normalized']] = $row['keyword'];
                 }
             }
-        }
 
-        ksort($keywords);
-
-        return array_values($keywords);
+            return array_values($keywords);
+        });
     }
 
     private function createFilteredQueryBuilder(array $filters): \Doctrine\ORM\QueryBuilder
@@ -244,5 +245,11 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         return $qb;
+    }
+
+    public function invalidateListingCache(): void
+    {
+        $this->cache->delete('resolutions_distinct_keywords');
+        $this->cache->delete('resolutions_global_stats');
     }
 }

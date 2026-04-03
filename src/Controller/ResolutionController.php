@@ -97,7 +97,7 @@ class ResolutionController extends AbstractController
         array $extra = [],
     ): Response {
         $page = max(1, $request->query->getInt('page', 1));
-        $limit = 12;
+        $limit = 50;
 
         $resolutions = $resolutionRepository->findFilteredPaginated($filters, $page, $limit);
         $total = $resolutionRepository->countFiltered($filters);
