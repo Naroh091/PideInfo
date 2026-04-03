@@ -21,7 +21,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 )]
 class AnalyzeResolutionsCommand extends Command
 {
-    private const BATCH_SIZE = 1;
+    private const BATCH_SIZE = 10;
 
     private EntityManagerInterface $entityManager;
 
@@ -53,8 +53,8 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch to Messenger workers instead of processing inline')
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
             ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
-            ->addOption('format-ops', null, InputOption::VALUE_NONE, 'Use operations-based formatting (fewer output tokens)')
             ->addOption('re-extract', null, InputOption::VALUE_NONE, 'Re-extract text from stored PDF/DOCX files before analysis')
+            ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
         ;
     }
 
@@ -69,13 +69,13 @@ class AnalyzeResolutionsCommand extends Command
         $async = $input->getOption('async');
         $source = $input->getOption('source');
         $slow = $input->getOption('slow');
-        $formatOps = $input->getOption('format-ops');
         $reExtract = $input->getOption('re-extract');
+        $flex = $input->getOption('flex');
 
         $io->title('Resolution Analyzer');
 
-        if ($formatOps) {
-            $io->note('Using operations-based formatting (fewer output tokens)');
+        if ($flex) {
+            $io->note('Using Gemini Flex inference (50% cheaper, higher latency)');
         }
 
         if ($reference) {
@@ -92,27 +92,24 @@ class AnalyzeResolutionsCommand extends Command
                     skipVectors: true,
                     forceReExtractText: true,
                     forceAnalysis: $force,
+                    flex: $flex,
                 ));
                 $io->success("Dispatched re-extraction for $reference");
                 return Command::SUCCESS;
             }
 
-            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $formatOps, $io);
+            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $flex, $io);
         }
 
-        if ($async) {
-            return $this->dispatchAsync($force, $reExtract, $source, $limit, $io);
+        if ($async || $reExtract) {
+            return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $io);
         }
 
-        return $this->processInBatches($force, $reExtract, $source, $limit, $dryRun, $cleanOnly, $slow, $formatOps, $io);
+        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $io);
     }
 
-    private function processInBatches(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
+    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, SymfonyStyle $io): int
     {
-        if ($reExtract) {
-            return $this->dispatchAsync($force, true, $source, $limit, $io);
-        }
-
         $processed = 0;
         $errors = 0;
         $offset = 0;
@@ -184,8 +181,8 @@ class AnalyzeResolutionsCommand extends Command
 
                 // Step 2: AI analysis
                 try {
-                    $io->text(sprintf('  Calling Gemini API%s...', $formatOps ? ' (operations mode)' : ''));
-                    $result = $this->analyzer->analyze($cleanedText, $formatOps);
+                    $io->text(sprintf('  Calling Gemini API%s...', $flex ? ' (flex)' : ''));
+                    $result = $this->analyzer->analyze($cleanedText, flex: $flex);
 
                     $resolution->setFullText($result['formatted_text']);
                     $resolution->setSummary($result['summary']);
@@ -250,7 +247,7 @@ class AnalyzeResolutionsCommand extends Command
             // After clear, offset-based pagination stays correct since
             // processed records no longer match the WHERE clause (summary is set)
             if (!$force && !$dryRun && !$cleanOnly) {
-                $offset = $errors; // Processed rows drop out; errored rows still match, skip past them
+                $offset = 0; // Processed rows drop out of the query
             } else {
                 $offset += $fetchSize;
             }
@@ -264,7 +261,7 @@ class AnalyzeResolutionsCommand extends Command
     /**
      * @param list<\App\Entity\Resolution> $resolutions
      */
-    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
+    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, SymfonyStyle $io): int
     {
         $processed = 0;
 
@@ -293,8 +290,8 @@ class AnalyzeResolutionsCommand extends Command
             }
 
             try {
-                $io->text(sprintf('  Calling Gemini API%s...', $formatOps ? ' (operations mode)' : ''));
-                $result = $this->analyzer->analyze($cleanedText, $formatOps);
+                $io->text(sprintf('  Calling Gemini API%s...', $flex ? ' (flex)' : ''));
+                $result = $this->analyzer->analyze($cleanedText, flex: $flex);
                 $resolution->setFullText($result['formatted_text']);
                 $resolution->setSummary($result['summary']);
                 $resolution->setKeypoints($result['keypoints']);
@@ -319,7 +316,7 @@ class AnalyzeResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, SymfonyStyle $io): int
+    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $flex, SymfonyStyle $io): int
     {
         $qb = $reExtract
             ? $this->buildReExtractQueryBuilder($source)
@@ -340,6 +337,7 @@ class AnalyzeResolutionsCommand extends Command
                 skipPdf: !$reExtract,
                 forceReExtractText: $reExtract,
                 forceAnalysis: $force,
+                flex: $flex,
             ));
             $dispatched++;
         }
