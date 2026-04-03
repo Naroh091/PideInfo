@@ -21,7 +21,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 )]
 class AnalyzeResolutionsCommand extends Command
 {
-    private const BATCH_SIZE = 10;
+    private const BATCH_SIZE = 1;
 
     private EntityManagerInterface $entityManager;
 
@@ -53,6 +53,7 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch to Messenger workers instead of processing inline')
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
             ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
+            ->addOption('format-ops', null, InputOption::VALUE_NONE, 'Use operations-based formatting (fewer output tokens)')
         ;
     }
 
@@ -67,8 +68,13 @@ class AnalyzeResolutionsCommand extends Command
         $async = $input->getOption('async');
         $source = $input->getOption('source');
         $slow = $input->getOption('slow');
+        $formatOps = $input->getOption('format-ops');
 
         $io->title('Resolution Analyzer');
+
+        if ($formatOps) {
+            $io->note('Using operations-based formatting (fewer output tokens)');
+        }
 
         if ($reference) {
             $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
@@ -77,17 +83,17 @@ class AnalyzeResolutionsCommand extends Command
                 return Command::FAILURE;
             }
 
-            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $io);
+            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $formatOps, $io);
         }
 
         if ($async) {
             return $this->dispatchAsync($force, $source, $limit, $io);
         }
 
-        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $io);
+        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $formatOps, $io);
     }
 
-    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, SymfonyStyle $io): int
+    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
     {
         $processed = 0;
         $errors = 0;
@@ -160,8 +166,8 @@ class AnalyzeResolutionsCommand extends Command
 
                 // Step 2: AI analysis
                 try {
-                    $io->text('  Calling Gemini API...');
-                    $result = $this->analyzer->analyze($cleanedText);
+                    $io->text(sprintf('  Calling Gemini API%s...', $formatOps ? ' (operations mode)' : ''));
+                    $result = $this->analyzer->analyze($cleanedText, $formatOps);
 
                     $resolution->setFullText($result['formatted_text']);
                     $resolution->setSummary($result['summary']);
@@ -226,7 +232,7 @@ class AnalyzeResolutionsCommand extends Command
             // After clear, offset-based pagination stays correct since
             // processed records no longer match the WHERE clause (summary is set)
             if (!$force && !$dryRun && !$cleanOnly) {
-                $offset = 0; // Processed rows drop out of the query
+                $offset = $errors; // Processed rows drop out; errored rows still match, skip past them
             } else {
                 $offset += $fetchSize;
             }
@@ -240,7 +246,7 @@ class AnalyzeResolutionsCommand extends Command
     /**
      * @param list<\App\Entity\Resolution> $resolutions
      */
-    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, SymfonyStyle $io): int
+    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
     {
         $processed = 0;
 
@@ -269,8 +275,8 @@ class AnalyzeResolutionsCommand extends Command
             }
 
             try {
-                $io->text('  Calling Gemini API...');
-                $result = $this->analyzer->analyze($cleanedText);
+                $io->text(sprintf('  Calling Gemini API%s...', $formatOps ? ' (operations mode)' : ''));
+                $result = $this->analyzer->analyze($cleanedText, $formatOps);
                 $resolution->setFullText($result['formatted_text']);
                 $resolution->setSummary($result['summary']);
                 $resolution->setKeypoints($result['keypoints']);
