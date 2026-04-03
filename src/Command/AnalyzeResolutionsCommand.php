@@ -21,7 +21,7 @@ use Symfony\Component\Messenger\MessageBusInterface;
 )]
 class AnalyzeResolutionsCommand extends Command
 {
-    private const BATCH_SIZE = 10;
+    private const BATCH_SIZE = 1;
 
     private EntityManagerInterface $entityManager;
 
