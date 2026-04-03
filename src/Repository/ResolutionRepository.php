@@ -118,7 +118,9 @@ class ResolutionRepository extends ServiceEntityRepository
         $qb = $this->createFilteredQueryBuilder($filters)
             ->leftJoin('r.complaintOrganism', 'co')
             ->addSelect('co')
-            ->orderBy('r.resolutionDate', 'DESC')
+            ->addSelect('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END AS HIDDEN nulls_last')
+            ->orderBy('nulls_last', 'ASC')
+            ->addOrderBy('r.resolutionDate', 'DESC')
             ->setFirstResult(($page - 1) * $limit)
             ->setMaxResults($limit);
 
@@ -203,6 +205,38 @@ class ResolutionRepository extends ServiceEntityRepository
 
             return array_values($keywords);
         });
+    }
+
+    /**
+     * @return array<array{keyword: string, count: int}>
+     */
+    public function searchKeywords(string $query = '', int $limit = 20): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        if ($query === '') {
+            return $conn->fetchAllAssociative(
+                "SELECT LOWER(TRIM(kw)) AS keyword, COUNT(*) AS count
+                 FROM resolution, jsonb_array_elements_text(keywords) AS kw
+                 WHERE keywords IS NOT NULL
+                 GROUP BY keyword
+                 ORDER BY count DESC
+                 LIMIT :limit",
+                ['limit' => $limit],
+                ['limit' => \Doctrine\DBAL\ParameterType::INTEGER]
+            );
+        }
+
+        return $conn->fetchAllAssociative(
+            "SELECT LOWER(TRIM(kw)) AS keyword, COUNT(*) AS count
+             FROM resolution, jsonb_array_elements_text(keywords) AS kw
+             WHERE keywords IS NOT NULL AND LOWER(TRIM(kw)) LIKE LOWER(:query)
+             GROUP BY keyword
+             ORDER BY count DESC
+             LIMIT :limit",
+            ['query' => '%' . $query . '%', 'limit' => $limit],
+            ['limit' => \Doctrine\DBAL\ParameterType::INTEGER]
+        );
     }
 
     private function createFilteredQueryBuilder(array $filters): \Doctrine\ORM\QueryBuilder
