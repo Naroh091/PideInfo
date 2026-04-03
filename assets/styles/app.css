@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+button, [role="button"] {
+  cursor: pointer;
+}
+
 /* Custom CSS Variables for the theme */
 @theme {
   --color-primary-50: #f0f9ff;
@@ -50,7 +54,7 @@ body {
 
 /* Button styles */
 .btn {
-  @apply inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+  @apply inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer;
 }
 
 .btn-primary {

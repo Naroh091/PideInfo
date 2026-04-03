@@ -177,15 +177,14 @@ class CleanResolutionTextCommand extends Command
                     $year += 2000;
                 }
 
-                if ($year < 2023) {
+                $currentDate = $resolution->getResolutionDate();
+                $isDateIn2026 = $currentDate && (int) $currentDate->format('Y') === 2026;
+
+                if ($year < 2023 && $isDateIn2026) {
                     $nullified++;
-                    $currentDate = $resolution->getResolutionDate();
-                    $io->text(sprintf('%s (year %d) → date %s moved to presumptive_date', $ref, $year, $currentDate?->format('Y-m-d') ?? 'null'));
+                    $io->text(sprintf('%s (ref year %d, date %s) → nullified', $ref, $year, $currentDate->format('Y-m-d')));
 
                     if (!$dryRun) {
-                        $meta = $resolution->getSourceMetadata() ?? [];
-                        $meta['presumptive_date'] = $currentDate?->format('Y-m-d');
-                        $resolution->setSourceMetadata($meta);
                         $resolution->setResolutionDate(null);
                     }
                 }

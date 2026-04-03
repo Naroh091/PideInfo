@@ -45,7 +45,7 @@
                         </div>
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</label>
-                            <div class="mt-1 text-sm text-slate-700">{{ resolution.resolutionDate|date('d/m/Y') }}</div>
+                            <div class="mt-1 text-sm text-slate-700">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : 'Sin fecha' }}</div>
                         </div>
                         {% if resolution.complaintOrganism %}
                         <div class="p-4">
@@ -172,7 +172,7 @@
     "@type": "Dataset",
     "name": "Resolución {{ resolution.referenceNumber }} - {{ resolution.subject|default('')|e('js') }}",
     "description": "{{ resolution.summary|u.truncate(300, '...')|e('js') }}",
-    "datePublished": "{{ resolution.resolutionDate|date('Y-m-d') }}",
+    {% if resolution.resolutionDate %}"datePublished": "{{ resolution.resolutionDate|date('Y-m-d') }}",{% endif %}
     "url": "{{ url('app_resoluciones_show', { id: resolution.id }) }}",
     {% if resolution.complaintOrganism %}
     "creator": {

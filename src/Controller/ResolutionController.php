@@ -8,6 +8,7 @@ use App\Repository\ComplaintOrganismRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\ResolutionRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -68,6 +69,18 @@ class ResolutionController extends AbstractController
         ]);
     }
 
+    #[Route('/api/keywords', name: 'app_resoluciones_keywords_api')]
+    public function keywordsApi(Request $request, ResolutionRepository $resolutionRepository): JsonResponse
+    {
+        $query = $request->query->get('q', '');
+        $results = $resolutionRepository->searchKeywords($query);
+
+        return $this->json(array_map(fn (array $row) => [
+            'value' => $row['keyword'],
+            'text' => $row['keyword'] . ' (' . $row['count'] . ')',
+        ], $results));
+    }
+
     #[Route('/{id}', name: 'app_resoluciones_show')]
     public function show(Resolution $resolution): Response
     {
@@ -107,7 +120,6 @@ class ResolutionController extends AbstractController
         return $this->render('resolution/index.html.twig', array_merge([
             'resolutions' => $resolutions,
             'organisms' => $organismRepository->findAllOrdered(),
-            'allKeywords' => $resolutionRepository->findDistinctKeywords(),
             'globalStats' => $resolutionRepository->getGlobalStats(),
             'filters' => $filters,
             'page' => $page,

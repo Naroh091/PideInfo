@@ -7,6 +7,7 @@ export default class extends Controller {
         createUrl: { type: String, default: '' },
         placeholder: { type: String, default: 'Selecciona...' },
         autoSubmit: { type: Boolean, default: false },
+        remote: { type: String, default: '' },
     };
 
     connect() {
@@ -15,6 +16,20 @@ export default class extends Controller {
             allowEmptyOption: true,
             plugins: ['clear_button'],
         };
+
+        if (this.remoteValue) {
+            config.valueField = 'value';
+            config.labelField = 'text';
+            config.searchField = ['value', 'text'];
+            config.load = (query, callback) => {
+                const url = `${this.remoteValue}?q=${encodeURIComponent(query)}`;
+                fetch(url)
+                    .then(r => r.json())
+                    .then(callback)
+                    .catch(() => callback());
+            };
+            config.preload = true;
+        }
 
         if (this.createValue) {
             config.create = (input, callback) => {

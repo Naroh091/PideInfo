@@ -6,7 +6,7 @@
 
     <div class="relative" x-data="{ open: false }">
         <button @click="open = !open"
-                class="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">
+                class="relative p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
             <i data-lucide="bell" class="w-5 h-5"></i>
             {% if unreadCount > 0 %}
                 <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full min-w-[18px] h-[18px] px-1">
@@ -32,7 +32,7 @@
                 {% if unreadCount > 0 %}
                     <form action="{{ path('app_notificaciones_read_all') }}" method="post">
                         <input type="hidden" name="_token" value="{{ csrf_token('read_all_notifications') }}">
-                        <button type="submit" class="text-xs text-primary-600 hover:text-primary-700 font-medium">
+                        <button type="submit" class="text-xs text-primary-600 hover:text-primary-700 font-medium cursor-pointer">
                             Marcar todas como leídas
                         </button>
                     </form>
