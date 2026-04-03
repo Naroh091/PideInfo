@@ -2,6 +2,7 @@
 
 namespace App\Command;
 
+use App\Message\ProcessResolutionMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
@@ -12,6 +13,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 #[AsCommand(
     name: 'app:resolutions:analyze',
@@ -27,6 +29,7 @@ class AnalyzeResolutionsCommand extends Command
         private readonly ResolutionRepository $resolutionRepository,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ManagerRegistry $managerRegistry,
+        private readonly MessageBusInterface $messageBus,
     ) {
         $this->entityManager = $managerRegistry->getManager();
         parent::__construct();
@@ -47,6 +50,8 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview cleaning without calling AI or saving')
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Analyze a specific resolution by reference number')
             ->addOption('clean-only', null, InputOption::VALUE_NONE, 'Only clean text, do not call AI')
+            ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch to Messenger workers instead of processing inline')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
         ;
     }
 
@@ -58,6 +63,8 @@ class AnalyzeResolutionsCommand extends Command
         $dryRun = $input->getOption('dry-run');
         $reference = $input->getOption('reference');
         $cleanOnly = $input->getOption('clean-only');
+        $async = $input->getOption('async');
+        $source = $input->getOption('source');
 
         $io->title('Resolution Analyzer');
 
@@ -70,11 +77,17 @@ class AnalyzeResolutionsCommand extends Command
             $resolutions = [$resolution];
         } else {
             $qb = $this->resolutionRepository->createQueryBuilder('r')
-                ->orderBy('r.resolutionDate', 'DESC');
+                ->orderBy('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END', 'ASC')
+                ->addOrderBy('r.resolutionDate', 'DESC');
 
             if (!$force) {
                 $qb->where('r.summary IS NULL OR r.summary = :empty')
                     ->setParameter('empty', '');
+            }
+
+            if ($source) {
+                $qb->andWhere('r.source = :source')
+                    ->setParameter('source', $source);
             }
 
             if ($limit) {
@@ -82,6 +95,10 @@ class AnalyzeResolutionsCommand extends Command
             }
 
             $resolutions = $qb->getQuery()->getResult();
+        }
+
+        if ($async) {
+            return $this->dispatchAsync($resolutions, $io);
         }
 
         if (empty($resolutions)) {
@@ -210,6 +227,30 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         $io->success(sprintf('Done. %d processed, %d errors.', $processed, $errors));
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * @param list<\App\Entity\Resolution> $resolutions
+     */
+    private function dispatchAsync(array $resolutions, SymfonyStyle $io): int
+    {
+        $dispatched = 0;
+
+        foreach ($resolutions as $resolution) {
+            if (empty(trim($resolution->getFullText()))) {
+                continue;
+            }
+
+            $this->messageBus->dispatch(new ProcessResolutionMessage(
+                resolutionId: $resolution->getId(),
+                skipPdf: true,
+            ));
+            $dispatched++;
+        }
+
+        $io->success(sprintf('Dispatched %d resolutions to workers.', $dispatched));
 
         return Command::SUCCESS;
     }
