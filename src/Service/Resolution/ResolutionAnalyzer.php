@@ -13,7 +13,9 @@ final class ResolutionAnalyzer
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
         #[Autowire(env: 'GEMINI_SMALL_MODEL')]
-        private readonly string $geminiModel,
+        private readonly string $smallModel,
+        #[Autowire(env: 'GEMINI_FREE_MODEL')]
+        private readonly string $freeModel,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -144,19 +146,31 @@ final class ResolutionAnalyzer
     }
 
     /**
-     * Call Gemini to format, summarize, extract keypoints and dates from a resolution.
+     * Full analysis in two steps:
+     * 1. Format text with GEMINI_SMALL_MODEL (paid, respects structured output)
+     * 2. Extract analysis with GEMINI_FREE_MODEL (free, better reasoning)
      *
-     * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string}
+     * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
     public function analyze(string $cleanedText): array
     {
-        // 1. Prompt optimizado estructurado por claves JSON
+        $formatted = $this->formatText($cleanedText);
+        $analysis = $this->extractAnalysis($cleanedText);
+
+        return array_merge($formatted, $analysis);
+    }
+
+    /**
+     * Step 1: Format resolution text to semantic HTML (GEMINI_SMALL_MODEL).
+     *
+     * @return array{formatted_text: string}
+     */
+    private function formatText(string $cleanedText): array
+    {
         $prompt = <<<'PROMPT'
-Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida cumpliendo ESTRICTAMENTE las siguientes reglas.
+Actúa como un experto en derecho administrativo español. Formatea el texto de la resolución adjunta cumpliendo ESTRICTAMENTE las siguientes reglas.
 
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO (incluyendo el texto formateado). Utiliza terminología jurídica precisa en castellano.
-
-REGLAS PARA CADA CAMPO:
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO. Utiliza terminología jurídica precisa en castellano.
 
 [formatted_text]
 - Transcribe TODO el texto principal (traducido si aplica) usando HTML semántico. ES VITAL QUE NO RESUMAS ESTE CAMPO; debe contener todo el contenido original. NO REDACTES LAS COSAS DE FORMA DISTINTA A LA ORIGINAL.
@@ -166,6 +180,38 @@ REGLAS PARA CADA CAMPO:
 - Estilos: <strong> (términos legales, organismos), <em> (citas de solicitudes), <blockquote> (citas extensas/leyes), <cite> (leyes 1ª vez).
 - ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
 - PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
+PROMPT;
+
+        $parts = [
+            ['text' => $prompt],
+            ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
+        ];
+
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'formatted_text' => [
+                    'type' => 'string',
+                    'description' => 'Full resolution text translated to Spanish (if needed) and formatted as semantic HTML. DO NOT SUMMARIZE. Must contain all original paragraphs. DO NOT REWRITE THE TEXT, JUST TRANSCRIBE IT, RESPECT THE ORIGINAL.',
+                ],
+            ],
+            'required' => ['formatted_text'],
+        ];
+
+        return $this->callGeminiApi($this->smallModel, $parts, $schema);
+    }
+
+    /**
+     * Step 2: Extract summary, keypoints, dates and subject (GEMINI_FREE_MODEL).
+     *
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
+     */
+    private function extractAnalysis(string $cleanedText): array
+    {
+        $prompt = <<<'PROMPT'
+Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
 
 [summary]
 - Escribe un resumen directo en texto plano (máximo 400 caracteres).
@@ -187,12 +233,49 @@ PROMPT;
             ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
         ];
 
-        return $this->callGeminiApi($parts);
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'summary' => [
+                    'type' => 'string',
+                    'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
+                ],
+                'keypoints' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => '3-7 key legal reasoning points in Spanish.',
+                ],
+                'resolution_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+                ],
+                'claim_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Claim filing date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+                ],
+                'subject' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
+                ],
+            ],
+            'required' => ['summary', 'keypoints', 'resolution_date', 'claim_date', 'subject'],
+        ];
+
+        $result = $this->callGeminiApi($this->freeModel, $parts, $schema);
+
+        $result['resolution_date'] = $result['resolution_date'] ?? null;
+        $result['claim_date'] = $result['claim_date'] ?? null;
+        $result['subject'] = $result['subject'] ?? null;
+
+        return $result;
     }
 
-    private function callGeminiApi(array $parts): array
+    private function callGeminiApi(string $model, array $parts, array $schema): array
     {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
+        $url = sprintf(self::GEMINI_ENDPOINT, $model) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [
@@ -201,44 +284,11 @@ PROMPT;
                 ],
             ],
             'generationConfig' => [
-                'temperature' => 0.1, // Baja temperatura para análisis legal (menor alucinación)
+                'temperature' => 0.1,
                 'topK' => 1,
                 'topP' => 1,
                 'responseMimeType' => 'application/json',
-                'responseSchema' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'formatted_text' => [
-                            'type' => 'string',
-                            'description' => 'Full resolution text translated to Spanish (if needed) and formatted as semantic HTML. DO NOT SUMMARIZE. Must contain all original paragraphs. DO NOT REWRITE THE TEXT, JUST TRANSCRIBE IT, RESPECT THE ORIGINAL.',
-                        ],
-                        'summary' => [
-                            'type' => 'string',
-                            'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
-                        ],
-                        'keypoints' => [
-                            'type' => 'array',
-                            'items' => ['type' => 'string'],
-                            'description' => '3-7 key legal reasoning points in Spanish.',
-                        ],
-                        'resolution_date' => [
-                            'type' => 'string',
-                            'nullable' => true,
-                            'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
-                        ],
-                        'claim_date' => [
-                            'type' => 'string',
-                            'nullable' => true,
-                            'description' => 'Claim filing date in ISO 8601 (YYYY-MM-DD). Null if not found.',
-                        ],
-                        'subject' => [
-                            'type' => 'string',
-                            'nullable' => true,
-                            'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
-                        ],
-                    ],
-                    'required' => ['formatted_text', 'summary', 'keypoints', 'resolution_date', 'claim_date', 'subject'],
-                ],
+                'responseSchema' => $schema,
             ],
         ];
 
@@ -251,8 +301,7 @@ PROMPT;
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 
         $response = curl_exec($ch);
-        
-        // Mejora 1: Manejar el fallo de red (cURL error) antes de revisar HTTP code
+
         if ($response === false) {
             $error = curl_error($ch);
             curl_close($ch);
@@ -263,35 +312,29 @@ PROMPT;
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            throw new \RuntimeException(sprintf('Gemini API error (HTTP %d): %s', $httpCode, $response));
+            throw new \RuntimeException(sprintf('Gemini API error (HTTP %d, model %s): %s', $httpCode, $model, $response));
         }
 
         $data = json_decode($response, true);
-        // Mejora 2: Capturar errores reales de JSON
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \RuntimeException('Failed to decode Gemini API response: ' . json_last_error_msg());
         }
 
         $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
         if (!$text) {
-            throw new \RuntimeException('Empty response from Gemini API.');
+            throw new \RuntimeException(sprintf('Empty response from Gemini API (model %s).', $model));
         }
 
         $result = json_decode($text, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !isset($result['formatted_text'], $result['summary'], $result['keypoints'])) {
+        if (json_last_error() !== JSON_ERROR_NONE) {
             $this->logger->error('Invalid Gemini response', [
-                'model' => $this->geminiModel,
+                'model' => $model,
                 'http_code' => $httpCode,
-                'raw_response' => mb_substr($text, 0, 1000), // Loguear un fragmento mayor
-                'json_error' => json_last_error_msg()
+                'raw_response' => $text,
+                'json_error' => json_last_error_msg(),
             ]);
-            throw new \RuntimeException('Invalid JSON structure from Gemini.');
+            throw new \RuntimeException(sprintf('Invalid JSON from Gemini (model %s).', $model));
         }
-
-        // Asegurar que las claves opcionales existen (aunque el esquema 'required' ya debería forzarlo)
-        $result['resolution_date'] = $result['resolution_date'] ?? null;
-        $result['claim_date'] = $result['claim_date'] ?? null;
-        $result['subject'] = $result['subject'] ?? null;
 
         return $result;
     }

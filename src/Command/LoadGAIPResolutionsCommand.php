@@ -74,6 +74,7 @@ class LoadGAIPResolutionsCommand extends Command
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
+            ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
         ;
     }
 
@@ -87,7 +88,13 @@ class LoadGAIPResolutionsCommand extends Command
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
 
+        $reference = $input->getOption('reference');
+
         $io->title('GAIP Resolution Loader');
+
+        if ($reference) {
+            return $this->processSpecificResolution($reference, $skipPdf, $skipAnalysis, $skipVectors, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
@@ -338,6 +345,36 @@ class LoadGAIPResolutionsCommand extends Command
         }
 
         return $resolution;
+    }
+
+    private function processSpecificResolution(string $reference, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io): int
+    {
+        $resolution = $this->resolutionRepository->findByReferenceAndSource($reference, Resolution::SOURCE_GAIP);
+        if (!$resolution) {
+            $io->error("Resolution not found: $reference (source=GAIP)");
+            return Command::FAILURE;
+        }
+
+        $io->section($reference);
+
+        if (!$skipPdf && $resolution->getSourceUrl()) {
+            $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+        } elseif (!$resolution->getSourceUrl()) {
+            $io->warning('No source URL available');
+        }
+
+        if (!$skipAnalysis && !empty($resolution->getFullText())) {
+            $this->analyzeResolution($resolution, $io);
+        }
+
+        if (!$skipVectors && !empty($resolution->getFullText())) {
+            $this->vectorizeResolution($resolution, $io);
+        }
+
+        $this->entityManager->flush();
+        $io->success("Done: $reference");
+
+        return Command::SUCCESS;
     }
 
     private function findComplaintOrganism(string $shortName): ?\App\Entity\ComplaintOrganism
