@@ -438,6 +438,23 @@ final class ProcessResolutionHandler
             $text = mb_substr($text, 0, $pos);
         }
 
+        // Ensure double newlines before section headings and numbered items.
+        // PhpWord .docx extraction joins paragraphs with single newlines,
+        // but downstream processing (applyOperations) needs double newlines to split paragraphs.
+        $sectionPatterns = [
+            'ANTECEDENTES(?:\s+DE\s+HECHO)?',
+            'FUNDAMENTOS(?:\s+(?:JURÍDICOS|DE\s+DERECHO))?',
+            'RESOLUCI[ÓO]N|RESUELVE',
+            'VISTOS',
+            '\d+\.\-\s',
+            '(?:Primero|Segundo|Tercero|Cuarto|Quinto|Sexto|Séptimo|Octavo|Noveno|Décimo|Único)\.\-',
+        ];
+        $text = preg_replace(
+            '/\n(?=' . implode('|', $sectionPatterns) . ')/u',
+            "\n\n",
+            $text
+        );
+
         // Collapse multiple blank lines
         $text = preg_replace('/\n{3,}/', "\n\n", $text);
 
