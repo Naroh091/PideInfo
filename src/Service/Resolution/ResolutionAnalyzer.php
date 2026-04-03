@@ -273,7 +273,7 @@ PROMPT;
         return $result;
     }
 
-    private function callGeminiApi(string $model, array $parts, array $schema, bool $flex = false): array
+    private function callGeminiApi(string $model, array $parts, array $schema, bool $flex = false, int $maxRetries = 2): array
     {
         $url = sprintf(self::GEMINI_ENDPOINT, $model) . '?key=' . $this->geminiApiKey;
 
@@ -285,8 +285,8 @@ PROMPT;
             ],
             'generationConfig' => [
                 'temperature' => 0.1,
-                'topK' => 1,
-                'topP' => 1,
+                'topP' => 0.95,
+                'maxOutputTokens' => 65536,
                 'responseMimeType' => 'application/json',
                 'responseSchema' => $schema,
             ],
@@ -296,50 +296,74 @@ PROMPT;
             $payload['service_tier'] = 'flex';
         }
 
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 300);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+        $jsonPayload = json_encode($payload);
+        $lastError = null;
 
-        $response = curl_exec($ch);
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            if ($attempt > 0) {
+                $this->logger->warning(sprintf('Retrying Gemini API call (attempt %d/%d, model %s)', $attempt + 1, $maxRetries + 1, $model));
+                usleep(500_000 * $attempt); // 0.5s, 1s backoff
+            }
 
-        if ($response === false) {
-            $error = curl_error($ch);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+
+            $response = curl_exec($ch);
+
+            if ($response === false) {
+                $lastError = new \RuntimeException('cURL error during Gemini API call: ' . curl_error($ch));
+                curl_close($ch);
+                continue;
+            }
+
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            throw new \RuntimeException('cURL error during Gemini API call: ' . $error);
+
+            if ($httpCode !== 200) {
+                $lastError = new \RuntimeException(sprintf('Gemini API error (HTTP %d, model %s): %s', $httpCode, $model, $response));
+                // Only retry on 429 (rate limit) or 5xx (server error)
+                if ($httpCode !== 429 && $httpCode < 500) {
+                    throw $lastError;
+                }
+                continue;
+            }
+
+            $data = json_decode($response, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $lastError = new \RuntimeException('Failed to decode Gemini API response: ' . json_last_error_msg());
+                continue;
+            }
+
+            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            if (!$text || strlen(trim($text)) < 10) {
+                $lastError = new \RuntimeException(sprintf('Empty response from Gemini API (model %s).', $model));
+                continue;
+            }
+
+            // Strip whitespace-only garbage responses before parsing
+            $text = trim($text);
+
+            $result = json_decode($text, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->warning('Invalid Gemini JSON response, will retry', [
+                    'model' => $model,
+                    'attempt' => $attempt + 1,
+                    'response_length' => strlen($text),
+                    'response_preview' => mb_substr($text, 0, 200),
+                    'json_error' => json_last_error_msg(),
+                ]);
+                $lastError = new \RuntimeException(sprintf('Invalid JSON from Gemini (model %s).', $model));
+                continue;
+            }
+
+            return $result;
         }
 
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException(sprintf('Gemini API error (HTTP %d, model %s): %s', $httpCode, $model, $response));
-        }
-
-        $data = json_decode($response, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Failed to decode Gemini API response: ' . json_last_error_msg());
-        }
-
-        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
-        if (!$text) {
-            throw new \RuntimeException(sprintf('Empty response from Gemini API (model %s).', $model));
-        }
-
-        $result = json_decode($text, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->logger->error('Invalid Gemini response', [
-                'model' => $model,
-                'http_code' => $httpCode,
-                'raw_response' => $text,
-                'json_error' => json_last_error_msg(),
-            ]);
-            throw new \RuntimeException(sprintf('Invalid JSON from Gemini (model %s).', $model));
-        }
-
-        return $result;
+        throw $lastError ?? new \RuntimeException(sprintf('Gemini API call failed after %d attempts (model %s).', $maxRetries + 1, $model));
     }
 }
