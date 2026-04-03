@@ -11,6 +11,8 @@ final readonly class ProcessResolutionMessage
         public bool $skipAnalysis = false,
         public bool $skipVectors = false,
         public bool $skipPdf = false,
+        public bool $forceReExtractText = false,
+        public bool $forceAnalysis = false,
     ) {
     }
 }

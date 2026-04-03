@@ -54,6 +54,7 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
             ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
             ->addOption('format-ops', null, InputOption::VALUE_NONE, 'Use operations-based formatting (fewer output tokens)')
+            ->addOption('re-extract', null, InputOption::VALUE_NONE, 'Re-extract text from stored PDF/DOCX files before analysis')
         ;
     }
 
@@ -69,6 +70,7 @@ class AnalyzeResolutionsCommand extends Command
         $source = $input->getOption('source');
         $slow = $input->getOption('slow');
         $formatOps = $input->getOption('format-ops');
+        $reExtract = $input->getOption('re-extract');
 
         $io->title('Resolution Analyzer');
 
@@ -83,18 +85,34 @@ class AnalyzeResolutionsCommand extends Command
                 return Command::FAILURE;
             }
 
+            if ($reExtract) {
+                $this->messageBus->dispatch(new ProcessResolutionMessage(
+                    resolutionId: $resolution->getId(),
+                    skipAnalysis: $cleanOnly,
+                    skipVectors: true,
+                    forceReExtractText: true,
+                    forceAnalysis: $force,
+                ));
+                $io->success("Dispatched re-extraction for $reference");
+                return Command::SUCCESS;
+            }
+
             return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $formatOps, $io);
         }
 
         if ($async) {
-            return $this->dispatchAsync($force, $source, $limit, $io);
+            return $this->dispatchAsync($force, $reExtract, $source, $limit, $io);
         }
 
-        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $formatOps, $io);
+        return $this->processInBatches($force, $reExtract, $source, $limit, $dryRun, $cleanOnly, $slow, $formatOps, $io);
     }
 
-    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
+    private function processInBatches(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $formatOps, SymfonyStyle $io): int
     {
+        if ($reExtract) {
+            return $this->dispatchAsync($force, true, $source, $limit, $io);
+        }
+
         $processed = 0;
         $errors = 0;
         $offset = 0;
@@ -301,10 +319,12 @@ class AnalyzeResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function dispatchAsync(bool $force, ?string $source, ?int $limit, SymfonyStyle $io): int
+    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, SymfonyStyle $io): int
     {
-        $qb = $this->buildQueryBuilder($force, $source);
-        // Only fetch IDs to keep memory low
+        $qb = $reExtract
+            ? $this->buildReExtractQueryBuilder($source)
+            : $this->buildQueryBuilder($force, $source);
+
         $qb->select('r.id');
 
         if ($limit) {
@@ -317,7 +337,9 @@ class AnalyzeResolutionsCommand extends Command
         foreach ($ids as $id) {
             $this->messageBus->dispatch(new ProcessResolutionMessage(
                 resolutionId: $id,
-                skipPdf: true,
+                skipPdf: !$reExtract,
+                forceReExtractText: $reExtract,
+                forceAnalysis: $force,
             ));
             $dispatched++;
         }
@@ -325,6 +347,21 @@ class AnalyzeResolutionsCommand extends Command
         $io->success(sprintf('Dispatched %d resolutions to workers.', $dispatched));
 
         return Command::SUCCESS;
+    }
+
+    private function buildReExtractQueryBuilder(?string $source): \Doctrine\ORM\QueryBuilder
+    {
+        $qb = $this->resolutionRepository->createQueryBuilder('r')
+            ->where('r.pdfStoragePath IS NOT NULL')
+            ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate')
+            ->orderBy('sortDate', 'DESC');
+
+        if ($source) {
+            $qb->andWhere('r.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        return $qb;
     }
 
     /**
