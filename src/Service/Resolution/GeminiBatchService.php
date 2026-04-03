@@ -126,9 +126,9 @@ PROMPT;
      * @param string $key       Unique key encoding source + reference, e.g. "GAIP:0197/2025"
      * @param string $cleanText Cleaned raw PDF text (use ResolutionAnalyzer::cleanText first)
      */
-    public function buildFormatLine(string $key, string $cleanText): string
+    public function buildFormatLine(string $key, string $cleanText, bool $flex = false): string
     {
-        return $this->buildLine($key, self::FORMAT_PROMPT, $cleanText, thinkingBudget: 0);
+        return $this->buildLine($key, self::FORMAT_PROMPT, $cleanText, thinkingBudget: 0, flex: $flex);
     }
 
     /**
@@ -137,12 +137,12 @@ PROMPT;
      * @param string $key  Unique key encoding source + reference, e.g. "GAIP:0197/2025"
      * @param string $text Resolution text — formatted HTML or cleaned plain text
      */
-    public function buildAnalyzeLine(string $key, string $text): string
+    public function buildAnalyzeLine(string $key, string $text, bool $flex = false): string
     {
-        return $this->buildLine($key, self::ANALYZE_PROMPT, $text, thinkingBudget: null);
+        return $this->buildLine($key, self::ANALYZE_PROMPT, $text, thinkingBudget: null, flex: $flex);
     }
 
-    private function buildLine(string $key, string $prompt, string $text, ?int $thinkingBudget): string
+    private function buildLine(string $key, string $prompt, string $text, ?int $thinkingBudget, bool $flex = false): string
     {
         $generationConfig = [
             'temperature' => 0.1,
@@ -164,6 +164,10 @@ PROMPT;
             ],
             'generationConfig' => $generationConfig,
         ];
+
+        if ($flex) {
+            $request['service_tier'] = 'FLEX';
+        }
 
         return json_encode(['key' => $key, 'request' => $request], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }

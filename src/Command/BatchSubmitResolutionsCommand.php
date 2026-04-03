@@ -41,6 +41,7 @@ class BatchSubmitResolutionsCommand extends Command
             ->addOption('model', null, InputOption::VALUE_REQUIRED, 'Override Gemini model (default: $GEMINI_SMALL_MODEL)')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without uploading or creating a job')
             ->addOption('newest', null, InputOption::VALUE_NONE, 'Process newest resolutions first (default: oldest first)')
+            ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
         ;
     }
 
@@ -63,6 +64,7 @@ class BatchSubmitResolutionsCommand extends Command
         $model = $input->getOption('model') ?? $this->defaultModel;
         $dryRun = (bool) $input->getOption('dry-run');
         $newest = (bool) $input->getOption('newest');
+        $flex = (bool) $input->getOption('flex');
         $sortDirection = $newest ? 'DESC' : 'ASC';
 
         $io->title('Gemini Batch Submit');
@@ -109,10 +111,10 @@ class BatchSubmitResolutionsCommand extends Command
             $key = $resolution->getSource() . ':' . $resolution->getReferenceNumber();
 
             if ($task === GeminiBatchJob::TASK_FORMAT) {
-                $lines[] = $this->batchService->buildFormatLine($key, $this->analyzer->cleanText($rawText));
+                $lines[] = $this->batchService->buildFormatLine($key, $this->analyzer->cleanText($rawText), $flex);
             } else {
                 // For analyze, text may already be formatted HTML — send as-is
-                $lines[] = $this->batchService->buildAnalyzeLine($key, $rawText);
+                $lines[] = $this->batchService->buildAnalyzeLine($key, $rawText, $flex);
             }
         }
 
