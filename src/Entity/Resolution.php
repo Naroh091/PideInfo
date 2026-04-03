@@ -53,8 +53,8 @@ class Resolution
     #[ORM\Column(length: 100)]
     private string $referenceNumber;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
-    private \DateTimeImmutable $resolutionDate;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $resolutionDate = null;
 
     #[ORM\Column(length: 50)]
     private string $outcome;
@@ -159,12 +159,12 @@ class Resolution
         return $this;
     }
 
-    public function getResolutionDate(): \DateTimeImmutable
+    public function getResolutionDate(): ?\DateTimeImmutable
     {
         return $this->resolutionDate;
     }
 
-    public function setResolutionDate(\DateTimeImmutable $resolutionDate): static
+    public function setResolutionDate(?\DateTimeImmutable $resolutionDate): static
     {
         $this->resolutionDate = $resolutionDate;
         return $this;
@@ -475,6 +475,6 @@ class Resolution
 
     public function __toString(): string
     {
-        return $this->referenceNumber . ' - ' . $this->resolutionDate->format('d/m/Y');
+        return $this->referenceNumber . ($this->resolutionDate ? ' - ' . $this->resolutionDate->format('d/m/Y') : '');
     }
 }

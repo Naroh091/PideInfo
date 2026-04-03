@@ -2,6 +2,7 @@
 
 namespace App\Service\Resolution;
 
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ResolutionAnalyzer
@@ -11,8 +12,11 @@ final class ResolutionAnalyzer
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_MID_MODEL')]
-        private readonly string $geminiModel,
+        #[Autowire(env: 'GEMINI_SMALL_MODEL')]
+        private readonly string $smallModel,
+        #[Autowire(env: 'GEMINI_FREE_MODEL')]
+        private readonly string $freeModel,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -142,77 +146,40 @@ final class ResolutionAnalyzer
     }
 
     /**
-     * Call Gemini to format, summarize, extract keypoints and dates from a resolution.
+     * Full analysis in two steps:
+     * 1. Format text with GEMINI_SMALL_MODEL (paid, respects structured output)
+     * 2. Extract analysis with GEMINI_FREE_MODEL (free, better reasoning)
      *
-     * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string}
+     * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
     public function analyze(string $cleanedText): array
     {
+        $formatted = $this->formatText($cleanedText);
+        $analysis = $this->extractAnalysis($cleanedText);
+
+        return array_merge($formatted, $analysis);
+    }
+
+    /**
+     * Step 1: Format resolution text to semantic HTML (GEMINI_SMALL_MODEL).
+     *
+     * @return array{formatted_text: string}
+     */
+    private function formatText(string $cleanedText): array
+    {
         $prompt = <<<'PROMPT'
-Eres un experto en derecho administrativo español y transparencia. Se te proporciona el texto de una resolución de un consejo de transparencia sobre una reclamación de acceso a información pública.
+Actúa como un experto en derecho administrativo español. Formatea el texto de la resolución adjunta cumpliendo ESTRICTAMENTE las siguientes reglas.
 
-IMPORTANTE: Si el texto está en catalán, gallego, euskera o cualquier otro idioma distinto del castellano, TODA tu salida (formatted_text, summary, keypoints) debe estar traducida al castellano. Traduce el contenido manteniendo la terminología jurídica correcta en castellano.
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO. Utiliza terminología jurídica precisa en castellano.
 
-Tu tarea tiene tres partes:
-
-## 1. FORMATEAR EL TEXTO
-
-Convierte el texto a HTML semántico limpio. Etiquetas permitidas: h2, h3, p, strong, em, ol, li, ul, blockquote, a, cite, br, hr.
-
-Reglas:
-- <h2> para secciones principales (ANTECEDENTES, FUNDAMENTOS JURÍDICOS, RESOLUCIÓN)
-- <h3> para subsecciones si las hay
-- <strong> para términos legales clave, nombres de organismos y referencias normativas
-- <em> para citas textuales de solicitudes o alegaciones
-- <blockquote> para citas literales extensas (texto de solicitudes, alegaciones, artículos de ley)
-- <ol>/<li> donde el texto original tiene listas numeradas
-- <cite> para nombres de leyes cuando se mencionan por primera vez
-- Elimina artefactos de la extracción PDF (saltos de línea incorrectos dentro de párrafos, espacios extra)
-- Reconstruye párrafos completos uniendo líneas que fueron cortadas por el formato PDF
-- NO uses etiquetas <html>, <head>, <body> — solo el fragmento de contenido
-- NO añadas estilos inline ni clases CSS
-- NO inventes ni añadas contenido que no esté en el original
-- ELIMINA las URLs sueltas que aparecen como notas a pie de página o referencias bibliográficas del PDF (ej: líneas que solo contienen una URL a boe.es u otros sitios). Estas NO deben aparecer en el HTML resultante, ni como <a> ni como texto. Solo conserva URLs que estén integradas dentro del texto de una cita o alegación del reclamante.
-- ELIMINA el bloque de metadatos de la resolución que suele aparecer al principio o al final: "Número y fecha de resolución:", "Número de expediente:", "Reclamante:", "Organismo:", "Sentido de la resolución:", "Palabras clave:". Este bloque ya se extrae por separado y no debe formar parte del texto formateado.
-- ELIMINA líneas de tipo "RA CTBG Número: XXXX-XXXX Fecha: XX/XX/XXXX" y líneas de firmante como "JOSE LUIS RODRIGUEZ ALVAREZ (1 de 1) Presidente".
-
-## 2. GENERAR RESUMEN
-
-Escribe un resumen conciso en texto plano (máximo 350-400 caracteres) que explique:
-- Qué información se solicitó y a qué organismo
-- Cuál fue la decisión del consejo de transparencia y por qué
-
-El resumen NO debe superar los 400 caracteres. Sé directo y evita redundancias.
-
-## 3. EXTRAER PUNTOS CLAVE
-
-Extrae entre 3 y 7 puntos clave de la argumentación jurídica del consejo. Cada punto debe ser una frase completa que resuma un argumento o razonamiento relevante. Céntrate en:
-- Los fundamentos jurídicos que sustentan la decisión
-- La interpretación de la ley de transparencia aplicada
-- Los precedentes citados si los hay
-- Las razones específicas de la estimación o desestimación
-
-## 4. EXTRAER FECHA DE RESOLUCIÓN
-
-Busca la fecha de la resolución en el texto. Suele aparecer en la firma final del documento (e.g., "Madrid, 15 de enero de 2025", "En Barcelona, a 3 de febrero de 2026"). Devuélvela en formato ISO 8601 (YYYY-MM-DD). Si no la encuentras, devuelve null.
-
-## 5. EXTRAER FECHA DE RECLAMACIÓN
-
-Busca la fecha en que se presentó la reclamación. Suele mencionarse en los ANTECEDENTES (e.g., "Con fecha 5 de marzo de 2025, tuvo entrada en este Consejo la reclamación...", "La reclamació va ser presentada a la GAIP el dia 10 de febrer de 2026"). Devuélvela en formato ISO 8601 (YYYY-MM-DD). Si no la encuentras, devuelve null.
-
-## 6. EXTRAER ASUNTO
-
-Extrae una descripción breve (máximo 500 caracteres) de la información que se solicitó. Debe estar en castellano. Si el texto original está en otro idioma, tradúcelo. Si no puedes determinar el asunto, devuelve null.
-
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{
-  "formatted_text": "HTML formateado",
-  "summary": "resumen en texto plano",
-  "keypoints": ["punto 1", "punto 2", ...],
-  "resolution_date": "YYYY-MM-DD o null",
-  "claim_date": "YYYY-MM-DD o null",
-  "subject": "asunto en castellano o null"
-}
+[formatted_text]
+- Transcribe TODO el texto principal (traducido si aplica) usando HTML semántico. ES VITAL QUE NO RESUMAS ESTE CAMPO; debe contener todo el contenido original. NO REDACTES LAS COSAS DE FORMA DISTINTA A LA ORIGINAL.
+- Limpia artefactos: une párrafos cortados y elimina espacios extra.
+- Etiquetas permitidas: <h2>, <h3>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <a>, <cite>, <br>, <hr>.
+- Jerarquía: <h2> para secciones principales (ANTECEDENTES, FUNDAMENTOS JURÍDICOS, RESOLUCIÓN), <h3> para subsecciones.
+- Estilos: <strong> (términos legales, organismos), <em> (citas de solicitudes), <blockquote> (citas extensas/leyes), <cite> (leyes 1ª vez).
+- ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
+- PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
 PROMPT;
 
         $parts = [
@@ -220,12 +187,95 @@ PROMPT;
             ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
         ];
 
-        return $this->callGeminiApi($parts);
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'formatted_text' => [
+                    'type' => 'string',
+                    'description' => 'Full resolution text translated to Spanish (if needed) and formatted as semantic HTML. DO NOT SUMMARIZE. Must contain all original paragraphs. DO NOT REWRITE THE TEXT, JUST TRANSCRIBE IT, RESPECT THE ORIGINAL.',
+                ],
+            ],
+            'required' => ['formatted_text'],
+        ];
+
+        return $this->callGeminiApi($this->smallModel, $parts, $schema);
     }
 
-    private function callGeminiApi(array $parts): array
+    /**
+     * Step 2: Extract summary, keypoints, dates and subject (GEMINI_FREE_MODEL).
+     *
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
+     */
+    private function extractAnalysis(string $cleanedText): array
     {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
+        $prompt = <<<'PROMPT'
+Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
+
+[summary]
+- Escribe un resumen directo en texto plano (máximo 400 caracteres).
+- Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del Consejo y por qué.
+
+[keypoints]
+- Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (ley aplicada, precedentes, motivos de estimación/desestimación).
+- Omite formalidades obvias (ej. "El Consejo es competente").
+
+[resolution_date] y [claim_date]
+- Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
+
+[subject]
+- Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
+PROMPT;
+
+        $parts = [
+            ['text' => $prompt],
+            ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
+        ];
+
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'summary' => [
+                    'type' => 'string',
+                    'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
+                ],
+                'keypoints' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => '3-7 key legal reasoning points in Spanish.',
+                ],
+                'resolution_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+                ],
+                'claim_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Claim filing date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+                ],
+                'subject' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
+                ],
+            ],
+            'required' => ['summary', 'keypoints', 'resolution_date', 'claim_date', 'subject'],
+        ];
+
+        $result = $this->callGeminiApi($this->freeModel, $parts, $schema);
+
+        $result['resolution_date'] = $result['resolution_date'] ?? null;
+        $result['claim_date'] = $result['claim_date'] ?? null;
+        $result['subject'] = $result['subject'] ?? null;
+
+        return $result;
+    }
+
+    private function callGeminiApi(string $model, array $parts, array $schema): array
+    {
+        $url = sprintf(self::GEMINI_ENDPOINT, $model) . '?key=' . $this->geminiApiKey;
 
         $payload = [
             'contents' => [
@@ -237,8 +287,8 @@ PROMPT;
                 'temperature' => 0.1,
                 'topK' => 1,
                 'topP' => 1,
-                'maxOutputTokens' => 65536,
                 'responseMimeType' => 'application/json',
+                'responseSchema' => $schema,
             ],
         ];
 
@@ -251,32 +301,40 @@ PROMPT;
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
 
         $response = curl_exec($ch);
+
+        if ($response === false) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            throw new \RuntimeException('cURL error during Gemini API call: ' . $error);
+        }
+
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($httpCode !== 200) {
-            throw new \RuntimeException(sprintf('Gemini API error (HTTP %d): %s', $httpCode, $response));
+            throw new \RuntimeException(sprintf('Gemini API error (HTTP %d, model %s): %s', $httpCode, $model, $response));
         }
 
         $data = json_decode($response, true);
-        if (!$data) {
-            throw new \RuntimeException('Failed to decode Gemini API response.');
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new \RuntimeException('Failed to decode Gemini API response: ' . json_last_error_msg());
         }
 
         $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
         if (!$text) {
-            throw new \RuntimeException('Empty response from Gemini API.');
+            throw new \RuntimeException(sprintf('Empty response from Gemini API (model %s).', $model));
         }
 
         $result = json_decode($text, true);
-        if (!$result || !isset($result['formatted_text'], $result['summary'], $result['keypoints'])) {
-            throw new \RuntimeException('Invalid JSON structure from Gemini: ' . mb_substr($text, 0, 500));
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->logger->error('Invalid Gemini response', [
+                'model' => $model,
+                'http_code' => $httpCode,
+                'raw_response' => $text,
+                'json_error' => json_last_error_msg(),
+            ]);
+            throw new \RuntimeException(sprintf('Invalid JSON from Gemini (model %s).', $model));
         }
-
-        // Ensure optional fields exist (may be null)
-        $result['resolution_date'] = $result['resolution_date'] ?? null;
-        $result['claim_date'] = $result['claim_date'] ?? null;
-        $result['subject'] = $result['subject'] ?? null;
 
         return $result;
     }
