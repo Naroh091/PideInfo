@@ -14,8 +14,8 @@ final class ResolutionAnalyzer
         private readonly string $geminiApiKey,
         #[Autowire(env: 'GEMINI_SMALL_MODEL')]
         private readonly string $smallModel,
-        #[Autowire(env: 'GEMINI_FREE_MODEL')]
-        private readonly string $freeModel,
+        #[Autowire(env: 'GEMINI_MID_MODEL')]
+        private readonly string $midModel,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -264,7 +264,7 @@ PROMPT;
             'required' => ['summary', 'keypoints', 'resolution_date', 'claim_date', 'subject'],
         ];
 
-        $result = $this->callGeminiApi($this->freeModel, $parts, $schema, flex: $flex);
+        $result = $this->callGeminiApi($this->midModel, $parts, $schema, flex: $flex);
 
         $result['resolution_date'] = $result['resolution_date'] ?? null;
         $result['claim_date'] = $result['claim_date'] ?? null;
