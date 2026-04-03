@@ -37,6 +37,7 @@ class CleanResolutionTextCommand extends Command
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
             ->addOption('html', null, InputOption::VALUE_NONE, 'Clean already-formatted HTML resolutions (removes footnote URLs, metadata blocks)')
+            ->addOption('nullify-old-dates', null, InputOption::VALUE_NONE, 'Set resolution_date to NULL for resolutions with reference year before 2023')
         ;
     }
 
@@ -47,6 +48,11 @@ class CleanResolutionTextCommand extends Command
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
         $dryRun = $input->getOption('dry-run');
         $htmlMode = $input->getOption('html');
+        $nullifyOldDates = $input->getOption('nullify-old-dates');
+
+        if ($nullifyOldDates) {
+            return $this->nullifyOldDates($io, $source, $dryRun);
+        }
 
         $io->title($htmlMode ? 'Resolution HTML Cleaner' : 'Resolution Raw Text Cleaner');
 
@@ -142,6 +148,59 @@ class CleanResolutionTextCommand extends Command
             $cleaned,
             $total - $cleaned,
             $total,
+        ));
+
+        return Command::SUCCESS;
+    }
+
+    private function nullifyOldDates(SymfonyStyle $io, ?string $source, bool $dryRun): int
+    {
+        $io->title('Nullify resolution dates for pre-2023 references');
+
+        $qb = $this->resolutionRepository->createQueryBuilder('r')
+            ->where('r.resolutionDate IS NOT NULL');
+
+        if ($source !== null) {
+            $qb->andWhere('r.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        $resolutions = $qb->getQuery()->getResult();
+        $nullified = 0;
+
+        foreach ($resolutions as $resolution) {
+            $ref = $resolution->getReferenceNumber();
+
+            if (preg_match('#/(\d{2,4})(?:\D|$)#', $ref, $matches)) {
+                $year = (int) $matches[1];
+                if ($year < 100) {
+                    $year += 2000;
+                }
+
+                if ($year < 2023) {
+                    $nullified++;
+                    $currentDate = $resolution->getResolutionDate();
+                    $io->text(sprintf('%s (year %d) → date %s moved to presumptive_date', $ref, $year, $currentDate?->format('Y-m-d') ?? 'null'));
+
+                    if (!$dryRun) {
+                        $meta = $resolution->getSourceMetadata() ?? [];
+                        $meta['presumptive_date'] = $currentDate?->format('Y-m-d');
+                        $resolution->setSourceMetadata($meta);
+                        $resolution->setResolutionDate(null);
+                    }
+                }
+            }
+        }
+
+        if (!$dryRun) {
+            $this->entityManager->flush();
+        }
+
+        $io->success(sprintf(
+            '%s complete. %d resolution dates nullified out of %d checked.',
+            $dryRun ? 'Dry run' : 'Cleaning',
+            $nullified,
+            count($resolutions),
         ));
 
         return Command::SUCCESS;

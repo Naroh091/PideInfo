@@ -147,6 +147,10 @@ class AnalyzeResolutionsCommand extends Command
                 $resolution->setSummary($result['summary']);
                 $resolution->setKeypoints($result['keypoints']);
 
+                if (!empty($result['subject'])) {
+                    $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+                }
+
                 if ($result['resolution_date']) {
                     try {
                         $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
