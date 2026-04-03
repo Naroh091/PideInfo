@@ -178,9 +178,17 @@ class CleanResolutionTextCommand extends Command
                 }
 
                 $currentDate = $resolution->getResolutionDate();
-                $isDateIn2026 = $currentDate && (int) $currentDate->format('Y') === 2026;
+                $createdAt = $resolution->getCreatedAt();
 
-                if ($year < 2023 && $isDateIn2026) {
+                // Detect fake dates: resolution_date matches created_at (set to "now" during import)
+                $isFakeDate = $currentDate && $createdAt
+                    && $currentDate->format('Y-m-d') === $createdAt->format('Y-m-d');
+
+                // Also catch any pre-reference-year date set in 2025+
+                $isDateSuspicious = $currentDate && (int) $currentDate->format('Y') >= 2025
+                    && $year < (int) $currentDate->format('Y');
+
+                if ($isFakeDate || ($year < 2024 && $isDateSuspicious)) {
                     $nullified++;
                     $io->text(sprintf('%s (ref year %d, date %s) → nullified', $ref, $year, $currentDate->format('Y-m-d')));
 

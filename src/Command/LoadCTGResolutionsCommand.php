@@ -337,8 +337,6 @@ class LoadCTGResolutionsCommand extends Command
 
         if ($dto->resolutionDate) {
             $resolution->setResolutionDate($dto->resolutionDate);
-        } elseif ($isNew) {
-            $resolution->setResolutionDate(new \DateTimeImmutable());
         }
 
         if ($dto->claimDate) {

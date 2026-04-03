@@ -289,8 +289,6 @@ class LoadGAIPResolutionsCommand extends Command
         // Set dates from API
         if ($dto->resolutionDate) {
             $resolution->setResolutionDate($dto->resolutionDate);
-        } else {
-            $resolution->setResolutionDate(new \DateTimeImmutable());
         }
 
         if ($dto->claimDate) {

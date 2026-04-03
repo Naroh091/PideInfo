@@ -341,7 +341,6 @@ class LoadCTBGResolutionsCommand extends Command
         if ($isNew) {
             $resolution = new Resolution();
             $resolution->setReferenceNumber($dto->referenceNumber);
-            $resolution->setResolutionDate(new \DateTimeImmutable());
             $resolution->setSummary('');
             $resolution->setFullText('');
             $resolution->setSource($dto->source);
