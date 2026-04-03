@@ -52,6 +52,7 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('clean-only', null, InputOption::VALUE_NONE, 'Only clean text, do not call AI')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch to Messenger workers instead of processing inline')
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
+            ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
         ;
     }
 
@@ -65,6 +66,7 @@ class AnalyzeResolutionsCommand extends Command
         $cleanOnly = $input->getOption('clean-only');
         $async = $input->getOption('async');
         $source = $input->getOption('source');
+        $slow = $input->getOption('slow');
 
         $io->title('Resolution Analyzer');
 
@@ -74,156 +76,160 @@ class AnalyzeResolutionsCommand extends Command
                 $io->error("Resolution not found: $reference");
                 return Command::FAILURE;
             }
-            $resolutions = [$resolution];
-        } else {
-            $qb = $this->resolutionRepository->createQueryBuilder('r')
-                ->orderBy('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END', 'ASC')
-                ->addOrderBy('r.resolutionDate', 'DESC');
 
-            if (!$force) {
-                $qb->where('r.summary IS NULL OR r.summary = :empty')
-                    ->setParameter('empty', '');
-            }
-
-            if ($source) {
-                $qb->andWhere('r.source = :source')
-                    ->setParameter('source', $source);
-            }
-
-            if ($limit) {
-                $qb->setMaxResults($limit);
-            }
-
-            $resolutions = $qb->getQuery()->getResult();
+            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $io);
         }
 
         if ($async) {
-            return $this->dispatchAsync($resolutions, $io);
+            return $this->dispatchAsync($force, $source, $limit, $io);
         }
 
-        if (empty($resolutions)) {
+        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $io);
+    }
+
+    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, SymfonyStyle $io): int
+    {
+        $processed = 0;
+        $errors = 0;
+        $offset = 0;
+
+        // Count total
+        $countQb = $this->buildQueryBuilder($force, $source);
+        $total = (int) $countQb->select('COUNT(r.id)')->getQuery()->getSingleScalarResult();
+
+        if ($limit !== null) {
+            $total = min($total, $limit);
+        }
+
+        if ($total === 0) {
             $io->success('No resolutions to process.');
             return Command::SUCCESS;
         }
 
-        $io->info(sprintf('Found %d resolutions to process.', count($resolutions)));
+        $io->info(sprintf('Found %d resolutions to process.', $total));
 
-        $processed = 0;
-        $errors = 0;
-
-        foreach ($resolutions as $resolution) {
-            $ref = $resolution->getReferenceNumber();
-            $io->section($ref);
-
-            $fullText = $resolution->getFullText();
-            if (empty(trim($fullText))) {
-                $io->warning("  Skipped — empty fullText");
-                continue;
+        while ($processed + $errors < $total) {
+            $fetchSize = self::BATCH_SIZE;
+            if ($limit !== null) {
+                $fetchSize = min($fetchSize, $limit - $processed);
             }
 
-            // Step 1: Clean text
-            $cleanedText = $this->analyzer->cleanText($fullText);
-            $io->text(sprintf('  Cleaned: %d → %d chars (-%d%%)',
-                mb_strlen($fullText),
-                mb_strlen($cleanedText),
-                round((1 - mb_strlen($cleanedText) / mb_strlen($fullText)) * 100)
-            ));
+            $qb = $this->buildQueryBuilder($force, $source);
+            $qb->setFirstResult($offset)->setMaxResults($fetchSize);
+            $resolutions = $qb->getQuery()->getResult();
 
-            if ($dryRun) {
-                $io->text('  [dry-run] Would process with AI');
-                $io->text('  First 500 chars of cleaned text:');
-                $io->text('  ' . mb_substr($cleanedText, 0, 500));
-                $processed++;
-                continue;
+            if (empty($resolutions)) {
+                break;
             }
 
-            if ($cleanOnly) {
-                $resolution->setFullText($cleanedText);
-                $io->text('  Cleaned text saved (no AI analysis)');
-                $processed++;
+            foreach ($resolutions as $resolution) {
+                $ref = $resolution->getReferenceNumber();
+                $io->section(sprintf('[%d/%d] %s', $processed + $errors + 1, $total, $ref));
 
-                if ($processed % self::BATCH_SIZE === 0) {
-                    try {
-                        $this->entityManager->flush();
-                        $io->text('  <info>Flushed batch</info>');
-                    } catch (\Exception $e) {
-                        $io->error("  Flush error: " . $e->getMessage());
-                        $this->resetEntityManager();
-                        $errors++;
-                    }
-                }
-                continue;
-            }
-
-            // Step 2: AI analysis
-            try {
-                $io->text('  Calling Gemini API...');
-                $result = $this->analyzer->analyze($cleanedText);
-
-                $resolution->setFullText($result['formatted_text']);
-                $resolution->setSummary($result['summary']);
-                $resolution->setKeypoints($result['keypoints']);
-
-                if (!empty($result['subject'])) {
-                    $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+                $fullText = $resolution->getFullText();
+                if (empty(trim($fullText))) {
+                    $io->warning('  Skipped — empty fullText');
+                    $offset++;
+                    continue;
                 }
 
-                if ($result['resolution_date']) {
-                    try {
-                        $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                        $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
-                    } catch (\Exception) {
-                        $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
-                    }
+                // Step 1: Clean text
+                $cleanedText = $this->analyzer->cleanText($fullText);
+                $io->text(sprintf('  Cleaned: %d → %d chars (-%d%%)',
+                    mb_strlen($fullText),
+                    mb_strlen($cleanedText),
+                    round((1 - mb_strlen($cleanedText) / mb_strlen($fullText)) * 100)
+                ));
+
+                if ($dryRun) {
+                    $io->text('  [dry-run] Would process with AI');
+                    $io->text('  First 500 chars of cleaned text:');
+                    $io->text('  ' . mb_substr($cleanedText, 0, 500));
+                    $processed++;
+                    $offset++;
+                    continue;
                 }
 
-                if ($result['claim_date']) {
-                    try {
-                        $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
-                        $io->text(sprintf('  Claim date: %s', $result['claim_date']));
-                    } catch (\Exception) {
-                        $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
-                    }
+                if ($cleanOnly) {
+                    $resolution->setFullText($cleanedText);
+                    $io->text('  Cleaned text saved (no AI analysis)');
+                    $processed++;
+                    $offset++;
+                    continue;
                 }
 
-                // Calculate days to resolve if both dates are available
-                if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-                    $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-                    $resolution->setDaysToResolve($days);
-                    $io->text(sprintf('  Days to resolve: %d', $days));
-                }
-
-                $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
-                $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
-
-                $processed++;
-            } catch (\Exception $e) {
-                $io->error("  Error: " . $e->getMessage());
-                $this->resetEntityManager();
-                $errors++;
-                continue;
-            }
-
-            if ($processed % self::BATCH_SIZE === 0) {
+                // Step 2: AI analysis
                 try {
-                    $this->entityManager->flush();
-                    $io->text('  <info>Flushed batch</info>');
+                    $io->text('  Calling Gemini API...');
+                    $result = $this->analyzer->analyze($cleanedText);
+
+                    $resolution->setFullText($result['formatted_text']);
+                    $resolution->setSummary($result['summary']);
+                    $resolution->setKeypoints($result['keypoints']);
+
+                    if (!empty($result['subject'])) {
+                        $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+                    }
+
+                    if ($result['resolution_date']) {
+                        try {
+                            $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                            $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
+                        } catch (\Exception) {
+                            $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
+                        }
+                    }
+
+                    if ($result['claim_date']) {
+                        try {
+                            $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
+                            $io->text(sprintf('  Claim date: %s', $result['claim_date']));
+                        } catch (\Exception) {
+                            $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
+                        }
+                    }
+
+                    if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+                        $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+                        $resolution->setDaysToResolve($days);
+                        $io->text(sprintf('  Days to resolve: %d', $days));
+                    }
+
+                    $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
+                    $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
+
+                    $processed++;
                 } catch (\Exception $e) {
-                    $io->error("  Flush error: " . $e->getMessage());
+                    $io->error('  Error: ' . $e->getMessage());
                     $this->resetEntityManager();
                     $errors++;
+                    $offset++;
+                    continue;
+                }
+
+                if ($slow) {
+                    sleep(30); // 2 per minute
                 }
             }
 
-            // Rate limit
-            usleep(500_000);
-        }
+            // Flush + clear after each batch
+            try {
+                $this->entityManager->flush();
+                $this->entityManager->clear();
+                $io->text('  <info>Flushed batch</info>');
+            } catch (\Exception $e) {
+                $io->error('  Flush error: ' . $e->getMessage());
+                $this->resetEntityManager();
+                $errors++;
+            }
 
-        try {
-            $this->entityManager->flush();
-        } catch (\Exception $e) {
-            $io->error("Final flush error: " . $e->getMessage());
-            $errors++;
+            // After clear, offset-based pagination stays correct since
+            // processed records no longer match the WHERE clause (summary is set)
+            if (!$force && !$dryRun && !$cleanOnly) {
+                $offset = 0; // Processed rows drop out of the query
+            } else {
+                $offset += $fetchSize;
+            }
         }
 
         $io->success(sprintf('Done. %d processed, %d errors.', $processed, $errors));
@@ -234,17 +240,77 @@ class AnalyzeResolutionsCommand extends Command
     /**
      * @param list<\App\Entity\Resolution> $resolutions
      */
-    private function dispatchAsync(array $resolutions, SymfonyStyle $io): int
+    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, SymfonyStyle $io): int
     {
-        $dispatched = 0;
+        $processed = 0;
 
         foreach ($resolutions as $resolution) {
-            if (empty(trim($resolution->getFullText()))) {
+            $ref = $resolution->getReferenceNumber();
+            $io->section($ref);
+
+            $fullText = $resolution->getFullText();
+            if (empty(trim($fullText))) {
+                $io->warning('  Skipped — empty fullText');
                 continue;
             }
 
+            $cleanedText = $this->analyzer->cleanText($fullText);
+            $io->text(sprintf('  Cleaned: %d → %d chars', mb_strlen($fullText), mb_strlen($cleanedText)));
+
+            if ($dryRun) {
+                $io->text('  [dry-run] ' . mb_substr($cleanedText, 0, 500));
+                continue;
+            }
+
+            if ($cleanOnly) {
+                $resolution->setFullText($cleanedText);
+                $processed++;
+                continue;
+            }
+
+            try {
+                $io->text('  Calling Gemini API...');
+                $result = $this->analyzer->analyze($cleanedText);
+                $resolution->setFullText($result['formatted_text']);
+                $resolution->setSummary($result['summary']);
+                $resolution->setKeypoints($result['keypoints']);
+                if (!empty($result['subject'])) {
+                    $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+                }
+                $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
+                $processed++;
+            } catch (\Exception $e) {
+                $io->error('  Error: ' . $e->getMessage());
+                return Command::FAILURE;
+            }
+
+            if ($slow) {
+                sleep(30);
+            }
+        }
+
+        $this->entityManager->flush();
+        $io->success(sprintf('Done. %d processed.', $processed));
+
+        return Command::SUCCESS;
+    }
+
+    private function dispatchAsync(bool $force, ?string $source, ?int $limit, SymfonyStyle $io): int
+    {
+        $qb = $this->buildQueryBuilder($force, $source);
+        // Only fetch IDs to keep memory low
+        $qb->select('r.id');
+
+        if ($limit) {
+            $qb->setMaxResults($limit);
+        }
+
+        $ids = array_column($qb->getQuery()->getArrayResult(), 'id');
+        $dispatched = 0;
+
+        foreach ($ids as $id) {
             $this->messageBus->dispatch(new ProcessResolutionMessage(
-                resolutionId: $resolution->getId(),
+                resolutionId: $id,
                 skipPdf: true,
             ));
             $dispatched++;
@@ -253,5 +319,30 @@ class AnalyzeResolutionsCommand extends Command
         $io->success(sprintf('Dispatched %d resolutions to workers.', $dispatched));
 
         return Command::SUCCESS;
+    }
+
+    /**
+     * @return \Doctrine\ORM\QueryBuilder
+     */
+    private function buildQueryBuilder(bool $force, ?string $source): \Doctrine\ORM\QueryBuilder
+    {
+        $qb = $this->resolutionRepository->createQueryBuilder('r')
+            ->where('r.fullText IS NOT NULL')
+            ->andWhere('r.fullText != :empty')
+            ->setParameter('empty', '')
+            ->orderBy('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END', 'ASC')
+            ->addOrderBy('r.resolutionDate', 'DESC');
+
+        if (!$force) {
+            $qb->andWhere('r.summary IS NULL OR r.summary = :emptySummary')
+                ->setParameter('emptySummary', '');
+        }
+
+        if ($source) {
+            $qb->andWhere('r.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        return $qb;
     }
 }
