@@ -59,6 +59,9 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::section('RAG');
         yield MenuItem::linkToCrud('Resoluciones', 'fa fa-book', Resolution::class);
 
+        yield MenuItem::section('Sistema');
+        yield MenuItem::linkToRoute('Messenger Monitor', 'fa fa-cogs', 'zenstruck_messenger_monitor_dashboard');
+
         yield MenuItem::section('');
         yield MenuItem::linkToRoute('Volver a la aplicación', 'fa fa-arrow-left', 'app_dashboard');
     }

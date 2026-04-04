@@ -322,7 +322,8 @@ class AnalyzeResolutionsCommand extends Command
             ? $this->buildReExtractQueryBuilder($source)
             : $this->buildQueryBuilder($force, $source);
 
-        $qb->select('r.id');
+        $qb->select('r.id')
+            ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate');
 
         if ($limit) {
             $qb->setMaxResults($limit);

@@ -547,5 +547,14 @@
     },
     "twig/extra-bundle": {
         "version": "v3.22.2"
+    },
+    "zenstruck/messenger-monitor-bundle": {
+        "version": "0.6",
+        "recipe": {
+            "repo": "github.com/symfony/recipes-contrib",
+            "branch": "main",
+            "version": "0.5",
+            "ref": "e830a96e19aef36b23c63a4f8884fe51815f06d8"
+        }
     }
 }
