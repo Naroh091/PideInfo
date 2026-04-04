@@ -2,12 +2,16 @@
 
 namespace App\Service\Resolution;
 
+use OpenAI;
+use OpenAI\Client as OpenAIClient;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ResolutionAnalyzer
 {
     private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
+
+    private ?OpenAIClient $customClient = null;
 
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
@@ -16,8 +20,36 @@ final class ResolutionAnalyzer
         private readonly string $smallModel,
         #[Autowire(env: 'GEMINI_MID_MODEL')]
         private readonly string $midModel,
+        #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
+        private readonly bool $useCustomModel,
+        #[Autowire(env: 'CUSTOM_MODEL')]
+        private readonly string $customModel,
+        #[Autowire(env: 'CUSTOM_MODEL_ENDPOINT')]
+        private readonly string $customModelEndpoint,
+        #[Autowire(env: 'CUSTOM_MODEL_API_KEY')]
+        private readonly string $customModelApiKey,
+        #[Autowire(env: 'int:CUSTOM_MODEL_MAX_TOKENS')]
+        private readonly int $customModelMaxTokens,
         private readonly LoggerInterface $logger,
     ) {
+    }
+
+    private function getCustomClient(): OpenAIClient
+    {
+        if ($this->customClient === null) {
+            $factory = OpenAI::factory()
+                ->withBaseUri($this->customModelEndpoint);
+
+            if ($this->customModelApiKey !== '') {
+                $factory = $factory->withApiKey($this->customModelApiKey);
+            } else {
+                $factory = $factory->withApiKey('no-key');
+            }
+
+            $this->customClient = $factory->make();
+        }
+
+        return $this->customClient;
     }
 
     /**
@@ -161,7 +193,7 @@ final class ResolutionAnalyzer
     }
 
     /**
-     * Step 1: Format resolution text to semantic HTML (GEMINI_SMALL_MODEL).
+     * Step 1: Format resolution text to semantic HTML (GEMINI_SMALL_MODEL or custom model).
      *
      * @return array{formatted_text: string}
      */
@@ -181,6 +213,17 @@ REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera 
 - ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
 - PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
 PROMPT;
+
+        if ($this->useCustomModel) {
+            $jsonSuffix = <<<'SUFFIX'
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+{"formatted_text": "HTML formateado aquí"}
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+SUFFIX;
+
+            return $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['formatted_text']);
+        }
 
         $parts = [
             ['text' => $prompt],
@@ -202,7 +245,7 @@ PROMPT;
     }
 
     /**
-     * Step 2: Extract summary, keypoints, dates and subject (GEMINI_FREE_MODEL).
+     * Step 2: Extract summary, keypoints, dates and subject (GEMINI_MID_MODEL or custom model).
      *
      * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
@@ -227,6 +270,23 @@ REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera 
 [subject]
 - Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
 PROMPT;
+
+        if ($this->useCustomModel) {
+            $jsonSuffix = <<<'SUFFIX'
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "asunto en castellano o null"}
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+SUFFIX;
+
+            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints']);
+
+            $result['resolution_date'] = $result['resolution_date'] ?? null;
+            $result['claim_date'] = $result['claim_date'] ?? null;
+            $result['subject'] = $result['subject'] ?? null;
+
+            return $result;
+        }
 
         $parts = [
             ['text' => $prompt],
@@ -271,6 +331,91 @@ PROMPT;
         $result['subject'] = $result['subject'] ?? null;
 
         return $result;
+    }
+
+    /**
+     * @param string[] $requiredKeys Keys that must be present in the returned JSON
+     * @return array<string, mixed>
+     */
+    private function callCustomModelApi(string $prompt, string $text, array $requiredKeys, int $maxRetries = 2): array
+    {
+        $lastError = null;
+
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            if ($attempt > 0) {
+                $this->logger->warning(sprintf('Retrying custom model API call (attempt %d/%d)', $attempt + 1, $maxRetries + 1));
+                usleep(500_000 * $attempt);
+            }
+
+            try {
+                $response = $this->getCustomClient()->chat()->create([
+                    'model' => $this->customModel,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $prompt],
+                        ['role' => 'user', 'content' => "TEXTO DE LA RESOLUCIÓN:\n\n" . $text],
+                    ],
+                    'temperature' => 0.1,
+                    'max_tokens' => $this->customModelMaxTokens,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
+            } catch (OpenAI\Exceptions\RateLimitException $e) {
+                $lastError = new \RuntimeException('Custom model rate limit exceeded: ' . $e->getMessage(), 0, $e);
+                continue;
+            } catch (OpenAI\Exceptions\TransporterException $e) {
+                $lastError = new \RuntimeException('Custom model transport error: ' . $e->getMessage(), 0, $e);
+                continue;
+            } catch (OpenAI\Exceptions\ErrorException $e) {
+                $lastError = new \RuntimeException('Custom model API error: ' . $e->getMessage(), 0, $e);
+                // Only retry on server errors (5xx equivalent)
+                if ($e->getCode() >= 500 || $e->getCode() === 0) {
+                    continue;
+                }
+                throw $lastError;
+            }
+
+            $content = $response->choices[0]->message->content ?? null;
+            if (!$content || strlen(trim($content)) < 10) {
+                $lastError = new \RuntimeException('Empty response from custom model.');
+                continue;
+            }
+
+            $content = trim($content);
+
+            // Strip markdown code fences if the model wraps JSON in them
+            if (str_starts_with($content, '```')) {
+                $content = preg_replace('/^```(?:json)?\s*/', '', $content);
+                $content = preg_replace('/\s*```$/', '', $content);
+                $content = trim($content);
+            }
+
+            $result = json_decode($content, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->warning('Invalid JSON from custom model, will retry', [
+                    'attempt' => $attempt + 1,
+                    'response_length' => strlen($content),
+                    'response_preview' => mb_substr($content, 0, 200),
+                    'json_error' => json_last_error_msg(),
+                ]);
+                $lastError = new \RuntimeException('Invalid JSON from custom model: ' . json_last_error_msg());
+                continue;
+            }
+
+            // Validate required keys
+            foreach ($requiredKeys as $key) {
+                if (!array_key_exists($key, $result)) {
+                    $this->logger->warning('Custom model response missing required key', [
+                        'missing_key' => $key,
+                        'attempt' => $attempt + 1,
+                    ]);
+                    $lastError = new \RuntimeException(sprintf('Custom model response missing key: %s', $key));
+                    continue 2;
+                }
+            }
+
+            return $result;
+        }
+
+        throw $lastError ?? new \RuntimeException(sprintf('Custom model API call failed after %d attempts.', $maxRetries + 1));
     }
 
     private function callGeminiApi(string $model, array $parts, array $schema, bool $flex = false, int $maxRetries = 2): array
