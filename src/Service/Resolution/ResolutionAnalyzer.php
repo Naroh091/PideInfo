@@ -2,6 +2,7 @@
 
 namespace App\Service\Resolution;
 
+use GuzzleHttp\Client as GuzzleClient;
 use OpenAI;
 use OpenAI\Client as OpenAIClient;
 use Psr\Log\LoggerInterface;
@@ -38,6 +39,7 @@ final class ResolutionAnalyzer
     {
         if ($this->customClient === null) {
             $factory = OpenAI::factory()
+                ->withHttpClient(new GuzzleClient(['timeout' => 600]))
                 ->withBaseUri($this->customModelEndpoint);
 
             if ($this->customModelApiKey !== '') {
@@ -257,18 +259,19 @@ Actúa como un experto en derecho administrativo español y transparencia. Anali
 REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
 
 [summary]
-- Escribe un resumen directo en texto plano (máximo 400 caracteres).
-- Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del Consejo y por qué.
+Escribe un resumen directo en texto plano (máximo 400 caracteres).
+Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
 
 [keypoints]
-- Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (ley aplicada, precedentes, motivos de estimación/desestimación).
-- Omite formalidades obvias (ej. "El Consejo es competente para resolver", "La ley reconoce el derecho a solicitar información pública").
+Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
+Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
+Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
 
 [resolution_date] y [claim_date]
-- Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes), si están presentes.
+Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
 
 [subject]
-- Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
+Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
 PROMPT;
 
         if ($this->useCustomModel) {
@@ -331,6 +334,223 @@ SUFFIX;
         $result['subject'] = $result['subject'] ?? null;
 
         return $result;
+    }
+
+    /**
+     * Batch format: send multiple resolution texts in one call, get array of formatted results.
+     * Only works with custom model.
+     *
+     * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
+     * @return array<int, array{formatted_text: string}> Results indexed by same keys
+     */
+    public function batchFormatText(array $cleanedTexts): array
+    {
+        $prompt = <<<'PROMPT'
+Actúa como un experto en derecho administrativo español. Se te proporcionan varios textos de resoluciones, cada uno identificado por un número.
+
+Para CADA resolución, formatea el texto cumpliendo ESTRICTAMENTE estas reglas:
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO. Utiliza terminología jurídica precisa en castellano.
+
+[formatted_text]
+- Transcribe TODO el texto principal (traducido si aplica) usando HTML semántico. ES VITAL QUE NO RESUMAS; debe contener todo el contenido original. NO REDACTES LAS COSAS DE FORMA DISTINTA A LA ORIGINAL.
+- Limpia artefactos: une párrafos cortados y elimina espacios extra.
+- Etiquetas permitidas: <h2>, <h3>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <a>, <cite>, <br>, <hr>.
+- Jerarquía: <h2> para secciones principales (ANTECEDENTES, FUNDAMENTOS JURÍDICOS, RESOLUCIÓN), <h3> para subsecciones.
+- Estilos: <strong> (términos legales, organismos), <em> (citas de solicitudes), <blockquote> (citas extensas/leyes), <cite> (leyes 1ª vez).
+- ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
+- PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
+
+Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "formatted_text": "HTML"}.
+Ejemplo: [{"index": 0, "formatted_text": "<h2>..."}, {"index": 1, "formatted_text": "<h2>..."}]
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+PROMPT;
+
+        $userContent = $this->buildBatchUserContent($cleanedTexts);
+
+        return $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['formatted_text']);
+    }
+
+    /**
+     * Batch analyze: send multiple resolution texts in one call, get array of analysis results.
+     * Only works with custom model.
+     *
+     * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
+     * @return array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}> Results indexed by same keys
+     */
+    public function batchExtractAnalysis(array $cleanedTexts): array
+    {
+        $prompt = <<<'PROMPT'
+Actúa como un experto en derecho administrativo español y transparencia. Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y extrae la información requerida.
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
+
+Para CADA resolución extrae:
+
+[summary]
+Escribe un resumen directo en texto plano (máximo 400 caracteres).
+Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
+
+[keypoints]
+Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
+Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
+Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
+
+[resolution_date] y [claim_date]
+Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
+
+[subject]
+Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
+
+Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "... o null"}.
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+PROMPT;
+
+        $userContent = $this->buildBatchUserContent($cleanedTexts);
+        $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['summary', 'keypoints']);
+
+        foreach ($results as $i => $result) {
+            $results[$i]['resolution_date'] = $result['resolution_date'] ?? null;
+            $results[$i]['claim_date'] = $result['claim_date'] ?? null;
+            $results[$i]['subject'] = $result['subject'] ?? null;
+        }
+
+        return $results;
+    }
+
+    /**
+     * @param array<int, string> $cleanedTexts
+     */
+    private function buildBatchUserContent(array $cleanedTexts): string
+    {
+        $parts = [];
+        foreach ($cleanedTexts as $index => $text) {
+            $parts[] = "=== RESOLUCIÓN $index ===\n\n$text";
+        }
+
+        return implode("\n\n", $parts);
+    }
+
+    /**
+     * @param array<int, string> $cleanedTexts Original indexed texts (for key mapping)
+     * @param string[] $requiredKeys Keys each result item must have
+     * @return array<int, array<string, mixed>> Results indexed by original keys
+     */
+    private function callCustomModelBatchApi(string $prompt, string $userContent, array $cleanedTexts, array $requiredKeys, int $maxRetries = 2): array
+    {
+        $lastError = null;
+        $expectedIndices = array_keys($cleanedTexts);
+
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            if ($attempt > 0) {
+                $this->logger->warning(sprintf('Retrying custom model batch API call (attempt %d/%d)', $attempt + 1, $maxRetries + 1));
+                usleep(500_000 * $attempt);
+            }
+
+            try {
+                $response = $this->getCustomClient()->chat()->create([
+                    'model' => $this->customModel,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $prompt],
+                        ['role' => 'user', 'content' => $userContent],
+                    ],
+                    'temperature' => 0.1,
+                    'max_tokens' => $this->customModelMaxTokens,
+                    'response_format' => ['type' => 'json_object'],
+                ]);
+            } catch (OpenAI\Exceptions\RateLimitException $e) {
+                $lastError = new \RuntimeException('Custom model rate limit exceeded: ' . $e->getMessage(), 0, $e);
+                continue;
+            } catch (OpenAI\Exceptions\TransporterException $e) {
+                $lastError = new \RuntimeException('Custom model transport error: ' . $e->getMessage(), 0, $e);
+                continue;
+            } catch (OpenAI\Exceptions\ErrorException $e) {
+                $lastError = new \RuntimeException('Custom model API error: ' . $e->getMessage(), 0, $e);
+                if ($e->getCode() >= 500 || $e->getCode() === 0) {
+                    continue;
+                }
+                throw $lastError;
+            }
+
+            $content = $response->choices[0]->message->content ?? null;
+            if (!$content || strlen(trim($content)) < 10) {
+                $lastError = new \RuntimeException('Empty response from custom model batch call.');
+                continue;
+            }
+
+            $content = trim($content);
+
+            if (str_starts_with($content, '```')) {
+                $content = preg_replace('/^```(?:json)?\s*/', '', $content);
+                $content = preg_replace('/\s*```$/', '', $content);
+                $content = trim($content);
+            }
+
+            $decoded = json_decode($content, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->warning('Invalid JSON from custom model batch, will retry', [
+                    'attempt' => $attempt + 1,
+                    'response_preview' => mb_substr($content, 0, 300),
+                    'json_error' => json_last_error_msg(),
+                ]);
+                $lastError = new \RuntimeException('Invalid JSON from custom model batch: ' . json_last_error_msg());
+                continue;
+            }
+
+            // Normalize: accept both a plain array and {"results": [...]}
+            $items = $decoded;
+            if (isset($decoded['results']) && is_array($decoded['results'])) {
+                $items = $decoded['results'];
+            }
+
+            if (!is_array($items) || empty($items)) {
+                $lastError = new \RuntimeException('Custom model batch response is not a valid array.');
+                continue;
+            }
+
+            // Map results by index
+            $mapped = [];
+            foreach ($items as $item) {
+                if (!isset($item['index'])) {
+                    continue;
+                }
+                $idx = (int) $item['index'];
+                if (!in_array($idx, $expectedIndices, true)) {
+                    continue;
+                }
+                // Validate required keys
+                $valid = true;
+                foreach ($requiredKeys as $key) {
+                    if (!array_key_exists($key, $item)) {
+                        $valid = false;
+                        break;
+                    }
+                }
+                if ($valid) {
+                    unset($item['index']);
+                    $mapped[$idx] = $item;
+                }
+            }
+
+            if (empty($mapped)) {
+                $lastError = new \RuntimeException('Custom model batch returned no valid results.');
+                continue;
+            }
+
+            // Log if some resolutions are missing from the response
+            $missing = array_diff($expectedIndices, array_keys($mapped));
+            if (!empty($missing)) {
+                $this->logger->warning('Custom model batch response missing some indices', [
+                    'missing' => $missing,
+                    'returned' => count($mapped),
+                    'expected' => count($expectedIndices),
+                ]);
+            }
+
+            return $mapped;
+        }
+
+        throw $lastError ?? new \RuntimeException(sprintf('Custom model batch API call failed after %d attempts.', $maxRetries + 1));
     }
 
     /**
