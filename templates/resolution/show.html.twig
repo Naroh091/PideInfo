@@ -11,53 +11,92 @@
 {% block body %}
 {% include '_partials/public_nav.html.twig' with { active_page: 'resoluciones' } %}
 
-{# Compact header bar #}
-<header class="border-b border-slate-200/50 bg-white/60 backdrop-blur-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <nav class="flex items-center gap-2 text-sm text-slate-500">
-            <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Resoluciones</a>
+{% set outcomeAccent = {
+    favorable: '#34d399',
+    partial: '#fbbf24',
+    acuerdo_mediacion: '#818cf8',
+    unfavorable: '#f87171',
+    inadmissible: '#c084fc',
+    archivo: '#38bdf8',
+    perdida_objeto: '#94a3b8',
+    desistimiento: '#94a3b8',
+    derivacion: '#94a3b8',
+} %}
+{% set accent = outcomeAccent[resolution.outcome]|default('#94a3b8') %}
+
+{# Hero header #}
+<header class="repo-header border-b border-slate-200/50 relative overflow-hidden">
+    <div class="repo-header-bg"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
+        <nav class="flex items-center gap-2 text-sm text-slate-500 mb-5 animate-fade-in">
+            <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
             <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
-            <span class="text-slate-700 font-medium">{{ resolution.referenceNumber }}</span>
+            {% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
+                <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}" class="hover:text-primary-600 transition-colors">{{ resolution.complaintOrganism.name }}</a>
+                <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            {% endif %}
+            <span class="text-slate-700 font-medium font-mono text-xs">{{ resolution.referenceNumber }}</span>
         </nav>
+
+        <div class="flex flex-wrap items-center gap-3 mb-3" style="animation: fade-slide-up 0.4s ease-out both">
+            {% set badgeClass = {
+                favorable: 'badge-success',
+                partial: 'badge-warning',
+                acuerdo_mediacion: 'badge-success',
+                unfavorable: 'badge-danger',
+                inadmissible: 'badge-secondary',
+                archivo: 'badge-info',
+                perdida_objeto: 'badge-secondary',
+                desistimiento: 'badge-secondary',
+                derivacion: 'badge-secondary',
+            } %}
+            <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
+                {{ resolution.outcomeLabel }}
+            </span>
+            {% if resolution.resolutionDate %}
+                <span class="text-sm text-slate-500">{{ resolution.resolutionDate|date('d/m/Y') }}</span>
+            {% endif %}
+            {% if resolution.daysToResolve %}
+                <span class="text-xs text-slate-400">&middot; {{ resolution.daysToResolve }} días en resolverse</span>
+            {% endif %}
+        </div>
+
+        <h1 class="repo-title text-2xl sm:text-3xl text-slate-800 max-w-4xl" style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.05s">
+            {{ resolution.subject|default(resolution.referenceNumber) }}
+        </h1>
     </div>
 </header>
 
 <div class="flex-1">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="flex flex-col lg:flex-row gap-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="flex flex-col lg:flex-row gap-8">
 
             {# Sidebar — metadata #}
             <aside class="lg:w-72 flex-shrink-0 order-2 lg:order-1">
                 <div class="lg:sticky lg:top-20 space-y-4">
-                    {# Metadata card #}
-                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100" style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.15s">
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Resultado</label>
                             <div class="mt-1.5">
-                                <span class="badge {{ resolution.outcome == 'favorable' ? 'badge-success' : (resolution.outcome == 'unfavorable' ? 'badge-danger' : (resolution.outcome == 'partial' ? 'badge-warning' : (resolution.outcome == 'archivo' ? 'badge-info' : 'badge-secondary'))) }}">
+                                <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
                                     {{ resolution.outcomeLabel }}
                                 </span>
                             </div>
                         </div>
-                        <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Referencia</label>
-                            <div class="mt-1 text-sm font-mono text-slate-700">{{ resolution.referenceNumber }}</div>
-                        </div>
-                        <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha</label>
-                            <div class="mt-1 text-sm text-slate-700">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : 'Sin fecha' }}</div>
-                        </div>
                         {% if resolution.complaintOrganism %}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organismo</label>
-                            <div class="mt-1 text-sm">
+                            <div class="mt-1.5 text-sm">
                                 {% if resolution.complaintOrganism.slug %}
                                     <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"
-                                       class="text-primary-600 hover:text-primary-700 transition-colors">
+                                       class="text-primary-600 hover:text-primary-700 font-medium transition-colors">
                                         {{ resolution.complaintOrganism.name }}
                                     </a>
                                 {% else %}
-                                    <span class="text-slate-700">{{ resolution.complaintOrganism.name }}</span>
+                                    <span class="text-slate-700 font-medium">{{ resolution.complaintOrganism.name }}</span>
+                                {% endif %}
+                                {% if resolution.complaintOrganism.autonomousCommunity %}
+                                    <div class="text-xs text-slate-400 italic mt-0.5">{{ resolution.complaintOrganism.autonomousCommunity.name }}</div>
                                 {% endif %}
                             </div>
                         </div>
@@ -68,10 +107,33 @@
                             <div class="mt-1 text-sm text-slate-700">{{ resolution.publicBodyName }}</div>
                         </div>
                         {% endif %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Referencia</label>
+                            <div class="mt-1 text-sm font-mono text-slate-600 tracking-tight">{{ resolution.referenceNumber }}</div>
+                        </div>
+                        {% if resolution.claimDate %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Fecha de reclamación</label>
+                            <div class="mt-1 text-sm text-slate-700">{{ resolution.claimDate|date('d/m/Y') }}</div>
+                        </div>
+                        {% endif %}
                         {% if resolution.claimReason %}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Motivo de reclamación</label>
                             <div class="mt-1 text-sm text-slate-600 leading-relaxed">{{ resolution.claimReason }}</div>
+                        </div>
+                        {% endif %}
+                        {% if resolution.sourceUrl %}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Documento original</label>
+                            <div class="mt-1.5">
+                                <a href="{{ resolution.sourceUrl }}" target="_blank" rel="noopener"
+                                   class="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 transition-colors">
+                                    <i data-lucide="file-text" class="w-4 h-4"></i>
+                                    Ver archivo
+                                    <i data-lucide="external-link" class="w-3 h-3 text-slate-400"></i>
+                                </a>
+                            </div>
                         </div>
                         {% endif %}
                         {% if resolution.keywords is not empty %}
@@ -79,22 +141,16 @@
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Palabras clave</label>
                             <div class="mt-2 flex flex-wrap gap-1.5">
                                 {% for kw in resolution.keywords %}
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs text-slate-500">{{ kw }}</span>
+                                    <a href="{{ path('app_resoluciones_index', { keyword: kw }) }}"
+                                       class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-50 text-xs text-slate-500 border border-slate-100 hover:border-primary-200 hover:text-primary-600 transition-colors">{{ kw }}</a>
                                 {% endfor %}
                             </div>
                         </div>
                         {% endif %}
                     </div>
 
-                    {# Actions #}
-                    <div class="flex flex-col gap-2">
-                        {% if resolution.sourceUrl %}
-                            <a href="{{ resolution.sourceUrl }}" target="_blank" rel="noopener"
-                               class="btn btn-outline btn-sm w-full">
-                                <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
-                                Ver documento original
-                            </a>
-                        {% endif %}
+                    {# Back link #}
+                    <div style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.2s">
                         <a href="{{ path('app_resoluciones_index') }}" class="btn btn-ghost btn-sm w-full">
                             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
                             Volver al listado
@@ -104,36 +160,27 @@
             </aside>
 
             {# Main content #}
-            <main class="flex-1 min-w-0 order-1 lg:order-2">
-                {# Title #}
-                <h1 class="text-xl sm:text-2xl font-bold text-slate-800 leading-tight mb-6">
-                    {{ resolution.subject|default(resolution.referenceNumber) }}
-                </h1>
-
+            <main class="flex-1 min-w-0 order-1 lg:order-2 space-y-8">
                 {# Summary #}
                 {% if resolution.summary %}
-                <section class="mb-6">
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        <i data-lucide="file-text" class="w-4 h-4 inline mr-1"></i>
-                        Resumen
-                    </h2>
-                    <div class="bg-white rounded-xl border border-slate-200 p-5 text-slate-700 leading-relaxed">
-                        {{ resolution.summary }}
+                <section style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.1s">
+                    <div class="resolution-summary" style="--accent: {{ accent }}">
+                        <div class="resolution-summary-accent"></div>
+                        <p class="text-slate-700 leading-relaxed">{{ resolution.summary }}</p>
                     </div>
                 </section>
                 {% endif %}
 
                 {# Keypoints #}
                 {% if resolution.keypoints is not empty %}
-                <section class="mb-6">
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        <i data-lucide="list-checks" class="w-4 h-4 inline mr-1"></i>
+                <section style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.15s">
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                         Puntos clave de la argumentación
                     </h2>
-                    <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+                    <div class="space-y-2.5">
                         {% for keypoint in resolution.keypoints %}
-                            <div class="flex items-start gap-3 p-4">
-                                <i data-lucide="check-circle-2" class="w-5 h-5 text-primary-500 flex-shrink-0 mt-0.5"></i>
+                            <div class="resolution-keypoint">
+                                <span class="resolution-keypoint-num">{{ loop.index }}</span>
                                 <span class="text-sm text-slate-700 leading-relaxed">{{ keypoint }}</span>
                             </div>
                         {% endfor %}
@@ -143,17 +190,16 @@
 
                 {# Full text #}
                 {% if resolution.fullText %}
-                <section>
-                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                        <i data-lucide="scroll-text" class="w-4 h-4 inline mr-1"></i>
+                <section style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.2s">
+                    <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                         Texto completo
                     </h2>
                     {% if '<h2' in resolution.fullText or '<p>' in resolution.fullText %}
-                        <div class="bg-white rounded-xl border border-slate-200 p-5 guide-content">
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 guide-content">
                             {{ resolution.fullText|raw }}
                         </div>
                     {% else %}
-                        <div class="bg-white rounded-xl border border-slate-200 p-5 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ resolution.fullText }}</div>
+                        <div class="bg-white rounded-xl border border-slate-200 p-6 sm:p-8 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{{ resolution.fullText }}</div>
                     {% endif %}
                 </section>
                 {% endif %}
