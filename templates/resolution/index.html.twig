@@ -48,7 +48,7 @@
             <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
         {% else %}
             <div class="flex items-center gap-3">
-                <h1 class="text-3xl font-bold text-slate-800">Repositorio de resoluciones de transparencia</h1>
+                <h1 class="text-3xl font-bold text-slate-800">Repositorio <span class="underline decoration-primary-400 decoration-2 underline-offset-4">unificado</span> de resoluciones de transparencia</h1>
                 {% if globalStats.dateTo %}
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                         <i data-lucide="calendar-check" class="w-3 h-3"></i>
@@ -72,7 +72,21 @@
         {% set referral = outcomeStats.derivacion|default(0) %}
 
         {# Stats #}
-        <h2 class="mt-6 text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">Estadísticas totales</h2>
+        <div class="mt-6 mb-3">
+            <div class="w-2/5">
+                <select data-controller="organism-select">
+                    <option value="{{ path('app_resoluciones_index') }}" {{ (activeOrganism is not defined or not activeOrganism) ? 'selected' }}>Visión global</option>
+                    {% for organism in organisms %}
+                        <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
+                                data-shortname="{{ organism.shortName }}"
+                                data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}"
+                                {{ (activeOrganism is defined and activeOrganism and activeOrganism.id == organism.id) ? 'selected' }}>
+                            {{ organism.name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
             {# Row 1: global metrics #}
             <div class="bg-white rounded-xl border border-slate-200 p-4">
@@ -117,7 +131,7 @@
             {% for o in outcomes %}
                 {% if o.count > 0 %}
                 <div class="bg-white rounded-xl border border-{{ o.border }} p-3 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-{{ o.bg }} flex items-center justify-center">
+                    <div class="w-20 h-10 rounded-lg bg-{{ o.bg }} flex items-center justify-center">
                         <span class="text-lg font-extrabold text-{{ o.text }}">{{ o.count }}</span>
                     </div>
                     <div>
@@ -129,24 +143,6 @@
             {% endfor %}
         </div>
 
-        {# Organism navigator #}
-        <div class="mt-4 bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <div class="flex items-center gap-2 text-sm text-slate-600 flex-shrink-0">
-                <i data-lucide="building-2" class="w-4 h-4 text-slate-400"></i>
-                <span class="font-medium">Ver estadísticas por consejo de transparencia</span>
-            </div>
-            <div class="flex-1 sm:max-w-md">
-                <select data-controller="organism-select">
-                    <option value=""></option>
-                    {% for organism in organisms %}
-                        <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
-                                data-shortname="{{ organism.shortName }}">
-                            {{ organism.name }}
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
         {% endif %}
     </div>
 </header>
@@ -179,7 +175,9 @@
                                     data-tom-select-placeholder-value="Todos">
                                 <option value="">Todos</option>
                                 {% for organism in organisms %}
-                                    <option value="{{ organism.id }}" {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
+                                    <option value="{{ organism.id }}"
+                                            data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}"
+                                            {{ filters.organism == (organism.id ~ '') ? 'selected' }}>
                                         {{ organism.name }}
                                     </option>
                                 {% endfor %}

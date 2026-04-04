@@ -419,73 +419,325 @@ body {
   @apply outline-none ring-2 ring-primary-500 ring-offset-2;
 }
 
-/* Tom Select — reset aggressive defaults and match our design system */
+
+/* ── Tom Select — Tailwind theme ── */
+:root {
+  --ts-pr-clear-button: 0px;
+  --ts-pr-caret: 0px;
+  --ts-pr-min: 0.75rem;
+}
+
 .ts-wrapper {
-  @apply w-full;
+  position: relative;
+  display: flex;
+  min-height: calc(1.5em + 0.75rem + 2px);
+  background: none;
+  border: none;
+  box-shadow: none;
+  height: auto;
+  padding: 0;
+  width: 100%;
 }
 
-.ts-wrapper .ts-control {
-  @apply bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm transition-all duration-200;
+.ts-control {
+  @apply bg-white border border-slate-200 text-slate-700 text-sm;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  line-height: 1.5;
+  cursor: pointer;
+}
+
+.ts-control:not(.rtl) {
+  padding-right: max(var(--ts-pr-min), calc(var(--ts-pr-clear-button) + var(--ts-pr-caret))) !important;
+}
+
+.ts-wrapper.single .ts-control,
+.ts-wrapper.single .ts-control input {
+  cursor: pointer;
+}
+
+/* Caret for single selects */
+.ts-wrapper:not(.form-control,.form-select).single .ts-control {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 16px 12px;
+}
+
+.ts-wrapper.single {
+  --ts-pr-caret: 2.25rem;
+}
+
+/* Focus state */
+.focus .ts-control {
+  @apply border-primary-400;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+  outline: 0;
+}
+
+/* Disabled */
+.disabled .ts-control,
+.disabled .ts-control * {
+  @apply bg-slate-50 opacity-60;
+  cursor: default !important;
+}
+
+/* Input inside control */
+.ts-control > input {
+  background: none !important;
+  border: 0 !important;
   box-shadow: none !important;
-  border-color: var(--color-slate-200) !important;
-  background: white !important;
+  display: inline-block !important;
+  flex: 1 1 auto;
+  line-height: inherit !important;
+  margin: 0 !important;
+  max-width: 100% !important;
+  min-width: 7rem;
+  padding: 0 !important;
+  font-size: inherit;
+  color: inherit;
 }
 
-.ts-wrapper.focus .ts-control {
-  @apply border-primary-500;
-  box-shadow: 0 0 0 2px rgb(14 165 233 / 0.15) !important;
+.ts-control > input:focus {
+  outline: none !important;
 }
 
-.ts-wrapper .ts-control input {
-  @apply text-slate-700 text-sm;
-}
-
-.ts-wrapper .ts-control input::placeholder {
+.ts-control > input::placeholder {
   @apply text-slate-400;
 }
 
-.ts-wrapper .ts-control .item {
-  @apply bg-transparent text-slate-700 text-sm;
+.input-hidden .ts-control > input {
+  opacity: 0;
+  position: absolute;
+  left: -10000px;
 }
 
-.ts-wrapper .clear-button {
-  @apply text-slate-300 hover:text-slate-500;
+/* Items in control */
+.ts-control .item {
+  display: flex;
+  align-items: center;
 }
 
+.ts-control > * {
+  display: inline-block;
+  vertical-align: initial;
+}
+
+/* Multi-select items */
+.ts-wrapper.multi .ts-control > div {
+  @apply bg-slate-100 text-slate-700 text-xs;
+  border-radius: 0.375rem;
+  padding: 2px 8px;
+  margin: 0 4px 2px 0;
+  cursor: pointer;
+}
+
+.ts-wrapper.multi .ts-control > div.active {
+  @apply bg-primary-500 text-white;
+}
+
+/* Hidden accessible */
+.ts-hidden-accessible {
+  border: 0 !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  position: absolute !important;
+  width: 1px !important;
+  white-space: nowrap !important;
+}
+
+/* ── Dropdown ── */
 .ts-dropdown {
-  @apply bg-white border border-slate-200 rounded-xl mt-1 overflow-hidden;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 0.08);
-  z-index: 9999 !important;
+  @apply bg-white border border-slate-200 text-sm;
+  border-radius: 0 0 0.75rem 0.75rem;
+  border-top: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  margin: 0;
+  box-sizing: border-box;
 }
 
-.ts-dropdown .ts-dropdown-content {
-  @apply max-h-64 py-1;
+.ts-dropdown-content {
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0;
+  scroll-behavior: smooth;
+}
+
+.ts-dropdown .option,
+.ts-dropdown .optgroup-header,
+.ts-dropdown .no-results,
+.ts-dropdown .create {
+  padding: 6px 0.75rem;
+}
+
+.ts-dropdown [data-selectable] {
+  cursor: pointer;
+  overflow: hidden;
 }
 
 .ts-dropdown .option {
-  @apply px-3 py-2 text-sm text-slate-600 cursor-pointer transition-colors duration-100;
+  @apply text-slate-600;
+  cursor: pointer;
 }
 
-.ts-dropdown .option:hover,
-.ts-dropdown .option.active {
+.ts-dropdown .active {
   @apply bg-slate-50 text-slate-800;
 }
 
-.ts-dropdown .option.selected {
-  @apply bg-primary-50 text-primary-700;
+.ts-dropdown [data-selectable] .highlight {
+  background: rgba(14, 165, 233, 0.15);
+  border-radius: 2px;
+}
+
+.ts-dropdown .optgroup-header {
+  @apply text-slate-400 text-xs font-semibold uppercase tracking-wider;
+  cursor: default;
+}
+
+.ts-dropdown .optgroup:first-child:before {
+  display: none;
+}
+
+.ts-dropdown .optgroup:before {
+  @apply border-t border-slate-100;
+  content: " ";
+  display: block;
+  height: 0;
+  margin: 0.25rem -0.75rem;
+  overflow: hidden;
 }
 
 .ts-dropdown .create {
-  @apply px-3 py-2 text-sm text-primary-600 border-t border-slate-100 cursor-pointer;
+  @apply text-primary-600;
 }
 
-.ts-dropdown .create:hover {
-  @apply bg-slate-50;
+.ts-dropdown [data-disabled],
+.ts-dropdown [data-disabled] [data-selectable].option {
+  cursor: inherit;
+  opacity: 0.4;
 }
 
-/* Remove TomSelect default caret */
-.ts-wrapper .ts-control::after {
+/* ── Plugin: dropdown_input ── */
+.plugin-dropdown_input.focus.dropdown-active .ts-control {
+  @apply border-slate-200;
+  box-shadow: none;
+}
+
+.plugin-dropdown_input .dropdown-input {
+  @apply bg-white text-sm text-slate-700;
+  border: solid;
+  border-color: transparent;
+  border-width: 0 0 1px;
+  border-bottom-color: var(--color-slate-200, #e2e8f0);
+  display: block;
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  box-shadow: none;
+}
+
+.plugin-dropdown_input.focus .ts-dropdown .dropdown-input {
+  @apply border-b-primary-400;
+  box-shadow: none;
+  outline: 0;
+}
+
+.plugin-dropdown_input .items-placeholder {
+  border: 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+}
+
+.plugin-dropdown_input.dropdown-active .items-placeholder,
+.plugin-dropdown_input.has-items .items-placeholder {
   display: none !important;
+}
+
+/* ── Plugin: clear_button ── */
+.plugin-clear_button {
+  --ts-pr-clear-button: 1em;
+}
+
+.plugin-clear_button .clear-button {
+  background: transparent !important;
+  cursor: pointer;
+  opacity: 0;
+  position: absolute;
+  right: calc(0.75rem - 5px);
+  top: 50%;
+  transform: translateY(-50%);
+  transition: opacity 0.2s;
+  margin-right: 0 !important;
+  @apply text-slate-400 hover:text-slate-600;
+}
+
+.plugin-clear_button.single .clear-button {
+  right: max(var(--ts-pr-caret), 0.75rem);
+}
+
+.plugin-clear_button.focus.has-items .clear-button,
+.plugin-clear_button:not(.disabled):hover.has-items .clear-button {
+  opacity: 1;
+}
+
+/* ── Plugin: remove_button ── */
+.ts-wrapper.plugin-remove_button .item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ts-wrapper.plugin-remove_button .item .remove {
+  @apply text-slate-400 hover:text-slate-600;
+  display: inline-block;
+  padding: 0 5px;
+  text-decoration: none;
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.ts-wrapper.plugin-remove_button:not(.rtl) .item .remove {
+  @apply border-l border-slate-200;
+  margin-left: 5px;
+}
+
+/* ── Spinner ── */
+.ts-dropdown .spinner {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  margin: 3px 0.75rem;
+}
+
+.ts-dropdown .spinner:after {
+  content: " ";
+  display: block;
+  width: 24px;
+  height: 24px;
+  margin: 3px;
+  border-radius: 50%;
+  border: 3px solid;
+  @apply border-slate-200;
+  border-top-color: transparent;
+  animation: ts-spin 0.8s linear infinite;
+}
+
+@keyframes ts-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Organism select custom renders */
@@ -499,6 +751,18 @@ body {
 
 .organism-badge-sm {
   @apply text-[0.6rem] min-w-0 px-1.5;
+}
+
+.organism-badge-all {
+  @apply bg-slate-100 text-slate-500;
+}
+
+.organism-option-text {
+  @apply flex flex-col min-w-0;
+}
+
+.organism-ccaa {
+  @apply text-slate-400 italic text-[0.65rem] leading-tight;
 }
 
 /* Guide content — markdown rendering */
