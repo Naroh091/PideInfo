@@ -2,14 +2,22 @@ import { Controller } from '@hotwired/stimulus';
 import TomSelect from 'tom-select';
 
 export default class extends Controller {
+    static values = {
+        style: { type: String, default: 'default' },
+    };
+
     connect() {
+        const isTitle = this.styleValue === 'title';
+
+        const plugins = { dropdown_input: {} };
+        if (!isTitle) {
+            plugins.clear_button = {};
+        }
+
         this.tomSelect = new TomSelect(this.element, {
             allowEmptyOption: false,
             searchField: ['text', 'ccaa', 'shortname'],
-            plugins: {
-                dropdown_input: {},
-                clear_button: {},
-            },
+            plugins,
             render: {
                 option: (data, escape) => {
                     const shortName = data.shortname || '';
@@ -23,6 +31,9 @@ export default class extends Controller {
                     return `<div class="organism-option">${badge}<div class="organism-option-text"><span>${escape(data.text)}</span>${ccaaHtml}</div></div>`;
                 },
                 item: (data, escape) => {
+                    if (isTitle) {
+                        return `<div>${escape(data.text)}</div>`;
+                    }
                     const shortName = data.shortname || '';
                     const ccaa = data.ccaa || '';
                     const badge = shortName

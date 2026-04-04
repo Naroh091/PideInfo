@@ -38,7 +38,7 @@ final class UserNotificationManager
         return $this->create(
             user: $user,
             type: UserNotification::TYPE_REQUEST_CREATED,
-            message: 'Nueva solicitud creada',
+            message: 'Nueva solicitud añadida',
             accessRequest: $accessRequest,
         );
     }

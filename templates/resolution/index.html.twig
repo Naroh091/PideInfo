@@ -14,17 +14,33 @@
 {% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo %}
 
 {# Header #}
-<header class="border-b border-slate-200/50 bg-white/60 backdrop-blur-sm">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<header class="repo-header border-b border-slate-200/50 relative overflow-hidden">
+    <div class="repo-header-bg"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
         {% if activeOrganism is defined and activeOrganism %}
-            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-2">
-                <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
+            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-3 animate-fade-in">
+                <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio unificado de resoluciones</a>
                 <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                 <span class="text-slate-700 font-medium">{{ activeOrganism.name }}</span>
             </nav>
             <div class="flex items-center justify-between gap-4">
-                <div>
-                    <h1 class="text-2xl font-bold text-slate-800">{{ activeOrganism.name }}</h1>
+                <div class="flex-1 min-w-0">
+                    <div class="organism-title-select">
+                        <select data-controller="organism-select" data-organism-select-style-value="title">
+                            <option value="{{ path('app_resoluciones_index') }}">Visión global</option>
+                            {% for organism in organisms %}
+                                <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
+                                        data-shortname="{{ organism.shortName }}"
+                                        data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}"
+                                        {{ activeOrganism.id == organism.id ? 'selected' }}>
+                                    {{ organism.name }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% if activeOrganism.autonomousCommunity %}
+                        <p class="text-sm text-slate-400 italic mt-1">{{ activeOrganism.autonomousCommunity.name }}</p>
+                    {% endif %}
                     <p class="text-sm text-slate-500 mt-1">Resoluciones emitidas por {{ activeOrganism.shortName ?? activeOrganism.name }}</p>
                 </div>
                 {% if activeOrganism.image %}
@@ -39,24 +55,24 @@
                 {% endif %}
             </div>
         {% elseif activePublicBody is defined and activePublicBody %}
-            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-2">
+            <nav class="flex items-center gap-2 text-sm text-slate-500 mb-3 animate-fade-in">
                 <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
                 <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                 <span class="text-slate-700 font-medium">{{ activePublicBody.name }}</span>
             </nav>
-            <h1 class="text-2xl font-bold text-slate-800">{{ activePublicBody.name }}</h1>
+            <h1 class="repo-title text-2xl text-slate-800">{{ activePublicBody.name }}</h1>
             <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
         {% else %}
-            <div class="flex items-center gap-3">
-                <h1 class="text-3xl font-bold text-slate-800">Repositorio <span class="underline decoration-primary-400 decoration-2 underline-offset-4">unificado</span> de resoluciones de transparencia</h1>
+            <div class="animate-fade-in">
                 {% if globalStats.dateTo %}
-                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 mb-3">
                         <i data-lucide="calendar-check" class="w-3 h-3"></i>
                         Actualizado {{ globalStats.dateTo|date('d/m/Y') }}
                     </span>
                 {% endif %}
+                <h1 class="repo-title text-4xl sm:text-5xl text-slate-800">Repositorio <span class="repo-title-accent">unificado</span><br>de resoluciones de transparencia</h1>
             </div>
-            <p class="text-sm text-slate-500 mt-2 max-w-3xl">Los consejos de transparencia están obligados a publicar sus resoluciones, pero no siempre es fácil realizar búsquedas en las resoluciones indexadas, reutilizar o navegar por las resoluciones. Este repositorio nace para hacer accesible ese conocimiento y para calcular en tiempo real estadísticas sobre el derecho de acceso.</p>
+            <p class="text-sm text-slate-500 mt-3 max-w-3xl leading-relaxed">Los consejos de transparencia están obligados a publicar sus resoluciones, pero no siempre es fácil realizar búsquedas en las resoluciones indexadas, reutilizar o navegar por las resoluciones. Este repositorio nace para hacer accesible ese conocimiento y para calcular en tiempo real estadísticas sobre el derecho de acceso.</p>
         {% endif %}
 
         {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
@@ -71,76 +87,120 @@
         {% set withdrawal = outcomeStats.desistimiento|default(0) %}
         {% set referral = outcomeStats.derivacion|default(0) %}
 
-        {# Stats #}
+        {# Stats — organism selector only on global view #}
+        {% if not (activeOrganism is defined and activeOrganism) %}
         <div class="mt-6 mb-3">
             <div class="w-2/5">
                 <select data-controller="organism-select">
-                    <option value="{{ path('app_resoluciones_index') }}" {{ (activeOrganism is not defined or not activeOrganism) ? 'selected' }}>Visión global</option>
+                    <option value="{{ path('app_resoluciones_index') }}" selected>Visión global</option>
                     {% for organism in organisms %}
                         <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
                                 data-shortname="{{ organism.shortName }}"
-                                data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}"
-                                {{ (activeOrganism is defined and activeOrganism and activeOrganism.id == organism.id) ? 'selected' }}>
+                                data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}">
                             {{ organism.name }}
                         </option>
                     {% endfor %}
                 </select>
             </div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-            {# Row 1: global metrics #}
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <div class="text-3xl font-extrabold text-slate-800">{{ total }}</div>
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Resoluciones</div>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <div class="text-3xl font-extrabold text-primary-600">{{ globalStats.successRate }}%</div>
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Tasa de estimación</div>
-                <div class="text-xs text-slate-400 mt-0.5">Estimadas + parciales + mediación</div>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <div class="text-3xl font-extrabold text-slate-800">{{ organisms|length }}</div>
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Consejos</div>
-            </div>
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <div class="text-3xl font-extrabold text-slate-800">{{ globalStats.distinctPublicBodies }}</div>
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Organismos reclamados</div>
-            </div>
-            {% if globalStats.meanDaysToResolve %}
-            <div class="bg-white rounded-xl border border-slate-200 p-4">
-                <div class="text-3xl font-extrabold text-amber-600">{{ globalStats.meanDaysToResolve }}</div>
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mt-1">Días de media</div>
-                <div class="text-xs text-slate-400 mt-0.5">En resolver la reclamación</div>
-            </div>
-            {% endif %}
-        </div>
+        {% endif %}
+        {# Outcome proportion bar — grouped into 3 categories #}
+        {% set positiveCount = favorable + partial + mediation %}
+        {% set negativeCount = unfavorable + inadmissible %}
+        {% set otherCount = archived + lossOfPurpose + withdrawal + referral %}
 
-        {# Outcome breakdown #}
-        {% set outcomes = [
-            { count: favorable, label: 'Estimadas', color: 'emerald', border: 'emerald-200', bg: 'emerald-100', text: 'emerald-600' },
-            { count: partial, label: 'Parciales', color: 'amber', border: 'amber-200', bg: 'amber-100', text: 'amber-600' },
-            { count: mediation, label: 'Mediación', color: 'teal', border: 'teal-200', bg: 'teal-100', text: 'teal-600' },
-            { count: unfavorable, label: 'Desestimadas', color: 'red', border: 'red-200', bg: 'red-100', text: 'red-500' },
-            { count: inadmissible, label: 'Inadmitidas', color: 'purple', border: 'purple-200', bg: 'purple-100', text: 'purple-500' },
-            { count: archived, label: 'Archivadas', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-500' },
-            { count: lossOfPurpose, label: 'Pérdida de objeto', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
-            { count: withdrawal, label: 'Desistimiento', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
-            { count: referral, label: 'Derivadas', color: 'slate', border: 'slate-200', bg: 'slate-100', text: 'slate-400' },
+        {% set groups = [
+            { count: positiveCount, label: 'Favorables', detail: [], color: '#34d399' },
+            { count: negativeCount, label: 'Desfavorables', detail: [], color: '#f87171' },
+            { count: otherCount, label: 'Otras', detail: [], color: '#cbd5e1' },
         ] %}
-        <div class="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {% for o in outcomes %}
-                {% if o.count > 0 %}
-                <div class="bg-white rounded-xl border border-{{ o.border }} p-3 flex items-center gap-3">
-                    <div class="w-20 h-10 rounded-lg bg-{{ o.bg }} flex items-center justify-center">
-                        <span class="text-lg font-extrabold text-{{ o.text }}">{{ o.count }}</span>
-                    </div>
-                    <div>
-                        <div class="text-xs font-medium text-{{ o.text }} uppercase tracking-wider">{{ o.label }}</div>
-                        <div class="text-xs text-slate-400">{{ (o.count / total * 100)|round }}%</div>
+
+        <div class="mt-8 proportion-bar-container" style="animation-delay: 0.1s">
+            <div class="proportion-bar">
+                {% for g in groups %}
+                    {% if g.count > 0 %}
+                        <div class="proportion-segment" style="width: {{ (g.count / total * 100) }}%; background: {{ g.color }}"></div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            {# Legend: 3 groups with detail breakdown inline #}
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                {# Favorables #}
+                {% if positiveCount > 0 %}
+                <div class="flex items-start gap-2.5">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #34d399"></span>
+                    <div class="text-sm">
+                        <div class="font-semibold text-slate-700">Favorables <span class="text-emerald-600">{{ positiveCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (positiveCount / total * 100)|round }}%)</span></div>
+                        <div class="text-xs text-slate-400 mt-0.5">
+                            {% if favorable > 0 %}Estimadas {{ favorable }}{% endif %}
+                            {% if partial > 0 %}{{ favorable > 0 ? ' · ' }}Parciales {{ partial }}{% endif %}
+                            {% if mediation > 0 %}{{ (favorable > 0 or partial > 0) ? ' · ' }}Mediación {{ mediation }}{% endif %}
+                        </div>
                     </div>
                 </div>
                 {% endif %}
-            {% endfor %}
+
+                {# Desfavorables #}
+                {% if negativeCount > 0 %}
+                <div class="flex items-start gap-2.5">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #f87171"></span>
+                    <div class="text-sm">
+                        <div class="font-semibold text-slate-700">Desfavorables <span class="text-red-500">{{ negativeCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (negativeCount / total * 100)|round }}%)</span></div>
+                        <div class="text-xs text-slate-400 mt-0.5">
+                            {% if unfavorable > 0 %}Desestimadas {{ unfavorable }}{% endif %}
+                            {% if inadmissible > 0 %}{{ unfavorable > 0 ? ' · ' }}Inadmitidas {{ inadmissible }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {# Otras #}
+                {% if otherCount > 0 %}
+                <div class="flex items-start gap-2.5">
+                    <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #cbd5e1"></span>
+                    <div class="text-sm">
+                        <div class="font-semibold text-slate-700">Otras <span class="text-slate-500">{{ otherCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (otherCount / total * 100)|round }}%)</span></div>
+                        <div class="text-xs text-slate-400 mt-0.5">
+                            {% set otherParts = [] %}
+                            {% if archived > 0 %}{% set otherParts = otherParts|merge(['Archivadas ' ~ archived]) %}{% endif %}
+                            {% if lossOfPurpose > 0 %}{% set otherParts = otherParts|merge(['Pérdida obj. ' ~ lossOfPurpose]) %}{% endif %}
+                            {% if withdrawal > 0 %}{% set otherParts = otherParts|merge(['Desistimiento ' ~ withdrawal]) %}{% endif %}
+                            {% if referral > 0 %}{% set otherParts = otherParts|merge(['Derivadas ' ~ referral]) %}{% endif %}
+                            {{ otherParts|join(' · ') }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {# Stat cards #}
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 mt-6">
+            <div class="stat-tile" style="animation-delay: 0.15s">
+                <div class="stat-tile-value">{{ total }}</div>
+                <div class="stat-tile-label">Resoluciones</div>
+            </div>
+            <div class="stat-tile stat-tile-accent" style="animation-delay: 0.2s">
+                <div class="stat-tile-value">{{ globalStats.successRate }}%</div>
+                <div class="stat-tile-label">Tasa de estimación</div>
+                <div class="stat-tile-sub">Estimadas + parciales + mediación</div>
+            </div>
+            <div class="stat-tile" style="animation-delay: 0.25s">
+                <div class="stat-tile-value">{{ organisms|length }}</div>
+                <div class="stat-tile-label">Consejos</div>
+            </div>
+            <div class="stat-tile" style="animation-delay: 0.3s">
+                <div class="stat-tile-value">{{ globalStats.distinctPublicBodies }}</div>
+                <div class="stat-tile-label">Organismos reclamados</div>
+            </div>
+            {% if globalStats.meanDaysToResolve %}
+            <div class="stat-tile stat-tile-warm" style="animation-delay: 0.35s">
+                <div class="stat-tile-value">{{ globalStats.meanDaysToResolve }}</div>
+                <div class="stat-tile-label">Días de media</div>
+                <div class="stat-tile-sub">En resolver la reclamación</div>
+            </div>
+            {% endif %}
         </div>
 
         {% endif %}
@@ -254,38 +314,62 @@
                         {% if filters.search %}
                             <span class="badge badge-secondary">&laquo;{{ filters.search }}&raquo;</span>
                         {% endif %}
+                        {% if filters.organism %}
+                            {% for organism in organisms %}
+                                {% if organism.id ~ '' == filters.organism %}
+                                    <span class="badge badge-secondary">{{ organism.name }}</span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
                         {% if filters.outcome %}
                             <span class="badge badge-secondary">{{ filters.outcome }}</span>
                         {% endif %}
                         {% if filters.keyword %}
                             <span class="badge badge-secondary">{{ filters.keyword }}</span>
                         {% endif %}
+                        {% if filters.publicBody %}
+                            <span class="badge badge-secondary">{{ filters.publicBody }}</span>
+                        {% endif %}
+                        {% if filters.dateFrom or filters.dateTo %}
+                            <span class="badge badge-secondary">{{ filters.dateFrom ?: '...' }} — {{ filters.dateTo ?: '...' }}</span>
+                        {% endif %}
                     </div>
                 {% endif %}
 
                 {% if resolutions|length > 0 %}
-                    <div class="space-y-3">
+                    <div class="space-y-2.5">
+                        {% set outcomeAccent = {
+                            favorable: '#34d399',
+                            partial: '#fbbf24',
+                            acuerdo_mediacion: '#818cf8',
+                            unfavorable: '#f87171',
+                            inadmissible: '#c084fc',
+                            archivo: '#38bdf8',
+                            perdida_objeto: '#94a3b8',
+                            desistimiento: '#94a3b8',
+                            derivacion: '#94a3b8',
+                        } %}
+                        {% set badgeClass = {
+                            favorable: 'badge-success',
+                            partial: 'badge-warning',
+                            acuerdo_mediacion: 'badge-success',
+                            unfavorable: 'badge-danger',
+                            inadmissible: 'badge-secondary',
+                            archivo: 'badge-info',
+                            perdida_objeto: 'badge-secondary',
+                            desistimiento: 'badge-secondary',
+                            derivacion: 'badge-secondary',
+                        } %}
                         {% for resolution in resolutions %}
-                            <div class="relative bg-white rounded-xl border border-slate-200 hover:border-primary-300 hover:shadow-md transition-all duration-150 group">
+                            <div class="resolution-card group" style="--accent: {{ outcomeAccent[resolution.outcome]|default('#94a3b8') }}">
                                 <div class="p-4 sm:p-5">
                                     <div class="flex items-start justify-between gap-4">
                                         <div class="flex-1 min-w-0">
                                             <div class="flex flex-wrap items-center gap-2.5 mb-1.5">
-                                                {% set badgeClass = {
-                                                    favorable: 'badge-success',
-                                                    partial: 'badge-warning',
-                                                    acuerdo_mediacion: 'badge-success',
-                                                    unfavorable: 'badge-danger',
-                                                    inadmissible: 'badge-secondary',
-                                                    archivo: 'badge-info',
-                                                    perdida_objeto: 'badge-secondary',
-                                                    desistimiento: 'badge-secondary',
-                                                    derivacion: 'badge-secondary',
-                                                } %}
                                                 <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
                                                     {{ resolution.outcomeLabel }}
                                                 </span>
-                                                <span class="text-xs text-slate-400 font-mono">{{ resolution.referenceNumber }}</span>
+                                                <span class="text-xs text-slate-400 font-mono tracking-tight">{{ resolution.referenceNumber }}</span>
                                                 {% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
                                                     <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"
                                                        class="relative z-10 text-xs text-slate-400 hover:text-primary-600 transition-colors">{{ resolution.complaintOrganism.shortName ?? resolution.complaintOrganism.name }}</a>
@@ -294,7 +378,7 @@
                                                 {% endif %}
                                             </div>
 
-                                            <h3 class="font-semibold leading-snug mb-1">
+                                            <h3 class="font-semibold leading-snug mb-1" style="font-family: 'DM Sans', sans-serif">
                                                 <a href="{{ path('app_resoluciones_show', { id: resolution.id }) }}"
                                                    class="text-slate-800 group-hover:text-primary-600 transition-colors after:absolute after:inset-0">
                                                     {{ resolution.subject|default(resolution.referenceNumber) }}
@@ -306,9 +390,9 @@
                                             </p>
 
                                             {% if resolution.keywords is not empty %}
-                                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                                <div class="flex flex-wrap gap-1.5 mt-2.5">
                                                     {% for kw in resolution.keywords|slice(0, 5) %}
-                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-xs text-slate-500">{{ kw }}</span>
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-50 text-xs text-slate-500 border border-slate-100">{{ kw }}</span>
                                                     {% endfor %}
                                                     {% if resolution.keywords|length > 5 %}
                                                         <span class="text-xs text-slate-400">+{{ resolution.keywords|length - 5 }}</span>
@@ -318,8 +402,8 @@
                                         </div>
 
                                         <div class="hidden sm:flex flex-col items-end gap-1 flex-shrink-0 text-right">
-                                            <span class="text-sm text-slate-500">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : '' }}</span>
-                                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors"></i>
+                                            <span class="text-sm text-slate-500 tabular-nums">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : '' }}</span>
+                                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors mt-1"></i>
                                         </div>
                                     </div>
                                 </div>
