@@ -61,7 +61,7 @@ final class ProcessResolutionHandler
 
         // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
         if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && ($message->forceAnalysis || empty($resolution->getKeypoints()))) {
-            $this->analyzeResolution($resolution, $message->flex);
+            $this->analyzeResolution($resolution, $message->flex, $message->analysisMode);
         }
 
         // Step 3: Vectorize if needed
@@ -222,23 +222,35 @@ final class ProcessResolutionHandler
         }
     }
 
-    private function analyzeResolution(Resolution $resolution, bool $flex = false): void
+    private function analyzeResolution(Resolution $resolution, bool $flex = false, string $mode = 'all'): void
     {
         $cleanedText = $this->analyzer->cleanText($resolution->getFullText());
 
         try {
-            $result = $this->analyzer->analyze($cleanedText, flex: $flex);
+            $result = match ($mode) {
+                'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
+                'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                default => $this->analyzer->analyze($cleanedText, flex: $flex),
+            };
 
-            $resolution->setFullText($result['formatted_text']);
-            $resolution->setSummary($result['summary']);
-            $resolution->setKeypoints($result['keypoints']);
+            if (isset($result['formatted_text'])) {
+                $resolution->setFullText($result['formatted_text']);
+            }
+
+            if (isset($result['summary'])) {
+                $resolution->setSummary($result['summary']);
+            }
+
+            if (isset($result['keypoints'])) {
+                $resolution->setKeypoints($result['keypoints']);
+            }
 
             if (!empty($result['subject'])) {
                 $resolution->setSubject(mb_substr($result['subject'], 0, 500));
             }
 
             $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
-            if ($result['resolution_date'] && $existingDateSource === null) {
+            if (!empty($result['resolution_date']) && $existingDateSource === null) {
                 try {
                     $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
                     $meta = $resolution->getSourceMetadata() ?? [];
@@ -248,7 +260,7 @@ final class ProcessResolutionHandler
                 }
             }
 
-            if ($result['claim_date']) {
+            if (!empty($result['claim_date'])) {
                 try {
                     $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
                 } catch (\Exception) {
@@ -262,7 +274,7 @@ final class ProcessResolutionHandler
 
             $this->logger->info('AI analysis complete', [
                 'reference' => $resolution->getReferenceNumber(),
-                'keypoints' => count($result['keypoints']),
+                'mode' => $mode,
             ]);
         } catch (\Exception $e) {
             $this->logger->error('AI analysis failed', [
