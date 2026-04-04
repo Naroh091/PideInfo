@@ -57,6 +57,7 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
             ->addOption('format-only', null, InputOption::VALUE_NONE, 'Only format text to HTML (skip summary/keypoints extraction)')
             ->addOption('analyze-only', null, InputOption::VALUE_NONE, 'Only extract summary/keypoints (skip HTML formatting)')
+            ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Send N resolutions per API call (custom model only, use with --format-only or --analyze-only)')
         ;
     }
 
@@ -75,9 +76,15 @@ class AnalyzeResolutionsCommand extends Command
         $flex = $input->getOption('flex');
         $formatOnly = $input->getOption('format-only');
         $analyzeOnly = $input->getOption('analyze-only');
+        $batchSize = $input->getOption('batch') ? (int) $input->getOption('batch') : null;
 
         if ($formatOnly && $analyzeOnly) {
             $io->error('Cannot use --format-only and --analyze-only together.');
+            return Command::FAILURE;
+        }
+
+        if ($batchSize !== null && !$formatOnly && !$analyzeOnly) {
+            $io->error('--batch requires --format-only or --analyze-only.');
             return Command::FAILURE;
         }
 
@@ -116,17 +123,17 @@ class AnalyzeResolutionsCommand extends Command
                 return Command::SUCCESS;
             }
 
-            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $flex, $mode, $io);
+            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $flex, $mode, null, $io);
         }
 
         if ($async || $reExtract) {
             return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $mode, $io);
         }
 
-        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $io);
+        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $batchSize, $io);
     }
 
-    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, SymfonyStyle $io): int
+    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, ?int $batchSize, SymfonyStyle $io): int
     {
         $processed = 0;
         $errors = 0;
@@ -147,43 +154,46 @@ class AnalyzeResolutionsCommand extends Command
 
         $io->info(sprintf('Found %d resolutions to process.', $total));
 
+        if ($batchSize !== null) {
+            $io->note(sprintf('Batch mode: sending %d resolutions per API call (%s)', $batchSize, $mode));
+        }
+
+        $fetchSize = $batchSize ?? self::BATCH_SIZE;
+
         while ($processed + $errors < $total) {
-            $fetchSize = self::BATCH_SIZE;
+            $currentFetch = $fetchSize;
             if ($limit !== null) {
-                $fetchSize = min($fetchSize, $limit - $processed);
+                $currentFetch = min($currentFetch, $limit - $processed - $errors);
             }
 
             $qb = $this->buildQueryBuilder($force, $source);
-            $qb->setFirstResult($offset)->setMaxResults($fetchSize);
+            $qb->setFirstResult($offset)->setMaxResults($currentFetch);
             $resolutions = $qb->getQuery()->getResult();
 
             if (empty($resolutions)) {
                 break;
             }
 
-            foreach ($resolutions as $resolution) {
-                $ref = $resolution->getReferenceNumber();
-                $io->section(sprintf('[%d/%d] %s', $processed + $errors + 1, $total, $ref));
-
+            // Clean texts for all resolutions in this batch
+            $cleanedMap = [];
+            $resolutionMap = [];
+            foreach ($resolutions as $i => $resolution) {
                 $fullText = $resolution->getFullText();
                 if (empty(trim($fullText))) {
-                    $io->warning('  Skipped — empty fullText');
+                    $io->warning(sprintf('  Skipped %s — empty fullText', $resolution->getReferenceNumber()));
                     $offset++;
                     continue;
                 }
 
-                // Step 1: Clean text
                 $cleanedText = $this->analyzer->cleanText($fullText);
-                $io->text(sprintf('  Cleaned: %d → %d chars (-%d%%)',
+                $io->text(sprintf('  [%d/%d] %s — cleaned: %d → %d chars',
+                    $processed + $errors + count($cleanedMap) + 1, $total,
+                    $resolution->getReferenceNumber(),
                     mb_strlen($fullText),
                     mb_strlen($cleanedText),
-                    round((1 - mb_strlen($cleanedText) / mb_strlen($fullText)) * 100)
                 ));
 
                 if ($dryRun) {
-                    $io->text('  [dry-run] Would process with AI');
-                    $io->text('  First 500 chars of cleaned text:');
-                    $io->text('  ' . mb_substr($cleanedText, 0, 500));
                     $processed++;
                     $offset++;
                     continue;
@@ -191,39 +201,87 @@ class AnalyzeResolutionsCommand extends Command
 
                 if ($cleanOnly) {
                     $resolution->setFullText($cleanedText);
-                    $io->text('  Cleaned text saved (no AI analysis)');
                     $processed++;
                     $offset++;
                     continue;
                 }
 
-                // Step 2: AI analysis
+                $cleanedMap[$i] = $cleanedText;
+                $resolutionMap[$i] = $resolution;
+            }
+
+            if ($dryRun || $cleanOnly || empty($cleanedMap)) {
+                if (!$dryRun && !$cleanOnly) {
+                    // All were empty
+                }
                 try {
-                    $modeLabel = match ($mode) {
-                        'format' => 'format-only',
-                        'analyze' => 'analyze-only',
-                        default => 'full',
-                    };
-                    $io->text(sprintf('  Calling Gemini API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
-
-                    $result = match ($mode) {
-                        'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
-                        'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
-                        default => $this->analyzer->analyze($cleanedText, flex: $flex),
-                    };
-
-                    $this->applyResult($resolution, $result, $mode, $io);
-                    $processed++;
+                    $this->entityManager->flush();
+                    $this->entityManager->clear();
                 } catch (\Exception $e) {
-                    $io->error('  Error: ' . $e->getMessage());
+                    $io->error('  Flush error: ' . $e->getMessage());
                     $this->resetEntityManager();
-                    $errors++;
-                    $offset++;
-                    continue;
                 }
+                continue;
+            }
 
-                if ($slow) {
-                    sleep(30); // 2 per minute
+            // Batch mode: single API call for all resolutions in this group
+            if ($batchSize !== null && count($cleanedMap) > 1) {
+                try {
+                    $modeLabel = $mode === 'format' ? 'format' : 'analyze';
+                    $io->text(sprintf('  Calling API (batch %s, %d resolutions)...', $modeLabel, count($cleanedMap)));
+
+                    $batchResults = match ($mode) {
+                        'format' => $this->analyzer->batchFormatText($cleanedMap),
+                        default => $this->analyzer->batchExtractAnalysis($cleanedMap),
+                    };
+
+                    foreach ($resolutionMap as $i => $resolution) {
+                        if (isset($batchResults[$i])) {
+                            $this->applyResult($resolution, $batchResults[$i], $mode, $io);
+                            $processed++;
+                        } else {
+                            $io->warning(sprintf('  %s — missing from batch response', $resolution->getReferenceNumber()));
+                            $errors++;
+                            $offset++;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    $io->error('  Batch error: ' . $e->getMessage());
+                    $this->resetEntityManager();
+                    $errors += count($cleanedMap);
+                    $offset += count($cleanedMap);
+                }
+            } else {
+                // Individual mode: one API call per resolution
+                foreach ($cleanedMap as $i => $cleanedText) {
+                    $resolution = $resolutionMap[$i];
+                    try {
+                        $modeLabel = match ($mode) {
+                            'format' => 'format-only',
+                            'analyze' => 'analyze-only',
+                            default => 'full',
+                        };
+                        $io->text(sprintf('  Calling API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
+
+                        $result = match ($mode) {
+                            'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
+                            'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                            default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                        };
+
+                        $this->applyResult($resolution, $result, $mode, $io);
+                        $processed++;
+                    } catch (\Exception $e) {
+                        $io->error('  Error: ' . $e->getMessage());
+                        $this->resetEntityManager();
+                        $errors++;
+                        $offset++;
+                        continue;
+                    }
+
+                    if ($slow) {
+                        sleep(30);
+                    }
                 }
             }
 
@@ -243,7 +301,7 @@ class AnalyzeResolutionsCommand extends Command
             if (!$force && !$dryRun && !$cleanOnly) {
                 $offset = 0; // Processed rows drop out of the query
             } else {
-                $offset += $fetchSize;
+                $offset += $currentFetch;
             }
         }
 
@@ -255,7 +313,7 @@ class AnalyzeResolutionsCommand extends Command
     /**
      * @param list<\App\Entity\Resolution> $resolutions
      */
-    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, SymfonyStyle $io): int
+    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, ?int $batchSize, SymfonyStyle $io): int
     {
         $processed = 0;
 
