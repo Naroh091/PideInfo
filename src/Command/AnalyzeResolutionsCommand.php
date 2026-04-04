@@ -266,11 +266,14 @@ class AnalyzeResolutionsCommand extends Command
                         };
                         $io->text(sprintf('  Calling API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
 
+                        $t0 = microtime(true);
                         $result = match ($mode) {
                             'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
                             'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
                             default => $this->analyzer->analyze($cleanedText, flex: $flex),
                         };
+                        $elapsed = microtime(true) - $t0;
+                        $io->text(sprintf('  <info>API responded in %.1fs</info>', $elapsed));
 
                         $this->applyResult($resolution, $result, $mode, $io);
                         $processed++;
