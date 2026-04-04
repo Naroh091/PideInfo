@@ -110,6 +110,7 @@ class AnalyzeResolutionsCommand extends Command
                     forceReExtractText: true,
                     forceAnalysis: $force,
                     flex: $flex,
+                    analysisMode: $mode,
                 ));
                 $io->success("Dispatched re-extraction for $reference");
                 return Command::SUCCESS;
@@ -119,7 +120,7 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         if ($async || $reExtract) {
-            return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $io);
+            return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $mode, $io);
         }
 
         return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $io);
@@ -314,7 +315,7 @@ class AnalyzeResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $flex, SymfonyStyle $io): int
+    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $flex, string $mode, SymfonyStyle $io): int
     {
         $qb = $reExtract
             ? $this->buildReExtractQueryBuilder($source)
@@ -337,6 +338,7 @@ class AnalyzeResolutionsCommand extends Command
                 forceReExtractText: $reExtract,
                 forceAnalysis: $force,
                 flex: $flex,
+                analysisMode: $mode,
             ));
             $dispatched++;
         }

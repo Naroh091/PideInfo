@@ -14,6 +14,7 @@ final readonly class ProcessResolutionMessage
         public bool $forceReExtractText = false,
         public bool $forceAnalysis = false,
         public bool $flex = false,
+        public string $analysisMode = 'all', // 'all', 'format', 'analyze'
     ) {
     }
 }
