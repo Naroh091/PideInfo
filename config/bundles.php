@@ -26,4 +26,5 @@ return [
     Sentry\SentryBundle\SentryBundle::class => ['prod' => true],
     Omines\DataTablesBundle\DataTablesBundle::class => ['all' => true],
     Lexik\Bundle\JWTAuthenticationBundle\LexikJWTAuthenticationBundle::class => ['all' => true],
+    Zenstruck\Messenger\Monitor\ZenstruckMessengerMonitorBundle::class => ['all' => true],
 ];
