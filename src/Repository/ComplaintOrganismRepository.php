@@ -27,6 +27,8 @@ class ComplaintOrganismRepository extends ServiceEntityRepository
     public function findAllOrdered(): array
     {
         return $this->createQueryBuilder('co')
+            ->leftJoin('co.autonomousCommunity', 'ac')
+            ->addSelect('ac')
             ->orderBy('co.name', 'ASC')
             ->getQuery()
             ->getResult();

@@ -14,7 +14,10 @@ export default class extends Controller {
         const config = {
             placeholder: this.placeholderValue,
             allowEmptyOption: true,
-            plugins: ['clear_button'],
+            plugins: {
+                dropdown_input: {},
+                clear_button: {},
+            },
         };
 
         if (this.remoteValue) {
@@ -29,6 +32,32 @@ export default class extends Controller {
                     .catch(() => callback());
             };
             config.preload = true;
+        }
+
+        // Auto-detect organism-style options with data-ccaa
+        const hasCcaa = this.element.querySelector('option[data-ccaa]');
+        if (hasCcaa) {
+            if (!config.searchField) {
+                config.searchField = ['text', 'ccaa'];
+            }
+        }
+        if (hasCcaa && !config.render) {
+            config.render = {
+                option: (data, escape) => {
+                    const ccaa = data.ccaa || '';
+                    const ccaaHtml = ccaa
+                        ? `<div class="organism-ccaa">${escape(ccaa)}</div>`
+                        : '';
+                    return `<div class="organism-option"><div class="organism-option-text"><span>${escape(data.text)}</span>${ccaaHtml}</div></div>`;
+                },
+                item: (data, escape) => {
+                    const ccaa = data.ccaa || '';
+                    const ccaaHtml = ccaa
+                        ? `<div class="organism-ccaa">${escape(ccaa)}</div>`
+                        : '';
+                    return `<div class="organism-option"><div class="organism-option-text"><span>${escape(data.text)}</span>${ccaaHtml}</div></div>`;
+                },
+            };
         }
 
         if (this.createValue) {
