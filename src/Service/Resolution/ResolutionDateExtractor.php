@@ -70,22 +70,56 @@ final class ResolutionDateExtractor
             }
         }
 
+        // Pattern 7: Digital signature "Fecha: YYYY.MM.DD HH:MM"
+        if (preg_match('/Fecha:\s*(\d{4})\.(\d{2})\.(\d{2})\s+\d{2}:\d{2}/u', $searchText, $matches)) {
+            try {
+                $date = (new \DateTimeImmutable(sprintf('%s-%s-%s', $matches[1], $matches[2], $matches[3])))->setTime(0, 0);
+                return ['date' => $date, 'source' => 'regex'];
+            } catch (\Exception) {
+            }
+        }
+
+        // Pattern 8: CTPD closing "Madrid, a DD de MONTH de YYYY"
+        if (preg_match('/Madrid\s*,\s*a\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/iu', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $matches[3]);
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
+        // Pattern 9: CRT electronic signature "FIRMADO POR\n DD/MM/YYYY"
+        if (preg_match('/FIRMADO POR\s*\n\s*(\d{2})\/(\d{2})\/(\d{4})/u', $searchText, $matches)) {
+            try {
+                $date = (new \DateTimeImmutable(sprintf('%s-%s-%s', $matches[3], $matches[2], $matches[1])))->setTime(0, 0);
+                return ['date' => $date, 'source' => 'regex'];
+            } catch (\Exception) {
+            }
+        }
+
+        // Pattern 10: CVT closing "València, a DD de MONTH de YYYY"
+        if (preg_match('/Val[eè]ncia\s*,\s*a\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/iu', $searchText, $matches)) {
+            $date = $this->parseGalicianDate((int) $matches[1], $matches[2], (int) $matches[3]);
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
         return ['date' => null, 'source' => 'none'];
     }
 
     private const GALICIAN_MONTHS = [
-        'xaneiro' => 1, 'enero' => 1,
-        'febreiro' => 2, 'febrero' => 2,
-        'marzo' => 3,
+        'xaneiro' => 1, 'enero' => 1, 'gener' => 1,
+        'febreiro' => 2, 'febrero' => 2, 'febrer' => 2,
+        'marzo' => 3, 'març' => 3,
         'abril' => 4,
-        'maio' => 5, 'mayo' => 5,
-        'xuño' => 6, 'junio' => 6,
-        'xullo' => 7, 'julio' => 7,
-        'agosto' => 8,
-        'setembro' => 9, 'septiembre' => 9,
+        'maio' => 5, 'mayo' => 5, 'maig' => 5,
+        'xuño' => 6, 'junio' => 6, 'juny' => 6,
+        'xullo' => 7, 'julio' => 7, 'juliol' => 7,
+        'agosto' => 8, 'agost' => 8,
+        'setembro' => 9, 'septiembre' => 9, 'setembre' => 9,
         'outubro' => 10, 'octubre' => 10,
-        'novembro' => 11, 'noviembre' => 11,
-        'decembro' => 12, 'diciembre' => 12,
+        'novembro' => 11, 'noviembre' => 11, 'novembre' => 11,
+        'decembro' => 12, 'diciembre' => 12, 'desembre' => 12,
     ];
 
     private function parseGalicianDate(int $day, string $monthName, int $year): ?\DateTimeImmutable

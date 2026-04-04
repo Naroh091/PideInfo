@@ -195,6 +195,122 @@ php bin/console app:ctcyl:load-resolutions --fetch-details --skip-pdf --skip-ana
 php bin/console app:ctcyl:load-resolutions --skip-excel --limit=50
 ```
 
+### `app:crt:load-resolutions`
+
+Scrapea resoluciones del Consejo Regional de Transparencia y Buen Gobierno de Castilla-La Mancha (CRT) desde consejotransparenciaclm.es. Las resoluciones están organizadas en acordeones por categoría (Estimadas, Desestimadas, Inadmitidas, Archivadas, Queja, Consultas, Retrotraer, Aclaración) en páginas por año.
+
+```bash
+php bin/console app:crt:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin sourceUrl en BD |
+
+**Particularidades:**
+- Las resoluciones se scrapean de 4 páginas (año actual + histórico 2023–2025), sin paginación ni páginas de detalle.
+- La referencia se extrae del texto del enlace: "Resolución Nº 129 Ayuntamiento de Valmojado" → referencia `129/2024`, entidad "Ayuntamiento de Valmojado". El año se toma de la URL (`/historico/YYYY` o año actual para `anioactual`).
+- El outcome se determina por la categoría del acordeón (Estimadas → favorable, Desestimadas → unfavorable, etc.). Incluye categorías especiales: Queja, Consultas, Aclaración.
+- El asunto se extrae del PDF buscando "Información solicitada: …". Si no existe, se usa "Solicitud de acceso a información pública".
+- La fecha de reclamación se extrae del PDF buscando frases como "Con fecha 17 de agosto de 2025, se presenta en la sede electrónica del Consejo".
+- La fecha de resolución se deja en blanco (se extrae con IA en el análisis posterior).
+- Algunos PDFs están protegidos por contraseña. Se registra el error en `sourceMetadata.pdf_error` y se continúa.
+- Se limpian del texto PDF: cabecera "Consejo Regional de Transparencia y Buen Gobierno" + "de Castilla-La Mancha", caracteres `\f`.
+
+**Ejemplo — importar solo metadatos (sin PDFs ni IA):**
+```bash
+php bin/console app:crt:load-resolutions --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar con procesamiento async:**
+```bash
+php bin/console app:crt:load-resolutions --async
+```
+
+**Ejemplo — importar solo PDFs en async (sin IA ni vectores):**
+```bash
+php bin/console app:crt:load-resolutions --skip-analysis --skip-vectors --async
+```
+
+### `app:ctcan:load-resolutions`
+
+Scrapea resoluciones del Comisionado de Transparencia y Acceso a la Información Pública de Canarias (CTCAN) desde transparenciacanarias.org. Las resoluciones se obtienen scrapeando listados paginados por año (2015-2026) y páginas de detalle para obtener la URL del PDF.
+
+```bash
+php bin/console app:ctcan:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin sourceUrl en BD |
+
+**Particularidades:**
+- Las resoluciones se obtienen en dos fases: primero se scrapean los listados paginados por año para obtener referencia, asunto, sentido y fecha; luego se visitan las páginas de detalle para obtener la URL del PDF.
+- Las URLs de los años son inconsistentes: 2025-2026 usan `/resoluciones-YYYY`, mientras 2015-2024 usan `/viewresoluciones/resoluciones-YYYY/`.
+- La referencia sigue el formato "R176/2026" y se extrae del título del card.
+- El asunto y el sentido se extraen del excerpt del card, separados por pipe (`|`).
+- La fecha se extrae del span `.elementor-post-date` en formato DD/MM/YYYY.
+- Los PDFs de años más antiguos (2015-2018) pueden estar embebidos en un visor PDF.js; se extrae la URL del parámetro `file=`.
+- Se limpian del texto PDF: cabeceras del Comisionado, pies de página, bloques de firma electrónica y boilerplate de cierre.
+
+**Ejemplo — importar solo metadatos (sin PDFs ni IA):**
+```bash
+php bin/console app:ctcan:load-resolutions --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar con procesamiento async:**
+```bash
+php bin/console app:ctcan:load-resolutions --async
+```
+
+### `app:ctpda:load-resolutions`
+
+Descarga resoluciones del Consejo de Transparencia y Protección de Datos de Andalucía (CTPDA) desde un export CSV en ctpdandalucia.es. El CSV contiene todas las resoluciones en una sola descarga (tarda ~2 minutos).
+
+```bash
+php bin/console app:ctpda:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+
+**Particularidades:**
+- Fuente: CSV tab-separated en `https://www.ctpdandalucia.es/sites/default/files/views_data_export/...Vista%20Buscar%20Reclamaciones.csv`
+- El CSV incluye: referencia, fecha, resumen, sentido (outcome), ámbito, organismo, provincia y URL al PDF.
+- La fecha de resolución y el outcome se obtienen directamente del CSV (no del PDF).
+- El ámbito determina el scope: "Administración Local" → local, resto → autonomous.
+- La fecha de reclamación se extrae del PDF (sección PRIMERO: "escrito presentado el DD de month de YYYY").
+- Los PDFs tienen formato diferente según la época: 2016 (formato antiguo), 2021 (intermedio) y 2023+ (actual con tabla estructurada). Se limpian cabeceras/pies de todas las variantes.
+- El certificado SSL del sitio puede requerir `verify_peer: false`.
+
+**Ejemplo — importar solo metadatos (sin PDFs ni IA):**
+```bash
+php bin/console app:ctpda:load-resolutions --skip-pdf --skip-analysis --skip-vectors
+```
+
+**Ejemplo — importar con procesamiento async:**
+```bash
+php bin/console app:ctpda:load-resolutions --async
+```
+
 ---
 
 ## Procesamiento batch con Gemini

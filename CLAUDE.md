@@ -13,4 +13,6 @@ The inbound email pipeline is in docs/inbound-email.md
 # Development keys:
 
 - All migrations must be idempotent.
-- Any updates must be reflected in the docs. 
+- Any updates must be reflected in the docs.
+- When adding a new resolution importer with source-specific text cleaning, its cleaner must also be registered in `CleanResolutionTextCommand::cleanForSource()` so that `app:resolutions:clean-text --source-only` can re-apply it.
+- All resolution ingestion commands must support the same processing features (PDF extraction, metadata extraction, text cleaning) in both inline and async (`--async`) modes. The async path in `ProcessResolutionHandler` must mirror what the command does inline.

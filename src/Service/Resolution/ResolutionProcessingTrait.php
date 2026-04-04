@@ -63,11 +63,8 @@ trait ResolutionProcessingTrait
             }
 
             $text = $this->cleanRawText($text);
-            $text = $this->cleanTextForSource($text);
-            $resolution->setFullText($this->sanitizeUtf8($text));
-            $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
 
-            // Try regex-based date extraction from raw text (only if no date set yet)
+            // Try regex-based date extraction before source-specific cleaning (which may strip signatures)
             if ($resolution->getResolutionDate() === null) {
                 $dateResult = $this->dateExtractor->extractFromText($text);
                 if ($dateResult['date'] !== null) {
@@ -78,6 +75,10 @@ trait ResolutionProcessingTrait
                     $io->text(sprintf('  Date extracted (regex): %s', $dateResult['date']->format('Y-m-d')));
                 }
             }
+
+            $text = $this->cleanTextForSource($text);
+            $resolution->setFullText($this->sanitizeUtf8($text));
+            $io->text(sprintf('  Extracted %d chars of text', mb_strlen($text)));
         } catch (\Exception $e) {
             $this->logger->warning('Document download/processing failed', [
                 'reference' => $resolution->getReferenceNumber(),
@@ -360,8 +361,22 @@ trait ResolutionProcessingTrait
     {
         $url = $this->encodeUrlPath($url);
         $timeout = str_contains($url, 'gobiernoabierto.navarra.es') ? 2 : 60;
+        $options = ['timeout' => $timeout];
+
+        // comunidad.madrid blocks requests without a browser-like User-Agent
+        if (str_contains($url, 'comunidad.madrid')) {
+            $options['headers'] = [
+                'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            ];
+        }
+
+        // ctpdandalucia.es has an untrusted SSL certificate
+        if (str_contains($url, 'ctpdandalucia.es')) {
+            $options['verify_peer'] = false;
+        }
+
         try {
-            $response = $this->httpClient->request('GET', $url, ['timeout' => $timeout]);
+            $response = $this->httpClient->request('GET', $url, $options);
             return $response->getContent();
         } catch (\Exception $e) {
             $io->text(sprintf('  <comment>Direct download failed: %s</comment>', $e->getMessage()));

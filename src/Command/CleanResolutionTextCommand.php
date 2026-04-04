@@ -33,10 +33,11 @@ class CleanResolutionTextCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTBG_LOCAL, GAIP)')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTBG_LOCAL, GAIP, CTG, CVAIP, CTAR, CTCYL, CTN, CTPD, CRT, CVT, CTCAN)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Max number of resolutions to process')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
             ->addOption('html', null, InputOption::VALUE_NONE, 'Clean already-formatted HTML resolutions (removes footnote URLs, metadata blocks)')
+            ->addOption('source-only', null, InputOption::VALUE_NONE, 'Only apply source-specific cleaning (no AI analyzer)')
             ->addOption('nullify-old-dates', null, InputOption::VALUE_NONE, 'Set resolution_date to NULL for resolutions with reference year before 2023')
         ;
     }
@@ -48,13 +49,21 @@ class CleanResolutionTextCommand extends Command
         $limit = $input->getOption('limit') ? (int) $input->getOption('limit') : null;
         $dryRun = $input->getOption('dry-run');
         $htmlMode = $input->getOption('html');
+        $sourceOnly = $input->getOption('source-only');
         $nullifyOldDates = $input->getOption('nullify-old-dates');
 
         if ($nullifyOldDates) {
             return $this->nullifyOldDates($io, $source, $dryRun);
         }
 
-        $io->title($htmlMode ? 'Resolution HTML Cleaner' : 'Resolution Raw Text Cleaner');
+        if ($sourceOnly && $htmlMode) {
+            $io->error('--source-only and --html cannot be used together.');
+
+            return Command::FAILURE;
+        }
+
+        $title = $sourceOnly ? 'Resolution Source-Specific Cleaner' : ($htmlMode ? 'Resolution HTML Cleaner' : 'Resolution Raw Text Cleaner');
+        $io->title($title);
 
         $qb = $this->resolutionRepository->createQueryBuilder('r')
             ->where('r.fullText IS NOT NULL')
@@ -62,7 +71,9 @@ class CleanResolutionTextCommand extends Command
             ->setParameter('empty', '')
             ->orderBy('r.createdAt', 'ASC');
 
-        if ($htmlMode) {
+        if ($sourceOnly) {
+            // All resolutions with text
+        } elseif ($htmlMode) {
             // Only already-analyzed resolutions (have keypoints = HTML formatted)
             $qb->andWhere('r.keypoints IS NOT NULL');
         } else {
@@ -94,23 +105,17 @@ class CleanResolutionTextCommand extends Command
         foreach ($resolutions as $idx => $resolution) {
             $ref = $resolution->getReferenceNumber();
             $original = $resolution->getFullText();
-            $result = $htmlMode
-                ? $this->analyzer->cleanHtml($original)
-                : $this->analyzer->cleanText($original);
+
+            if ($sourceOnly) {
+                $result = $original;
+            } elseif ($htmlMode) {
+                $result = $this->analyzer->cleanHtml($original);
+            } else {
+                $result = $this->analyzer->cleanText($original);
+            }
 
             // Source-specific cleaning
-            if ($resolution->getSource() === Resolution::SOURCE_CTG) {
-                $pos = mb_stripos($result, 'ASUNTO:');
-                if ($pos !== false) {
-                    $result = trim(mb_substr($result, $pos));
-                }
-            } elseif ($resolution->getSource() === Resolution::SOURCE_CVAIP) {
-                $result = ProcessResolutionHandler::cleanCvaipText($result);
-            } elseif ($resolution->getSource() === Resolution::SOURCE_CTAR) {
-                $result = ProcessResolutionHandler::cleanCtarText($result);
-            } elseif ($resolution->getSource() === Resolution::SOURCE_CTCYL) {
-                $result = ProcessResolutionHandler::cleanCtcylText($result);
-            }
+            $result = $this->cleanForSource($result, $resolution->getSource());
 
             $charsBefore = mb_strlen($original);
             $charsAfter = mb_strlen($result);
@@ -151,6 +156,38 @@ class CleanResolutionTextCommand extends Command
         ));
 
         return Command::SUCCESS;
+    }
+
+    private function cleanForSource(string $text, string $source): string
+    {
+        switch ($source) {
+            case Resolution::SOURCE_CTG:
+                $text = ProcessResolutionHandler::cleanCtgText($text);
+                break;
+            case Resolution::SOURCE_CVAIP:
+                $text = ProcessResolutionHandler::cleanCvaipText($text);
+                break;
+            case Resolution::SOURCE_CTAR:
+                $text = ProcessResolutionHandler::cleanCtarText($text);
+                break;
+            case Resolution::SOURCE_CTCYL:
+                $text = ProcessResolutionHandler::cleanCtcylText($text);
+                break;
+            case Resolution::SOURCE_CTPD:
+                $text = ProcessResolutionHandler::cleanCtpdText($text);
+                break;
+            case Resolution::SOURCE_CRT:
+                $text = ProcessResolutionHandler::cleanCrtText($text);
+                break;
+            case Resolution::SOURCE_CVT:
+                $text = ProcessResolutionHandler::cleanCvtText($text);
+                break;
+            case Resolution::SOURCE_CTCAN:
+                $text = ProcessResolutionHandler::cleanCtcanText($text);
+                break;
+        }
+
+        return $text;
     }
 
     private function nullifyOldDates(SymfonyStyle $io, ?string $source, bool $dryRun): int
