@@ -230,10 +230,13 @@ class AnalyzeResolutionsCommand extends Command
                     $modeLabel = $mode === 'format' ? 'format' : 'analyze';
                     $io->text(sprintf('  Calling API (batch %s, %d resolutions)...', $modeLabel, count($cleanedMap)));
 
+                    $t0 = microtime(true);
                     $batchResults = match ($mode) {
                         'format' => $this->analyzer->batchFormatText($cleanedMap),
                         default => $this->analyzer->batchExtractAnalysis($cleanedMap),
                     };
+                    $elapsed = microtime(true) - $t0;
+                    $io->text(sprintf('  <info>API responded in %.1fs (%.1fs/resolution)</info>', $elapsed, $elapsed / count($cleanedMap)));
 
                     foreach ($resolutionMap as $i => $resolution) {
                         if (isset($batchResults[$i])) {
