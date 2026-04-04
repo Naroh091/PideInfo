@@ -121,6 +121,7 @@ class ResolutionRepository extends ServiceEntityRepository
             ->addSelect('CASE WHEN r.resolutionDate IS NULL THEN 1 ELSE 0 END AS HIDDEN nulls_last')
             ->orderBy('nulls_last', 'ASC')
             ->addOrderBy('r.resolutionDate', 'DESC')
+            ->addOrderBy('r.id', 'DESC')
             ->setFirstResult(($page - 1) * $limit)
             ->setMaxResults($limit);
 
