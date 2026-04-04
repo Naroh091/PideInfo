@@ -30,6 +30,9 @@ class Resolution
     public const OUTCOME_REFERRAL = 'derivacion';
     public const OUTCOME_ROLLBACK = 'retrotraer';
     public const OUTCOME_INHIBITION = 'inhibicion';
+    public const OUTCOME_COMPLAINT = 'queja';
+    public const OUTCOME_CONSULTATION = 'consulta';
+    public const OUTCOME_CLARIFICATION = 'aclaracion';
 
     // Sources
     public const SOURCE_CTBG = 'CTBG';
@@ -40,6 +43,11 @@ class Resolution
     public const SOURCE_CTAR = 'CTAR';
     public const SOURCE_CTCYL = 'CTCYL';
     public const SOURCE_CTN = 'CTN';
+    public const SOURCE_CTPD = 'CTPD';
+    public const SOURCE_CRT = 'CRT';
+    public const SOURCE_CTPDA = 'CTPDA';
+    public const SOURCE_CVT = 'CVT';
+    public const SOURCE_CTCAN = 'CTCAN';
 
     // Scopes
     public const SCOPE_NATIONAL = 'national';
@@ -193,6 +201,10 @@ class Resolution
             self::OUTCOME_LOSS_OF_PURPOSE => 'Pérdida de objeto',
             self::OUTCOME_MEDIATION_AGREEMENT => 'Acuerdo de mediación',
             self::OUTCOME_REFERRAL => 'Derivada',
+            self::OUTCOME_ROLLBACK => 'Retrotraer',
+            self::OUTCOME_COMPLAINT => 'Queja',
+            self::OUTCOME_CONSULTATION => 'Consulta',
+            self::OUTCOME_CLARIFICATION => 'Aclaración',
             default => $this->outcome,
         };
     }

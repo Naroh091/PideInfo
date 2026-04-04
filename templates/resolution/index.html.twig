@@ -336,6 +336,13 @@
                                 {{ ((page - 1) * 12) + 1 }}–{{ min(page * 12, total) }} de {{ total }}
                             </p>
                             <nav class="flex items-center gap-1" aria-label="Paginación">
+                                {% if page > 3 %}
+                                    <a href="{{ path('app_resoluciones_index', filters|merge({ page: 1 })) }}"
+                                       class="btn btn-ghost btn-sm" title="Primera página">
+                                        <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                                    </a>
+                                {% endif %}
+
                                 {% if page > 1 %}
                                     <a href="{{ path('app_resoluciones_index', filters|merge({ page: page - 1 })) }}"
                                        class="btn btn-ghost btn-sm">
@@ -354,6 +361,13 @@
                                     <a href="{{ path('app_resoluciones_index', filters|merge({ page: page + 1 })) }}"
                                        class="btn btn-ghost btn-sm">
                                         <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                    </a>
+                                {% endif %}
+
+                                {% if page < totalPages - 2 %}
+                                    <a href="{{ path('app_resoluciones_index', filters|merge({ page: totalPages })) }}"
+                                       class="btn btn-ghost btn-sm" title="Última página">
+                                        <i data-lucide="chevrons-right" class="w-4 h-4"></i>
                                     </a>
                                 {% endif %}
                             </nav>

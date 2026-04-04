@@ -6,7 +6,12 @@ use App\Entity\Resolution;
 use App\Message\ProcessResolutionMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
+use App\Service\Resolution\CrtWebReader;
+use App\Service\Resolution\CtcanWebReader;
+use App\Service\Resolution\CtpdaCsvReader;
+use App\Service\Resolution\CvtWebReader;
 use App\Service\Resolution\ResolutionAnalyzer;
+use App\Service\Resolution\CtpdWebReader;
 use App\Service\Resolution\ResolutionDateExtractor;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -37,6 +42,7 @@ final class ProcessResolutionHandler
         private readonly EmbeddingGenerator $embeddingGenerator,
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $vectorStore,
+        private readonly CtcanWebReader $ctcanWebReader,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -52,11 +58,41 @@ final class ProcessResolutionHandler
         $ref = $resolution->getReferenceNumber();
         $this->logger->info("Processing resolution $ref");
 
+        // Step 0.5: CTCAN — resolve PDF URL from detail page if not yet known
+        if (!$message->skipPdf && $resolution->getSource() === Resolution::SOURCE_CTCAN
+            && !$resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
+            $detailUrl = ($resolution->getSourceMetadata() ?? [])['detailUrl'] ?? null;
+            if ($detailUrl) {
+                $pdfUrl = $this->ctcanWebReader->fetchDetailPage($detailUrl);
+                if ($pdfUrl) {
+                    $resolution->setSourceUrl($pdfUrl);
+                    $this->logger->info('Resolved CTCAN PDF URL', ['reference' => $ref, 'pdfUrl' => $pdfUrl]);
+                }
+            }
+        }
+
         // Step 1: Download/extract PDF text
         if ($message->forceReExtractText) {
             $this->reExtractTextFromStorage($resolution);
         } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
             $this->downloadAndProcessPdf($resolution);
+        }
+
+        // Step 1.5: Source-specific metadata extraction from PDF text
+        if ($resolution->getSource() === Resolution::SOURCE_CRT) {
+            $this->extractCrtMetadata($resolution);
+        }
+
+        if ($resolution->getSource() === Resolution::SOURCE_CVT) {
+            $this->extractCvtMetadata($resolution);
+        }
+
+        if ($resolution->getSource() === Resolution::SOURCE_CTPDA) {
+            $this->extractCtpdaMetadata($resolution);
+        }
+
+        if ($resolution->getSource() === Resolution::SOURCE_CTCAN) {
+            $this->extractCtcanMetadata($resolution);
         }
 
         // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
@@ -110,10 +146,8 @@ final class ProcessResolutionHandler
             }
 
             $text = $this->cleanRawText($text);
-            $text = $this->cleanTextForSource($text, $resolution->getSource());
-            $resolution->setFullText($this->sanitizeUtf8($text));
 
-            // Try regex-based date extraction from raw text (only if no date source already set)
+            // Try regex-based date extraction before source-specific cleaning (which may strip signatures)
             $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
             $dateResult = $this->dateExtractor->extractFromText($text);
             if ($dateResult['date'] !== null && $existingDateSource === null) {
@@ -121,6 +155,19 @@ final class ProcessResolutionHandler
                 $meta = $resolution->getSourceMetadata() ?? [];
                 $meta['FECHA_RESOLUCION'] = 'regex';
                 $resolution->setSourceMetadata($meta);
+            }
+
+            $text = $this->cleanTextForSource($text, $resolution->getSource());
+            $resolution->setFullText($this->sanitizeUtf8($text));
+
+            // CTPD: extract metadata (outcome, publicBody, subject, claimDate) from PDF text
+            if ($resolution->getSource() === Resolution::SOURCE_CTPD) {
+                $this->extractCtpdMetadata($resolution, $text);
+            }
+
+            // CVT: extract claim date from PDF text
+            if ($resolution->getSource() === Resolution::SOURCE_CVT) {
+                $this->extractCvtMetadata($resolution);
             }
 
             $this->logger->info('Document processed', [
@@ -193,6 +240,16 @@ final class ProcessResolutionHandler
             }
 
             $text = $this->cleanRawText($text);
+
+            // Try regex-based date extraction before source-specific cleaning (which may strip signatures)
+            $dateResult = $this->dateExtractor->extractFromText($text);
+            if ($dateResult['date'] !== null) {
+                $resolution->setResolutionDate($dateResult['date']);
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['FECHA_RESOLUCION'] = 'regex';
+                $resolution->setSourceMetadata($meta);
+            }
+
             $text = $this->cleanTextForSource($text, $resolution->getSource());
             $resolution->setFullText($this->sanitizeUtf8($text));
 
@@ -201,12 +258,14 @@ final class ProcessResolutionHandler
             $resolution->setKeypoints(null);
             $resolution->setSubject(null);
 
-            $dateResult = $this->dateExtractor->extractFromText($text);
-            if ($dateResult['date'] !== null) {
-                $resolution->setResolutionDate($dateResult['date']);
-                $meta = $resolution->getSourceMetadata() ?? [];
-                $meta['FECHA_RESOLUCION'] = 'regex';
-                $resolution->setSourceMetadata($meta);
+            // CTPD: extract metadata (publicBody, claimDate) from PDF text
+            if ($resolution->getSource() === Resolution::SOURCE_CTPD) {
+                $this->extractCtpdMetadata($resolution, $text);
+            }
+
+            // CVT: extract claim date from PDF text
+            if ($resolution->getSource() === Resolution::SOURCE_CVT) {
+                $this->extractCvtMetadata($resolution);
             }
 
             $this->logger->info('Text re-extracted from stored file', [
@@ -361,6 +420,125 @@ final class ProcessResolutionHandler
         }
     }
 
+    private function extractCrtMetadata(Resolution $resolution): void
+    {
+        $text = $resolution->getFullText();
+
+        if (empty(trim($text))) {
+            if ($resolution->getSourceUrl()) {
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['pdf_error'] = 'password_protected_or_unreadable';
+                $resolution->setSourceMetadata($meta);
+            }
+
+            return;
+        }
+
+        $metadata = CrtWebReader::parseMetadataFromText($text, $resolution->getEntryYear());
+
+        if ($metadata['subject']) {
+            $resolution->setSubject(mb_substr($metadata['subject'], 0, 500));
+        } elseif (empty($resolution->getSubject())) {
+            $resolution->setSubject('Solicitud de acceso a información pública');
+        }
+
+        if ($metadata['claimDate']) {
+            $resolution->setClaimDate($metadata['claimDate']);
+        }
+
+        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+            $resolution->setDaysToResolve($days);
+        }
+    }
+
+    private function extractCvtMetadata(Resolution $resolution): void
+    {
+        $text = $resolution->getFullText();
+
+        if (empty(trim($text))) {
+            if ($resolution->getSourceUrl()) {
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['pdf_error'] = 'password_protected_or_unreadable';
+                $resolution->setSourceMetadata($meta);
+            }
+
+            return;
+        }
+
+        $metadata = CvtWebReader::parseMetadataFromText($text);
+
+        if ($metadata['claimDate']) {
+            $resolution->setClaimDate($metadata['claimDate']);
+        }
+
+        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+            $resolution->setDaysToResolve($days);
+        }
+    }
+
+    private function extractCtpdaMetadata(Resolution $resolution): void
+    {
+        $text = $resolution->getFullText();
+
+        if (empty(trim($text))) {
+            if ($resolution->getSourceUrl()) {
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['pdf_error'] = 'password_protected_or_unreadable';
+                $resolution->setSourceMetadata($meta);
+            }
+
+            return;
+        }
+
+        $metadata = CtpdaCsvReader::parseMetadataFromText($text);
+
+        // Only set publicBodyName from PDF if not already set from CSV
+        if ($metadata['publicBodyName'] && empty($resolution->getPublicBodyName())) {
+            $resolution->setPublicBodyName($metadata['publicBodyName']);
+        }
+
+        if ($metadata['claimDate']) {
+            $resolution->setClaimDate($metadata['claimDate']);
+            if ($resolution->getResolutionDate()) {
+                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
+                $resolution->setDaysToResolve($days);
+            }
+        }
+    }
+
+    private function extractCtcanMetadata(Resolution $resolution): void
+    {
+        $text = $resolution->getFullText();
+
+        if (empty(trim($text))) {
+            if ($resolution->getSourceUrl()) {
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['pdf_error'] = 'password_protected_or_unreadable';
+                $resolution->setSourceMetadata($meta);
+            }
+
+            return;
+        }
+
+        $metadata = CtcanWebReader::parseMetadataFromText($text, $resolution->getEntryYear());
+
+        if ($metadata['subject'] && empty($resolution->getSubject())) {
+            $resolution->setSubject(mb_substr($metadata['subject'], 0, 500));
+        } elseif (empty($resolution->getSubject())) {
+            $resolution->setSubject('Solicitud de acceso a información pública');
+        }
+
+        if ($metadata['claimDate']) {
+            $resolution->setClaimDate($metadata['claimDate']);
+            if ($resolution->getResolutionDate()) {
+                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
+                $resolution->setDaysToResolve($days);
+            }
+        }
+    }
+
     // --- Utilities ---
 
     private function encodeUrlPath(string $url): string
@@ -393,8 +571,22 @@ final class ProcessResolutionHandler
     {
         $url = $this->encodeUrlPath($url);
         $timeout = str_contains($url, 'gobiernoabierto.navarra.es') ? 2 : 60;
+        $options = ['timeout' => $timeout];
+
+        // comunidad.madrid blocks requests without a browser-like User-Agent
+        if (str_contains($url, 'comunidad.madrid')) {
+            $options['headers'] = [
+                'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            ];
+        }
+
+        // ctpdandalucia.es has an untrusted SSL certificate
+        if (str_contains($url, 'ctpdandalucia.es')) {
+            $options['verify_peer'] = false;
+        }
+
         try {
-            $response = $this->httpClient->request('GET', $url, ['timeout' => $timeout]);
+            $response = $this->httpClient->request('GET', $url, $options);
             return $response->getContent();
         } catch (\Exception $e) {
             $this->logger->info('Direct download failed, trying Wayback Machine', [
@@ -478,6 +670,79 @@ final class ProcessResolutionHandler
         }
     }
 
+    private function extractCtpdMetadata(Resolution $resolution, string $text): void
+    {
+        $metadata = CtpdWebReader::parseMetadataFromText($text);
+
+        if ($metadata['publicBodyName']) {
+            $resolution->setPublicBodyName($metadata['publicBodyName']);
+        }
+
+        // Only override subject if not already set (new mode pre-sets it from DTO)
+        if ($metadata['subject'] && empty($resolution->getSubject())) {
+            $resolution->setSubject(mb_substr($metadata['subject'], 0, 500));
+        }
+
+        // Only override outcome if still 'pending' (new mode pre-sets it from accordion)
+        if ($metadata['outcomeText'] && $resolution->getOutcome() === 'pending') {
+            $outcome = self::mapCtpdOutcome($metadata['outcomeText']);
+            $resolution->setOutcome($outcome);
+        }
+
+        if ($metadata['claimDate']) {
+            $resolution->setClaimDate($metadata['claimDate']);
+            if ($resolution->getResolutionDate()) {
+                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
+                $resolution->setDaysToResolve($days);
+            }
+        }
+    }
+
+    private static function mapCtpdOutcome(string $outcomeStr): string
+    {
+        $normalized = mb_strtolower(trim($outcomeStr));
+
+        $map = [
+            'estimación' => Resolution::OUTCOME_FAVORABLE,
+            'estimatoria' => Resolution::OUTCOME_FAVORABLE,
+            'estimar' => Resolution::OUTCOME_FAVORABLE,
+            'estimada' => Resolution::OUTCOME_FAVORABLE,
+            'desestimación' => Resolution::OUTCOME_UNFAVORABLE,
+            'desestimatoria' => Resolution::OUTCOME_UNFAVORABLE,
+            'desestimada' => Resolution::OUTCOME_UNFAVORABLE,
+            'desestimar' => Resolution::OUTCOME_UNFAVORABLE,
+            'estimación parcial' => Resolution::OUTCOME_PARTIAL,
+            'estimada parcialmente' => Resolution::OUTCOME_PARTIAL,
+            'parcialmente estimada' => Resolution::OUTCOME_PARTIAL,
+            'inadmisión' => Resolution::OUTCOME_INADMISSIBLE,
+            'inadmisión a trámite' => Resolution::OUTCOME_INADMISSIBLE,
+            'inadmitida' => Resolution::OUTCOME_INADMISSIBLE,
+            'terminación del procedimiento' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+            'pérdida de objeto' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+            'pérdida sobrevenida del objeto' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+            'pérdida sobrevenida de objeto' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
+            'desistimiento' => Resolution::OUTCOME_WITHDRAWAL,
+            'archivo' => Resolution::OUTCOME_ARCHIVED,
+            'archivada' => Resolution::OUTCOME_ARCHIVED,
+        ];
+
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+
+        // Try longer keys first for substring matching
+        $keys = array_keys($map);
+        usort($keys, fn (string $a, string $b) => mb_strlen($b) - mb_strlen($a));
+
+        foreach ($keys as $key) {
+            if (str_contains($normalized, $key)) {
+                return $map[$key];
+            }
+        }
+
+        return $normalized;
+    }
+
     private function cleanRawText(string $text): string
     {
         $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
@@ -496,10 +761,7 @@ final class ProcessResolutionHandler
     private function cleanTextForSource(string $text, string $source): string
     {
         if ($source === Resolution::SOURCE_CTG) {
-            $pos = mb_stripos($text, 'ASUNTO:');
-            if ($pos !== false) {
-                $text = mb_substr($text, $pos);
-            }
+            $text = self::cleanCtgText($text);
         }
 
         if ($source === Resolution::SOURCE_CVAIP) {
@@ -513,6 +775,75 @@ final class ProcessResolutionHandler
         if ($source === Resolution::SOURCE_CTCYL) {
             $text = self::cleanCtcylText($text);
         }
+
+        if ($source === Resolution::SOURCE_CTPD) {
+            $text = self::cleanCtpdText($text);
+        }
+
+        if ($source === Resolution::SOURCE_CRT) {
+            $text = self::cleanCrtText($text);
+        }
+
+        if ($source === Resolution::SOURCE_CVT) {
+            $text = self::cleanCvtText($text);
+        }
+
+        if ($source === Resolution::SOURCE_CTPDA) {
+            $text = self::cleanCtpdaText($text);
+        }
+
+        if ($source === Resolution::SOURCE_CTCAN) {
+            $text = self::cleanCtcanText($text);
+        }
+
+        return trim($text);
+    }
+
+    public static function cleanCtgText(string $text): string
+    {
+        // Strip everything before "ASUNTO:"
+        $pos = mb_stripos($text, 'ASUNTO:');
+        if ($pos !== false) {
+            $text = mb_substr($text, $pos);
+        }
+
+        // Remove repeated header/footer blocks (contact info of Comisión da Transparencia)
+        $text = preg_replace('/^\s*[•.\s:,]*Comisión da\s+o?\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*[•.\s:,]*transparencia\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*[•.\s:,]*de Galicia\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*\(?\+34\)?\s*981\s*56\s*97\s*40.*$/mu', '', $text);
+        $text = preg_replace('/^\s*Rúa do Hórreo.*$/mu', '', $text);
+        $text = preg_replace('/^\s*15700.*Santiago.*Compostela.*$/mu', '', $text);
+        $text = preg_replace('/^\s*A Coruña\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*[•.\s]*[Il]nfo@comisiondatransparencia\.ga[l1]\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*[•.\s]*www\.comisiondatransparencia\.ga[l1]\s*$/mu', '', $text);
+
+        // Remove short lines that are only punctuation/symbols (logo OCR artifacts)
+        $text = preg_replace('/^\s*[•.\s:,"""*_|\\\\e]{1,20}\s*$/mu', '', $text);
+
+        // Remove inline header variant (single-line mixed contact info)
+        $text = preg_replace('/^\s*Comisión da\s+e\s+\(?[•+]?34\)?981.*$/mu', '', $text);
+        $text = preg_replace('/^\s*o\s+Rúa do Hórreo.*$/mu', '', $text);
+        $text = preg_replace('/^\s*transparencia\s+A Coruña\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*de Galicia\s+e\s+[Il]nfo@comisiondatransparencia.*$/mu', '', $text);
+
+        // Remove digital signature block
+        $text = preg_replace('/Firmado digitalmente por.*?(?=\n\n|\z)/su', '', $text);
+
+        // Strip closing boilerplate (appeal info)
+        $pos = mb_stripos($text, 'Contra esta resolución que pon fin');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Contra esta resolución, que pon fin');
+        }
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Contra esta resolución que pone fin');
+        }
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
 
         return trim($text);
     }
@@ -576,6 +907,262 @@ final class ProcessResolutionHandler
         $pos = mb_stripos($text, 'Esta Resolución es ejecutiva');
         if ($pos === false) {
             $pos = mb_stripos($text, 'Contra esta resolución, que pone fin a la vía administrativa');
+        }
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCtpdText(string $text): string
+    {
+        // Remove form feed characters
+        $text = str_replace("\f", '', $text);
+
+        // Remove "Nº EXPEDIENTE:" header line (repeated on every page, new source)
+        $text = preg_replace('/^\s*N[ºo°]\s*EXPEDIENTE:.*$/mu', '', $text);
+
+        // Remove repeated header: organism name variants (old + new)
+        $text = preg_replace('/^\s*Consejo de Transparencia y Participaci[oó]n de la Comunidad de Madrid\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Consejo de Transparencia y Protecci[oó]n de Datos de la Comunidad de Madrid\s*$/mu', '', $text);
+
+        // Remove address footers with optional page numbers (old: Albufera N/M, new: San Jerónimo)
+        $text = preg_replace('/^\s*Avenida de la Albufera.*28031.*Madrid\s*(?:\d{1,3}\/\d{1,3})?\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*\|?\s*consejo\.typ@asambleamadrid\.es\s*\|?\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Carrera de San Jer[oó]nimo.*$/mu', '', $text);
+        $text = preg_replace('/^\s*28014\s*Madrid\s*$/mu', '', $text);
+
+        // Remove right-margin watermark (CSV verification block, new source)
+        $text = preg_replace('/^\s*La autenticidad de este documento se puede comprobar en\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*mediante el siguiente c[oó]digo seguro de verificaci[oó]n:\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*https?:\/\/gestiona\.comunidad\.madrid\/csv\s*$/mu', '', $text);
+
+        // Remove logo alt-text artifacts (multiline block from PDF extraction)
+        $text = preg_replace('/Consejo de\s*\nTransparencia y\s*\n(?:Participaci[oó]n|Protecci[oó]n de Datos)\s*(?:de la\s*\n)?(?:Comunidad de Madrid)?/iu', '', $text);
+
+        // Remove page numbers in "N/M" format (e.g., "1/6", "2/6")
+        $text = preg_replace('/^\s*\d{1,3}\/\d{1,3}\s*$/m', '', $text);
+
+        // Remove digital signature block (new source)
+        $text = preg_replace('/^\s*Firmado digitalmente por:.*$/mu', '', $text);
+        $text = preg_replace('/^\s*Fecha:\s*\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}\s*$/mu', '', $text);
+
+        // Strip closing boilerplate (appeal info + signatures)
+        $pos = mb_stripos($text, 'Conforme a la Ley 29/1998');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Contra la presente resolución');
+        }
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'De acuerdo con el artículo 48 del Reglamento');
+        }
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'De acuerdo con el artículo 50 de la Ley');
+        }
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCrtText(string $text): string
+    {
+        // Remove form feed characters
+        $text = str_replace("\f", '', $text);
+
+        // 1. Remove "FIRMADO POR" everywhere — it's always an electronic signature marker, never content
+        $text = preg_replace('/\bFIRMADO POR\b/u', '', $text);
+
+        // 2. Remove signature blocks: date line + name + title lines ending with known patterns
+        //    Matches: "DD/MM/YYYY\nName\n...title...\n...Castilla-la Mancha" or "...Regional de Transparencia"
+        $text = preg_replace(
+            '/^\s*\d{2}\/\d{2}\/\d{4}\s*\n\s*[\p{Lu}][\p{L}\s,\.]+\n(?:\s*.+\n)*?\s*.*(?:Castilla[- ][Ll]a Mancha|Regional de Transparencia)\s*$/mu',
+            '',
+            $text,
+        );
+
+        // 3. Remove orphan signer title lines (left over from partially cleaned blocks)
+        $text = preg_replace('/^\s*El(?:\/la)?\s+(?:Presidente|Secretario).*(?:Consejo Regional|Regional de Transparencia).*$/mu', '', $text);
+        $text = preg_replace('/^\s*Transparencia Y Buen Gobierno de Castilla-la Mancha\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Y Buen Gobierno de Castilla-la Mancha\s*$/mu', '', $text);
+
+        // 4. Remove garbled logo/watermark header (from bad OCR on some PDFs)
+        $text = preg_replace('/^\s*iCRT\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*w\s+CASTILLA-LA MANCHA\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*w\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*CASTILLA-LA MANCHA\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Gnnflj\(\).*$/mu', '', $text);
+        $text = preg_replace('/^\s*,\s*\.\.,?\s*$/mu', '', $text);
+
+        // 5. Remove repeated footer block
+        $text = preg_replace('/^\s*CONSEJO REGIONAL DE TRANSPARENCIA Y BUEN\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*GOBIERNO DE CASTILLA-LA MANCHA\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Decreto\s+N\s*[ºo°]\s*\d+\s+de\s+\d{1,2}\/\d{2}\/\d{4}.*$/mu', '', $text);
+        $text = preg_replace('/^\s*P[aá]g\.\s*\d+\s+de\s+\d+\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*La comprobaci[oó]n de la autenticidad.*$/mu', '', $text);
+        $text = preg_replace('/^\s*(?:mediante el siguiente|https?:\/\/sede\.consejotransparenciaclm).*$/mu', '', $text);
+
+        // 6. Remove clean header variant (non-garbled)
+        $text = preg_replace('/^\s*Consejo Regional de Transparencia y Buen Gobierno\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*de Castilla[- ]La Mancha\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*y Buen Gobierno,?\s*$/mu', '', $text);
+
+        // 7. Strip closing boilerplate (appeal info + signatures)
+        $pos = mb_stripos($text, 'Notifíquese al interesado que, contra la presente Resolución');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'contra la presente Resolución, que pone fin a la vía administrativa');
+        }
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // 8. Remove standalone footnote URLs
+        $text = preg_replace('/^\s*https?:\/\/\S+\s*$/mu', '', $text);
+
+        // 9. Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCvtText(string $text): string
+    {
+        // Remove form feed characters
+        $text = str_replace("\f", '', $text);
+
+        // Remove repeated header: "Consell de Transparència, Accés a la Informació Pública i Bon Govern"
+        $text = preg_replace('/^\s*Consell de Transpar[eè]ncia,?\s*(?:Acc[eé]s a la Informaci[oó] P[uú]blica i Bon Govern)?\s*$/mu', '', $text);
+
+        // Remove "GENERALITAT VALENCIANA" / "GENERALITAT" header lines
+        $text = preg_replace('/^\s*GENERALITAT\s*(?:VALENCIANA)?\s*$/mu', '', $text);
+
+        // Remove CSV verification lines (electronic signature)
+        $text = preg_replace('/^\s*CSV\s*:.*$/mu', '', $text);
+        $text = preg_replace('/^\s*(?:La comprovació|La comprobación)\s+d[e\']\s*(?:autenticitat|la autenticidad).*$/mu', '', $text);
+        $text = preg_replace('/^\s*(?:mitjançant|mediante)\s+.*(?:sede\.gva|csv\.gva).*$/mu', '', $text);
+        $text = preg_replace('/^\s*https?:\/\/\S*(?:gva\.es|sede\.gva)\S*\s*$/mu', '', $text);
+
+        // Remove page numbers
+        $text = preg_replace('/^\s*P[àa]g(?:ina)?\.?\s*\d+\s*(?:de\s*\d+)?\s*$/mu', '', $text);
+
+        // Remove standalone URLs
+        $text = preg_replace('/^\s*https?:\/\/\S+\s*$/mu', '', $text);
+
+        // Strip closing boilerplate (appeal info + signatures)
+        $pos = mb_stripos($text, 'Contra la present resolució');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Aquesta resolució posa fi a la via administrativa');
+        }
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'La present resolució posa fi a la via administrativa');
+        }
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCtpdaText(string $text): string
+    {
+        // Remove form feed characters
+        $text = str_replace("\f", '', $text);
+
+        // Remove page footer lines: "Página X de Y. Resolución [RES-]NNN/YYYY, de DD de month ..." (all variants)
+        $text = preg_replace('/^\s*Página\s+\d+\s+de\s+\d+.*$/mu', '', $text);
+
+        // Remove standalone resolution footer (2016-2021 where it's a separate line)
+        $text = preg_replace('/^\s*Resolución\s+(?:RES-)?\d+\/\d{4}(?:,\s+de\s+.+?)?\s*$/mu', '', $text);
+
+        // Remove footer URLs and emails
+        $text = preg_replace('/^\s*www\.ctpdandalucia\.es\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*ctpdandalucia@juntadeandalucia\.es\s*$/mu', '', $text);
+
+        // Remove "Documento apto para ser publicado en el Portal del Consejo" (2024+)
+        $text = preg_replace('/^\s*Documento apto para ser publicado en el Portal del Consejo\s*$/mu', '', $text);
+
+        // Remove standalone organism header line (2021 variant)
+        $text = preg_replace('/^\s*Consejo de Transparencia y Protecci[oó]n de Datos de Andaluc[ií]a\s*$/mu', '', $text);
+
+        // Remove signature block
+        $text = preg_replace('/^\s*EL DIRECTOR DEL CONSEJO DE TRANSPARENCIA\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Y PROTECCI[OÓ]N DE DATOS DE ANDALUC[IÍ]A\s*$/mu', '', $text);
+
+        // Remove signature text variants
+        $text = preg_replace('/^\s*Consta la firma\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*.*consta firmad[oa]\s+electr[oó]nicamente\.?\s*$/mu', '', $text);
+
+        // Remove known director names
+        $text = preg_replace('/^\s*Manuel Medina Guerrero\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Jes[uú]s Jim[eé]nez L[oó]pez\s*$/mu', '', $text);
+
+        // Strip closing boilerplate (appeal info + signatures)
+        $pos = mb_stripos($text, 'Contra esta resolución, que pone fin a la vía administrativa');
+        if ($pos !== false) {
+            $text = mb_substr($text, 0, $pos);
+        }
+
+        // Collapse multiple blank lines
+        $text = preg_replace('/\n{3,}/', "\n\n", $text);
+
+        return trim($text);
+    }
+
+    public static function cleanCtcanText(string $text): string
+    {
+        // Remove form feed characters
+        $text = str_replace("\f", '', $text);
+
+        // Remove repeated organism header (2015 format, split across two lines)
+        $text = preg_replace('/^\s*Comisionado de Transparencia\s*\n\s*y Acceso a la Informaci[oó]n P[uú]blica\s*$/mu', '', $text);
+        // Single-line variant
+        $text = preg_replace('/^\s*Comisionado de Transparencia y Acceso a la Informaci[oó]n P[uú]blica\s*$/mu', '', $text);
+
+        // Remove footer: address + phone + URL (all variants)
+        $text = preg_replace('/^\s*Edificio del Parlamento de Canarias\.\s*C\/ Teobaldo Power,\s*7\.\s*38002 Santa Cruz de Tenerife\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*(?:Tel[eé]fono:|Tel\.)\s*\+34\s*922\s*47\s*\d{4}\s*[–\-]?\s*(?:www\.)?transparenciacanarias\.org\s*$/mu', '', $text);
+
+        // Remove standalone footer URL
+        $text = preg_replace('/^\s*(?:www\.)?transparenciacanarias\.org\s*$/mu', '', $text);
+
+        // Remove standalone page numbers (at page boundaries)
+        $text = preg_replace('/^\s*\d{1,3}\s*$/mu', '', $text);
+
+        // Remove page footers: "Página X de Y"
+        $text = preg_replace('/^\s*P[aá]gina\s+\d+\s+de\s+\d+\s*$/mu', '', $text);
+
+        // Remove electronic signature / CSV verification blocks
+        $text = preg_replace('/^\s*(?:CSV|C[oó]digo Seguro de Verificaci[oó]n)\s*:.*$/mu', '', $text);
+        $text = preg_replace('/^\s*Puede verificar la autenticidad.*$/mu', '', $text);
+        $text = preg_replace('/^\s*Este documento es copia aut[eé]ntica.*$/mu', '', $text);
+        $text = preg_replace('/^\s*Firmado electr[oó]nicamente.*$/mu', '', $text);
+        $text = preg_replace('/^\s*FIRMADO POR\s*$/mu', '', $text);
+
+        // Remove signature block: title + known commissioner names + date
+        $text = preg_replace('/^\s*(?:LA COMISIONADA|EL COMISIONADO) DE TRANSPARENCIA Y ACCESO A LA INFORMACI[OÓ]N P[UÚ]BLICA\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*(?:D\.?\s*)?(?:María Noelia García Leal|Daniel Cerd[aá]n Elcid)\s*$/mu', '', $text);
+        $text = preg_replace('/^\s*Resoluci[oó]n firmada el \d{2}-\d{2}-\d{4}\s*$/mu', '', $text);
+
+        // Remove "nueva reclamación" boilerplate paragraph
+        $text = preg_replace('/^\s*Queda a disposici[oó]n del reclamante la posibilidad de presentar nueva reclamaci[oó]n.*?petici[oó]n de informaci[oó]n formulada\.\s*$/msu', '', $text);
+
+        // Strip closing boilerplate: appeals info (all variants)
+        $pos = mb_stripos($text, 'De acuerdo con el artículo 51 de la LTAIP');
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Contra la presente resolución');
+        }
+        if ($pos === false) {
+            $pos = mb_stripos($text, 'Esta resolución pone fin a la vía administrativa');
         }
         if ($pos !== false) {
             $text = mb_substr($text, 0, $pos);
