@@ -55,6 +55,8 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
             ->addOption('re-extract', null, InputOption::VALUE_NONE, 'Re-extract text from stored PDF/DOCX files before analysis')
             ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
+            ->addOption('format-only', null, InputOption::VALUE_NONE, 'Only format text to HTML (skip summary/keypoints extraction)')
+            ->addOption('analyze-only', null, InputOption::VALUE_NONE, 'Only extract summary/keypoints (skip HTML formatting)')
         ;
     }
 
@@ -71,11 +73,26 @@ class AnalyzeResolutionsCommand extends Command
         $slow = $input->getOption('slow');
         $reExtract = $input->getOption('re-extract');
         $flex = $input->getOption('flex');
+        $formatOnly = $input->getOption('format-only');
+        $analyzeOnly = $input->getOption('analyze-only');
+
+        if ($formatOnly && $analyzeOnly) {
+            $io->error('Cannot use --format-only and --analyze-only together.');
+            return Command::FAILURE;
+        }
+
+        $mode = $formatOnly ? 'format' : ($analyzeOnly ? 'analyze' : 'all');
 
         $io->title('Resolution Analyzer');
 
         if ($flex) {
             $io->note('Using Gemini Flex inference (50% cheaper, higher latency)');
+        }
+        if ($formatOnly) {
+            $io->note('Format only — will produce HTML, skip summary/keypoints');
+        }
+        if ($analyzeOnly) {
+            $io->note('Analyze only — will extract summary/keypoints, skip HTML formatting');
         }
 
         if ($reference) {
@@ -98,17 +115,17 @@ class AnalyzeResolutionsCommand extends Command
                 return Command::SUCCESS;
             }
 
-            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $flex, $io);
+            return $this->processInline([$resolution], $dryRun, $cleanOnly, $slow, $flex, $mode, $io);
         }
 
         if ($async || $reExtract) {
             return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $io);
         }
 
-        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $io);
+        return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $io);
     }
 
-    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, SymfonyStyle $io): int
+    private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, SymfonyStyle $io): int
     {
         $processed = 0;
         $errors = 0;
@@ -181,44 +198,20 @@ class AnalyzeResolutionsCommand extends Command
 
                 // Step 2: AI analysis
                 try {
-                    $io->text(sprintf('  Calling Gemini API%s...', $flex ? ' (flex)' : ''));
-                    $result = $this->analyzer->analyze($cleanedText, flex: $flex);
+                    $modeLabel = match ($mode) {
+                        'format' => 'format-only',
+                        'analyze' => 'analyze-only',
+                        default => 'full',
+                    };
+                    $io->text(sprintf('  Calling Gemini API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
 
-                    $resolution->setFullText($result['formatted_text']);
-                    $resolution->setSummary($result['summary']);
-                    $resolution->setKeypoints($result['keypoints']);
+                    $result = match ($mode) {
+                        'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
+                        'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                        default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                    };
 
-                    if (!empty($result['subject'])) {
-                        $resolution->setSubject(mb_substr($result['subject'], 0, 500));
-                    }
-
-                    if ($result['resolution_date']) {
-                        try {
-                            $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                            $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
-                        } catch (\Exception) {
-                            $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
-                        }
-                    }
-
-                    if ($result['claim_date']) {
-                        try {
-                            $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
-                            $io->text(sprintf('  Claim date: %s', $result['claim_date']));
-                        } catch (\Exception) {
-                            $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
-                        }
-                    }
-
-                    if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-                        $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-                        $resolution->setDaysToResolve($days);
-                        $io->text(sprintf('  Days to resolve: %d', $days));
-                    }
-
-                    $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
-                    $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
-
+                    $this->applyResult($resolution, $result, $mode, $io);
                     $processed++;
                 } catch (\Exception $e) {
                     $io->error('  Error: ' . $e->getMessage());
@@ -261,7 +254,7 @@ class AnalyzeResolutionsCommand extends Command
     /**
      * @param list<\App\Entity\Resolution> $resolutions
      */
-    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, SymfonyStyle $io): int
+    private function processInline(array $resolutions, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, SymfonyStyle $io): int
     {
         $processed = 0;
 
@@ -290,15 +283,20 @@ class AnalyzeResolutionsCommand extends Command
             }
 
             try {
-                $io->text(sprintf('  Calling Gemini API%s...', $flex ? ' (flex)' : ''));
-                $result = $this->analyzer->analyze($cleanedText, flex: $flex);
-                $resolution->setFullText($result['formatted_text']);
-                $resolution->setSummary($result['summary']);
-                $resolution->setKeypoints($result['keypoints']);
-                if (!empty($result['subject'])) {
-                    $resolution->setSubject(mb_substr($result['subject'], 0, 500));
-                }
-                $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
+                $modeLabel = match ($mode) {
+                    'format' => 'format-only',
+                    'analyze' => 'analyze-only',
+                    default => 'full',
+                };
+                $io->text(sprintf('  Calling Gemini API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
+
+                $result = match ($mode) {
+                    'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
+                    'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                    default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                };
+
+                $this->applyResult($resolution, $result, $mode, $io);
                 $processed++;
             } catch (\Exception $e) {
                 $io->error('  Error: ' . $e->getMessage());
@@ -346,6 +344,51 @@ class AnalyzeResolutionsCommand extends Command
         $io->success(sprintf('Dispatched %d resolutions to workers.', $dispatched));
 
         return Command::SUCCESS;
+    }
+
+    private function applyResult(\App\Entity\Resolution $resolution, array $result, string $mode, SymfonyStyle $io): void
+    {
+        if (isset($result['formatted_text'])) {
+            $resolution->setFullText($result['formatted_text']);
+        }
+
+        if (isset($result['summary'])) {
+            $resolution->setSummary($result['summary']);
+            $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
+        }
+
+        if (isset($result['keypoints'])) {
+            $resolution->setKeypoints($result['keypoints']);
+            $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
+        }
+
+        if (!empty($result['subject'])) {
+            $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+        }
+
+        if (!empty($result['resolution_date'])) {
+            try {
+                $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
+            } catch (\Exception) {
+                $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
+            }
+        }
+
+        if (!empty($result['claim_date'])) {
+            try {
+                $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
+                $io->text(sprintf('  Claim date: %s', $result['claim_date']));
+            } catch (\Exception) {
+                $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
+            }
+        }
+
+        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+            $resolution->setDaysToResolve($days);
+            $io->text(sprintf('  Days to resolve: %d', $days));
+        }
     }
 
     private function buildReExtractQueryBuilder(?string $source): \Doctrine\ORM\QueryBuilder

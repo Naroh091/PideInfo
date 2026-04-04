@@ -165,7 +165,7 @@ final class ResolutionAnalyzer
      *
      * @return array{formatted_text: string}
      */
-    private function formatText(string $cleanedText, bool $flex = false): array
+    public function formatText(string $cleanedText, bool $flex = false): array
     {
         $prompt = <<<'PROMPT'
 Actúa como un experto en derecho administrativo español. Formatea el texto de la resolución adjunta cumpliendo ESTRICTAMENTE las siguientes reglas.
@@ -206,7 +206,7 @@ PROMPT;
      *
      * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
-    private function extractAnalysis(string $cleanedText, bool $flex = false): array
+    public function extractAnalysis(string $cleanedText, bool $flex = false): array
     {
         $prompt = <<<'PROMPT'
 Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
@@ -219,10 +219,10 @@ REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera 
 
 [keypoints]
 - Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (ley aplicada, precedentes, motivos de estimación/desestimación).
-- Omite formalidades obvias (ej. "El Consejo es competente").
+- Omite formalidades obvias (ej. "El Consejo es competente para resolver", "La ley reconoce el derecho a solicitar información pública").
 
 [resolution_date] y [claim_date]
-- Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
+- Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes), si están presentes.
 
 [subject]
 - Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
