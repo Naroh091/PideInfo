@@ -11,6 +11,7 @@ use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\GaipApiReader;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
@@ -61,6 +62,7 @@ class LoadGAIPResolutionsCommand extends Command
         private readonly FilesystemOperator $resolutionsStorage,
         private readonly MessageBusInterface $messageBus,
         private readonly LoggerInterface $logger,
+        private readonly PublicBodyResolver $publicBodyResolver,
     ) {
         parent::__construct();
     }
@@ -282,6 +284,7 @@ class LoadGAIPResolutionsCommand extends Command
         $resolution->setScope($dto->scope);
         $resolution->setSubject($dto->subject ? mb_substr($dto->subject, 0, 500) : null);
         $resolution->setPublicBodyName($dto->publicBodyName);
+        $resolution->setPublicBody($this->publicBodyResolver->resolve($dto->publicBodyName));
         $resolution->setClaimReason($dto->claimReason);
         $resolution->setEntityType($dto->entityType);
         $resolution->setEntryYear($dto->entryYear);

@@ -14,6 +14,7 @@ use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\CtcylWebReader;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionProcessingTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
@@ -64,6 +65,7 @@ class LoadCTCYLResolutionsCommand extends Command
         private readonly FilesystemOperator $resolutionsStorage,
         private readonly MessageBusInterface $messageBus,
         private readonly LoggerInterface $logger,
+        private readonly PublicBodyResolver $publicBodyResolver,
     ) {
         parent::__construct();
     }
@@ -198,6 +200,7 @@ class LoadCTCYLResolutionsCommand extends Command
                 $this->entityManager->clear();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
                     'batch' => $batchIdx + 1,
@@ -209,6 +212,7 @@ class LoadCTCYLResolutionsCommand extends Command
                 $this->entityManager = $this->managerRegistry->getManager();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
                 continue;
             }
 
@@ -240,6 +244,7 @@ class LoadCTCYLResolutionsCommand extends Command
                     $this->entityManager = $this->managerRegistry->getManager();
                     $this->ccaaCache = [];
                     $this->organismCache = [];
+                    $this->publicBodyResolver->clearCache();
                 }
             }
 
@@ -341,6 +346,7 @@ class LoadCTCYLResolutionsCommand extends Command
 
         if ($dto->publicBodyName) {
             $resolution->setPublicBodyName($dto->publicBodyName);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($dto->publicBodyName));
         }
 
         if ($dto->claimReason) {

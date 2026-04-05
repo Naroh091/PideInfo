@@ -12,6 +12,7 @@ use App\Service\Resolution\CtpdaCsvReader;
 use App\Service\Resolution\CvtWebReader;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\CtpdWebReader;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionDateExtractor;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -43,6 +44,7 @@ final class ProcessResolutionHandler
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly CtcanWebReader $ctcanWebReader,
+        private readonly PublicBodyResolver $publicBodyResolver,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -497,6 +499,7 @@ final class ProcessResolutionHandler
         // Only set publicBodyName from PDF if not already set from CSV
         if ($metadata['publicBodyName'] && empty($resolution->getPublicBodyName())) {
             $resolution->setPublicBodyName($metadata['publicBodyName']);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($metadata['publicBodyName']));
         }
 
         if ($metadata['claimDate']) {
@@ -676,6 +679,7 @@ final class ProcessResolutionHandler
 
         if ($metadata['publicBodyName']) {
             $resolution->setPublicBodyName($metadata['publicBodyName']);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($metadata['publicBodyName']));
         }
 
         // Only override subject if not already set (new mode pre-sets it from DTO)

@@ -61,4 +61,22 @@ class PublicBodyRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    public function findOneByNameInsensitive(string $name): ?PublicBody
+    {
+        return $this->createQueryBuilder('pb')
+            ->where('LOWER(pb.name) = LOWER(:name)')
+            ->setParameter('name', $name)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    /**
+     * @return PublicBody[]
+     */
+    public function findAllOrdered(): array
+    {
+        return $this->findBy([], ['name' => 'ASC']);
+    }
 }
