@@ -18,12 +18,19 @@
                 </a>
             </div>
             <div class="flex items-center gap-3">
-                <a href="{{ path('app_login') }}" class="text-sm text-slate-600 hover:text-primary-600 transition-colors font-medium">
-                    Iniciar sesión
-                </a>
-                <a href="{{ path('app_register') }}" class="btn btn-primary btn-sm">
-                    Crear cuenta
-                </a>
+                {% if app.user %}
+                    <a href="{{ path('app_dashboard') }}" class="btn btn-primary btn-sm">
+                        <i data-lucide="layout-dashboard" class="w-4 h-4 mr-1.5"></i>
+                        Mi panel
+                    </a>
+                {% else %}
+                    <a href="{{ path('app_login') }}" class="text-sm text-slate-600 hover:text-primary-600 transition-colors font-medium">
+                        Iniciar sesión
+                    </a>
+                    <a href="{{ path('app_register') }}" class="btn btn-primary btn-sm">
+                        Crear cuenta
+                    </a>
+                {% endif %}
             </div>
         </div>
     </div>

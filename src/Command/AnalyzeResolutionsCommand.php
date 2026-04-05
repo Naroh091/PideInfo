@@ -133,6 +133,35 @@ class AnalyzeResolutionsCommand extends Command
         return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $batchSize, $io);
     }
 
+    /**
+     * @return \Doctrine\ORM\QueryBuilder
+     */
+    private function buildQueryBuilder(bool $force, ?string $source, string $mode = 'all'): \Doctrine\ORM\QueryBuilder
+    {
+        $qb = $this->resolutionRepository->createQueryBuilder('r')
+            ->where('r.fullText IS NOT NULL')
+            ->andWhere('r.fullText != :empty')
+            ->setParameter('empty', '')
+            ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate')
+            ->orderBy('sortDate', 'DESC');
+
+        if (!$force) {
+            if ($mode === 'analyze') {
+                $qb->andWhere('r.keypoints IS NULL');
+            } else {
+                $qb->andWhere('r.summary IS NULL OR r.summary = :emptySummary')
+                    ->setParameter('emptySummary', '');
+            }
+        }
+
+        if ($source) {
+            $qb->andWhere('r.source = :source')
+                ->setParameter('source', $source);
+        }
+
+        return $qb;
+    }
+
     private function processInBatches(bool $force, ?string $source, ?int $limit, bool $dryRun, bool $cleanOnly, bool $slow, bool $flex, string $mode, ?int $batchSize, SymfonyStyle $io): int
     {
         $processed = 0;
@@ -140,7 +169,7 @@ class AnalyzeResolutionsCommand extends Command
         $offset = 0;
 
         // Count total
-        $countQb = $this->buildQueryBuilder($force, $source);
+        $countQb = $this->buildQueryBuilder($force, $source, $mode);
         $total = (int) $countQb->select('COUNT(r.id)')->resetDQLPart('orderBy')->getQuery()->getSingleScalarResult();
 
         if ($limit !== null) {
@@ -166,7 +195,7 @@ class AnalyzeResolutionsCommand extends Command
                 $currentFetch = min($currentFetch, $limit - $processed - $errors);
             }
 
-            $qb = $this->buildQueryBuilder($force, $source);
+            $qb = $this->buildQueryBuilder($force, $source, $mode);
             $qb->setFirstResult($offset)->setMaxResults($currentFetch);
             $resolutions = $qb->getQuery()->getResult();
 
@@ -383,7 +412,7 @@ class AnalyzeResolutionsCommand extends Command
     {
         $qb = $reExtract
             ? $this->buildReExtractQueryBuilder($source)
-            : $this->buildQueryBuilder($force, $source);
+            : $this->buildQueryBuilder($force, $source, $mode);
 
         $qb->select('r.id')
             ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate');
@@ -472,28 +501,4 @@ class AnalyzeResolutionsCommand extends Command
         return $qb;
     }
 
-    /**
-     * @return \Doctrine\ORM\QueryBuilder
-     */
-    private function buildQueryBuilder(bool $force, ?string $source): \Doctrine\ORM\QueryBuilder
-    {
-        $qb = $this->resolutionRepository->createQueryBuilder('r')
-            ->where('r.fullText IS NOT NULL')
-            ->andWhere('r.fullText != :empty')
-            ->setParameter('empty', '')
-            ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate')
-            ->orderBy('sortDate', 'DESC');
-
-        if (!$force) {
-            $qb->andWhere('r.summary IS NULL OR r.summary = :emptySummary')
-                ->setParameter('emptySummary', '');
-        }
-
-        if ($source) {
-            $qb->andWhere('r.source = :source')
-                ->setParameter('source', $source);
-        }
-
-        return $qb;
-    }
 }

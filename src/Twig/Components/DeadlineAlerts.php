@@ -163,7 +163,7 @@ final class DeadlineAlerts extends AbstractController
         if ($daysUntil === 1) {
             return 'El plazo vence mañana';
         }
-        return sprintf('Quedan %d días para el vencimiento', $daysUntil);
+        return sprintf('Quedan %d días', $daysUntil);
     }
 
     private function getComplianceAlertMessage(int $daysUntil, bool $isPassed): string

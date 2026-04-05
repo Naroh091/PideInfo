@@ -4,46 +4,47 @@
     {% set dehuItems = this.dehuItems %}
 
     {% if portalItems|length > 0 %}
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6 animate-fade-in">
-        <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
-                <i data-lucide="bell-ring" class="w-5 h-5 text-amber-600"></i>
+    <div class="alert-banner alert-banner-amber mb-6 animate-fade-in">
+        <div class="alert-banner-stripe"></div>
+        <div class="flex items-start gap-4 p-5">
+            <div class="alert-banner-icon bg-amber-100 text-amber-600">
+                <i data-lucide="bell-ring" class="w-5 h-5"></i>
             </div>
-            <div class="flex-1">
-                <h3 class="font-semibold text-amber-800 text-base">
+            <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-slate-800">
                     {{ this.portalCount }} notificación{{ this.portalCount != 1 ? 'es' : '' }} pendiente{{ this.portalCount != 1 ? 's' : '' }} en el Portal de Transparencia
                 </h3>
-                <p class="text-sm text-amber-700 mt-1">
-                    El agente ha detectado notificaciones sin aceptar en el Portal de Transparencia.
+                <p class="text-sm text-slate-500 mt-1">
+                    El agente ha detectado notificaciones sin aceptar en el Portal.
                 </p>
 
-                <div class="mt-4 space-y-3">
+                <div class="mt-4 space-y-2">
                     {% for item in portalItems %}
                         <a href="{{ path('app_solicitudes_show', {id: item.request.id}) }}"
-                           class="block p-3 bg-white/70 rounded-lg border border-amber-100 hover:border-amber-300 transition-colors group">
+                           class="block p-3 bg-white rounded-lg border border-slate-200 hover:border-amber-300 transition-colors group">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-medium text-slate-800 group-hover:text-primary-600 transition-colors truncate">
+                                    <p class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">
                                         {{ item.request.title }}
                                     </p>
-                                    <p class="text-xs text-slate-500 mt-0.5">{{ item.request.publicBody.name }}</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">{{ item.request.publicBody.name }}</p>
                                 </div>
                                 <span class="badge badge-warning flex-shrink-0">
-                                    {{ item.notifications|length }} pendiente{{ item.notifications|length != 1 ? 's' : '' }}
+                                    {{ item.notifications|length }}
                                 </span>
                             </div>
                             <ul class="mt-2 space-y-1">
                                 {% for n in item.notifications %}
-                                    <li class="flex items-start gap-2 text-xs text-amber-800">
-                                        <i data-lucide="{{ n.esComunicacion is defined and n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-500"></i>
+                                    <li class="flex items-start gap-2 text-xs text-slate-600">
+                                        <i data-lucide="{{ n.esComunicacion is defined and n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-amber-400"></i>
                                         <span>
                                             <strong>{{ n.tipo }}</strong>
                                             {% if n.concepto is defined and n.concepto %} — {{ n.concepto }}{% endif %}
                                             {% if n.fechaEmision is defined %}
-                                                <span class="text-amber-600 ml-1">({{ n.fechaEmision }})</span>
+                                                <span class="text-slate-400">({{ n.fechaEmision }})</span>
                                             {% endif %}
                                             {% if n.fechaCaducidad is defined and n.fechaCaducidad %}
-                                                <span class="text-red-600 ml-1">· caduca {{ n.fechaCaducidad }}</span>
+                                                <span class="text-red-500 font-medium">· caduca {{ n.fechaCaducidad }}</span>
                                             {% endif %}
                                         </span>
                                     </li>
@@ -55,7 +56,7 @@
 
                 {% set firstNotification = portalItems[0].notifications[0] %}
                 {% if firstNotification.reportedAt is defined %}
-                    <p class="text-xs text-amber-500 mt-3">
+                    <p class="text-xs text-slate-400 mt-3">
                         Última actualización: {{ firstNotification.reportedAt|date('d/m/Y H:i') }}
                     </p>
                 {% endif %}
@@ -65,46 +66,47 @@
     {% endif %}
 
     {% if consejoItems|length > 0 %}
-    <div class="bg-purple-50 border border-purple-200 rounded-xl p-5 mb-6 animate-fade-in">
-        <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                <i data-lucide="scale" class="w-5 h-5 text-purple-600"></i>
+    <div class="alert-banner alert-banner-purple mb-6 animate-fade-in">
+        <div class="alert-banner-stripe"></div>
+        <div class="flex items-start gap-4 p-5">
+            <div class="alert-banner-icon bg-purple-100 text-purple-600">
+                <i data-lucide="scale" class="w-5 h-5"></i>
             </div>
-            <div class="flex-1">
-                <h3 class="font-semibold text-purple-800 text-base">
+            <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-slate-800">
                     {{ this.consejoCount }} notificación{{ this.consejoCount != 1 ? 'es' : '' }} pendiente{{ this.consejoCount != 1 ? 's' : '' }} en el Consejo de Transparencia
                 </h3>
-                <p class="text-sm text-purple-700 mt-1">
-                    El agente ha detectado notificaciones sin aceptar en el Consejo de Transparencia y Buen Gobierno.
+                <p class="text-sm text-slate-500 mt-1">
+                    El agente ha detectado notificaciones sin aceptar en el CTBG.
                 </p>
 
-                <div class="mt-4 space-y-3">
+                <div class="mt-4 space-y-2">
                     {% for item in consejoItems %}
                         <a href="{{ path('app_solicitudes_show', {id: item.request.id}) }}"
-                           class="block p-3 bg-white/70 rounded-lg border border-purple-100 hover:border-purple-300 transition-colors group">
+                           class="block p-3 bg-white rounded-lg border border-slate-200 hover:border-purple-300 transition-colors group">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-medium text-slate-800 group-hover:text-primary-600 transition-colors truncate">
+                                    <p class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">
                                         {{ item.request.title }}
                                     </p>
-                                    <p class="text-xs text-slate-500 mt-0.5">{{ item.request.publicBody.name }}</p>
+                                    <p class="text-xs text-slate-400 mt-0.5">{{ item.request.publicBody.name }}</p>
                                 </div>
-                                <span class="badge badge-purple flex-shrink-0">
-                                    {{ item.notifications|length }} pendiente{{ item.notifications|length != 1 ? 's' : '' }}
+                                <span class="badge" style="background: #f3e8ff; color: #7c3aed">
+                                    {{ item.notifications|length }}
                                 </span>
                             </div>
                             <ul class="mt-2 space-y-1">
                                 {% for n in item.notifications %}
-                                    <li class="flex items-start gap-2 text-xs text-purple-800">
-                                        <i data-lucide="{{ n.esComunicacion is defined and n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-purple-500"></i>
+                                    <li class="flex items-start gap-2 text-xs text-slate-600">
+                                        <i data-lucide="{{ n.esComunicacion is defined and n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-purple-400"></i>
                                         <span>
                                             <strong>{{ n.tipo }}</strong>
                                             {% if n.concepto is defined and n.concepto %} — {{ n.concepto }}{% endif %}
                                             {% if n.fechaEmision is defined %}
-                                                <span class="text-purple-600 ml-1">({{ n.fechaEmision }})</span>
+                                                <span class="text-slate-400">({{ n.fechaEmision }})</span>
                                             {% endif %}
                                             {% if n.fechaCaducidad is defined and n.fechaCaducidad %}
-                                                <span class="text-red-600 ml-1">· caduca {{ n.fechaCaducidad }}</span>
+                                                <span class="text-red-500 font-medium">· caduca {{ n.fechaCaducidad }}</span>
                                             {% endif %}
                                         </span>
                                     </li>
@@ -116,7 +118,7 @@
 
                 {% set firstConsejoNotif = consejoItems[0].notifications[0] %}
                 {% if firstConsejoNotif.reportedAt is defined %}
-                    <p class="text-xs text-purple-500 mt-3">
+                    <p class="text-xs text-slate-400 mt-3">
                         Última actualización: {{ firstConsejoNotif.reportedAt|date('d/m/Y H:i') }}
                     </p>
                 {% endif %}
@@ -126,33 +128,34 @@
     {% endif %}
 
     {% if dehuItems|length > 0 %}
-    <div class="bg-teal-50 border border-teal-200 rounded-xl p-5 mb-6 animate-fade-in">
-        <div class="flex items-start gap-4">
-            <div class="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center flex-shrink-0">
-                <i data-lucide="mail-open" class="w-5 h-5 text-teal-600"></i>
+    <div class="alert-banner alert-banner-teal mb-6 animate-fade-in">
+        <div class="alert-banner-stripe"></div>
+        <div class="flex items-start gap-4 p-5">
+            <div class="alert-banner-icon bg-teal-100 text-teal-600">
+                <i data-lucide="mail-open" class="w-5 h-5"></i>
             </div>
-            <div class="flex-1">
-                <h3 class="font-semibold text-teal-800 text-base">
-                    {{ this.dehuCount }} potencial{{ this.dehuCount != 1 ? 'es' : '' }} notificación{{ this.dehuCount != 1 ? 'es' : '' }} a solicitudes de transparencia en DEHú
+            <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-slate-800">
+                    {{ this.dehuCount }} posible{{ this.dehuCount != 1 ? 's' : '' }} notificación{{ this.dehuCount != 1 ? 'es' : '' }} de transparencia en DEHú
                 </h3>
-                <p class="text-sm text-teal-700 mt-1">
-                    El agente ha detectado notificaciones en DEHú / RedSARA que podrían estar relacionadas con solicitudes de transparencia.
+                <p class="text-sm text-slate-500 mt-1">
+                    Notificaciones en DEHú / RedSARA que podrían estar relacionadas con solicitudes de transparencia.
                 </p>
 
                 <div class="mt-4 space-y-2">
                     {% for n in dehuItems %}
-                        <div class="p-3 bg-white/70 rounded-lg border border-teal-100">
+                        <div class="p-3 bg-white rounded-lg border border-slate-200">
                             <div class="flex items-center justify-between gap-3">
                                 <div class="min-w-0">
-                                    <p class="font-medium text-slate-800 truncate text-sm">
+                                    <p class="text-sm font-medium text-slate-700 truncate">
                                         {{ n.emisor ?? '—' }}
                                     </p>
                                     <p class="text-xs text-slate-400 mt-0.5 font-mono">
-                                        ID: {{ (n.notificationId ?? '')|slice(0, 16) }}…
+                                        {{ (n.notificationId ?? '')|slice(0, 16) }}…
                                     </p>
                                 </div>
                                 {% if n.fechaEmision is defined and n.fechaEmision %}
-                                    <span class="text-xs text-teal-600 flex-shrink-0">{{ n.fechaEmision }}</span>
+                                    <span class="text-xs text-slate-400 flex-shrink-0">{{ n.fechaEmision }}</span>
                                 {% endif %}
                             </div>
                         </div>
@@ -160,7 +163,7 @@
                 </div>
 
                 {% if dehuItems[0].reportedAt is defined %}
-                    <p class="text-xs text-teal-500 mt-3">
+                    <p class="text-xs text-slate-400 mt-3">
                         Última actualización: {{ dehuItems[0].reportedAt|date('d/m/Y H:i') }}
                     </p>
                 {% endif %}
