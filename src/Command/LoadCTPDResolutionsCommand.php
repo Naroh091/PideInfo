@@ -12,6 +12,7 @@ use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\CtpdWebReader;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
@@ -52,6 +53,7 @@ class LoadCTPDResolutionsCommand extends Command
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly CtpdWebReader $ctpdReader,
+        private readonly PublicBodyResolver $publicBodyResolver,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionDateExtractor $dateExtractor,
         private readonly ResolutionRepository $resolutionRepository,
@@ -199,6 +201,7 @@ class LoadCTPDResolutionsCommand extends Command
                 $this->entityManager->clear();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
                     'batch' => $batchIdx + 1,
@@ -210,6 +213,7 @@ class LoadCTPDResolutionsCommand extends Command
                 $this->entityManager = $this->managerRegistry->getManager();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
 
                 continue;
             }
@@ -242,6 +246,7 @@ class LoadCTPDResolutionsCommand extends Command
                     $this->entityManager = $this->managerRegistry->getManager();
                     $this->ccaaCache = [];
                     $this->organismCache = [];
+                    $this->publicBodyResolver->clearCache();
                 }
             }
 
@@ -337,6 +342,7 @@ class LoadCTPDResolutionsCommand extends Command
 
         if ($metadata['publicBodyName']) {
             $resolution->setPublicBodyName($metadata['publicBodyName']);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($metadata['publicBodyName']));
             $io->text(sprintf('  Public body: %s', $metadata['publicBodyName']));
         }
 

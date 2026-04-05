@@ -12,6 +12,7 @@ use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\CvtWebReader;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
@@ -52,6 +53,7 @@ class LoadCVTResolutionsCommand extends Command
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly CvtWebReader $cvtReader,
+        private readonly PublicBodyResolver $publicBodyResolver,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionDateExtractor $dateExtractor,
         private readonly ResolutionRepository $resolutionRepository,
@@ -192,6 +194,7 @@ class LoadCVTResolutionsCommand extends Command
                 $this->entityManager->clear();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
                     'batch' => $batchIdx + 1,
@@ -203,6 +206,7 @@ class LoadCVTResolutionsCommand extends Command
                 $this->entityManager = $this->managerRegistry->getManager();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
 
                 continue;
             }
@@ -235,6 +239,7 @@ class LoadCVTResolutionsCommand extends Command
                     $this->entityManager = $this->managerRegistry->getManager();
                     $this->ccaaCache = [];
                     $this->organismCache = [];
+                    $this->publicBodyResolver->clearCache();
                 }
             }
 
@@ -366,6 +371,7 @@ class LoadCVTResolutionsCommand extends Command
 
         if ($dto->publicBodyName) {
             $resolution->setPublicBodyName($dto->publicBodyName);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($dto->publicBodyName));
         }
 
         if ($dto->subject) {

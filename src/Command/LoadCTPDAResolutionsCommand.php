@@ -12,6 +12,7 @@ use App\Repository\ComplaintOrganismRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\CtpdaCsvReader;
+use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\ResolutionDateExtractor;
 use App\Service\Resolution\ResolutionProcessingTrait;
@@ -52,6 +53,7 @@ class LoadCTPDAResolutionsCommand extends Command
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly CtpdaCsvReader $csvReader,
+        private readonly PublicBodyResolver $publicBodyResolver,
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionDateExtractor $dateExtractor,
         private readonly ResolutionRepository $resolutionRepository,
@@ -174,6 +176,7 @@ class LoadCTPDAResolutionsCommand extends Command
                 $this->entityManager->clear();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
                     'batch' => $batchIdx + 1,
@@ -185,6 +188,7 @@ class LoadCTPDAResolutionsCommand extends Command
                 $this->entityManager = $this->managerRegistry->getManager();
                 $this->ccaaCache = [];
                 $this->organismCache = [];
+                $this->publicBodyResolver->clearCache();
 
                 continue;
             }
@@ -217,6 +221,7 @@ class LoadCTPDAResolutionsCommand extends Command
                     $this->entityManager = $this->managerRegistry->getManager();
                     $this->ccaaCache = [];
                     $this->organismCache = [];
+                    $this->publicBodyResolver->clearCache();
                 }
             }
 
@@ -309,6 +314,7 @@ class LoadCTPDAResolutionsCommand extends Command
         // Only set publicBodyName from PDF if not already set from CSV
         if ($metadata['publicBodyName'] && empty($resolution->getPublicBodyName())) {
             $resolution->setPublicBodyName($metadata['publicBodyName']);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($metadata['publicBodyName']));
             $io->text(sprintf('  Public body (PDF): %s', $metadata['publicBodyName']));
         }
 
@@ -358,6 +364,7 @@ class LoadCTPDAResolutionsCommand extends Command
 
         if ($dto->publicBodyName) {
             $resolution->setPublicBodyName($dto->publicBodyName);
+            $resolution->setPublicBody($this->publicBodyResolver->resolve($dto->publicBodyName));
         }
 
         if ($dto->sourceUrl) {
