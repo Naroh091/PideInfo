@@ -385,6 +385,36 @@ body {
   font-size: 1.25rem;
 }
 
+.home-repo-section {
+  background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+}
+
+.home-repo-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 80% 30%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 20% 70%, rgba(3, 105, 161, 0.05) 0%, transparent 40%);
+  pointer-events: none;
+}
+
+.home-repo-preview {
+  @apply bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200 p-5;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.home-repo-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 99px;
+  overflow: hidden;
+  gap: 2px;
+}
+
+.home-repo-bar-seg {
+  border-radius: 99px;
+}
+
 .home-quote {
   @apply relative pl-6 py-3 text-slate-700 italic max-w-3xl mx-auto;
   border-left: 4px solid var(--color-primary-400);
@@ -1258,4 +1288,54 @@ body {
 
 .guide-content hr {
   @apply border-slate-200 my-8;
+}
+
+/* ── Public body profile ── */
+
+.organism-chip {
+  @apply flex items-center gap-3 bg-white rounded-xl border border-slate-200 p-3 transition-all duration-200;
+}
+
+.organism-chip:hover {
+  @apply border-primary-200 shadow-sm;
+  transform: translateY(-1px);
+}
+
+.organism-chip-img {
+  @apply w-10 h-10 rounded-lg object-contain bg-slate-50 border border-slate-100 flex-shrink-0;
+}
+
+.organism-chip-count {
+  @apply text-xs font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full;
+}
+
+/* ── Year breakdown chart ── */
+
+.year-row {
+  @apply flex items-center gap-3 py-1.5;
+}
+
+.year-label {
+  @apply text-sm font-mono text-slate-500 w-12 flex-shrink-0 tabular-nums;
+}
+
+.year-bar-container {
+  @apply flex-1 flex h-5 rounded-md overflow-hidden gap-px bg-slate-100;
+}
+
+.year-bar-segment {
+  @apply h-full transition-all duration-300;
+  min-width: 2px;
+}
+
+.year-bar-count {
+  @apply text-xs text-slate-400 w-10 text-right flex-shrink-0 tabular-nums;
+}
+
+.profile-section {
+  @apply bg-white rounded-xl border border-slate-200 p-5;
+}
+
+.profile-section-title {
+  @apply text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2;
 }

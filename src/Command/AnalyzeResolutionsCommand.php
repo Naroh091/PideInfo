@@ -382,7 +382,7 @@ class AnalyzeResolutionsCommand extends Command
                     'analyze' => 'analyze-only',
                     default => 'full',
                 };
-                $io->text(sprintf('  Calling Gemini API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
+                $io->text(sprintf('  Calling LLM API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
 
                 $result = match ($mode) {
                     'format' => $this->analyzer->formatText($cleanedText, flex: $flex),

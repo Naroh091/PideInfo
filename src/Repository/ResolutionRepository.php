@@ -162,6 +162,7 @@ class ResolutionRepository extends ServiceEntityRepository
                 ->select(
                     'MIN(r.resolutionDate) as dateFrom',
                     'MAX(r.resolutionDate) as dateTo',
+                    'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
                     'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
                     'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
                     'SUM(CASE WHEN r.outcome IN (:unfavorable) THEN 1 ELSE 0 END) as unfavorableCount',
@@ -178,9 +179,10 @@ class ResolutionRepository extends ServiceEntityRepository
             return [
                 'dateFrom' => $result['dateFrom'],
                 'dateTo' => $result['dateTo'],
+                'totalWithOutcome' => (int) $result['totalWithOutcome'],
                 'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
                 'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
-                'meanDaysToResolve' => $result['avgDays'] !== null ? round((float) $result['avgDays']) : null,
+                'meanDaysToResolve' => $result['avgDays'] !== null ? (int) round((float) $result['avgDays']) : null,
             ];
         });
     }
@@ -262,8 +264,13 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         if (!empty($filters['publicBody'])) {
-            $qb->andWhere('LOWER(r.publicBodyName) LIKE LOWER(:publicBody)')
-                ->setParameter('publicBody', '%' . $filters['publicBody'] . '%');
+            if (!empty($filters['publicBodyExact'])) {
+                $qb->andWhere('LOWER(r.publicBodyName) = LOWER(:publicBody)')
+                    ->setParameter('publicBody', $filters['publicBody']);
+            } else {
+                $qb->andWhere('LOWER(r.publicBodyName) LIKE LOWER(:publicBody)')
+                    ->setParameter('publicBody', '%' . $filters['publicBody'] . '%');
+            }
         }
 
         if (!empty($filters['keyword'])) {
@@ -282,6 +289,180 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         return $qb;
+    }
+
+    /**
+     * @return array{totalWithOutcome: int, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?int}
+     */
+    public function getFilteredAggregates(array $filters): array
+    {
+        $qb = $this->createFilteredQueryBuilder($filters)
+            ->select(
+                'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
+                'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
+                'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
+                'SUM(CASE WHEN r.outcome IN (:unfavorable) THEN 1 ELSE 0 END) as unfavorableCount',
+                'AVG(r.daysToResolve) as avgDays'
+            )
+            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT])
+            ->setParameter('unfavorable', [Resolution::OUTCOME_UNFAVORABLE, Resolution::OUTCOME_INADMISSIBLE]);
+
+        $result = $qb->getQuery()->getSingleResult();
+
+        $favorableCount = (int) $result['favorableCount'];
+        $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
+
+        return [
+            'totalWithOutcome' => (int) $result['totalWithOutcome'],
+            'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
+            'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
+            'meanDaysToResolve' => $result['avgDays'] !== null ? (int) round((float) $result['avgDays']) : null,
+        ];
+    }
+
+    /**
+     * @return array<array{id: string, name: string, shortName: ?string, slug: ?string, image: ?string, resolutionCount: int}>
+     */
+    /**
+     * @return array<array{name: string, slug: ?string, level: string, count: int, favorable: int, unfavorable: int, inadmissible: int, avg_days: ?float}>
+     */
+    public function getPublicBodyStats(string $search = '', int $page = 1, int $limit = 30): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        $where = '';
+        $params = [];
+        $types = [];
+
+        if ($search !== '') {
+            $where = 'HAVING LOWER(pb.name) LIKE LOWER(:search)';
+            $params['search'] = '%' . $search . '%';
+        }
+
+        $params['limit'] = $limit;
+        $params['offset'] = ($page - 1) * $limit;
+        $types['limit'] = \Doctrine\DBAL\ParameterType::INTEGER;
+        $types['offset'] = \Doctrine\DBAL\ParameterType::INTEGER;
+
+        return $conn->fetchAllAssociative(
+            "SELECT pb.name, pb.slug, pb.level,
+                    COUNT(r.id)::int AS count,
+                    SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
+                    SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
+                    SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
+                    ROUND(AVG(r.days_to_resolve))::int AS avg_days
+             FROM public_body pb
+             JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
+             GROUP BY pb.id, pb.name, pb.slug, pb.level
+             {$where}
+             ORDER BY count DESC
+             LIMIT :limit OFFSET :offset",
+            $params,
+            $types
+        );
+    }
+
+    public function countPublicBodyStats(string $search = ''): int
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        $where = '';
+        $params = [];
+
+        if ($search !== '') {
+            $where = 'HAVING LOWER(pb.name) LIKE LOWER(:search)';
+            $params['search'] = '%' . $search . '%';
+        }
+
+        $result = $conn->fetchOne(
+            "SELECT COUNT(*) FROM (
+                SELECT pb.id
+                FROM public_body pb
+                JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
+                GROUP BY pb.id, pb.name
+                {$where}
+            ) sub",
+            $params
+        );
+
+        return (int) $result;
+    }
+
+    /**
+     * Rankings: returns ALL public bodies (no pagination) for computing top-N lists.
+     * @return array<array{name: string, slug: ?string, level: string, count: int, favorable: int, unfavorable: int, inadmissible: int, avg_days: ?float}>
+     */
+    public function getPublicBodyRankings(): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        return $conn->fetchAllAssociative(
+            "SELECT pb.name, pb.slug, pb.level,
+                    COUNT(r.id)::int AS count,
+                    SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
+                    SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
+                    SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
+                    ROUND(AVG(r.days_to_resolve))::int AS avg_days
+             FROM public_body pb
+             JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
+             GROUP BY pb.id, pb.name, pb.slug, pb.level
+             ORDER BY count DESC"
+        );
+    }
+
+    public function getDistinctOrganismsForPublicBody(string $publicBodyName): array
+    {
+        return $this->createQueryBuilder('r')
+            ->select('co.id, co.name, co.shortName, co.slug, co.image, COUNT(r.id) as resolutionCount')
+            ->join('r.complaintOrganism', 'co')
+            ->where('LOWER(r.publicBodyName) = LOWER(:publicBody)')
+            ->setParameter('publicBody', $publicBodyName)
+            ->groupBy('co.id, co.name, co.shortName, co.slug, co.image')
+            ->orderBy('resolutionCount', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return array<array{year: int, favorable: int, unfavorable: int, other: int, total: int}>
+     */
+    public function getYearlyBreakdown(string $publicBodyName): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        return $conn->fetchAllAssociative(
+            "SELECT EXTRACT(YEAR FROM r.resolution_date)::int AS year,
+                    SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
+                    SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
+                    SUM(CASE WHEN r.outcome NOT IN ('favorable','partial','acuerdo_mediacion','unfavorable','inadmissible') OR r.outcome IS NULL THEN 1 ELSE 0 END)::int AS other,
+                    COUNT(*)::int AS total
+             FROM resolution r
+             WHERE LOWER(r.public_body_name) = LOWER(:publicBody)
+               AND r.resolution_date IS NOT NULL
+             GROUP BY year
+             ORDER BY year ASC",
+            ['publicBody' => $publicBodyName]
+        );
+    }
+
+    /**
+     * @return array<array{keyword: string, count: int}>
+     */
+    public function getTopKeywords(string $publicBodyName, int $limit = 10): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        return $conn->fetchAllAssociative(
+            "SELECT LOWER(TRIM(kw)) AS keyword, COUNT(*) AS count
+             FROM resolution r, jsonb_array_elements_text(r.keywords) AS kw
+             WHERE r.keywords IS NOT NULL
+               AND LOWER(r.public_body_name) = LOWER(:publicBody)
+             GROUP BY keyword
+             ORDER BY count DESC
+             LIMIT :limit",
+            ['publicBody' => $publicBodyName, 'limit' => $limit],
+            ['limit' => \Doctrine\DBAL\ParameterType::INTEGER]
+        );
     }
 
     public function invalidateListingCache(): void
