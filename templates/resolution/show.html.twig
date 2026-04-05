@@ -104,7 +104,16 @@
                         {% if resolution.publicBodyName %}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Organismo reclamado</label>
-                            <div class="mt-1 text-sm text-slate-700">{{ resolution.publicBodyName }}</div>
+                            <div class="mt-1.5 text-sm">
+                                {% if publicBody is defined and publicBody and publicBody.slug %}
+                                    <a href="{{ path('app_resoluciones_reclamado', { slug: publicBody.slug }) }}"
+                                       class="text-primary-600 hover:text-primary-700 font-medium transition-colors">
+                                        {{ resolution.publicBodyName }}
+                                    </a>
+                                {% else %}
+                                    <span class="text-slate-700">{{ resolution.publicBodyName }}</span>
+                                {% endif %}
+                            </div>
                         </div>
                         {% endif %}
                         <div class="p-4">

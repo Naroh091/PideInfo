@@ -63,9 +63,92 @@ class ResolutionController extends AbstractController
 
         $filters = $this->extractFilters($request);
         $filters['publicBody'] = $publicBody->getName();
+        $filters['publicBodyExact'] = true;
 
-        return $this->renderList($resolutionRepository, $organismRepository, $filters, $request, [
-            'activePublicBody' => $publicBody,
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = 50;
+
+        $resolutions = $resolutionRepository->findFilteredPaginated($filters, $page, $limit);
+        $total = $resolutionRepository->countFiltered($filters);
+        $totalPages = max(1, (int) ceil($total / $limit));
+
+        $contextFilters = ['publicBody' => $publicBody->getName(), 'publicBodyExact' => true];
+        $outcomeStats = $resolutionRepository->getOutcomeStats($contextFilters);
+        $cardStats = $resolutionRepository->getFilteredAggregates($contextFilters);
+
+        $distinctOrganisms = $resolutionRepository->getDistinctOrganismsForPublicBody($publicBody->getName());
+        $yearlyBreakdown = $resolutionRepository->getYearlyBreakdown($publicBody->getName());
+        $topKeywords = $resolutionRepository->getTopKeywords($publicBody->getName(), 15);
+
+        return $this->render('resolution/public_body.html.twig', [
+            'publicBody' => $publicBody,
+            'resolutions' => $resolutions,
+            'organisms' => $organismRepository->findAllOrdered(),
+            'filters' => $filters,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'total' => $total,
+            'outcomeStats' => $outcomeStats,
+            'cardStats' => $cardStats,
+            'distinctOrganisms' => $distinctOrganisms,
+            'yearlyBreakdown' => $yearlyBreakdown,
+            'topKeywords' => $topKeywords,
+        ]);
+    }
+
+    #[Route('/reclamados', name: 'app_resoluciones_reclamados')]
+    public function publicBodies(Request $request, ResolutionRepository $resolutionRepository): Response
+    {
+        $search = $request->query->get('search', '');
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = 30;
+
+        $publicBodies = $resolutionRepository->getPublicBodyStats($search, $page, $limit);
+        $total = $resolutionRepository->countPublicBodyStats($search);
+        $totalPages = max(1, (int) ceil($total / $limit));
+
+        $enrich = function (array $pb): array {
+            $decisive = $pb['favorable'] + $pb['unfavorable'];
+            $pb['lossRate'] = $decisive > 0 ? round($pb['favorable'] / $decisive * 100) : 0;
+            $pb['decisive'] = $decisive;
+
+            return $pb;
+        };
+
+        $enriched = array_map($enrich, $publicBodies);
+
+        // Rankings: computed from full dataset (not paginated), only on first page without search
+        $rankings = [];
+        $minCases = 5;
+        if ($page === 1 && $search === '') {
+            $all = array_map($enrich, $resolutionRepository->getPublicBodyRankings());
+            $withEnoughCases = array_filter($all, fn (array $pb) => $pb['decisive'] >= $minCases);
+
+            $topLosersByPct = $withEnoughCases;
+            usort($topLosersByPct, fn ($a, $b) => $b['lossRate'] <=> $a['lossRate'] ?: $b['favorable'] <=> $a['favorable']);
+
+            $topLosersByAbs = $all;
+            usort($topLosersByAbs, fn ($a, $b) => $b['favorable'] <=> $a['favorable']);
+
+            $neverLose = array_filter($withEnoughCases, fn (array $pb) => $pb['lossRate'] === 0.0 || $pb['lossRate'] === 0);
+            usort($neverLose, fn ($a, $b) => $b['decisive'] <=> $a['decisive']);
+
+            $rankings = [
+                'topLosersByPct' => array_slice($topLosersByPct, 0, 5),
+                'topLosersByAbs' => array_slice($topLosersByAbs, 0, 5),
+                'mostComplained' => array_slice($all, 0, 5),
+                'neverLose' => array_slice($neverLose, 0, 5),
+            ];
+        }
+
+        return $this->render('resolution/public_bodies.html.twig', [
+            'publicBodies' => $enriched,
+            'rankings' => $rankings,
+            'minCases' => $minCases,
+            'search' => $search,
+            'page' => $page,
+            'totalPages' => $totalPages,
+            'total' => $total,
         ]);
     }
 
@@ -82,10 +165,15 @@ class ResolutionController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_resoluciones_show')]
-    public function show(Resolution $resolution): Response
+    public function show(Resolution $resolution, PublicBodyRepository $publicBodyRepository): Response
     {
+        $publicBody = $resolution->getPublicBodyName()
+            ? $publicBodyRepository->findOneBy(['name' => $resolution->getPublicBodyName()])
+            : null;
+
         return $this->render('resolution/show.html.twig', [
             'resolution' => $resolution,
+            'publicBody' => $publicBody,
         ]);
     }
 
@@ -116,11 +204,27 @@ class ResolutionController extends AbstractController
         $total = $resolutionRepository->countFiltered($filters);
         $totalPages = max(1, (int) ceil($total / $limit));
         $outcomeStats = $resolutionRepository->getOutcomeStats($filters);
+        $globalStats = $resolutionRepository->getGlobalStats();
+
+        // Card stats: only vary by organism/publicBody, never by search/keyword/date filters
+        $isContextual = !empty($filters['organism']) || !empty($filters['publicBody']);
+        if ($isContextual) {
+            $contextFilters = array_intersect_key($filters, array_flip(['organism', 'publicBody']));
+            $cardStats = $resolutionRepository->getFilteredAggregates($contextFilters);
+        } else {
+            $cardStats = [
+                'totalWithOutcome' => $globalStats['totalWithOutcome'],
+                'successRate' => $globalStats['successRate'],
+                'distinctPublicBodies' => $globalStats['distinctPublicBodies'],
+                'meanDaysToResolve' => $globalStats['meanDaysToResolve'],
+            ];
+        }
 
         return $this->render('resolution/index.html.twig', array_merge([
             'resolutions' => $resolutions,
             'organisms' => $organismRepository->findAllOrdered(),
-            'globalStats' => $resolutionRepository->getGlobalStats(),
+            'globalStats' => $globalStats,
+            'cardStats' => $cardStats,
             'filters' => $filters,
             'page' => $page,
             'totalPages' => $totalPages,

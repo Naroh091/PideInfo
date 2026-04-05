@@ -175,28 +175,37 @@
             </div>
         </div>
 
-        {# Stat cards #}
-        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3 mt-6">
+        {# Stat cards — fixed per context (global / organism / public body), not affected by search filters #}
+        {% set isOrganismView = activeOrganism is defined and activeOrganism %}
+        {% set isPublicBodyView = activePublicBody is defined and activePublicBody %}
+        {% set isContextual = isOrganismView or isPublicBodyView %}
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 {{ not isContextual ? 'lg:grid-cols-5' }} gap-3 mt-6">
             <div class="stat-tile" style="animation-delay: 0.15s">
-                <div class="stat-tile-value">{{ totalResolutions }}</div>
+                <div class="stat-tile-value">{{ cardStats.totalWithOutcome }}</div>
                 <div class="stat-tile-label">Resoluciones</div>
             </div>
             <div class="stat-tile stat-tile-accent" style="animation-delay: 0.2s">
-                <div class="stat-tile-value">{{ globalStats.successRate }}%</div>
+                <div class="stat-tile-value">{{ cardStats.successRate }}%</div>
                 <div class="stat-tile-label">Tasa de estimación</div>
                 <div class="stat-tile-sub">Favorables / (favorables + desfavorables)</div>
             </div>
+            {% if not isContextual %}
             <div class="stat-tile" style="animation-delay: 0.25s">
                 <div class="stat-tile-value">{{ organisms|length }}</div>
                 <div class="stat-tile-label">Consejos</div>
             </div>
-            <div class="stat-tile" style="animation-delay: 0.3s">
-                <div class="stat-tile-value">{{ globalStats.distinctPublicBodies }}</div>
-                <div class="stat-tile-label">Organismos reclamados</div>
-            </div>
-            {% if globalStats.meanDaysToResolve %}
+            {% endif %}
+            <a href="{{ path('app_resoluciones_reclamados') }}" class="stat-tile group" style="animation-delay: 0.3s">
+                <div class="flex items-center justify-between">
+                    <div class="stat-tile-value">{{ cardStats.distinctPublicBodies }}</div>
+                    <i data-lucide="arrow-right" class="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors"></i>
+                </div>
+                <div class="stat-tile-label">Administraciones reclamadas</div>
+            </a>
+            {% if cardStats.meanDaysToResolve %}
             <div class="stat-tile stat-tile-warm" style="animation-delay: 0.35s">
-                <div class="stat-tile-value">{{ globalStats.meanDaysToResolve }}</div>
+                <div class="stat-tile-value">{{ cardStats.meanDaysToResolve }}</div>
                 <div class="stat-tile-label">Días de media</div>
                 <div class="stat-tile-sub">En resolver la reclamación</div>
             </div>
@@ -415,7 +424,7 @@
                     {% if totalPages > 1 %}
                         <div class="mt-6 flex items-center justify-between">
                             <p class="text-sm text-slate-500">
-                                {{ ((page - 1) * 12) + 1 }}–{{ min(page * 12, total) }} de {{ total }}
+                                {{ ((page - 1) * 50) + 1 }}–{{ min(page * 50, total) }} de {{ total }}
                             </p>
                             <nav class="flex items-center gap-1" aria-label="Paginación">
                                 {% if page > 3 %}
