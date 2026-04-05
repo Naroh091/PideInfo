@@ -163,21 +163,23 @@ class ResolutionRepository extends ServiceEntityRepository
                     'MIN(r.resolutionDate) as dateFrom',
                     'MAX(r.resolutionDate) as dateTo',
                     'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
-                    'COUNT(r.id) as total',
                     'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
+                    'SUM(CASE WHEN r.outcome IN (:unfavorable) THEN 1 ELSE 0 END) as unfavorableCount',
                     'AVG(r.daysToResolve) as avgDays'
                 )
-                ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT]);
+                ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT])
+                ->setParameter('unfavorable', [Resolution::OUTCOME_UNFAVORABLE, Resolution::OUTCOME_INADMISSIBLE]);
 
             $result = $qb->getQuery()->getSingleResult();
 
-            $total = (int) $result['total'];
+            $favorableCount = (int) $result['favorableCount'];
+            $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
 
             return [
                 'dateFrom' => $result['dateFrom'],
                 'dateTo' => $result['dateTo'],
                 'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
-                'successRate' => $total > 0 ? round(((int) $result['favorableCount']) / $total * 100) : 0,
+                'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
                 'meanDaysToResolve' => $result['avgDays'] !== null ? round((float) $result['avgDays']) : null,
             ];
         });
