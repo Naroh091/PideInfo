@@ -182,7 +182,7 @@
 
         <div class="grid grid-cols-2 sm:grid-cols-4 {{ not isContextual ? 'lg:grid-cols-5' }} gap-3 mt-6">
             <div class="stat-tile" style="animation-delay: 0.15s">
-                <div class="stat-tile-value">{{ cardStats.totalWithOutcome }}</div>
+                <div class="stat-tile-value">{{ cardStats.totalCount }}</div>
                 <div class="stat-tile-label">Resoluciones</div>
             </div>
             <div class="stat-tile stat-tile-accent" style="animation-delay: 0.2s">
@@ -261,7 +261,7 @@
                                     data-tom-select-placeholder-value="Todos">
                                 <option value="">Todos</option>
                                 <option value="favorable" {{ filters.outcome == 'favorable' ? 'selected' }}>Estimada</option>
-                                <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Parcial</option>
+                                <option value="partial" {{ filters.outcome == 'partial' ? 'selected' }}>Estimación parcial</option>
                                 <option value="acuerdo_mediacion" {{ filters.outcome == 'acuerdo_mediacion' ? 'selected' }}>Acuerdo de mediación</option>
                                 <option value="unfavorable" {{ filters.outcome == 'unfavorable' ? 'selected' }}>Desestimada</option>
                                 <option value="inadmissible" {{ filters.outcome == 'inadmissible' ? 'selected' }}>Inadmitida</option>
