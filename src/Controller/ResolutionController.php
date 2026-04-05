@@ -213,6 +213,7 @@ class ResolutionController extends AbstractController
             $cardStats = $resolutionRepository->getFilteredAggregates($contextFilters);
         } else {
             $cardStats = [
+                'totalCount' => $globalStats['totalCount'],
                 'totalWithOutcome' => $globalStats['totalWithOutcome'],
                 'successRate' => $globalStats['successRate'],
                 'distinctPublicBodies' => $globalStats['distinctPublicBodies'],

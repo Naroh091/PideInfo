@@ -160,6 +160,7 @@ class ResolutionRepository extends ServiceEntityRepository
         return $this->cache->get('resolutions_global_stats', function (): array {
             $qb = $this->createQueryBuilder('r')
                 ->select(
+                    'COUNT(r.id) as totalCount',
                     'MIN(r.resolutionDate) as dateFrom',
                     'MAX(r.resolutionDate) as dateTo',
                     'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
@@ -177,6 +178,7 @@ class ResolutionRepository extends ServiceEntityRepository
             $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
 
             return [
+                'totalCount' => (int) $result['totalCount'],
                 'dateFrom' => $result['dateFrom'],
                 'dateTo' => $result['dateTo'],
                 'totalWithOutcome' => (int) $result['totalWithOutcome'],
@@ -298,6 +300,7 @@ class ResolutionRepository extends ServiceEntityRepository
     {
         $qb = $this->createFilteredQueryBuilder($filters)
             ->select(
+                'COUNT(r.id) as totalCount',
                 'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
                 'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
                 'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
@@ -313,6 +316,7 @@ class ResolutionRepository extends ServiceEntityRepository
         $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
 
         return [
+            'totalCount' => (int) $result['totalCount'],
             'totalWithOutcome' => (int) $result['totalWithOutcome'],
             'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
             'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
