@@ -175,6 +175,44 @@ class MigrateToPublicBodyCommand extends Command
             );
             $io->writeln(sprintf('  Reassigned <info>%d</info> resolution FKs.', $reassigned));
 
+            // 4a-ii) Reassign access_request.public_body_id from duplicates to canonical
+            $reassignedAr = $this->connection->executeStatement(
+                $rankingCte . ",
+                canonical AS (
+                    SELECT normalized, id AS canonical_id FROM ranked WHERE rn = 1
+                ),
+                dupes AS (
+                    SELECT r.id AS dupe_id, c.canonical_id
+                    FROM ranked r
+                    JOIN canonical c ON c.normalized = r.normalized
+                    WHERE r.rn > 1
+                )
+                UPDATE access_request
+                SET public_body_id = d.canonical_id
+                FROM dupes d
+                WHERE access_request.public_body_id = d.dupe_id"
+            );
+            $io->writeln(sprintf('  Reassigned <info>%d</info> access_request FKs.', $reassignedAr));
+
+            // 4a-iii) Reassign access_request.original_public_body_id from duplicates to canonical
+            $reassignedArOrig = $this->connection->executeStatement(
+                $rankingCte . ",
+                canonical AS (
+                    SELECT normalized, id AS canonical_id FROM ranked WHERE rn = 1
+                ),
+                dupes AS (
+                    SELECT r.id AS dupe_id, c.canonical_id
+                    FROM ranked r
+                    JOIN canonical c ON c.normalized = r.normalized
+                    WHERE r.rn > 1
+                )
+                UPDATE access_request
+                SET original_public_body_id = d.canonical_id
+                FROM dupes d
+                WHERE access_request.original_public_body_id = d.dupe_id"
+            );
+            $io->writeln(sprintf('  Reassigned <info>%d</info> access_request original FKs.', $reassignedArOrig));
+
             // 4b) Normalize resolution.public_body_name to canonical spelling
             $normalized = $this->connection->executeStatement(
                 $rankingCte . ",
