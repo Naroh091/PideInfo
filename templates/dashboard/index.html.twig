@@ -7,7 +7,7 @@
 <div>
 
     {# Global alerts container for document processing notifications #}
-    <div id="global-alerts-container" class="mb-6 space-y-3"></div>
+    <div id="global-alerts-container" class="space-y-3 empty:hidden"></div>
 
     {# Pending portal notifications from agent #}
     {{ component('PendingNotifications') }}
@@ -18,11 +18,11 @@
     {# Page Header #}
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-            <h1 class="text-2xl font-bold text-slate-800">Panel principal</h1>
+            <h1 class="repo-title text-3xl text-slate-800">Hola, {{ app.user.name|default(app.user.email|split('@')[0]) }}</h1>
             <p class="text-slate-500 mt-1">
                 Resumen de tus solicitudes de acceso a información
                 {% if app.user.organization %}
-                    — También verás las peticiones de
+                    — También verás las de
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-100 text-primary-700 text-xs font-semibold align-middle">
                         <i data-lucide="building-2" class="w-3 h-3"></i>
                         {{ app.user.organization.name }}

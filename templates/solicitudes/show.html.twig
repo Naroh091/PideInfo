@@ -31,7 +31,7 @@
 {# Header #}
 <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
     <div class="min-w-0">
-        <h1 class="text-2xl font-bold text-slate-800">{{ request.title }}</h1>
+        <h1 class="repo-title text-2xl sm:text-3xl text-slate-800">{{ request.title }}</h1>
         <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
             <span class="flex items-center gap-1">
                 <i data-lucide="building" class="w-4 h-4"></i>
@@ -96,14 +96,12 @@
 <div class="grid lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 space-y-6">
         {# Main Info #}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                        <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
-                    </div>
-                    <h2 class="font-semibold text-slate-800">Información de la solicitud</h2>
-                </div>
+        <div class="dash-section">
+            <div class="dash-section-header">
+                <h2 class="dash-section-title">
+                    <i data-lucide="file-text" class="w-4 h-4 text-primary-500"></i>
+                    Información de la solicitud
+                </h2>
             </div>
             <div class="card-body">
                 <h3 class="text-sm font-medium text-slate-700 mb-2">Descripción</h3>
@@ -152,19 +150,18 @@
 
             {% if doc.type.value == 'response' %}
                 {% set responseStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
-                <div class="card border-l-4 {% if responseStatus == 'concedida' %}border-emerald-400{% elseif responseStatus == 'denegada' %}border-red-400{% else %}border-slate-400{% endif %}">
-                    <div class="card-header">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl {% if responseStatus == 'concedida' %}bg-emerald-100{% elseif responseStatus == 'denegada' %}bg-red-100{% else %}bg-slate-100{% endif %} flex items-center justify-center">
-                                <i data-lucide="file-check" class="w-5 h-5 {% if responseStatus == 'concedida' %}text-emerald-600{% elseif responseStatus == 'denegada' %}text-red-600{% else %}text-slate-600{% endif %}"></i>
-                            </div>
-                            <div>
-                                <h2 class="font-semibold text-slate-800">Respuesta de la administración</h2>
-                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                            </div>
+                <div class="alert-banner {% if responseStatus == 'concedida' %}alert-banner-emerald{% elseif responseStatus == 'denegada' %}alert-banner-amber{% else %}alert-banner-blue{% endif %}">
+                    <div class="alert-banner-stripe"></div>
+                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
+                        <div class="alert-banner-icon {% if responseStatus == 'concedida' %}bg-emerald-100 text-emerald-600{% elseif responseStatus == 'denegada' %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-600{% endif %}">
+                            <i data-lucide="file-check" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">Respuesta de la administración</h2>
+                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="px-5 pb-5 pt-3">
                         {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
                             <p class="text-sm text-slate-500 mb-4">Puntos clave de la respuesta:</p>
                             <ol class="space-y-3">
@@ -195,25 +192,24 @@
 
             {% elseif doc.type.value == 'complaint' %}
                 {% set complaintCount = complaintCount + 1 %}
-                <div class="card border-l-4 border-amber-400">
-                    <div class="card-header">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                                <i data-lucide="scale" class="w-5 h-5 text-amber-600"></i>
-                            </div>
-                            <div>
-                                <h2 class="font-semibold text-slate-800">
-                                    {% if complaintCount == 1 %}
-                                        Reclamación ante el {{ organismName }}
-                                    {% else %}
-                                        Ampliación de la reclamación ante el {{ organismName }}
-                                    {% endif %}
-                                </h2>
-                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                            </div>
+                <div class="alert-banner alert-banner-amber">
+                    <div class="alert-banner-stripe"></div>
+                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
+                        <div class="alert-banner-icon bg-amber-100 text-amber-600">
+                            <i data-lucide="scale" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">
+                                {% if complaintCount == 1 %}
+                                    Reclamación ante el {{ organismName }}
+                                {% else %}
+                                    Ampliación de la reclamación ante el {{ organismName }}
+                                {% endif %}
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="px-5 pb-5 pt-3">
                         {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
                             <p class="text-sm text-slate-500 mb-4">Argumentos principales de la reclamación:</p>
                             <ol class="space-y-3">
@@ -254,19 +250,18 @@
                 </div>
 
             {% elseif doc.type.value == 'alegaciones' %}
-                <div class="card border-l-4 border-red-400">
-                    <div class="card-header">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                                <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
-                            </div>
-                            <div>
-                                <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
-                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                            </div>
+                <div class="alert-banner" style="border-color: #fca5a5">
+                    <div class="alert-banner-stripe" style="background: #ef4444"></div>
+                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
+                        <div class="alert-banner-icon bg-red-100 text-red-600">
+                            <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
+                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="px-5 pb-5 pt-3">
                         <p class="text-sm text-slate-500 mb-4">Argumentos principales presentados por la Administración en su defensa:</p>
                         <ol class="space-y-3">
                             {% for point in doc.aiMetadata.alegationPoints %}
@@ -286,19 +281,18 @@
                 </div>
 
             {% elseif doc.type.value == 'alegation_response' %}
-                <div class="card border-l-4 border-blue-400">
-                    <div class="card-header">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                                <i data-lucide="reply" class="w-5 h-5 text-blue-600"></i>
-                            </div>
-                            <div>
-                                <h2 class="font-semibold text-slate-800">Respuesta a las alegaciones</h2>
-                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                            </div>
+                <div class="alert-banner alert-banner-blue">
+                    <div class="alert-banner-stripe"></div>
+                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
+                        <div class="alert-banner-icon bg-blue-100 text-blue-600">
+                            <i data-lucide="reply" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">Respuesta a las alegaciones</h2>
+                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="px-5 pb-5 pt-3">
                         {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
                             <p class="text-sm text-slate-500 mb-4">Contraargumentos principales:</p>
                             <ol class="space-y-3">
@@ -340,19 +334,18 @@
 
             {% elseif doc.type.value == 'complaint_resolution' %}
                 {% set resolutionStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
-                <div class="card border-l-4 {% if resolutionStatus == 'concedida' %}border-emerald-400{% elseif resolutionStatus == 'denegada' %}border-red-400{% else %}border-slate-400{% endif %}">
-                    <div class="card-header">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl {% if resolutionStatus == 'concedida' %}bg-emerald-100{% elseif resolutionStatus == 'denegada' %}bg-red-100{% else %}bg-slate-100{% endif %} flex items-center justify-center">
-                                <i data-lucide="landmark" class="w-5 h-5 {% if resolutionStatus == 'concedida' %}text-emerald-600{% elseif resolutionStatus == 'denegada' %}text-red-600{% else %}text-slate-600{% endif %}"></i>
-                            </div>
-                            <div>
-                                <h2 class="font-semibold text-slate-800">Resolución del {{ organismName }}</h2>
-                                <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                            </div>
+                <div class="alert-banner {% if resolutionStatus == 'concedida' %}alert-banner-emerald{% elseif resolutionStatus == 'denegada' %}alert-banner-amber{% else %}alert-banner-blue{% endif %}">
+                    <div class="alert-banner-stripe"></div>
+                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
+                        <div class="alert-banner-icon {% if resolutionStatus == 'concedida' %}bg-emerald-100 text-emerald-600{% elseif resolutionStatus == 'denegada' %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-600{% endif %}">
+                            <i data-lucide="landmark" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-semibold text-slate-800">Resolución del {{ organismName }}</h2>
+                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
                         </div>
                     </div>
-                    <div class="card-body">
+                    <div class="px-5 pb-5 pt-3">
                         {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
                             <p class="text-sm text-slate-500 mb-4">Fundamentos principales de la resolución:</p>
                             <ol class="space-y-3">
@@ -383,14 +376,12 @@
              data-file-uploader-url-value="{{ path('app_document_upload') }}"
              data-file-uploader-access-request-id-value="{{ request.id }}"
              data-file-uploader-documents-fragment-url-value="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
-            <div class="card-header">
+            <div class="dash-section-header">
                 <div class="flex items-center justify-between w-full">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                            <i data-lucide="paperclip" class="w-5 h-5 text-primary-600"></i>
-                        </div>
-                        <h2 class="font-semibold text-slate-800">Documentos</h2>
-                    </div>
+                    <h2 class="dash-section-title">
+                        <i data-lucide="paperclip" class="w-4 h-4 text-primary-500"></i>
+                        Documentos
+                    </h2>
                     {% if request.documents|length > 0 %}
                         <a href="{{ path('app_document_download_all', {id: request.id}) }}"
                            class="btn btn-secondary btn-sm">
@@ -484,17 +475,18 @@
         {% endif %}
 
         {# Custom Deadlines Card #}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center justify-between">
-                    <h2 class="font-semibold text-slate-800">Recordatorios</h2>
-                    <a href="{{ path('app_solicitudes_deadline_new', {id: request.id}) }}" class="btn btn-primary btn-sm">
-                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
-                        Nuevo
-                    </a>
-                </div>
+        <div class="dash-section">
+            <div class="dash-section-header">
+                <h2 class="dash-section-title">
+                    <i data-lucide="bell" class="w-4 h-4 text-slate-400"></i>
+                    Recordatorios
+                </h2>
+                <a href="{{ path('app_solicitudes_deadline_new', {id: request.id}) }}" class="btn btn-primary btn-sm">
+                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                    Nuevo
+                </a>
             </div>
-            <div class="card-body">
+            <div class="p-4">
                 {% if request.customDeadlines|length > 0 %}
                     <div class="space-y-3">
                         {% for deadline in request.customDeadlines %}
@@ -561,11 +553,14 @@
         </div>
 
         {# Lists Card #}
-        <div class="card" x-data="listsManager('{{ request.id }}')">
-            <div class="card-header">
-                <h2 class="font-semibold text-slate-800">Listas</h2>
+        <div class="dash-section" x-data="listsManager('{{ request.id }}')">
+            <div class="dash-section-header">
+                <h2 class="dash-section-title">
+                    <i data-lucide="list" class="w-4 h-4 text-slate-400"></i>
+                    Listas
+                </h2>
             </div>
-            <div class="card-body">
+            <div class="p-4">
                 <template x-if="loading">
                     <div class="text-center py-4">
                         <i data-lucide="loader-2" class="w-5 h-5 text-slate-400 animate-spin mx-auto"></i>
@@ -635,11 +630,14 @@
         </div>
 
         {# Actions Card #}
-        <div class="card">
-            <div class="card-header">
-                <h2 class="font-semibold text-slate-800">Acciones</h2>
+        <div class="dash-section">
+            <div class="dash-section-header">
+                <h2 class="dash-section-title">
+                    <i data-lucide="zap" class="w-4 h-4 text-slate-400"></i>
+                    Acciones
+                </h2>
             </div>
-            <div class="card-body space-y-3">
+            <div class="p-4 space-y-3">
                 {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted', 'granted_completed']) %}
                 {% if canComplain and not request.complaint %}
                     <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent w-full">

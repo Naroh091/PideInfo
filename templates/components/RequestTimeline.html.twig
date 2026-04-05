@@ -1,14 +1,12 @@
 <div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
-<div class="card">
-    <div class="card-header">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                <i data-lucide="history" class="w-5 h-5 text-primary-600"></i>
-            </div>
-            <h2 class="font-semibold text-slate-800">Historial</h2>
-        </div>
+<div class="dash-section">
+    <div class="dash-section-header">
+        <h2 class="dash-section-title">
+            <i data-lucide="history" class="w-4 h-4 text-slate-400"></i>
+            Historial
+        </h2>
     </div>
-    <div class="card-body">
+    <div class="p-5">
         {% if request.statusHistory|length > 0 %}
             <div class="space-y-4">
                 {% for history in request.statusHistory %}

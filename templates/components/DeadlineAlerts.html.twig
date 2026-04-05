@@ -1,48 +1,42 @@
 <div {{ attributes.defaults({class: 'deadline-alerts', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set alerts = this.alerts %}
 
-    <div class="card animate-fade-in">
-        <div class="card-header">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                    <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-600"></i>
-                </div>
-                <div>
-                    <h2 class="font-semibold text-slate-800">Plazos próximos a vencer</h2>
-                    <p class="text-sm text-slate-500">Solicitudes que requieren atención</p>
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
+    <section class="dash-section" style="animation: fade-slide-up 0.5s ease-out both"
+             data-controller="accordion" data-accordion-key-value="deadlines">
+        <button type="button" class="dash-section-header cursor-pointer w-full" data-action="click->accordion#toggle">
+            <h2 class="dash-section-title">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                Plazos
+                {% if alerts|length > 0 %}
+                    <span class="dash-count dash-count-warn">{{ alerts|length }}</span>
+                {% endif %}
+            </h2>
+            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform duration-200" data-accordion-target="icon"></i>
+        </button>
+
+        <div data-accordion-target="body">
             {% if alerts|length > 0 %}
-                <div class="space-y-3">
+                <div class="space-y-1">
                     {% for alert in alerts %}
                         <a href="{{ path('app_solicitudes_show', {id: alert.id}) }}"
-                           class="list-item list-item-clickable group">
+                           class="dash-item group">
+                            <div class="dash-item-indicator {{ alert.type == 'danger' ? 'dash-indicator-danger' : (alert.type == 'warning' ? 'dash-indicator-warn' : 'dash-indicator-info') }}"></div>
                             <div class="flex-1 min-w-0">
-                                <h3 class="font-medium text-slate-800 group-hover:text-primary-600 transition-colors">
-                                    {{ alert.title }}
-                                </h3>
-                                <p class="text-sm text-slate-500 truncate mt-0.5">{{ alert.publicBody }}</p>
+                                <p class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">{{ alert.title }}</p>
+                                <p class="text-xs text-slate-400 truncate mt-0.5">{{ alert.publicBody }}</p>
                             </div>
-                            <span class="badge {{ alert.type == 'danger' ? 'badge-danger' : (alert.type == 'warning' ? 'badge-warning' : 'badge-info') }} flex-shrink-0">
-                                {% if alert.isPassed %}
-                                    <i data-lucide="alert-circle" class="w-3 h-3 mr-1"></i>
-                                {% endif %}
+                            <span class="badge {{ alert.type == 'danger' ? 'badge-danger' : (alert.type == 'warning' ? 'badge-warning' : 'badge-info') }} flex-shrink-0 text-xs">
+                                {% if alert.isPassed %}<i data-lucide="alert-circle" class="w-3 h-3 mr-0.5"></i>{% endif %}
                                 {{ alert.message }}
                             </span>
                         </a>
                     {% endfor %}
                 </div>
             {% else %}
-                <div class="empty-state py-8">
-                    <div class="empty-state-icon">
-                        <i data-lucide="check-circle" class="w-full h-full text-emerald-300"></i>
-                    </div>
-                    <p class="empty-state-title">Todo en orden</p>
-                    <p class="empty-state-description">No hay plazos próximos a vencer</p>
+                <div class="py-8 text-center">
+                    <p class="text-sm text-slate-400">Sin plazos pendientes</p>
                 </div>
             {% endif %}
         </div>
-    </div>
+    </section>
 </div>

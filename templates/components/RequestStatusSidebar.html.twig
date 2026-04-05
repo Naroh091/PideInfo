@@ -1,10 +1,13 @@
 <div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
 {# Status Card #}
-<div class="card">
-    <div class="card-header">
-        <h2 class="font-semibold text-slate-800">Estado actual</h2>
+<div class="dash-section">
+    <div class="dash-section-header">
+        <h2 class="dash-section-title">
+            <i data-lucide="activity" class="w-4 h-4 text-primary-500"></i>
+            Estado actual
+        </h2>
     </div>
-    <div class="card-body space-y-4">
+    <div class="p-4 space-y-4">
         {# Main Status #}
         <div>
             <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Estado principal</h4>

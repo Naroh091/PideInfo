@@ -234,6 +234,162 @@ body {
   @apply flex-shrink-0 w-6 h-6 rounded-full bg-primary-50 text-primary-600 text-xs font-bold flex items-center justify-center;
 }
 
+/* ── Alert banners ── */
+.alert-banner {
+  @apply relative bg-white rounded-xl border overflow-hidden;
+}
+
+.alert-banner-stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.alert-banner-amber { border-color: #fde68a; }
+.alert-banner-amber .alert-banner-stripe { background: #f59e0b; }
+
+.alert-banner-purple { border-color: #e9d5ff; }
+.alert-banner-purple .alert-banner-stripe { background: #8b5cf6; }
+
+.alert-banner-teal { border-color: #99f6e4; }
+.alert-banner-teal .alert-banner-stripe { background: #14b8a6; }
+
+.alert-banner-emerald { border-color: #a7f3d0; }
+.alert-banner-emerald .alert-banner-stripe { background: #10b981; }
+
+.alert-banner-blue { border-color: #bae6fd; }
+.alert-banner-blue .alert-banner-stripe { background: #0ea5e9; }
+
+.alert-banner-icon {
+  @apply w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0;
+}
+
+/* ── Notification filter pills ── */
+.notif-filter {
+  @apply px-3 py-1.5 rounded-full text-xs font-medium text-slate-500 border border-slate-200 transition-all;
+}
+
+.notif-filter:hover {
+  @apply border-slate-300 text-slate-700;
+}
+
+.notif-filter-active {
+  @apply bg-primary-50 border-primary-200 text-primary-700;
+}
+
+/* ── Dashboard sections ── */
+.dash-section {
+  @apply bg-white rounded-xl border border-slate-200 overflow-hidden;
+}
+
+.dash-section-header {
+  @apply flex items-center justify-between px-5 py-3.5 border-b border-slate-100;
+}
+
+.dash-section-title {
+  @apply flex items-center gap-2 text-sm font-semibold text-slate-700;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.dash-count {
+  @apply text-xs font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500;
+  min-width: 1.25rem;
+  text-align: center;
+}
+
+.dash-count-warn {
+  @apply bg-amber-100 text-amber-600;
+}
+
+/* ── Dashboard list items ── */
+.dash-item {
+  @apply flex items-center gap-3 px-5 py-3 transition-colors;
+}
+
+.dash-item:hover {
+  @apply bg-slate-50;
+}
+
+.dash-item-indicator {
+  @apply w-1 self-stretch rounded-full flex-shrink-0;
+}
+
+.dash-indicator-danger { background: #f87171; }
+.dash-indicator-warn { background: #fbbf24; }
+.dash-indicator-info { background: #38bdf8; }
+
+/* ── Dashboard timeline (notifications) ── */
+.dash-timeline {
+  @apply relative;
+}
+
+.dash-timeline::before {
+  content: '';
+  @apply absolute top-0 bottom-0 bg-slate-100;
+  left: 1.6875rem;
+  width: 1px;
+}
+
+.dash-timeline-item {
+  @apply relative flex items-start gap-3 px-5 transition-colors;
+}
+
+.dash-timeline-item:hover {
+  @apply bg-slate-50;
+}
+
+.dash-timeline-unread {
+  background: color-mix(in srgb, var(--color-primary-50) 50%, white);
+}
+
+.dash-timeline-dot {
+  @apply relative z-10 w-7 h-7 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center flex-shrink-0 mt-3 text-slate-400;
+}
+
+.dash-timeline-unread .dash-timeline-dot {
+  @apply border-primary-300 text-primary-500;
+}
+
+.dash-dot-warn {
+  border-color: #fcd34d;
+  color: #f59e0b;
+}
+
+/* ── Home page ── */
+.hero-section {
+  background: linear-gradient(160deg, #ffffff 0%, #f0f9ff 40%, #e0f2fe 100%);
+}
+
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 10% 80%, rgba(14, 165, 233, 0.06) 0%, transparent 50%),
+    radial-gradient(circle at 90% 20%, rgba(3, 105, 161, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.home-step {
+  @apply flex gap-5 items-start p-4 rounded-xl transition-colors;
+}
+
+.home-step:hover {
+  @apply bg-slate-50;
+}
+
+.home-step-num {
+  @apply w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0 text-primary-600 font-bold;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.25rem;
+}
+
+.home-quote {
+  @apply relative pl-6 py-3 text-slate-700 italic max-w-3xl mx-auto;
+  border-left: 4px solid var(--color-primary-400);
+}
+
 /* ── Animations ── */
 @keyframes fade-slide-up {
   from {
@@ -429,12 +585,28 @@ body {
 
 /* Dropzone styles */
 .dropzone-area {
-  @apply border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center transition-all duration-200 cursor-pointer;
-  @apply hover:border-primary-400 hover:bg-primary-50/50;
+  @apply rounded-2xl p-8 text-center transition-all duration-300 cursor-pointer;
+  border: 2px dashed var(--color-slate-200);
+  background: linear-gradient(135deg, white, var(--color-slate-50));
+}
+
+.dropzone-area:hover {
+  border-color: var(--color-primary-300);
+  background: linear-gradient(135deg, white, var(--color-primary-50));
 }
 
 .dropzone-area.dragover {
-  @apply border-primary-500 bg-primary-50 scale-[1.02];
+  border-style: solid;
+  border-color: var(--color-primary-500);
+  background: linear-gradient(135deg, var(--color-primary-50), white, var(--color-primary-50));
+  background-size: 200% 200%;
+  animation: dropzone-shimmer 1.5s ease-in-out infinite;
+  transform: scale(1.02);
+}
+
+@keyframes dropzone-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 /* Navigation styles */
