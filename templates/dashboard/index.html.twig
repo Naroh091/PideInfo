@@ -18,7 +18,7 @@
     {# Page Header #}
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-            <h1 class="repo-title text-3xl text-slate-800">Hola, {{ app.user.name|default(app.user.email|split('@')[0]) }}</h1>
+            <h1 class="repo-title text-3xl text-slate-800">Hola, {{ app.user.firstName|default(app.user.email|split('@')[0]) }}</h1>
             <p class="text-slate-500 mt-1">
                 Resumen de tus solicitudes de acceso a información
                 {% if app.user.organization %}

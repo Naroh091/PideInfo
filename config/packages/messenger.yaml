@@ -12,6 +12,14 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
+            analysis:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    use_notify: true
+                    check_delayed_interval: 60000
+                retry_strategy:
+                    max_retries: 3
+                    multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
             # sync: 'sync://'
 
@@ -24,7 +32,7 @@ framework:
             Symfony\Component\Mailer\Messenger\SendEmailMessage: async
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
-            App\Message\ProcessDocumentMessage: async
-            App\Message\ProcessDocumentBatchMessage: async
+            App\Message\ProcessDocumentMessage: analysis
+            App\Message\ProcessDocumentBatchMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async
