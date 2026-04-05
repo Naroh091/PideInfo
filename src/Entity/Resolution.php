@@ -100,6 +100,10 @@ class Resolution
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $keypoints = null;
 
+    #[ORM\ManyToOne(targetEntity: PublicBody::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?PublicBody $publicBody = null;
+
     #[ORM\ManyToOne(targetEntity: ComplaintOrganism::class, inversedBy: 'resolutions')]
     #[ORM\JoinColumn(nullable: true)]
     private ?ComplaintOrganism $complaintOrganism = null;
@@ -268,6 +272,17 @@ class Resolution
     public function setTopics(?array $topics): static
     {
         $this->topics = $topics;
+        return $this;
+    }
+
+    public function getPublicBody(): ?PublicBody
+    {
+        return $this->publicBody;
+    }
+
+    public function setPublicBody(?PublicBody $publicBody): static
+    {
+        $this->publicBody = $publicBody;
         return $this;
     }
 
