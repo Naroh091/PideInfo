@@ -289,8 +289,7 @@ body {
 }
 
 .dash-section-title {
-  @apply flex items-center gap-2 text-sm font-semibold text-slate-700;
-  font-family: 'DM Sans', sans-serif;
+  @apply flex items-center gap-2 text-base font-semibold text-slate-700;
 }
 
 .dash-count {

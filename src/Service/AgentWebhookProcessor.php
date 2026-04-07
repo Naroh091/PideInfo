@@ -71,12 +71,14 @@ class AgentWebhookProcessor
         }
 
         $documentIds = [];
+        $createdFilenames = [];
         $skipped = [];
 
         foreach ($documents as $doc) {
             $result = $this->processDocument($user, $doc, $source, $expedienteRef, $metadata, $accessRequest);
             if ($result['id'] !== null) {
                 $documentIds[] = $result['id'];
+                $createdFilenames[] = $doc['filename'] ?? 'document.pdf';
             } elseif ($result['skipped'] !== null) {
                 $skipped[] = $result['skipped'];
             }
@@ -95,6 +97,11 @@ class AgentWebhookProcessor
         // Documents were received — clear any stale pending notifications on this AR.
         if ($accessRequest !== null && $accessRequest->hasPendingPortalNotifications()) {
             $accessRequest->setPendingPortalNotifications(null);
+        }
+
+        // Notify the user about documents downloaded in the background by the agent.
+        if (!empty($createdFilenames)) {
+            $this->notificationManager->notifyAgentDocumentDownloaded($user, $accessRequest, $createdFilenames);
         }
 
         $this->entityManager->flush();

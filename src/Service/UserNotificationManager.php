@@ -57,6 +57,25 @@ final class UserNotificationManager
         );
     }
 
+    public function notifyAgentDocumentDownloaded(User $user, ?AccessRequest $accessRequest, array $filenames): UserNotification
+    {
+        $count = count($filenames);
+        $message = $count === 1
+            ? sprintf('Documentación importada automáticamente: %s', $filenames[0])
+            : sprintf('%d documentos importados automáticamente por el agente', $count);
+
+        return $this->create(
+            user: $user,
+            type: UserNotification::TYPE_AGENT_DOCUMENT_DOWNLOADED,
+            message: $message,
+            accessRequest: $accessRequest,
+            metadata: [
+                'filenames' => $filenames,
+                'count' => $count,
+            ],
+        );
+    }
+
     public function notifyNotificationAccepted(User $user, ?AccessRequest $accessRequest, array $notificationData): UserNotification
     {
         $label = $notificationData['concepto'] ?? $notificationData['tipo'] ?? 'notificación';
