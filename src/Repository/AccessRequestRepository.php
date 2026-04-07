@@ -324,12 +324,16 @@ class AccessRequestRepository extends ServiceEntityRepository
                 continue;
             }
 
-            // Deduplicate by notificationId (or by tipo+concepto+fechaEmision as fallback)
+            // Deduplicate by concepto (document name) to avoid showing the same
+            // document multiple times when the portal reports it under different IDs.
             $seen = [];
             $portalNotifs = [];
             $consejoNotifs = [];
             foreach ($notifications as $n) {
-                $key = $n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['concepto'] ?? '') . '|' . ($n['fechaEmision'] ?? '');
+                $concepto = $n['concepto'] ?? '';
+                $key = $concepto !== ''
+                    ? ($n['tipo'] ?? '') . '|' . $concepto
+                    : ($n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['fechaEmision'] ?? ''));
                 if (isset($seen[$key])) {
                     continue;
                 }

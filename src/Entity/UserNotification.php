@@ -18,6 +18,7 @@ class UserNotification
     public const TYPE_REQUEST_CREATED = 'request_created';
     public const TYPE_NOTIFICATION_ACCEPTED = 'notification_accepted';
     public const TYPE_COMMUNICATION_ACCEPTED = 'communication_accepted';
+    public const TYPE_AGENT_DOCUMENT_DOWNLOADED = 'agent_document_downloaded';
 
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
@@ -155,6 +156,7 @@ class UserNotification
             self::TYPE_REQUEST_CREATED => 'plus-circle',
             self::TYPE_NOTIFICATION_ACCEPTED => 'bell-ring',
             self::TYPE_COMMUNICATION_ACCEPTED => 'mail-check',
+            self::TYPE_AGENT_DOCUMENT_DOWNLOADED => 'download',
             default => 'info',
         };
     }
@@ -167,6 +169,7 @@ class UserNotification
             self::TYPE_REQUEST_CREATED => 'Solicitud creada',
             self::TYPE_NOTIFICATION_ACCEPTED => 'Notificación aceptada',
             self::TYPE_COMMUNICATION_ACCEPTED => 'Comunicación aceptada',
+            self::TYPE_AGENT_DOCUMENT_DOWNLOADED => 'Documentación importada',
             default => 'Notificación',
         };
     }

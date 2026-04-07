@@ -54,6 +54,9 @@ class ApplicableLaw
     private bool $silenceIsPositive = false;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $content = null;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes = null;
 
     #[ORM\Column(length: 255, nullable: true)]
@@ -239,6 +242,17 @@ class ApplicableLaw
     public function setSilenceIsPositive(bool $silenceIsPositive): static
     {
         $this->silenceIsPositive = $silenceIsPositive;
+        return $this;
+    }
+
+    public function getContent(): ?string
+    {
+        return $this->content;
+    }
+
+    public function setContent(?string $content): static
+    {
+        $this->content = $content;
         return $this;
     }
 

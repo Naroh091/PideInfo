@@ -37,6 +37,7 @@ class NotificationController extends AbstractController
                 UserNotification::TYPE_REQUEST_CREATED => 'Solicitudes creadas',
                 UserNotification::TYPE_NOTIFICATION_ACCEPTED => 'Notificaciones aceptadas',
                 UserNotification::TYPE_COMMUNICATION_ACCEPTED => 'Comunicaciones aceptadas',
+                UserNotification::TYPE_AGENT_DOCUMENT_DOWNLOADED => 'Documentación importada',
             ],
         ]);
     }

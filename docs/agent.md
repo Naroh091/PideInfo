@@ -30,6 +30,7 @@ PideInfo Agent (Python)
       (Authorization: Bearer <JWT>)              ├── AgentWebhookProcessor
                                                  ├── Deduplicates by SHA-256
                                                  ├── Stores in S3
+                                                 ├── Creates "Documentación importada" notification
                                                  └── Dispatches ProcessDocumentBatchMessage
                                                          │
                                                          ▼
@@ -285,7 +286,7 @@ The agent tracks synced documents by `(id_expediente, id_documento)` in its loca
 
 Some notifications require the user to formally accept (*comparecer*) them on the portal before they can be downloaded. The agent handles this in two ways:
 
-- **Auto-accept disabled** (default): The agent reports `PENDIENTE` notifications to PideInfo without downloading them. PideInfo shows a banner on the affected access request.
+- **Auto-accept disabled** (default): The agent reports `PENDIENTE` notifications to PideInfo without downloading them. PideInfo shows a banner on the affected access request. Notifications are deduplicated by document name (`concepto`) to avoid showing the same document multiple times when the portal reports it under different notification IDs.
 - **Auto-accept enabled** (via tray menu toggle): The agent downloads `PENDIENTE` notifications, which constitutes accepting them. This feature is behind the `ACCEPT_NOTIFICATIONS_AVAILABLE` flag and is currently disabled until the comparecencia endpoint is implemented in the scraper.
 
 ## Webhook payload format

@@ -22,8 +22,8 @@
                            class="dash-item group">
                             <div class="dash-item-indicator {{ alert.type == 'danger' ? 'dash-indicator-danger' : (alert.type == 'warning' ? 'dash-indicator-warn' : 'dash-indicator-info') }}"></div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">{{ alert.title }}</p>
-                                <p class="text-xs text-slate-400 truncate mt-0.5">{{ alert.publicBody }}</p>
+                                <p class="text-base font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">{{ alert.title }}</p>
+                                <p class="text-sm text-slate-400 truncate mt-0.5">{{ alert.publicBody }}</p>
                             </div>
                             <span class="badge {{ alert.type == 'danger' ? 'badge-danger' : (alert.type == 'warning' ? 'badge-warning' : 'badge-info') }} flex-shrink-0 text-xs">
                                 {% if alert.isPassed %}<i data-lucide="alert-circle" class="w-3 h-3 mr-0.5"></i>{% endif %}
