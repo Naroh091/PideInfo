@@ -58,7 +58,7 @@
 
 {% if is_granted('edit', list) %}
 {# Add requests to list #}
-<div class="card mb-6" x-data="addRequestToList()">
+<div class="card mb-6" style="overflow: visible" x-data="addRequestToList()">
     <div class="card-header">
         <div class="flex items-center gap-2">
             <i data-lucide="plus-circle" class="w-5 h-5 text-primary-500"></i>
@@ -75,7 +75,7 @@
                            @input.debounce.300ms="search()"
                            @focus="if (results.length) showResults = true"
                            placeholder="Buscar solicitudes por título, organismo..."
-                           class="input pl-9 text-sm">
+                           class="input input-icon-left text-sm">
                 </div>
             </div>
 
