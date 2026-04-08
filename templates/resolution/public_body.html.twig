@@ -6,6 +6,16 @@
     <meta name="description" content="{{ publicBody.name }}: {{ cardStats.totalWithOutcome }} reclamaciones resueltas por los consejos de transparencia. En el {{ cardStats.successRate }}% de los casos, el consejo dio la razón al ciudadano.">
 {% endblock %}
 
+{% block og %}
+    <meta property="og:title" content="{{ publicBody.name }} - Resoluciones de Transparencia - PideInfo">
+    <meta property="og:description" content="{{ publicBody.name }}: {{ cardStats.totalWithOutcome }} reclamaciones resueltas. {{ cardStats.successRate }}% estimadas a favor del ciudadano.">
+    <meta property="og:image" content="{{ url('og_image_reclamado', { slug: publicBody.slug }) }}">
+    <meta property="og:url" content="{{ url('app_resoluciones_reclamado', { slug: publicBody.slug }) }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}
