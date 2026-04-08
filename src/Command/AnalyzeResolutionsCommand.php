@@ -103,9 +103,11 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         if ($reference) {
-            $resolution = $this->resolutionRepository->findByReferenceNumber($reference);
+            $resolution = $source
+                ? $this->resolutionRepository->findByReferenceAndSource($reference, $source)
+                : $this->resolutionRepository->findByReferenceNumber($reference);
             if (!$resolution) {
-                $io->error("Resolution not found: $reference");
+                $io->error("Resolution not found: $reference" . ($source ? " (source: $source)" : ''));
                 return Command::FAILURE;
             }
 
