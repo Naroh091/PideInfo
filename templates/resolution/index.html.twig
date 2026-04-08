@@ -14,7 +14,7 @@
 {% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo %}
 
 {# Header #}
-<header class="repo-header border-b border-slate-200/50 relative overflow-hidden">
+<header class="repo-header border-b border-slate-200/50 relative">
     <div class="repo-header-bg"></div>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
         {% if activeOrganism is defined and activeOrganism %}
@@ -203,6 +203,7 @@
                 </div>
                 <div class="stat-tile-label">Administraciones reclamadas</div>
             </a>
+            {# Temporarily hidden
             {% if cardStats.meanDaysToResolve %}
             <div class="stat-tile stat-tile-warm" style="animation-delay: 0.35s">
                 <div class="stat-tile-value">{{ cardStats.meanDaysToResolve }}</div>
@@ -210,6 +211,7 @@
                 <div class="stat-tile-sub">En resolver la reclamación</div>
             </div>
             {% endif %}
+            #}
         </div>
 
         {% endif %}
