@@ -15,6 +15,7 @@
         "dragonmantank/cron-expression": "^3.6",
         "easycorp/easyadmin-bundle": "^4.27",
         "google-gemini-php/client": "^2.7",
+        "intervention/image": "^3.11",
         "league/commonmark": "^2.8",
         "league/flysystem-aws-s3-v3": "^3.30",
         "league/flysystem-bundle": "^3.6",

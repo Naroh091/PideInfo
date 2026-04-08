@@ -6,6 +6,23 @@
     <meta name="description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
 {% endblock %}
 
+{% block og %}
+    {% if activeOrganism is defined and activeOrganism %}
+        <meta property="og:title" content="{{ activeOrganism.name }} - Resoluciones de Transparencia">
+        <meta property="og:description" content="Resoluciones emitidas por {{ activeOrganism.shortName ?? activeOrganism.name }}. {{ cardStats.totalCount }} resoluciones, {{ cardStats.successRate }}% tasa de estimación.">
+        <meta property="og:image" content="{{ url('og_image_organismo', { slug: activeOrganism.slug }) }}">
+        <meta property="og:url" content="{{ url('app_resoluciones_organismo', { slug: activeOrganism.slug }) }}">
+    {% else %}
+        <meta property="og:title" content="Repositorio unificado de resoluciones de transparencia - PideInfo">
+        <meta property="og:description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
+        <meta property="og:image" content="{{ url('og_image_resoluciones') }}">
+        <meta property="og:url" content="{{ url('app_resoluciones_index') }}">
+    {% endif %}
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}

@@ -6,6 +6,16 @@
     <meta name="description" content="{{ resolution.summary|u.truncate(160, '...') }}">
 {% endblock %}
 
+{% block og %}
+    <meta property="og:title" content="{{ resolution.subject|default(resolution.referenceNumber) }} - PideInfo">
+    <meta property="og:description" content="{{ resolution.summary|u.truncate(200, '...') }}">
+    <meta property="og:image" content="{{ url('og_image_resolucion', { id: resolution.id }) }}">
+    <meta property="og:url" content="{{ url('app_resoluciones_show', { id: resolution.id }) }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}

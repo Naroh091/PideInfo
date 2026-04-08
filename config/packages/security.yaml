@@ -38,6 +38,7 @@ security:
     access_control:
         - { path: ^/$, roles: PUBLIC_ACCESS }
         - { path: ^/login, roles: PUBLIC_ACCESS }
+        - { path: ^/og-image, roles: PUBLIC_ACCESS }
         - { path: ^/registro, roles: PUBLIC_ACCESS }
         - { path: ^/verificar, roles: PUBLIC_ACCESS }
         - { path: ^/recuperar-password, roles: PUBLIC_ACCESS }

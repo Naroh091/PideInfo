@@ -6,6 +6,16 @@
     <meta name="description" content="Listado de administraciones públicas reclamadas ante los consejos de transparencia españoles. Consulta las estadísticas de cada organismo.">
 {% endblock %}
 
+{% block og %}
+    <meta property="og:title" content="Administraciones reclamadas - Resoluciones de Transparencia - PideInfo">
+    <meta property="og:description" content="Listado de administraciones públicas reclamadas ante los consejos de transparencia españoles. Consulta las estadísticas de cada organismo.">
+    <meta property="og:image" content="{{ url('og_image_reclamados') }}">
+    <meta property="og:url" content="{{ url('app_resoluciones_reclamados') }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}

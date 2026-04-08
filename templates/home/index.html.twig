@@ -2,6 +2,19 @@
 
 {% block title %}PideInfo - Gestiona tu derecho de acceso a la información pública{% endblock %}
 
+{% block og %}
+    <meta property="og:title" content="PideInfo - Gestiona tu derecho de acceso a la información pública">
+    <meta property="og:description" content="PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde.">
+    <meta property="og:image" content="{{ url('og_image_home') }}">
+    <meta property="og:url" content="{{ url('app_home') }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="PideInfo - Gestiona tu derecho de acceso a la información pública">
+    <meta name="twitter:description" content="PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde.">
+    <meta name="twitter:image" content="{{ url('og_image_home') }}">
+{% endblock %}
+
 {% block body_class %}min-h-screen flex flex-col{% endblock %}
 
 {% block body %}
