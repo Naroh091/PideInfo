@@ -206,6 +206,7 @@ class Resolution
             self::OUTCOME_MEDIATION_AGREEMENT => 'Acuerdo de mediación',
             self::OUTCOME_REFERRAL => 'Derivada',
             self::OUTCOME_ROLLBACK => 'Retrotraer',
+            self::OUTCOME_INHIBITION => 'Inhibición',
             self::OUTCOME_COMPLAINT => 'Queja',
             self::OUTCOME_CONSULTATION => 'Consulta',
             self::OUTCOME_CLARIFICATION => 'Aclaración',
