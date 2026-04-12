@@ -173,4 +173,9 @@ class GeminiBatchJob
     {
         return $this->errorMessage;
     }
+
+    public function __toString(): string
+    {
+        return $this->batchName . ' (' . $this->state . ')';
+    }
 }

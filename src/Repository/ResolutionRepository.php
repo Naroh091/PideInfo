@@ -276,8 +276,8 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         if (!empty($filters['keyword'])) {
-            $qb->andWhere('r.keywords LIKE :keyword')
-                ->setParameter('keyword', '%"' . $filters['keyword'] . '"%');
+            $qb->andWhere('JSONB_CONTAINS(r.keywords, :keyword) = true')
+                ->setParameter('keyword', json_encode([$filters['keyword']]));
         }
 
         if (!empty($filters['dateFrom'])) {

@@ -20,6 +20,7 @@ doctrine:
             string_functions:
                 CAST: App\Doctrine\CastFunction
                 UNACCENT: App\Doctrine\UnaccentFunction
+                JSONB_CONTAINS: App\Doctrine\JsonbContainsFunction
         mappings:
             App:
                 type: attribute
