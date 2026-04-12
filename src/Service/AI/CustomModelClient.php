@@ -43,6 +43,9 @@ final class CustomModelClient
      * Send a chat completion request. Returns the raw assistant content string.
      *
      * @param array<int, array{role: string, content: string}> $extraMessages Messages appended after the system prompt.
+     * @param array<string, mixed>|null $jsonSchema When provided, uses structured outputs (`json_schema`
+     *     response_format) to constrain the model output to the given JSON schema. Takes precedence over
+     *     the coarser `$jsonMode` flag.
      * @throws \RuntimeException When all retries are exhausted.
      */
     public function chat(
@@ -51,6 +54,8 @@ final class CustomModelClient
         bool $jsonMode = false,
         float $temperature = 0.3,
         int $maxRetries = 2,
+        ?array $jsonSchema = null,
+        string $schemaName = 'structured_response',
     ): string {
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
 
@@ -75,7 +80,15 @@ final class CustomModelClient
             'max_tokens' => $this->maxTokens,
         ];
 
-        if ($jsonMode) {
+        if ($jsonSchema !== null) {
+            $params['response_format'] = [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => $schemaName,
+                    'schema' => $jsonSchema,
+                ],
+            ];
+        } elseif ($jsonMode) {
             $params['response_format'] = ['type' => 'json_object'];
         }
 

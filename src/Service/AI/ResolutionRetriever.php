@@ -18,7 +18,7 @@ final class ResolutionRetriever
     }
 
     /**
-     * Retrieve similar favorable CTBG resolutions.
+     * Retrieve similar CTBG resolutions, filtered by outcome.
      *
      * Does a two-step lookup:
      * 1. Vector search in the semantic store to find candidate references.
@@ -31,6 +31,9 @@ final class ResolutionRetriever
      *
      * @param string $query The search query
      * @param int $topK Number of results to return
+     * @param list<string> $outcomes Outcome codes to include. Defaults to favorable + partial
+     *                               (precedents supporting a claim). Pass e.g.
+     *                               `['unfavorable', 'inadmissible']` to retrieve risk cases.
      * @return array<int, array{
      *     reference: string,
      *     date: string|null,
@@ -43,17 +46,30 @@ final class ResolutionRetriever
      *     score: float|null,
      * }>
      */
-    public function retrieveSimilarCases(string $query, int $topK = 3): array
+    public function retrieveSimilarCases(string $query, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
     {
+        if (empty($outcomes)) {
+            return [];
+        }
+
         try {
             $embedding = $this->embeddingGenerator->generate($query);
             $vector = new Vector($embedding);
 
+            // Build a dynamic IN clause from the requested outcomes.
+            $placeholders = [];
+            $params = [];
+            foreach (array_values($outcomes) as $i => $outcome) {
+                $key = 'outcome' . $i;
+                $placeholders[] = ':' . $key;
+                $params[$key] = $outcome;
+            }
+
             // Cast a slightly wider net — we may drop rows that don't have a matching DB record.
             $documents = $this->ctbgResolutionsStore->query($vector, [
                 'limit' => max($topK * 2, $topK + 3),
-                'where' => "metadata->>'outcome' IN (:outcome1, :outcome2)",
-                'params' => ['outcome1' => 'favorable', 'outcome2' => 'partial'],
+                'where' => "metadata->>'outcome' IN (" . implode(', ', $placeholders) . ')',
+                'params' => $params,
             ]);
 
             // Collect unique references from vector hits, preserving relevance order.

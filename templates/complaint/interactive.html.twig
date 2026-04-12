@@ -108,6 +108,45 @@
             </div>
         {% endif %}
 
+        {# Probability Analysis Card #}
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-amber-600"></i>
+                    </div>
+                    <h2 class="font-semibold text-slate-800">Análisis de probabilidad de éxito</h2>
+                </div>
+            </div>
+            <div class="card-body">
+                <template x-if="analysisLoading">
+                    <div class="flex items-center justify-center py-6">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+                        <span class="ml-3 text-sm text-slate-600">Analizando probabilidad de éxito...</span>
+                    </div>
+                </template>
+
+                <template x-if="analysis && !analysisLoading">
+                    <div>
+                        <div class="flex items-baseline gap-3 mb-3">
+                            <span class="text-4xl font-bold" :class="getProbabilityClass(analysis.probability)" x-text="analysis.probability + '%'"></span>
+                            <span class="text-sm font-medium text-slate-500" x-text="getProbabilityLabel(analysis.probability)"></span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-2.5 mb-4">
+                            <div class="h-2.5 rounded-full transition-all duration-500"
+                                 :class="getProbabilityBarClass(analysis.probability)"
+                                 :style="'width: ' + analysis.probability + '%'"></div>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed" x-text="analysis.reasoning"></p>
+                    </div>
+                </template>
+
+                <template x-if="!analysis && !analysisLoading">
+                    <p class="text-sm text-slate-500 text-center py-2">El análisis se ejecutará automáticamente.</p>
+                </template>
+            </div>
+        </div>
+
         {# Chat Card #}
         <div class="card">
             <div class="card-header">
@@ -294,45 +333,6 @@
             </div>
         </div>
         {% endif %}
-
-        {# Analysis Card #}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-amber-600"></i>
-                    </div>
-                    <h2 class="font-semibold text-slate-800">Análisis de probabilidad</h2>
-                </div>
-            </div>
-            <div class="card-body">
-                <template x-if="analysisLoading">
-                    <div class="flex items-center justify-center py-4">
-                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                        <span class="ml-3 text-sm text-slate-600">Analizando...</span>
-                    </div>
-                </template>
-
-                <template x-if="analysis && !analysisLoading">
-                    <div>
-                        <div class="flex items-center gap-3 mb-3">
-                            <span class="text-3xl font-bold" :class="getProbabilityClass(analysis.probability)" x-text="analysis.probability + '%'"></span>
-                            <span class="text-sm text-slate-500" x-text="getProbabilityLabel(analysis.probability)"></span>
-                        </div>
-                        <div class="w-full bg-slate-200 rounded-full h-2 mb-3">
-                            <div class="h-2 rounded-full transition-all duration-500"
-                                 :class="getProbabilityBarClass(analysis.probability)"
-                                 :style="'width: ' + analysis.probability + '%'"></div>
-                        </div>
-                        <p class="text-sm text-slate-600" x-text="analysis.reasoning"></p>
-                    </div>
-                </template>
-
-                <template x-if="!analysis && !analysisLoading">
-                    <p class="text-sm text-slate-500 text-center py-2">El análisis se ejecutará automáticamente.</p>
-                </template>
-            </div>
-        </div>
 
         {# Info Card #}
         <div class="card bg-slate-50">
