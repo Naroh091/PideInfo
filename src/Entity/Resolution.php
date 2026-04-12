@@ -34,6 +34,31 @@ class Resolution
     public const OUTCOME_CONSULTATION = 'consulta';
     public const OUTCOME_CLARIFICATION = 'aclaracion';
 
+    // Limits invoked by the administration to deny access (art. 14 Ley 19/2013)
+    public const LIMIT_NATIONAL_SECURITY = 'seguridad_nacional';
+    public const LIMIT_DEFENSE = 'defensa';
+    public const LIMIT_FOREIGN_RELATIONS = 'relaciones_exteriores';
+    public const LIMIT_PUBLIC_SAFETY = 'seguridad_publica';
+    public const LIMIT_CRIME_PREVENTION = 'prevencion_ilicitos';
+    public const LIMIT_JUDICIAL_EQUALITY = 'igualdad_procesos_judiciales';
+    public const LIMIT_INSPECTION = 'vigilancia_inspeccion';
+    public const LIMIT_ECONOMIC_INTERESTS = 'intereses_economicos';
+    public const LIMIT_ECONOMIC_POLICY = 'politica_economica';
+    public const LIMIT_PROFESSIONAL_SECRECY = 'secreto_profesional_ip';
+    public const LIMIT_DECISION_CONFIDENTIALITY = 'confidencialidad_decision';
+    public const LIMIT_ENVIRONMENT = 'medio_ambiente';
+
+    // Inadmission causes invoked by the administration (art. 18 Ley 19/2013)
+    public const INADMISSION_IN_PROGRESS = 'en_elaboracion';
+    public const INADMISSION_AUXILIARY = 'auxiliar_apoyo';
+    public const INADMISSION_REELABORATION = 'reelaboracion';
+    public const INADMISSION_NOT_COMPETENT = 'no_competente';
+    public const INADMISSION_ABUSIVE = 'repetitiva_abusiva';
+
+    // Source metadata keys for outcome tracking
+    public const META_OUTCOME_OVERRIDEN = 'OUTCOME_OVERRIDEN';
+    public const META_OUTCOME_RAW = 'OUTCOME_RAW';
+
     // Sources
     public const SOURCE_CTBG = 'CTBG';
     public const SOURCE_CTBG_LOCAL = 'CTBG_LOCAL';
@@ -148,6 +173,17 @@ class Resolution
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $sourceMetadata = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $infoRequestDate = null;
+
+    /** @var array<string>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $limits = null;
+
+    /** @var array<string>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $inadmissionCauses = null;
 
     public function __construct()
     {
@@ -499,6 +535,101 @@ class Resolution
     {
         $this->batchJob = $batchJob;
         return $this;
+    }
+
+    public function getInfoRequestDate(): ?\DateTimeImmutable
+    {
+        return $this->infoRequestDate;
+    }
+
+    public function setInfoRequestDate(?\DateTimeImmutable $infoRequestDate): static
+    {
+        $this->infoRequestDate = $infoRequestDate;
+        return $this;
+    }
+
+    /** @return array<string>|null */
+    public function getLimits(): ?array
+    {
+        return $this->limits;
+    }
+
+    /** @param array<string>|null $limits */
+    public function setLimits(?array $limits): static
+    {
+        $this->limits = $limits;
+        return $this;
+    }
+
+    /** @return array<string>|null */
+    public function getInadmissionCauses(): ?array
+    {
+        return $this->inadmissionCauses;
+    }
+
+    /** @param array<string>|null $inadmissionCauses */
+    public function setInadmissionCauses(?array $inadmissionCauses): static
+    {
+        $this->inadmissionCauses = $inadmissionCauses;
+        return $this;
+    }
+
+    /**
+     * @return array<string, string> Map of LIMIT_* constants to their Spanish labels.
+     */
+    public static function getLimitLabels(): array
+    {
+        return [
+            self::LIMIT_NATIONAL_SECURITY => 'La seguridad nacional',
+            self::LIMIT_DEFENSE => 'La defensa',
+            self::LIMIT_FOREIGN_RELATIONS => 'Las relaciones exteriores',
+            self::LIMIT_PUBLIC_SAFETY => 'La seguridad pública',
+            self::LIMIT_CRIME_PREVENTION => 'La prevención, investigación y sanción de ilícitos penales, administrativos o disciplinarios',
+            self::LIMIT_JUDICIAL_EQUALITY => 'La igualdad de las partes en los procesos judiciales y la tutela judicial efectiva',
+            self::LIMIT_INSPECTION => 'Las funciones administrativas de vigilancia, inspección y control',
+            self::LIMIT_ECONOMIC_INTERESTS => 'Los intereses económicos y comerciales',
+            self::LIMIT_ECONOMIC_POLICY => 'La política económica y monetaria',
+            self::LIMIT_PROFESSIONAL_SECRECY => 'El secreto profesional y la propiedad intelectual e industrial',
+            self::LIMIT_DECISION_CONFIDENTIALITY => 'La garantía de la confidencialidad o el secreto en procesos de toma de decisión',
+            self::LIMIT_ENVIRONMENT => 'La protección del medio ambiente',
+        ];
+    }
+
+    /**
+     * @return array<string, string> Map of INADMISSION_* constants to their Spanish labels.
+     */
+    public static function getInadmissionCauseLabels(): array
+    {
+        return [
+            self::INADMISSION_IN_PROGRESS => 'Información en curso de elaboración o de publicación general',
+            self::INADMISSION_AUXILIARY => 'Información auxiliar o de apoyo (notas, borradores, opiniones, resúmenes, comunicaciones e informes internos)',
+            self::INADMISSION_REELABORATION => 'Información para cuya divulgación sea necesaria una acción previa de reelaboración',
+            self::INADMISSION_NOT_COMPETENT => 'Dirigida a un órgano que no es competente y se desconoce el competente',
+            self::INADMISSION_ABUSIVE => 'Solicitudes manifiestamente repetitivas o de carácter abusivo',
+        ];
+    }
+
+    /**
+     * @return array<string, string> Map of OUTCOME_* constants to their Spanish labels.
+     */
+    public static function getOutcomeLabels(): array
+    {
+        return [
+            self::OUTCOME_FAVORABLE => 'Estimada',
+            self::OUTCOME_UNFAVORABLE => 'Desestimada',
+            self::OUTCOME_PARTIAL => 'Estimada parcialmente',
+            self::OUTCOME_INADMISSIBLE => 'Inadmitida',
+            self::OUTCOME_ARCHIVED => 'Archivada',
+            self::OUTCOME_WITHDRAWAL => 'Desistimiento',
+            self::OUTCOME_LOSS_OF_PURPOSE => 'Pérdida de objeto',
+            self::OUTCOME_MEDIATION_AGREEMENT => 'Acuerdo de mediación',
+            self::OUTCOME_REFERRAL => 'Derivada',
+            self::OUTCOME_ROLLBACK => 'Retrotraer',
+            self::OUTCOME_INHIBITION => 'Inhibición',
+            self::OUTCOME_COMPLAINT => 'Queja',
+            self::OUTCOME_CONSULTATION => 'Consulta',
+            self::OUTCOME_CLARIFICATION => 'Aclaración',
+        ];
     }
 
     public function __toString(): string

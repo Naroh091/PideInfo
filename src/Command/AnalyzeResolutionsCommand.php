@@ -449,42 +449,28 @@ class AnalyzeResolutionsCommand extends Command
             $resolution->setFullText($result['formatted_text']);
         }
 
+        $this->analyzer->applyAnalysisResult($resolution, $result);
+
         if (isset($result['summary'])) {
-            $resolution->setSummary($result['summary']);
             $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 120) . '...'));
         }
-
-        if (isset($result['keypoints'])) {
-            $resolution->setKeypoints($result['keypoints']);
+        if (isset($result['keypoints']) && is_array($result['keypoints'])) {
             $io->text(sprintf('  Keypoints: %d extracted', count($result['keypoints'])));
         }
-
-        if (!empty($result['subject'])) {
-            $resolution->setSubject(mb_substr($result['subject'], 0, 500));
-        }
-
         if (!empty($result['resolution_date'])) {
-            try {
-                $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
-            } catch (\Exception) {
-                $io->text('  <comment>Could not parse resolution_date: ' . $result['resolution_date'] . '</comment>');
-            }
+            $io->text(sprintf('  Resolution date: %s', $result['resolution_date']));
         }
-
         if (!empty($result['claim_date'])) {
-            try {
-                $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
-                $io->text(sprintf('  Claim date: %s', $result['claim_date']));
-            } catch (\Exception) {
-                $io->text('  <comment>Could not parse claim_date: ' . $result['claim_date'] . '</comment>');
-            }
+            $io->text(sprintf('  Claim date: %s', $result['claim_date']));
         }
-
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-            $io->text(sprintf('  Days to resolve: %d', $days));
+        if (!empty($result['info_request_date'])) {
+            $io->text(sprintf('  Info request date: %s', $result['info_request_date']));
+        }
+        if (!empty($result['outcome'])) {
+            $io->text(sprintf('  Outcome (LLM): %s', $result['outcome']));
+        }
+        if ($resolution->getDaysToResolve() !== null) {
+            $io->text(sprintf('  Days to resolve: %d', $resolution->getDaysToResolve()));
         }
     }
 

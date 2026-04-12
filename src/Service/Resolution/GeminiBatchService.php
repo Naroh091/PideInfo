@@ -79,38 +79,32 @@ PROMPT;
      * Prompt for the analyze task.
      *
      * Assumes text has already been formatted (HTML or clean plain text).
-     * Covers: summary and keypoints extraction. Does NOT re-format text.
+     * Reuses the shared individual-analysis prompt from ResolutionAnalyzer so all
+     * analysis paths (sync, async, custom-batch, gemini-batch) stay in sync.
      */
-    public const ANALYZE_PROMPT = <<<'PROMPT'
-Eres un experto en derecho administrativo español y transparencia. Se te proporciona el texto de una resolución de un consejo de transparencia sobre una reclamación de acceso a información pública.
+    public static function getAnalyzePrompt(): string
+    {
+        $base = ResolutionAnalyzer::buildExtractAnalysisPrompt();
 
-IMPORTANTE: Toda tu salida debe estar en castellano. Si el texto está en otro idioma, traduce el contenido.
+        return $base . <<<'SUFFIX'
 
-Tu tarea tiene DOS partes:
-
-## 1. GENERAR RESUMEN
-
-Escribe un resumen conciso en texto plano (máximo 350-400 caracteres) que explique:
-- Qué información se solicitó y a qué organismo
-- Cuál fue la decisión del consejo de transparencia y por qué
-
-El resumen NO debe superar los 400 caracteres. Sé directo y evita redundancias.
-
-## 2. EXTRAER PUNTOS CLAVE
-
-Extrae entre 3 y 7 puntos clave de la argumentación jurídica del consejo. Cada punto debe ser una frase completa que resuma un argumento o razonamiento relevante. Céntrate en:
-- Los fundamentos jurídicos que sustentan la decisión
-- La interpretación de la ley de transparencia aplicada
-- Los precedentes citados si los hay
-- Las razones específicas de la estimación o desestimación
 
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 {
   "summary": "resumen en texto plano",
-  "keypoints": ["punto 1", "punto 2", ...]
+  "keypoints": ["punto 1", "punto 2", ...],
+  "resolution_date": "YYYY-MM-DD o null",
+  "claim_date": "YYYY-MM-DD o null",
+  "info_request_date": "YYYY-MM-DD o null",
+  "complained_administration": "nombre o null",
+  "subject": "asunto o null",
+  "outcome": "código del enum o texto libre o null",
+  "limits": ["código", "..."],
+  "inadmission_causes": ["código", "..."]
 }
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-PROMPT;
+SUFFIX;
+    }
 
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
@@ -139,7 +133,7 @@ PROMPT;
      */
     public function buildAnalyzeLine(string $key, string $text, bool $flex = false): string
     {
-        return $this->buildLine($key, self::ANALYZE_PROMPT, $text, thinkingBudget: null, flex: $flex);
+        return $this->buildLine($key, self::getAnalyzePrompt(), $text, thinkingBudget: null, flex: $flex);
     }
 
     private function buildLine(string $key, string $prompt, string $text, ?int $thinkingBudget, bool $flex = false): string

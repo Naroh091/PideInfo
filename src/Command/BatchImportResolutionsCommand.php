@@ -7,6 +7,7 @@ use App\Entity\Resolution;
 use App\Repository\GeminiBatchJobRepository;
 use App\Repository\ResolutionRepository;
 use App\Service\Resolution\GeminiBatchService;
+use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -29,6 +30,7 @@ class BatchImportResolutionsCommand extends Command
         private readonly GeminiBatchJobRepository $batchJobRepository,
         private readonly ResolutionRepository $resolutionRepository,
         private readonly GeminiBatchService $batchService,
+        private readonly ResolutionAnalyzer $analyzer,
         private readonly EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -353,13 +355,7 @@ class BatchImportResolutionsCommand extends Command
 
     private function applyAnalyzeResult(Resolution $resolution, array $result): void
     {
-        if (!empty($result['summary'])) {
-            $resolution->setSummary($result['summary']);
-        }
-
-        if (!empty($result['keypoints']) && is_array($result['keypoints'])) {
-            $resolution->setKeypoints($result['keypoints']);
-        }
+        $this->analyzer->applyAnalysisResult($resolution, $result);
     }
 
     private function printJobRow(SymfonyStyle $io, GeminiBatchJob $job): void

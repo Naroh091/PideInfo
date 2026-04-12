@@ -298,40 +298,7 @@ final class ProcessResolutionHandler
                 $resolution->setFullText($result['formatted_text']);
             }
 
-            if (isset($result['summary'])) {
-                $resolution->setSummary($result['summary']);
-            }
-
-            if (isset($result['keypoints'])) {
-                $resolution->setKeypoints($result['keypoints']);
-            }
-
-            if (!empty($result['subject'])) {
-                $resolution->setSubject(mb_substr($result['subject'], 0, 500));
-            }
-
-            $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
-            if (!empty($result['resolution_date']) && $existingDateSource === null) {
-                try {
-                    $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                    $meta = $resolution->getSourceMetadata() ?? [];
-                    $meta['FECHA_RESOLUCION'] = 'LLM';
-                    $resolution->setSourceMetadata($meta);
-                } catch (\Exception) {
-                }
-            }
-
-            if (!empty($result['claim_date'])) {
-                try {
-                    $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
-                } catch (\Exception) {
-                }
-            }
-
-            if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-                $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-                $resolution->setDaysToResolve($days);
-            }
+            $this->analyzer->applyAnalysisResult($resolution, $result);
 
             $this->logger->info('AI analysis complete', [
                 'reference' => $resolution->getReferenceNumber(),
