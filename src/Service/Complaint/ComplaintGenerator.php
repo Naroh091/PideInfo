@@ -11,46 +11,31 @@ use App\Entity\ApplicableLaw;
 use App\Entity\Document;
 use App\Enum\DocumentType;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\CustomModelClient;
 use App\Service\AI\ResolutionRetriever;
+use App\Service\TransparencyCouncilResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ComplaintGenerator
 {
     private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
 
-    private const TRANSPARENCY_COUNCILS = [
-        'ES' => 'Consejo de Transparencia y Buen Gobierno',
-        'AN' => 'Consejo de Transparencia y Protección de Datos de Andalucía',
-        'AR' => 'Consejo de Transparencia de Aragón',
-        'AS' => 'Consejo de Transparencia y Buen Gobierno del Principado de Asturias',
-        'IB' => 'Comissió per a les Reclamacions d\'Accés a la Informació Pública de les Illes Balears',
-        'CN' => 'Comisionado de Transparencia y Acceso a la Información Pública de Canarias',
-        'CB' => 'Consejo de Transparencia de Cantabria',
-        'CM' => 'Consejo Regional de Transparencia y Buen Gobierno de Castilla-La Mancha',
-        'CL' => 'Comisionado de Transparencia de Castilla y León',
-        'CT' => 'Comissió de Garantia del Dret d\'Accés a la Informació Pública',
-        'EX' => 'Consejo de Transparencia y Participación Ciudadana de Extremadura',
-        'GA' => 'Comisionado de Transparencia de Galicia',
-        'RI' => 'Consejo de Transparencia de La Rioja',
-        'MD' => 'Consejo de Transparencia y Participación de la Comunidad de Madrid',
-        'MC' => 'Consejo de la Transparencia de la Región de Murcia',
-        'NC' => 'Consejo de Transparencia de Navarra',
-        'PV' => 'Comisión Vasca de Acceso a la Información Pública',
-        'VC' => 'Consell de Transparència de la Comunitat Valenciana',
-    ];
-
     public function __construct(
         #[Autowire(env: 'GEMINI_API_KEY')]
         private readonly string $geminiApiKey,
         #[Autowire(env: 'GEMINI_BIG_MODEL')]
         private readonly string $geminiModel,
+        private readonly CustomModelClient $customModelClient,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
         private readonly SuccessAnalyzer $successAnalyzer,
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
+        private readonly LoggerInterface $logger,
+        private readonly TransparencyCouncilResolver $councilResolver,
     ) {
     }
 
@@ -78,24 +63,35 @@ final class ComplaintGenerator
         $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
         $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
 
+        $hasResponseDocument = $this->hasResponseDocument($accessRequest);
+
         $prompt = $this->buildPrompt(
             $accessRequest,
             $transparencyCouncil,
             $applicableLawName,
             $criteria,
             $resolutions,
-            $documentContents
+            $documentContents,
+            $hasResponseDocument
         );
 
         if ($userDirections) {
             $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        if (!empty($conversationHistory)) {
+        if ($this->customModelClient->isEnabled()) {
+            $extraMessages = array_map(
+                fn (ChatMessage $m) => ['role' => $m->role, 'content' => $m->content],
+                $conversationHistory,
+            );
+            $content = $this->customModelClient->chat($prompt, $extraMessages, temperature: 0.3);
+        } elseif (!empty($conversationHistory)) {
             $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
         } else {
             $content = $this->callGeminiApi($prompt);
         }
+
+        $content = $this->sanitizeHtmlResponse($content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -113,7 +109,7 @@ final class ComplaintGenerator
     public function saveComplaint(AccessRequest $accessRequest, ComplaintDraft $draft): Document
     {
         $filename = sprintf(
-            'reclamacion_%s_%s.txt',
+            'reclamacion_%s_%s.html',
             $accessRequest->getId()->toRfc4122(),
             (new \DateTime())->format('Y-m-d_H-i-s')
         );
@@ -121,9 +117,9 @@ final class ComplaintGenerator
         $this->documentsStorage->write($filename, $draft->content);
 
         $document = new Document();
-        $document->setOriginalFilename('Reclamación CTBG.txt');
+        $document->setOriginalFilename('Reclamación.html');
         $document->setStoredFilename($filename);
-        $document->setMimeType('text/plain');
+        $document->setMimeType('text/html');
         $document->setFileSize(strlen($draft->content));
         $document->setType(DocumentType::Complaint);
         $document->setAccessRequest($accessRequest);
@@ -159,18 +155,7 @@ final class ComplaintGenerator
 
     private function getTransparencyCouncil(ApplicableLaw $law): string
     {
-        if ($law->isStateLaw()) {
-            return self::TRANSPARENCY_COUNCILS['ES'];
-        }
-
-        $autonomousCommunity = $law->getAutonomousCommunity();
-        if ($autonomousCommunity === null) {
-            return self::TRANSPARENCY_COUNCILS['ES'];
-        }
-
-        $code = $autonomousCommunity->getCode();
-
-        return self::TRANSPARENCY_COUNCILS[$code] ?? self::TRANSPARENCY_COUNCILS['ES'];
+        return $this->councilResolver->forLaw($law);
     }
 
     /**
@@ -208,6 +193,16 @@ final class ComplaintGenerator
         return implode('. ', $parts);
     }
 
+    private function hasResponseDocument(AccessRequest $accessRequest): bool
+    {
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() === DocumentType::Response) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * @param array<array{name: string, type: string, content: string}> $documentContents
      */
@@ -217,7 +212,8 @@ final class ComplaintGenerator
         string $applicableLawName,
         array $criteria,
         array $resolutions,
-        array $documentContents = []
+        array $documentContents = [],
+        bool $hasResponseDocument = false
     ): string {
         $status = match (true) {
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
@@ -227,6 +223,51 @@ final class ComplaintGenerator
         };
 
         $denialReason = $accessRequest->getResolutionNotes() ?? 'No se ha indicado motivo de denegación';
+
+        $silencePositive = $accessRequest->getApplicableLaw()->isSilenceIsPositive();
+
+        if ($hasResponseDocument) {
+            $silenceBlock = '';
+        } elseif ($silencePositive) {
+            $silenceBlock = <<<SILENCE
+
+
+## SUPUESTO DE SILENCIO ADMINISTRATIVO POSITIVO
+
+NO se ha aportado ningún documento de respuesta de la Administración. Según la ley aplicable ({$applicableLawName}), el silencio administrativo en materia de acceso a información pública tiene sentido POSITIVO: transcurrido el plazo legal sin respuesta, la solicitud se entiende ESTIMADA por silencio y el ciudadano adquiere el derecho de acceso a la información solicitada.
+
+La reclamación NO debe argumentarse como si se tratara de una denegación tácita, sino como la falta de MATERIALIZACIÓN de un derecho ya reconocido por silencio positivo.
+
+Sé BREVE Y DIRECTO. No desarrolles argumentación extensa sobre el fondo: el derecho ya ha quedado reconocido por silencio. Céntrate en:
+- La constatación del silencio positivo y su efecto estimatorio conforme a la ley autonómica aplicable.
+- La OBLIGACIÓN DE RESOLVER de la Administración (art. 21 Ley 39/2015), cuyo incumplimiento no puede perjudicar al ciudadano.
+- Por qué lo solicitado NO ENCAJA en ninguna de las CAUSAS DE INADMISIÓN del art. 18 Ley 19/2013 (o equivalente autonómico): no es información auxiliar, no requiere reelaboración, el órgano es competente, no es repetitiva ni abusiva, no está en curso de elaboración.
+- Por qué lo solicitado NO ENTRA en los LÍMITES al derecho de acceso del art. 14 Ley 19/2013 (o equivalente autonómico), dado que la Administración no ha alegado ninguno.
+
+En la SOLICITUD, pide al {$transparencyCouncil} que DECLARE el derecho de acceso ya adquirido por silencio positivo y ordene a la Administración la ENTREGA EFECTIVA de la información.
+
+NO inventes motivos de denegación: parte explícitamente de que la Administración no ha ofrecido ninguno.
+SILENCE;
+        } else {
+            $silenceBlock = <<<'SILENCE'
+
+
+## SUPUESTO DE SILENCIO ADMINISTRATIVO NEGATIVO
+
+NO se ha aportado ningún documento de respuesta de la Administración al expediente. Debes redactar la reclamación asumiendo que NO ha habido resolución expresa y que, transcurrido el plazo legal de un mes, se ha producido SILENCIO ADMINISTRATIVO con sentido DESESTIMATORIO conforme al artículo 20.4 de la Ley 19/2013 (o precepto equivalente de la ley autonómica aplicable).
+
+Sé BREVE Y DIRECTO. No hace falta desarrollar una argumentación jurídica extensa sobre el fondo del asunto: céntrate en (a) la obligación de resolver y (b) que lo solicitado no encaja en límites ni causas de inadmisión.
+
+En los Fundamentos Jurídicos debes:
+- Invocar la OBLIGACIÓN DE RESOLVER de la Administración (art. 21 Ley 39/2015): toda Administración está obligada a dictar resolución expresa y notificarla en todos los procedimientos, incluidos los de acceso a información pública.
+- Recordar el plazo legal de un mes y el sentido desestimatorio del silencio (art. 20 Ley 19/2013 o precepto autonómico equivalente).
+- Destacar por qué lo solicitado NO ENCAJA en ninguna de las CAUSAS DE INADMISIÓN del art. 18 Ley 19/2013 (o equivalente autonómico): no es información auxiliar, no requiere reelaboración, el órgano es competente, no es repetitiva ni abusiva, no está en curso de elaboración.
+- Destacar por qué lo solicitado NO ENTRA en los LÍMITES al derecho de acceso del art. 14 Ley 19/2013 (o equivalente autonómico), dado que la Administración no ha alegado ninguno.
+- Señalar que el silencio NO EXIME a la Administración de su deber de resolver expresamente ni constituye una denegación válidamente motivada, por lo que la falta de motivación vicia la denegación presunta y, por sí sola, justifica la estimación de la reclamación.
+
+NO inventes motivos de denegación: parte explícitamente de que la Administración no ha ofrecido ninguno.
+SILENCE;
+        }
 
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
@@ -268,11 +309,33 @@ Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas).
 
 Desarrolla los fundamentos jurídicos basándote en:
 - {$applicableLawName}
-- Los criterios interpretativos recuperados (ver abajo)
-- Las resoluciones favorables similares (si hay disponibles)
+- Los criterios interpretativos recuperados (ver abajo) — solo si son REALMENTE relevantes
+- Las resoluciones favorables similares (ver abajo) — solo si son REALMENTE relevantes
 
-IMPORTANTE: Si usas argumentación de una resolución previa, CITA la resolución expresamente.
-Ejemplo: "Como estableció el {$transparencyCouncil} en su Resolución R/0123/2023..."
+### CÓMO JUZGAR LA RELEVANCIA DE RESOLUCIONES Y CRITERIOS
+
+Las resoluciones y criterios que verás abajo te llegan por búsqueda semántica — es decir, son solo CANDIDATOS. El sistema NO garantiza que sean aplicables al caso. Muchos no lo serán. Tu trabajo es leerlos y descartar los que no encajen.
+
+Protocolo obligatorio antes de citar cualquier resolución:
+1. Lee primero el **resumen** y los **puntos clave** de cada resolución. Sirven como primer filtro de relevancia.
+2. Si, a la vista del resumen y los puntos clave, la resolución aborda una cuestión jurídica realmente aplicable al caso actual, consulta su **extracto del texto completo** para verificar que el razonamiento es transferible.
+3. Solo si, después de leer esos tres elementos, estás seguro de que la resolución es genuinamente aplicable, cítala.
+4. Si tienes la más mínima duda sobre si una resolución aplica al caso, NO la cites. Es preferible una reclamación más breve y segura que una extensa con citas improcedentes.
+
+Para los criterios interpretativos, aplica la misma prudencia: el epígrafe o título del criterio ya NO aparece en las cabeceras porque a veces era impreciso. Juzga la aplicabilidad leyendo el TEXTO del criterio, no por su identificador.
+
+### CÓMO CITAR
+
+Cuando cites una resolución o un criterio, IDENTIFICA SIEMPRE al órgano que lo emitió (consejo de transparencia, tribunal, etc.) y resume en tus propias palabras qué establece — no te limites a dar el número.
+
+Ejemplos de cita correcta:
+- "como estableció el {$transparencyCouncil} en su Resolución R/0123/2023, al conocer de un caso análogo en el que…"
+- "el Tribunal Supremo, en su sentencia de 16 de octubre de 2017 (rec. 75/2017), confirmó que…"
+- "el Criterio Interpretativo CI/004/2015, del Consejo de Transparencia y Buen Gobierno, establece que…"
+
+Cuando cites un criterio interpretativo, usa SIEMPRE la fórmula literal «Criterio <identificador>» (por ejemplo «Criterio CI/004/2015»). Es el único formato que el sistema reconocerá como cita.
+
+Si el órgano emisor de una fuente no consta en el contexto proporcionado, no inventes el nombre: omite la cita.
 
 ## 4. SOLICITUD
 
@@ -305,20 +368,20 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 {$resolutionsText}
 
 ---
-
+{$silenceBlock}
 ## REGLAS DE REDACCIÓN
 
 1. DOCUMENTO COMPLETO: El texto debe estar listo para firmar, sin huecos por rellenar
 2. SIN PLACEHOLDERS: NUNCA escribas [nombre], [fecha], [espacio para...], [completar], [firma], etc.
 3. ANTECEDENTES EN PROSA: Los antecedentes deben redactarse en párrafos narrativos, NO en listas con viñetas
 4. ESPAÑOL JURÍDICO: Usa lenguaje formal jurídico-administrativo
-5. Citar expresamente las resoluciones que fundamenten la argumentación
+5. CITAS RELEVANTES Y ATRIBUIDAS: Solo menciona una resolución, criterio interpretativo o doctrina si es REALMENTE relevante para el fondo de la reclamación — no las incluyas como adorno ni para engrosar el texto. Cuando cites una resolución o doctrina, IDENTIFICA SIEMPRE al órgano que la emitió (ej. "el {$transparencyCouncil}, en su Resolución R/0123/2023..."; "el Tribunal Supremo, en su sentencia de 16 de octubre de 2017..."). Si el órgano emisor no consta en las fuentes proporcionadas, no inventes el nombre.
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
-7. FORMATO MARKDOWN: Usa formato Markdown (## para títulos, **negrita**, *cursiva*, etc.)
-8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo.
+7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal ("Resumen de la reclamación", "Antecedentes", "Fundamentos jurídicos", "Solicitud"). Para subsecciones dentro de una sección, usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
+8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo, y aún así — especialmente en supuestos de silencio administrativo — prefiere la brevedad: no alargues la argumentación cuando el caso es sencillo.
 9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
 
-Responde ÚNICAMENTE con el texto de la reclamación en formato Markdown, sin explicaciones adicionales ni comentarios.
+Responde ÚNICAMENTE con el HTML de la reclamación, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.
 PROMPT;
 
         return $prompt;
@@ -368,11 +431,19 @@ PROMPT;
             $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        if (!empty($conversationHistory)) {
+        if ($this->customModelClient->isEnabled()) {
+            $extraMessages = array_map(
+                fn (ChatMessage $m) => ['role' => $m->role, 'content' => $m->content],
+                $conversationHistory,
+            );
+            $content = $this->customModelClient->chat($prompt, $extraMessages, temperature: 0.3);
+        } elseif (!empty($conversationHistory)) {
             $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
         } else {
             $content = $this->callGeminiApi($prompt);
         }
+
+        $content = $this->sanitizeHtmlResponse($content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -537,14 +608,34 @@ Solicita al {$transparencyCouncil} que desestime las alegaciones y estime la rec
 4. Citar expresamente las resoluciones que fundamenten la argumentación
 5. NO incluir encabezado con datos del reclamante
 6. REBATIR cada punto de alegación específicamente
-7. FORMATO MARKDOWN: Usa formato Markdown (## para títulos, **negrita**, *cursiva*, etc.)
+7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal. Para subsecciones usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
 8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo.
 9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
 
-Responde ÚNICAMENTE con el texto del escrito en formato Markdown, sin explicaciones adicionales ni comentarios.
+Responde ÚNICAMENTE con el HTML del escrito, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.
 PROMPT;
 
         return $prompt;
+    }
+
+    /**
+     * Strip markdown code fences and any model chatter around the HTML body.
+     */
+    private function sanitizeHtmlResponse(string $content): string
+    {
+        $content = trim($content);
+
+        if ($content === '') {
+            return $content;
+        }
+
+        if (str_starts_with($content, '```')) {
+            $content = preg_replace('/^```(?:html|HTML)?\s*/', '', $content);
+            $content = preg_replace('/\s*```$/', '', $content ?? '');
+            $content = trim($content ?? '');
+        }
+
+        return $content;
     }
 
     /**
@@ -660,44 +751,66 @@ PROMPT;
     }
 
     /**
+     * Returns only the resolutions whose reference is literally quoted in the body of the
+     * generated complaint. This is the source of truth for the "Referencias documentales"
+     * section of the PDF — we do NOT want to advertise citations that the LLM rejected
+     * because they weren't genuinely relevant.
+     *
+     * Strips HTML tags first so that reference numbers buried in attributes don't count.
+     *
      * @return array<int, CitedResolution>
      */
     private function extractCitedResolutions(string $content, array $resolutions): array
     {
+        $plain = strip_tags($content);
         $cited = [];
 
         foreach ($resolutions as $resolution) {
             $reference = $resolution['reference'] ?? '';
-            if ($reference && str_contains($content, $reference)) {
-                $cited[] = new CitedResolution(
-                    reference: $reference,
-                    date: $resolution['date'] ?? null,
-                    excerpt: substr($resolution['text'] ?? '', 0, 200),
-                );
+            if (!$reference || !str_contains($plain, $reference)) {
+                continue;
             }
+
+            $excerpt = (string) ($resolution['summary'] ?? '');
+            if ($excerpt === '') {
+                $excerpt = mb_substr((string) ($resolution['fullText'] ?? ''), 0, 200);
+            }
+
+            $cited[] = new CitedResolution(
+                reference: $reference,
+                date: $resolution['date'] ?? null,
+                excerpt: mb_substr($excerpt, 0, 200),
+            );
         }
 
         return $cited;
     }
 
     /**
+     * Strict detection: the body must contain the literal phrase "Criterio <ID>".
+     * A bare ID match is too lax — identifiers are often short enough to collide with
+     * unrelated text or hidden in attributes. The prompt instructs the LLM to use this
+     * exact wording when it actually cites a criterion.
+     *
      * @return array<int, string>
      */
     private function extractCitedCriteria(string $content, array $criteria): array
     {
+        $plain = strip_tags($content);
         $cited = [];
 
         foreach ($criteria as $criterion) {
             $criterionId = $criterion['criterion'] ?? '';
-            if ($criterionId && (
-                str_contains($content, $criterionId) ||
-                str_contains($content, "Criterio {$criterionId}") ||
-                str_contains($content, "criterio {$criterionId}")
-            )) {
-                $cited[] = sprintf('%s (%d) - %s', $criterionId, $criterion['year'], $criterion['topic']);
+            if (!$criterionId) {
+                continue;
+            }
+
+            $pattern = '/\bcriterio\s+' . preg_quote($criterionId, '/') . '\b/iu';
+            if (preg_match($pattern, $plain) === 1) {
+                $cited[] = sprintf('Criterio %s (%d)', $criterionId, $criterion['year']);
             }
         }
 
-        return array_unique($cited);
+        return array_values(array_unique($cited));
     }
 }

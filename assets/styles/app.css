@@ -191,6 +191,35 @@ body {
   color: #d97706;
 }
 
+/* Clickable stat tiles — stronger affordance than plain :hover lift */
+.stat-tile-link {
+  @apply cursor-pointer;
+  border-color: var(--color-primary-100);
+  background: linear-gradient(135deg, white 60%, var(--color-primary-50));
+}
+
+.stat-tile-link:hover {
+  border-color: var(--color-primary-300);
+  background: linear-gradient(135deg, white 40%, var(--color-primary-100));
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+}
+
+.stat-tile-link .stat-tile-cta {
+  @apply text-xs font-semibold text-primary-600 mt-2 inline-flex items-center gap-1;
+}
+
+.stat-tile-link:hover .stat-tile-cta {
+  @apply text-primary-700;
+}
+
+.stat-tile-link .stat-tile-cta i {
+  transition: transform 0.2s;
+}
+
+.stat-tile-link:hover .stat-tile-cta i {
+  transform: translateX(2px);
+}
+
 /* ── Resolution cards ── */
 .resolution-card {
   @apply relative bg-white rounded-xl border border-slate-200;

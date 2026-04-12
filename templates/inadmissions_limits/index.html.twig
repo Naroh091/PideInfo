@@ -1,0 +1,250 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Límites e inadmisiones - Resoluciones de Transparencia - PideInfo{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="Estadísticas de los límites (art. 14) y causas de inadmisión (art. 18) de la Ley de Transparencia 19/2013 invocados por las administraciones españolas para denegar el acceso a información pública.">
+{% endblock %}
+
+{% block og %}
+    <meta property="og:title" content="Límites e inadmisiones de la transparencia - PideInfo">
+    <meta property="og:description" content="Qué artículos usa la administración para denegar el acceso a información pública y cómo responden los consejos de transparencia.">
+    <meta property="og:url" content="{{ url('app_inadmisiones_limites_index') }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' with { active_page: 'inadmisiones_limites' } %}
+
+{% macro ranking_item(row, position, labels, route_name, rate_key, rate_label) %}
+    {% set medals = { 1: '🥇', 2: '🥈', 3: '🥉' } %}
+    {% set rate = row[rate_key] %}
+    <a href="{{ path(route_name, { value: row.key }) }}"
+       class="flex items-center gap-3 py-3 px-3 -mx-3 rounded-lg hover:bg-slate-50 transition-colors group">
+        <span class="w-7 text-center flex-shrink-0 {{ position <= 3 ? 'text-lg' : 'text-sm font-bold text-slate-300' }}">
+            {{ medals[position]|default(position) }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors line-clamp-2">{{ labels[row.key]|default(row.key) }}</div>
+            <div class="text-xs text-slate-400">{{ row.count }} invocaciones</div>
+        </div>
+        <div class="flex-shrink-0 text-right">
+            <div class="text-sm font-bold tabular-nums {{ rate_key == 'overturnedRate' ? (rate > 60 ? 'text-emerald-600' : (rate > 30 ? 'text-amber-500' : 'text-slate-500')) : (rate > 60 ? 'text-red-500' : (rate > 30 ? 'text-amber-500' : 'text-slate-500')) }}">{{ rate }}%</div>
+            <div class="text-xs text-slate-400">{{ rate_label }}</div>
+        </div>
+    </a>
+{% endmacro %}
+
+{% macro stats_table(stats, labels, route_name, empty_label) %}
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 border-b border-slate-200">
+                <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th class="text-left px-4 py-3">Concepto</th>
+                    <th class="text-right px-4 py-3 w-24">Invocado</th>
+                    <th class="text-left px-4 py-3 w-64 hidden md:table-cell">Estimadas vs. desestimadas</th>
+                    <th class="text-right px-4 py-3 w-12"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for key, row in stats %}
+                    <tr class="group hover:bg-slate-50 transition-colors">
+                        <td class="px-4 py-3">
+                            <a href="{{ path(route_name, { value: key }) }}" class="block font-medium text-slate-700 group-hover:text-primary-600 transition-colors leading-snug">
+                                {{ labels[key]|default(key) }}
+                            </a>
+                        </td>
+                        <td class="px-4 py-3 text-right tabular-nums">
+                            {% if row.count > 0 %}
+                                <span class="font-semibold text-slate-700">{{ row.count }}</span>
+                            {% else %}
+                                <span class="text-slate-300">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 hidden md:table-cell">
+                            {% set decisive = row.favorable + row.unfavorable %}
+                            {% if decisive > 0 %}
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 h-2 rounded-full overflow-hidden bg-slate-100 flex">
+                                        <div class="h-full bg-emerald-400" style="width: {{ row.overturnedRate }}%"></div>
+                                        <div class="h-full bg-red-400" style="width: {{ row.upheldRate }}%"></div>
+                                    </div>
+                                    <span class="text-xs text-slate-500 tabular-nums w-10 text-right">{{ row.overturnedRate }}%</span>
+                                </div>
+                                <div class="text-[10px] text-slate-400 mt-1">
+                                    {{ row.favorable }} estimadas · {{ row.unfavorable }} desestimadas
+                                </div>
+                            {% else %}
+                                <span class="text-xs text-slate-300">Sin decisiones concluyentes</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <a href="{{ path(route_name, { value: key }) }}" class="text-slate-300 hover:text-primary-500 transition-colors">
+                                <i data-lucide="chevron-right" class="w-4 h-4 inline"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" class="px-4 py-6 text-center text-slate-400 text-sm">{{ empty_label }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endmacro %}
+
+{% import _self as ui %}
+
+<header class="repo-header border-b border-slate-200/50 relative">
+    <div class="repo-header-bg"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+        <nav class="flex items-center gap-2 text-sm text-slate-500 mb-3 animate-fade-in">
+            <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            <span class="text-slate-700 font-medium">Límites e inadmisiones</span>
+        </nav>
+        <h1 class="repo-title text-3xl sm:text-4xl text-slate-800">Límites e inadmisiones</h1>
+        <p class="text-sm text-slate-500 mt-3 max-w-3xl leading-relaxed">
+            La Ley 19/2013 permite a la administración denegar el acceso a información pública en supuestos tasados: los <strong class="text-slate-700">límites del artículo 14</strong> (p. ej. seguridad nacional, defensa, secreto profesional) y las <strong class="text-slate-700">causas de inadmisión del artículo 18</strong> (información en elaboración, reelaboración, etc.). Aquí puedes ver cuáles se invocan más y con qué frecuencia los consejos de transparencia los mantienen o los rechazan tras una reclamación.
+        </p>
+        <p class="text-xs text-slate-400 mt-3 italic">«Estimada» significa que el consejo dio la razón al ciudadano — es decir, <strong class="not-italic text-slate-500">rechazó</strong> el límite o causa invocado por la administración.</p>
+    </div>
+</header>
+
+<div class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-14">
+
+        {# ── Límites (art. 14) ── #}
+        <section style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.05s">
+            <div class="flex items-end justify-between gap-4 mb-5">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-600 border border-rose-200">
+                            <i data-lucide="shield-alert" class="w-3 h-3"></i>
+                            Art. 14
+                        </span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800">Límites al derecho de acceso</h2>
+                </div>
+            </div>
+
+            {% if limitRankings.mostInvoked|length > 0 %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="megaphone" class="w-4 h-4 text-slate-400"></i>
+                        Más invocados
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">Por número total de invocaciones</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in limitRankings.mostInvoked %}
+                            {{ ui.ranking_item(row, loop.index, limitLabels, 'app_inadmisiones_limites_limit', 'overturnedRate', 'rechazados') }}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="x-circle" class="w-4 h-4 text-emerald-500"></i>
+                        Más rechazados
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">El consejo dio la razón al ciudadano (mín. 5 casos)</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in limitRankings.mostOverturned %}
+                            {{ ui.ranking_item(row, loop.index, limitLabels, 'app_inadmisiones_limites_limit', 'overturnedRate', 'rechazados') }}
+                        {% else %}
+                            <p class="text-xs text-slate-400 py-3">Aún no hay datos suficientes.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-red-400"></i>
+                        Más mantenidos
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">El consejo confirmó la denegación (mín. 5 casos)</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in limitRankings.mostUpheld %}
+                            {{ ui.ranking_item(row, loop.index, limitLabels, 'app_inadmisiones_limites_limit', 'upheldRate', 'mantenidos') }}
+                        {% else %}
+                            <p class="text-xs text-slate-400 py-3">Aún no hay datos suficientes.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {{ ui.stats_table(limitStats, limitLabels, 'app_inadmisiones_limites_limit', 'Aún no hay datos.') }}
+        </section>
+
+        {# ── Causas de inadmisión (art. 18) ── #}
+        <section style="animation: fade-slide-up 0.5s ease-out both; animation-delay: 0.1s">
+            <div class="flex items-end justify-between gap-4 mb-5">
+                <div>
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            <i data-lucide="file-x" class="w-3 h-3"></i>
+                            Art. 18
+                        </span>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800">Causas de inadmisión</h2>
+                </div>
+            </div>
+
+            {% if causeRankings.mostInvoked|length > 0 %}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="megaphone" class="w-4 h-4 text-slate-400"></i>
+                        Más invocadas
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">Por número total de invocaciones</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in causeRankings.mostInvoked %}
+                            {{ ui.ranking_item(row, loop.index, inadmissionCauseLabels, 'app_inadmisiones_limites_cause', 'overturnedRate', 'rechazadas') }}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="x-circle" class="w-4 h-4 text-emerald-500"></i>
+                        Más rechazadas
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">El consejo dio la razón al ciudadano (mín. 5 casos)</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in causeRankings.mostOverturned %}
+                            {{ ui.ranking_item(row, loop.index, inadmissionCauseLabels, 'app_inadmisiones_limites_cause', 'overturnedRate', 'rechazadas') }}
+                        {% else %}
+                            <p class="text-xs text-slate-400 py-3">Aún no hay datos suficientes.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="profile-section">
+                    <h3 class="profile-section-title">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-red-400"></i>
+                        Más mantenidas
+                    </h3>
+                    <p class="text-xs text-slate-400 -mt-2 mb-3">El consejo confirmó la inadmisión (mín. 5 casos)</p>
+                    <div class="divide-y divide-slate-100">
+                        {% for row in causeRankings.mostUpheld %}
+                            {{ ui.ranking_item(row, loop.index, inadmissionCauseLabels, 'app_inadmisiones_limites_cause', 'upheldRate', 'mantenidas') }}
+                        {% else %}
+                            <p class="text-xs text-slate-400 py-3">Aún no hay datos suficientes.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {{ ui.stats_table(causeStats, inadmissionCauseLabels, 'app_inadmisiones_limites_cause', 'Aún no hay datos.') }}
+        </section>
+
+    </div>
+</div>
+
+{% include '_partials/public_footer.html.twig' %}
+{% endblock %}

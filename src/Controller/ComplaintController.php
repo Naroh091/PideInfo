@@ -117,7 +117,7 @@ class ComplaintController extends AbstractController
 
             return new JsonResponse([
                 'success' => true,
-                'markdown' => $draft->content,
+                'html' => $draft->content,
                 'draftData' => $draft->toArray(),
                 'successAnalysis' => $draft->successAnalysis?->toArray(),
             ]);
@@ -198,15 +198,15 @@ class ComplaintController extends AbstractController
     public function downloadPdfFromMarkdown(Request $request, AccessRequest $accessRequest): Response
     {
         $data = json_decode($request->getContent(), true) ?? [];
-        $markdown = $data['markdown'] ?? '';
+        $contentHtml = $data['html'] ?? $data['markdown'] ?? '';
 
-        if (empty($markdown)) {
+        if (empty($contentHtml)) {
             return new JsonResponse(['error' => 'No hay contenido.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $html = $this->renderView('complaint/_pdf_from_markdown.html.twig', [
+        $html = $this->renderView('complaint/_pdf_from_html.html.twig', [
             'accessRequest' => $accessRequest,
-            'markdown' => $markdown,
+            'html' => $contentHtml,
         ]);
 
         $pdfContent = $this->pdfGenerator->generateFromHtml($html);

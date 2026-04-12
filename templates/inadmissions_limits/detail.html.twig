@@ -1,0 +1,148 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ label }} - {{ kind == 'limit' ? 'Límite' : 'Causa de inadmisión' }} - PideInfo{% endblock %}
+
+{% block meta %}
+    <meta name="description" content="{{ total }} resoluciones donde la administración invocó {{ label|lower }}. Consulta cómo resuelven los consejos de transparencia esta causa.">
+{% endblock %}
+
+{% block og %}
+    <meta property="og:title" content="{{ label }} - PideInfo">
+    <meta property="og:description" content="{{ total }} resoluciones sobre {{ label|lower }} — {{ cardStats.successRate }}% estimadas por los consejos de transparencia.">
+    <meta property="og:url" content="{{ url(paginationRoute, { value: value }) }}">
+    <meta property="og:site_name" content="PideInfo">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+{% endblock %}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' with { active_page: 'inadmisiones_limites' } %}
+
+{% set isLimit = kind == 'limit' %}
+{% set accentBg = isLimit ? 'bg-rose-50' : 'bg-amber-50' %}
+{% set accentText = isLimit ? 'text-rose-600' : 'text-amber-700' %}
+{% set accentBorder = isLimit ? 'border-rose-200' : 'border-amber-200' %}
+{% set accentIcon = isLimit ? 'shield-alert' : 'file-x' %}
+
+<header class="repo-header border-b border-slate-200/50 relative">
+    <div class="repo-header-bg"></div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
+        <nav class="flex items-center gap-2 text-sm text-slate-500 mb-3 animate-fade-in">
+            <a href="{{ path('app_resoluciones_index') }}" class="hover:text-primary-600 transition-colors">Repositorio</a>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            <a href="{{ path('app_inadmisiones_limites_index') }}" class="hover:text-primary-600 transition-colors">Límites e inadmisiones</a>
+            <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+            <span class="text-slate-700 font-medium">{{ isLimit ? 'Límite' : 'Causa' }}</span>
+        </nav>
+
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium {{ accentBg }} {{ accentText }} border {{ accentBorder }} mb-3">
+            <i data-lucide="{{ accentIcon }}" class="w-3 h-3"></i>
+            {{ articleBadge }}
+        </span>
+
+        <h1 class="repo-title text-2xl sm:text-3xl text-slate-800 max-w-4xl">{{ label }}</h1>
+        <p class="text-sm text-slate-500 mt-2 max-w-3xl">{{ articleDescription }}</p>
+
+        {% if total > 0 %}
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+                <div class="stat-tile" style="animation-delay: 0.15s">
+                    <div class="stat-tile-value">{{ cardStats.totalCount }}</div>
+                    <div class="stat-tile-label">Invocaciones</div>
+                </div>
+                <div class="stat-tile stat-tile-accent" style="animation-delay: 0.2s">
+                    <div class="stat-tile-value">{{ cardStats.successRate }}%</div>
+                    <div class="stat-tile-label">Tasa de estimación</div>
+                    <div class="stat-tile-sub">El consejo rechazó el {{ isLimit ? 'límite' : 'motivo' }}</div>
+                </div>
+                <div class="stat-tile" style="animation-delay: 0.25s">
+                    <div class="stat-tile-value">{{ cardStats.distinctPublicBodies }}</div>
+                    <div class="stat-tile-label">Administraciones</div>
+                </div>
+                {% if cardStats.meanDaysToResolve %}
+                <div class="stat-tile stat-tile-warm" style="animation-delay: 0.3s">
+                    <div class="stat-tile-value">{{ cardStats.meanDaysToResolve }}</div>
+                    <div class="stat-tile-label">Días de media</div>
+                    <div class="stat-tile-sub">En resolver la reclamación</div>
+                </div>
+                {% endif %}
+            </div>
+
+            {# Outcome breakdown bar #}
+            {% set totalResolutions = outcomeStats|reduce((carry, v) => carry + v, 0) %}
+            {% if totalResolutions > 0 %}
+                {% set favorable = outcomeStats.favorable|default(0) %}
+                {% set partial = outcomeStats.partial|default(0) %}
+                {% set mediation = outcomeStats.acuerdo_mediacion|default(0) %}
+                {% set unfavorable = outcomeStats.unfavorable|default(0) %}
+                {% set inadmissible = outcomeStats.inadmissible|default(0) %}
+                {% set positiveCount = favorable + partial + mediation %}
+                {% set negativeCount = unfavorable + inadmissible %}
+                {% set otherCount = totalResolutions - positiveCount - negativeCount %}
+
+                <div class="mt-8 proportion-bar-container">
+                    <div class="proportion-bar">
+                        {% if positiveCount > 0 %}
+                            <div class="proportion-segment" style="width: {{ (positiveCount / totalResolutions * 100) }}%; background: #34d399"></div>
+                        {% endif %}
+                        {% if negativeCount > 0 %}
+                            <div class="proportion-segment" style="width: {{ (negativeCount / totalResolutions * 100) }}%; background: #f87171"></div>
+                        {% endif %}
+                        {% if otherCount > 0 %}
+                            <div class="proportion-segment" style="width: {{ (otherCount / totalResolutions * 100) }}%; background: #cbd5e1"></div>
+                        {% endif %}
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                        {% if positiveCount > 0 %}
+                        <div class="flex items-start gap-2.5">
+                            <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #34d399"></span>
+                            <div class="text-sm">
+                                <div class="font-semibold text-slate-700">{{ isLimit ? 'Límite rechazado' : 'Inadmisión rechazada' }} <span class="text-emerald-600">{{ positiveCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (positiveCount / totalResolutions * 100)|round }}%)</span></div>
+                                <div class="text-xs text-slate-400 mt-0.5">El consejo dio la razón al ciudadano</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if negativeCount > 0 %}
+                        <div class="flex items-start gap-2.5">
+                            <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #f87171"></span>
+                            <div class="text-sm">
+                                <div class="font-semibold text-slate-700">{{ isLimit ? 'Límite mantenido' : 'Inadmisión mantenida' }} <span class="text-red-500">{{ negativeCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (negativeCount / totalResolutions * 100)|round }}%)</span></div>
+                                <div class="text-xs text-slate-400 mt-0.5">El consejo confirmó la decisión</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if otherCount > 0 %}
+                        <div class="flex items-start gap-2.5">
+                            <span class="w-3 h-3 rounded-full flex-shrink-0 mt-0.5" style="background: #cbd5e1"></span>
+                            <div class="text-sm">
+                                <div class="font-semibold text-slate-700">Otras <span class="text-slate-500">{{ otherCount }}</span> <span class="text-slate-400 font-normal text-xs">({{ (otherCount / totalResolutions * 100)|round }}%)</span></div>
+                                <div class="text-xs text-slate-400 mt-0.5">Archivadas, derivadas, pérdida de objeto…</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</header>
+
+<div class="flex-1">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4">Resoluciones</h2>
+
+        {% include 'resolution/_list.html.twig' with {
+            resolutions: resolutions,
+            total: total,
+            page: page,
+            totalPages: totalPages,
+            pagination_route: paginationRoute,
+            pagination_params: paginationParams,
+            empty_message: 'Aún no se han registrado resoluciones que invoquen este ' ~ (isLimit ? 'límite.' : 'motivo.'),
+        } only %}
+    </div>
+</div>
+
+{% include '_partials/public_footer.html.twig' %}
+{% endblock %}

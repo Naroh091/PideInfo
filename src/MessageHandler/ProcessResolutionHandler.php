@@ -291,6 +291,7 @@ final class ProcessResolutionHandler
             $result = match ($mode) {
                 'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
                 'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
                 default => $this->analyzer->analyze($cleanedText, flex: $flex),
             };
 

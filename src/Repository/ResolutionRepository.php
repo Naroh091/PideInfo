@@ -65,6 +65,33 @@ class ResolutionRepository extends ServiceEntityRepository
         return $this->findOneBy(['referenceNumber' => $referenceNumber]);
     }
 
+    /**
+     * Fetch multiple resolutions by reference number in a single query.
+     * Returns a map keyed by reference number for easy lookup.
+     *
+     * @param list<string> $referenceNumbers
+     * @return array<string, Resolution>
+     */
+    public function findByReferenceNumbers(array $referenceNumbers): array
+    {
+        if (empty($referenceNumbers)) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('r')
+            ->where('r.referenceNumber IN (:refs)')
+            ->setParameter('refs', array_values(array_unique($referenceNumbers)))
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[$r->getReferenceNumber()] = $r;
+        }
+
+        return $map;
+    }
+
     public function findByReferenceAndSource(string $referenceNumber, string $source): ?Resolution
     {
         return $this->findOneBy(['referenceNumber' => $referenceNumber, 'source' => $source]);
@@ -280,6 +307,16 @@ class ResolutionRepository extends ServiceEntityRepository
                 ->setParameter('keyword', json_encode([$filters['keyword']]));
         }
 
+        if (!empty($filters['limit'])) {
+            $qb->andWhere('JSONB_CONTAINS(r.limits, :limitValue) = true')
+                ->setParameter('limitValue', json_encode([$filters['limit']]));
+        }
+
+        if (!empty($filters['inadmissionCause'])) {
+            $qb->andWhere('JSONB_CONTAINS(r.inadmissionCauses, :inadmissionCause) = true')
+                ->setParameter('inadmissionCause', json_encode([$filters['inadmissionCause']]));
+        }
+
         if (!empty($filters['dateFrom'])) {
             $qb->andWhere('r.resolutionDate >= :dateFrom')
                 ->setParameter('dateFrom', new \DateTimeImmutable($filters['dateFrom']));
@@ -469,9 +506,90 @@ class ResolutionRepository extends ServiceEntityRepository
         );
     }
 
+    /**
+     * Total number of (resolution, limit) + (resolution, inadmission cause) pairs across the whole dataset.
+     * Each element in a resolution's limits/inadmissionCauses JSONB array counts as one invocation.
+     */
+    public function countLimitAndInadmissionInvocations(): int
+    {
+        return $this->cache->get('resolutions_invocation_count', function (): int {
+            $row = $this->getEntityManager()->getConnection()->fetchAssociative(
+                "SELECT
+                    COALESCE(SUM(jsonb_array_length(COALESCE(limits, '[]'::jsonb))), 0)::int AS limit_count,
+                    COALESCE(SUM(jsonb_array_length(COALESCE(inadmission_causes, '[]'::jsonb))), 0)::int AS cause_count
+                 FROM resolution"
+            );
+
+            return (int) ($row['limit_count'] ?? 0) + (int) ($row['cause_count'] ?? 0);
+        });
+    }
+
+    /**
+     * @return array<string, array{count:int, favorable:int, unfavorable:int, overturnedRate:int, upheldRate:int}>
+     */
+    public function getLimitStats(): array
+    {
+        return $this->cache->get('resolutions_limit_stats', function (): array {
+            return $this->aggregateJsonbArrayByOutcome('limits');
+        });
+    }
+
+    /**
+     * @return array<string, array{count:int, favorable:int, unfavorable:int, overturnedRate:int, upheldRate:int}>
+     */
+    public function getInadmissionCauseStats(): array
+    {
+        return $this->cache->get('resolutions_inadmission_cause_stats', function (): array {
+            return $this->aggregateJsonbArrayByOutcome('inadmission_causes');
+        });
+    }
+
+    /**
+     * Aggregates a JSONB array column by element, counting occurrences split by outcome.
+     *
+     * @return array<string, array{count:int, favorable:int, unfavorable:int, overturnedRate:int, upheldRate:int}>
+     */
+    private function aggregateJsonbArrayByOutcome(string $column): array
+    {
+        if (!in_array($column, ['limits', 'inadmission_causes'], true)) {
+            throw new \InvalidArgumentException(sprintf('Unsupported JSONB column: %s', $column));
+        }
+
+        $conn = $this->getEntityManager()->getConnection();
+        $rows = $conn->fetchAllAssociative(
+            "SELECT TRIM(elem) AS value,
+                    COUNT(*)::int AS count,
+                    SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
+                    SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable
+             FROM resolution r, jsonb_array_elements_text(r.{$column}) AS elem
+             WHERE r.{$column} IS NOT NULL
+             GROUP BY value"
+        );
+
+        $stats = [];
+        foreach ($rows as $row) {
+            $favorable = (int) $row['favorable'];
+            $unfavorable = (int) $row['unfavorable'];
+            $decisive = $favorable + $unfavorable;
+            $stats[$row['value']] = [
+                'count' => (int) $row['count'],
+                'favorable' => $favorable,
+                'unfavorable' => $unfavorable,
+                // From the claimant's POV: % of decisive appeals where the limit/cause was overturned
+                'overturnedRate' => $decisive > 0 ? (int) round($favorable / $decisive * 100) : 0,
+                'upheldRate' => $decisive > 0 ? (int) round($unfavorable / $decisive * 100) : 0,
+            ];
+        }
+
+        return $stats;
+    }
+
     public function invalidateListingCache(): void
     {
         $this->cache->delete('resolutions_distinct_keywords');
         $this->cache->delete('resolutions_global_stats');
+        $this->cache->delete('resolutions_limit_stats');
+        $this->cache->delete('resolutions_inadmission_cause_stats');
+        $this->cache->delete('resolutions_invocation_count');
     }
 }

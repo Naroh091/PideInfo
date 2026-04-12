@@ -57,7 +57,8 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
             ->addOption('format-only', null, InputOption::VALUE_NONE, 'Only format text to HTML (skip summary/keypoints extraction)')
             ->addOption('analyze-only', null, InputOption::VALUE_NONE, 'Only extract summary/keypoints (skip HTML formatting)')
-            ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Send N resolutions per API call (custom model only, use with --format-only or --analyze-only)')
+            ->addOption('non-complete', null, InputOption::VALUE_NONE, 'Only extract fields added on 2026-04-12 (limits, inadmission causes, info request date, complained administration, outcome) for resolutions where inadmissionCauses IS NULL. Leaves existing summary/keypoints/subject untouched.')
+            ->addOption('batch', null, InputOption::VALUE_REQUIRED, 'Send N resolutions per API call (custom model only, use with --format-only, --analyze-only or --non-complete)')
         ;
     }
 
@@ -76,19 +77,25 @@ class AnalyzeResolutionsCommand extends Command
         $flex = $input->getOption('flex');
         $formatOnly = $input->getOption('format-only');
         $analyzeOnly = $input->getOption('analyze-only');
+        $nonComplete = $input->getOption('non-complete');
         $batchSize = $input->getOption('batch') ? (int) $input->getOption('batch') : null;
 
-        if ($formatOnly && $analyzeOnly) {
-            $io->error('Cannot use --format-only and --analyze-only together.');
+        $exclusiveModes = (int) (bool) $formatOnly + (int) (bool) $analyzeOnly + (int) (bool) $nonComplete;
+        if ($exclusiveModes > 1) {
+            $io->error('Cannot combine --format-only, --analyze-only and --non-complete.');
             return Command::FAILURE;
         }
 
-        if ($batchSize !== null && !$formatOnly && !$analyzeOnly) {
-            $io->error('--batch requires --format-only or --analyze-only.');
+        if ($batchSize !== null && !$formatOnly && !$analyzeOnly && !$nonComplete) {
+            $io->error('--batch requires --format-only, --analyze-only or --non-complete.');
             return Command::FAILURE;
         }
 
-        $mode = $formatOnly ? 'format' : ($analyzeOnly ? 'analyze' : 'all');
+        $mode = $formatOnly
+            ? 'format'
+            : ($analyzeOnly
+                ? 'analyze'
+                : ($nonComplete ? 'non-complete' : 'all'));
 
         $io->title('Resolution Analyzer');
 
@@ -100,6 +107,9 @@ class AnalyzeResolutionsCommand extends Command
         }
         if ($analyzeOnly) {
             $io->note('Analyze only — will extract summary/keypoints, skip HTML formatting');
+        }
+        if ($nonComplete) {
+            $io->note('Non-complete — only limits, inadmission causes, info request date, complained administration and outcome (filters by inadmissionCauses IS NULL)');
         }
 
         if ($reference) {
@@ -147,7 +157,9 @@ class AnalyzeResolutionsCommand extends Command
             ->addSelect('COALESCE(r.resolutionDate, \'1900-01-01\') AS HIDDEN sortDate')
             ->orderBy('sortDate', 'DESC');
 
-        if (!$force) {
+        if ($mode === 'non-complete') {
+            $qb->andWhere('r.inadmissionCauses IS NULL');
+        } elseif (!$force) {
             if ($mode === 'analyze') {
                 $qb->andWhere('r.keypoints IS NULL');
             } else {
@@ -258,12 +270,17 @@ class AnalyzeResolutionsCommand extends Command
             // Batch mode: single API call for all resolutions in this group
             if ($batchSize !== null && count($cleanedMap) > 1) {
                 try {
-                    $modeLabel = $mode === 'format' ? 'format' : 'analyze';
+                    $modeLabel = match ($mode) {
+                        'format' => 'format',
+                        'non-complete' => 'non-complete',
+                        default => 'analyze',
+                    };
                     $io->text(sprintf('  Calling API (batch %s, %d resolutions)...', $modeLabel, count($cleanedMap)));
 
                     $t0 = microtime(true);
                     $batchResults = match ($mode) {
                         'format' => $this->analyzer->batchFormatText($cleanedMap),
+                        'non-complete' => $this->analyzer->batchExtractNonCompleteAnalysis($cleanedMap),
                         default => $this->analyzer->batchExtractAnalysis($cleanedMap),
                     };
                     $elapsed = microtime(true) - $t0;
@@ -293,6 +310,7 @@ class AnalyzeResolutionsCommand extends Command
                         $modeLabel = match ($mode) {
                             'format' => 'format-only',
                             'analyze' => 'analyze-only',
+                            'non-complete' => 'non-complete',
                             default => 'full',
                         };
                         $io->text(sprintf('  Calling API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
@@ -301,6 +319,7 @@ class AnalyzeResolutionsCommand extends Command
                         $result = match ($mode) {
                             'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
                             'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                            'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
                             default => $this->analyzer->analyze($cleanedText, flex: $flex),
                         };
                         $elapsed = microtime(true) - $t0;
@@ -382,6 +401,7 @@ class AnalyzeResolutionsCommand extends Command
                 $modeLabel = match ($mode) {
                     'format' => 'format-only',
                     'analyze' => 'analyze-only',
+                    'non-complete' => 'non-complete',
                     default => 'full',
                 };
                 $io->text(sprintf('  Calling LLM API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
@@ -389,6 +409,7 @@ class AnalyzeResolutionsCommand extends Command
                 $result = match ($mode) {
                     'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
                     'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                    'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
                     default => $this->analyzer->analyze($cleanedText, flex: $flex),
                 };
 
@@ -465,6 +486,9 @@ class AnalyzeResolutionsCommand extends Command
         }
         if (!empty($result['info_request_date'])) {
             $io->text(sprintf('  Info request date: %s', $result['info_request_date']));
+        }
+        if (!empty($result['claim_reason'])) {
+            $io->text(sprintf('  Claim reason: %s', $result['claim_reason']));
         }
         if (!empty($result['outcome'])) {
             $io->text(sprintf('  Outcome (LLM): %s', $result['outcome']));
