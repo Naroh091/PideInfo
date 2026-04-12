@@ -2,6 +2,7 @@
 
 namespace App\Service\AI;
 
+use App\Repository\ResolutionRepository;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -12,25 +13,34 @@ final class ResolutionRetriever
         #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
         private readonly StoreInterface $ctbgResolutionsStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
+        private readonly ResolutionRepository $resolutionRepository,
     ) {
     }
 
     /**
-     * Retrieve similar favorable CTBG resolutions
+     * Retrieve similar favorable CTBG resolutions.
      *
-     * This method will return an empty array until resolutions are loaded into PostgreSQL.
-     * Filters by outcome = 'estimada' to use successful argumentations.
+     * Does a two-step lookup:
+     * 1. Vector search in the semantic store to find candidate references.
+     * 2. Enrich each hit with the full resolution data (summary, keypoints, fullText, issuing
+     *    body) from the `resolution` table, so the LLM can judge relevance from the curated
+     *    summary/keypoints rather than a cherry-picked chunk.
+     *
+     * Vector-store hits that cannot be matched to a stored Resolution are dropped — the
+     * whole point is to use the authoritative, fully-analyzed version.
      *
      * @param string $query The search query
      * @param int $topK Number of results to return
      * @return array<int, array{
-     *     text: string,
      *     reference: string,
      *     date: string|null,
      *     outcome: string,
      *     publicBody: string|null,
-     *     topic: string|null,
-     *     score: float|null
+     *     complaintOrganism: string|null,
+     *     summary: string|null,
+     *     keypoints: array<int, string>,
+     *     fullText: string|null,
+     *     score: float|null,
      * }>
      */
     public function retrieveSimilarCases(string $query, int $topK = 3): array
@@ -39,26 +49,54 @@ final class ResolutionRetriever
             $embedding = $this->embeddingGenerator->generate($query);
             $vector = new Vector($embedding);
 
+            // Cast a slightly wider net — we may drop rows that don't have a matching DB record.
             $documents = $this->ctbgResolutionsStore->query($vector, [
-                'limit' => $topK,
+                'limit' => max($topK * 2, $topK + 3),
                 'where' => "metadata->>'outcome' IN (:outcome1, :outcome2)",
                 'params' => ['outcome1' => 'favorable', 'outcome2' => 'partial'],
             ]);
 
-            $results = [];
-
+            // Collect unique references from vector hits, preserving relevance order.
+            $references = [];
+            $scores = [];
             foreach ($documents as $document) {
-                $metadata = $document->metadata;
+                $reference = $document->metadata['reference'] ?? null;
+                if (!$reference || isset($references[$reference])) {
+                    continue;
+                }
+                $references[$reference] = true;
+                $scores[$reference] = $document->score;
+            }
+
+            if (empty($references)) {
+                return [];
+            }
+
+            // One DB query to fetch the authoritative data for all candidates.
+            $resolutionMap = $this->resolutionRepository->findByReferenceNumbers(array_keys($references));
+
+            $results = [];
+            foreach (array_keys($references) as $reference) {
+                if (!isset($resolutionMap[$reference])) {
+                    continue;
+                }
+                $resolution = $resolutionMap[$reference];
 
                 $results[] = [
-                    'text' => $metadata->getText() ?? '',
-                    'reference' => $metadata['reference'] ?? 'Unknown',
-                    'date' => $metadata['date'] ?? null,
-                    'outcome' => $metadata['outcome'] ?? 'unknown',
-                    'publicBody' => $metadata['publicBody'] ?? null,
-                    'topic' => $metadata['topic'] ?? null,
-                    'score' => $document->score,
+                    'reference' => $resolution->getReferenceNumber(),
+                    'date' => $resolution->getResolutionDate()?->format('d/m/Y'),
+                    'outcome' => $resolution->getOutcome() ?? 'unknown',
+                    'publicBody' => $resolution->getPublicBodyName(),
+                    'complaintOrganism' => $resolution->getComplaintOrganism()?->getName(),
+                    'summary' => $resolution->getSummary(),
+                    'keypoints' => $resolution->getKeypoints() ?? [],
+                    'fullText' => $resolution->getFullText(),
+                    'score' => $scores[$reference] ?? null,
                 ];
+
+                if (count($results) >= $topK) {
+                    break;
+                }
             }
 
             return $results;
@@ -68,7 +106,12 @@ final class ResolutionRetriever
     }
 
     /**
-     * Format retrieved resolutions for use in a prompt
+     * Format retrieved resolutions for use in a prompt.
+     *
+     * Shows the curated summary + keypoints first (the LLM should judge relevance from these)
+     * and then a truncated excerpt of the full text (for the LLM to verify quotations).
+     *
+     * @param array<int, array<string, mixed>> $resolutions
      */
     public function formatForPrompt(array $resolutions): string
     {
@@ -79,18 +122,46 @@ final class ResolutionRetriever
         $formatted = [];
 
         foreach ($resolutions as $resolution) {
+            $keypoints = $resolution['keypoints'] ?? [];
+            $keypointsBlock = !empty($keypoints)
+                ? "**Puntos clave:**\n- " . implode("\n- ", $keypoints)
+                : '_Sin puntos clave registrados._';
+
+            $summary = $resolution['summary'] ?? '';
+            $summaryBlock = $summary !== ''
+                ? "**Resumen:** {$summary}"
+                : '_Sin resumen registrado._';
+
+            $fullText = $resolution['fullText'] ?? '';
+            $excerpt = $this->truncate(strip_tags((string) $fullText), 3500);
+            $excerptBlock = $excerpt !== ''
+                ? "**Texto completo (extracto):**\n{$excerpt}"
+                : '_Texto completo no disponible._';
+
             $formatted[] = sprintf(
-                "### Resolución %s (%s)\nResultado: %s\nOrganismo: %s\nTema: %s\n\n%s",
+                "### Resolución %s (%s)\nÓrgano emisor: %s\nAdministración reclamada: %s\nResultado: %s\n\n%s\n\n%s\n\n%s",
                 $resolution['reference'],
                 $resolution['date'] ?? 'Fecha desconocida',
-                $this->translateOutcome($resolution['outcome']),
-                $resolution['publicBody'] ?? 'No especificado',
-                $resolution['topic'] ?? 'No especificado',
-                $resolution['text']
+                $resolution['complaintOrganism'] ?? 'Consejo de Transparencia (no especificado)',
+                $resolution['publicBody'] ?? 'No especificada',
+                $this->translateOutcome($resolution['outcome'] ?? 'unknown'),
+                $summaryBlock,
+                $keypointsBlock,
+                $excerptBlock,
             );
         }
 
         return implode("\n\n---\n\n", $formatted);
+    }
+
+    private function truncate(string $text, int $maxChars): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? '');
+        if ($text === '' || mb_strlen($text) <= $maxChars) {
+            return $text;
+        }
+
+        return mb_substr($text, 0, $maxChars) . '… [truncado]';
     }
 
     private function translateOutcome(string $outcome): string
@@ -100,7 +171,9 @@ final class ResolutionRetriever
             'unfavorable' => 'DESESTIMADA',
             'partial' => 'ESTIMADA PARCIALMENTE',
             'inadmissible' => 'INADMITIDA',
-            default => $outcome,
+            'acuerdo_mediacion' => 'ACUERDO DE MEDIACIÓN',
+            'archivada' => 'ARCHIVADA',
+            default => strtoupper($outcome),
         };
     }
 }

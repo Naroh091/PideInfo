@@ -104,7 +104,24 @@ final class ResolutionDateExtractor
             }
         }
 
+        // Pattern 11: CTCAN "Resolución firmada (el) DD-MM-YYYY"
+        if (preg_match('/Resoluci[oó]n\s+firmada(?:\s+el)?\s+(\d{1,2})-(\d{1,2})-(\d{4})/iu', $searchText, $matches)) {
+            $date = $this->parseDashDate($matches[1], $matches[2], $matches[3]);
+            if ($date !== null) {
+                return ['date' => $date, 'source' => 'regex'];
+            }
+        }
+
         return ['date' => null, 'source' => 'none'];
+    }
+
+    private function parseDashDate(string $day, string $month, string $year): ?\DateTimeImmutable
+    {
+        try {
+            return (new \DateTimeImmutable(sprintf('%04d-%02d-%02d', (int) $year, (int) $month, (int) $day)))->setTime(0, 0);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private const GALICIAN_MONTHS = [

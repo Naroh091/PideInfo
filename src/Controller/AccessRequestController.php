@@ -6,6 +6,7 @@ use App\DataTable\Type\AccessRequestTableType;
 use App\Entity\AccessRequest;
 use App\Entity\CustomDeadline;
 use App\Entity\DeadlineHistory;
+use App\Entity\Reminder;
 use App\Entity\StatusHistory;
 use App\Form\AccessRequestType;
 use App\Form\CustomDeadlineType;
@@ -132,6 +133,36 @@ class AccessRequestController extends AbstractController
         return $this->render('solicitudes/show.html.twig', [
             'request' => $accessRequest,
         ]);
+    }
+
+    #[Route('/{id}/recordatorio', name: 'app_solicitudes_create_reminder', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function createReminder(Request $request, AccessRequest $accessRequest): Response
+    {
+        if (!$this->isCsrfTokenValid('reminder-' . $accessRequest->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        $days = max(1, min(365, (int) $request->request->get('days', 5)));
+        $note = trim((string) $request->request->get('note', ''));
+
+        $reminder = new Reminder();
+        $reminder->setUser($this->getUser());
+        $reminder->setAccessRequest($accessRequest);
+        $reminder->setRemindAt(new \DateTimeImmutable('today +' . $days . ' days'));
+        if ($note !== '') {
+            $reminder->setNote(mb_substr($note, 0, 500));
+        }
+
+        $this->entityManager->persist($reminder);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf(
+            'Recordatorio creado para el %s.',
+            $reminder->getRemindAt()->format('d/m/Y')
+        ));
+
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
     }
 
     #[Route('/{id}/documentos', name: 'app_solicitudes_documents_fragment', methods: ['GET'])]

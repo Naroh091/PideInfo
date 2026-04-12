@@ -217,6 +217,8 @@ REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera 
 - PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
 PROMPT;
 
+        $schema = $this->buildFormatTextSchema();
+
         if ($this->useCustomModel) {
             $jsonSuffix = <<<'SUFFIX'
 
@@ -225,7 +227,7 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
 
-            return $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['formatted_text']);
+            return $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['formatted_text'], $schema);
         }
 
         $parts = [
@@ -233,7 +235,15 @@ SUFFIX;
             ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
         ];
 
-        $schema = [
+        return $this->callGeminiApi($this->smallModel, $parts, $schema, flex: $flex);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildFormatTextSchema(): array
+    {
+        return [
             'type' => 'object',
             'properties' => [
                 'formatted_text' => [
@@ -243,8 +253,6 @@ SUFFIX;
             ],
             'required' => ['formatted_text'],
         ];
-
-        return $this->callGeminiApi($this->smallModel, $parts, $schema, flex: $flex);
     }
 
     /**
@@ -264,7 +272,7 @@ Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
 
-            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints']);
+            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints'], $this->buildExtractAnalysisSchema());
 
             return $this->normalizeExtractAnalysisResult($result);
         }
@@ -306,14 +314,14 @@ REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera 
 - ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
 - PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
 
-Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "formatted_text": "HTML"}.
-Ejemplo: [{"index": 0, "formatted_text": "<h2>..."}, {"index": 1, "formatted_text": "<h2>..."}]
+Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "formatted_text": "HTML"}, ...]}.
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 PROMPT;
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
+        $schema = $this->wrapBatchSchema($this->buildFormatTextSchema());
 
-        return $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['formatted_text']);
+        return $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['formatted_text'], $schema);
     }
 
     /**
@@ -330,14 +338,15 @@ PROMPT;
         $batchFooter = <<<'FOOTER'
 
 
-Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}.
+Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 FOOTER;
 
         $prompt = $batchHeader . $basePrompt . $batchFooter;
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
-        $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['summary', 'keypoints']);
+        $schema = $this->wrapBatchSchema($this->buildExtractAnalysisSchema());
+        $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['summary', 'keypoints'], $schema);
 
         foreach ($results as $i => $result) {
             /** @var array<string, mixed> $result */
@@ -345,6 +354,74 @@ FOOTER;
         }
 
         /** @var array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
+        return $results;
+    }
+
+    /**
+     * Extract only the "non-complete" fields added on 2026-04-12: limits, inadmission causes,
+     * info request date, complained administration and outcome. Leaves summary/keypoints/subject
+     * untouched so it can be used to backfill resolutions that were analyzed before these fields existed.
+     *
+     * @return array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     */
+    public function extractNonCompleteAnalysis(string $cleanedText, bool $flex = false): array
+    {
+        $prompt = self::buildNonCompleteAnalysisPrompt();
+
+        if ($this->useCustomModel) {
+            $jsonSuffix = <<<'SUFFIX'
+
+Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
+{"info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o texto libre o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+SUFFIX;
+
+            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['limits', 'inadmission_causes'], $this->buildNonCompleteAnalysisSchema());
+
+            return $this->normalizeNonCompleteAnalysisResult($result);
+        }
+
+        $parts = [
+            ['text' => $prompt],
+            ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
+        ];
+
+        $schema = $this->buildNonCompleteAnalysisSchema();
+
+        $result = $this->callGeminiApi($this->midModel, $parts, $schema, flex: $flex);
+
+        return $this->normalizeNonCompleteAnalysisResult($result);
+    }
+
+    /**
+     * Batch variant of extractNonCompleteAnalysis. Only works with custom model.
+     *
+     * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
+     * @return array<int, array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}>
+     */
+    public function batchExtractNonCompleteAnalysis(array $cleanedTexts): array
+    {
+        $basePrompt = self::buildNonCompleteAnalysisPrompt();
+        $batchHeader = "Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y aplica las siguientes instrucciones a cada una de forma independiente.\n\n";
+        $batchFooter = <<<'FOOTER'
+
+
+Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
+SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
+FOOTER;
+
+        $prompt = $batchHeader . $basePrompt . $batchFooter;
+
+        $userContent = $this->buildBatchUserContent($cleanedTexts);
+        $schema = $this->wrapBatchSchema($this->buildNonCompleteAnalysisSchema());
+        $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['limits', 'inadmission_causes'], $schema);
+
+        foreach ($results as $i => $result) {
+            /** @var array<string, mixed> $result */
+            $results[$i] = $this->normalizeNonCompleteAnalysisResult($result);
+        }
+
+        /** @var array<int, array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
         return $results;
     }
 
@@ -362,11 +439,68 @@ FOOTER;
     }
 
     /**
+     * Build the response_format payload for a structured-output chat completion.
+     *
+     * We use the OpenAI-compatible `json_schema` variant — this is honored by vLLM, lmdeploy
+     * and other modern self-hosted OpenAI-compatible servers via guided decoding. We
+     * deliberately do NOT pass `strict: true` because our schemas use `nullable: true` which
+     * is incompatible with OpenAI's strict mode (it requires `type: ["X", "null"]`). `strict`
+     * false is enough: the server constrains decoding to the schema without the strict-mode
+     * extra validation rules.
+     *
+     * @param array<string, mixed> $schema
+     * @return array<string, mixed>
+     */
+    private function buildJsonSchemaResponseFormat(array $schema, string $name = 'resolution_analysis'): array
+    {
+        return [
+            'type' => 'json_schema',
+            'json_schema' => [
+                'name' => $name,
+                'schema' => $schema,
+            ],
+        ];
+    }
+
+    /**
+     * Wrap a single-item object schema into a `{results: [item, ...]}` root schema for
+     * batch calls, and inject the `index` field required to map results back to inputs.
+     *
+     * @param array<string, mixed> $itemSchema
+     * @return array<string, mixed>
+     */
+    private function wrapBatchSchema(array $itemSchema): array
+    {
+        $properties = $itemSchema['properties'] ?? [];
+        $itemSchema['properties'] = array_merge(
+            ['index' => ['type' => 'integer', 'description' => 'Original input index for mapping']],
+            $properties,
+        );
+        $itemSchema['required'] = array_values(array_unique(array_merge(
+            ['index'],
+            $itemSchema['required'] ?? [],
+        )));
+
+        return [
+            'type' => 'object',
+            'properties' => [
+                'results' => [
+                    'type' => 'array',
+                    'items' => $itemSchema,
+                    'description' => 'One entry per input resolution, keyed by its original index',
+                ],
+            ],
+            'required' => ['results'],
+        ];
+    }
+
+    /**
      * @param array<int, string> $cleanedTexts Original indexed texts (for key mapping)
      * @param string[] $requiredKeys Keys each result item must have
+     * @param array<string, mixed> $responseSchema Root JSON schema (should be a `{results: [...]}` wrapper)
      * @return array<int, array<string, mixed>> Results indexed by original keys
      */
-    private function callCustomModelBatchApi(string $prompt, string $userContent, array $cleanedTexts, array $requiredKeys, int $maxRetries = 2): array
+    private function callCustomModelBatchApi(string $prompt, string $userContent, array $cleanedTexts, array $requiredKeys, array $responseSchema, int $maxRetries = 2): array
     {
         $lastError = null;
         $expectedIndices = array_keys($cleanedTexts);
@@ -386,7 +520,7 @@ FOOTER;
                     ],
                     'temperature' => 0.1,
                     'max_tokens' => $this->customModelMaxTokens,
-                    'response_format' => ['type' => 'json_object'],
+                    'response_format' => $this->buildJsonSchemaResponseFormat($responseSchema, 'resolution_analysis_batch'),
                 ]);
             } catch (OpenAI\Exceptions\RateLimitException $e) {
                 $lastError = new \RuntimeException('Custom model rate limit exceeded: ' . $e->getMessage(), 0, $e);
@@ -485,9 +619,10 @@ FOOTER;
 
     /**
      * @param string[] $requiredKeys Keys that must be present in the returned JSON
+     * @param array<string, mixed> $responseSchema Root JSON schema enforced via structured outputs
      * @return array<string, mixed>
      */
-    private function callCustomModelApi(string $prompt, string $text, array $requiredKeys, int $maxRetries = 2): array
+    private function callCustomModelApi(string $prompt, string $text, array $requiredKeys, array $responseSchema, int $maxRetries = 2): array
     {
         $lastError = null;
 
@@ -506,7 +641,7 @@ FOOTER;
                     ],
                     'temperature' => 0.1,
                     'max_tokens' => $this->customModelMaxTokens,
-                    'response_format' => ['type' => 'json_object'],
+                    'response_format' => $this->buildJsonSchemaResponseFormat($responseSchema),
                 ]);
             } catch (OpenAI\Exceptions\RateLimitException $e) {
                 $lastError = new \RuntimeException('Custom model rate limit exceeded: ' . $e->getMessage(), 0, $e);
@@ -682,14 +817,60 @@ Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedente
 Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
 Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
 
-[resolution_date] y [claim_date]
-Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación ante el consejo de transparencia (suele estar en Antecedentes).
+[resolution_date]
+Fecha de firma de la resolución del consejo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.
 
-[info_request_date]
-Extrae la fecha en la que el ciudadano solicitó ORIGINALMENTE la información a la administración competente (NO la fecha de la reclamación posterior ante el consejo de transparencia). Suele aparecer en los Antecedentes con expresiones como "con fecha X solicitó", "el día X presentó solicitud de información", etc. Devuelve null si no aparece.
+### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
 
-[complained_administration]
-Nombre de la administración a la que el ciudadano solicitó originalmente la información (la "administración reclamada"). NUNCA devuelvas el nombre del consejo o comisión de transparencia que dicta la resolución. Si no puedes determinarlo con certeza, devuelve null.
+Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
+
+El patrón habitual es uno de estos (presta atención a las variantes):
+
+- «el reclamante/interesado/solicitante solicitó el [FECHA] al/ante [ADMINISTRACIÓN], al amparo de la Ley 19/2013…»
+- «con fecha [FECHA], don/doña [NOMBRE] presentó ante [ADMINISTRACIÓN] solicitud de acceso…»
+- «en fecha [FECHA], se presentó solicitud ante [ADMINISTRACIÓN] en la que se pedía…»
+- «mediante escrito de [FECHA] dirigido a [ADMINISTRACIÓN], el interesado solicitó…»
+
+**[info_request_date]**: la FECHA en la que el ciudadano presentó la solicitud ORIGINAL a la administración reclamada (NO la fecha de la reclamación posterior ante el consejo de transparencia — esa va en claim_date).
+
+Normaliza la fecha a ISO 8601 (YYYY-MM-DD). Ejemplos de conversión:
+- "14 de mayo de 2022" → "2022-05-14"
+- "3 de enero de 2024" → "2024-01-03"
+- "7-julio-2023" → "2023-07-07"
+
+**[complained_administration]**: el NOMBRE de la administración u organismo a la que el ciudadano dirigió su solicitud original (la «administración reclamada»). Este campo es CRÍTICO: la inmensa mayoría de las resoluciones lo mencionan de forma explícita en la primera frase de los antecedentes.
+
+Reglas estrictas:
+- NUNCA devuelvas el nombre del consejo/comisión de transparencia que dicta la resolución (CTBG, Consejo de Transparencia de Aragón, Comissió de Garantia, etc.). Esos son los ÓRGANOS REVISORES, no la administración reclamada.
+- Devuelve el nombre más corto y autónomo que identifique al organismo (ej. «Ministerio de Hacienda», «Ayuntamiento de Madrid», «Universidad Complutense de Madrid», «Dirección General de Tráfico»). No le añadas frases como "al amparo de la Ley 19/2013".
+- Normaliza la capitalización (sin TODO EN MAYÚSCULAS): «Ministerio de Asuntos Económicos y Transformación Digital», no «MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL».
+- Si la solicitud fue trasladada de un organismo a otro, devuelve el organismo ORIGINAL destinatario de la solicitud, no al que fue trasladada.
+
+**No devuelvas null sin intentarlo**: antes de devolver null en cualquiera de estos dos campos, relee con cuidado los primeros tres párrafos del apartado «Antecedentes». En el 95% de los casos la información está ahí. Solo devuelve null si tras esa búsqueda cuidadosa no puedes encontrarlo.
+
+**Ejemplo completo**:
+> «I. ANTECEDENTES. 1. Según se desprende del expediente, el reclamante solicitó el 14 de mayo de 2022 al MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL, al amparo de la Ley 19/2013…»
+
+De este fragmento debes extraer:
+- `info_request_date`: "2022-05-14"
+- `complained_administration`: "Ministerio de Asuntos Económicos y Transformación Digital"
+
+[claim_date]
+Fecha de presentación de la RECLAMACIÓN ante el consejo de transparencia (NO la fecha de la solicitud original — esa va en info_request_date). Suele aparecer más abajo en los Antecedentes con frases del tipo «mediante escrito registrado el [FECHA], el interesado interpuso reclamación ante este Consejo…». Formato ISO 8601. Null solo si tras búsqueda cuidadosa no aparece.
+
+[claim_reason]
+Una frase CORTA (máximo 120 caracteres) describiendo el MOTIVO por el que el ciudadano reclama. Es la queja concreta del reclamante contra la actuación (o inactuación) de la administración. NO confundir con el asunto de la solicitud — aquí queremos SOLO el motivo de la queja.
+
+Ejemplos típicos (elige el que mejor encaje al caso, o redacta uno equivalente en una sola frase):
+- «Silencio administrativo» (cuando la administración simplemente no responde)
+- «Denegación total del acceso por aplicación del art. 14.X» (cuando se invoca un límite concreto)
+- «Inadmisión a trámite por reelaboración» / «por no ser competente» (cuando se invoca una causa de inadmisión)
+- «Acceso parcial insuficiente» (cuando se da parte de la información pero el reclamante considera que falta)
+- «Denegación de facto por respuesta evasiva» (cuando responden pero no a lo pedido)
+- «Información incompleta o en formato no utilizable»
+- «Silencio administrativo tras solicitud de ampliación» (variante de silencio)
+
+Guíate por la queja real del reclamante tal como aparece en los Antecedentes y en la reclamación. Escribe en castellano.
 
 [subject]
 Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
@@ -734,6 +915,10 @@ PROMPT;
      */
     private function buildExtractAnalysisSchema(): array
     {
+        $outcomeCodes = array_keys(Resolution::getOutcomeLabels());
+        $limitCodes = array_keys(Resolution::getLimitLabels());
+        $causeCodes = array_keys(Resolution::getInadmissionCauseLabels());
+
         return [
             'type' => 'object',
             'properties' => [
@@ -756,6 +941,11 @@ PROMPT;
                     'nullable' => true,
                     'description' => 'Claim filing date (before the transparency council) in ISO 8601. Null if not found.',
                 ],
+                'claim_reason' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Short sentence (max 120 chars) describing what the claimant is protesting against (silencio administrativo, a specific art. 14 limit, an art. 18 inadmission cause, partial access, etc.).',
+                ],
                 'info_request_date' => [
                     'type' => 'string',
                     'nullable' => true,
@@ -774,20 +964,33 @@ PROMPT;
                 'outcome' => [
                     'type' => 'string',
                     'nullable' => true,
-                    'description' => 'Outcome code from the canonical list, or free text if no code matches, or null if undetermined.',
+                    'enum' => array_merge($outcomeCodes, [null]),
+                    'description' => 'Outcome code. Must be one of the canonical enum values, or null if undetermined.',
                 ],
                 'limits' => [
                     'type' => 'array',
-                    'items' => ['type' => 'string'],
+                    'items' => ['type' => 'string', 'enum' => $limitCodes],
                     'description' => 'Codes of art. 14 limits invoked by the administration. Empty array if none.',
                 ],
                 'inadmission_causes' => [
                     'type' => 'array',
-                    'items' => ['type' => 'string'],
+                    'items' => ['type' => 'string', 'enum' => $causeCodes],
                     'description' => 'Codes of art. 18 inadmission causes invoked by the administration. Empty array if none.',
                 ],
             ],
-            'required' => ['summary', 'keypoints'],
+            'required' => [
+                'summary',
+                'keypoints',
+                'resolution_date',
+                'claim_date',
+                'claim_reason',
+                'info_request_date',
+                'complained_administration',
+                'subject',
+                'outcome',
+                'limits',
+                'inadmission_causes',
+            ],
         ];
     }
 
@@ -799,6 +1002,7 @@ PROMPT;
     {
         $result['resolution_date'] = $result['resolution_date'] ?? null;
         $result['claim_date'] = $result['claim_date'] ?? null;
+        $result['claim_reason'] = $result['claim_reason'] ?? null;
         $result['subject'] = $result['subject'] ?? null;
         $result['info_request_date'] = $result['info_request_date'] ?? null;
         $result['complained_administration'] = $result['complained_administration'] ?? null;
@@ -806,8 +1010,163 @@ PROMPT;
         $result['limits'] = is_array($result['limits'] ?? null) ? array_values(array_filter($result['limits'], 'is_string')) : [];
         $result['inadmission_causes'] = is_array($result['inadmission_causes'] ?? null) ? array_values(array_filter($result['inadmission_causes'], 'is_string')) : [];
 
-        /** @var array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>} $result */
+        /** @var array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>} $result */
         return $result;
+    }
+
+    public static function buildNonCompleteAnalysisPrompt(): string
+    {
+        $outcomesBlock = self::renderEnumBlock(Resolution::getOutcomeLabels());
+        $limitsBlock = self::renderEnumBlock(Resolution::getLimitLabels());
+        $causesBlock = self::renderEnumBlock(Resolution::getInadmissionCauseLabels());
+
+        return <<<PROMPT
+Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae ÚNICAMENTE los campos indicados más abajo. NO generes resumen, keypoints, asunto ni fechas de resolución/reclamación — esos datos ya existen y no deben tocarse.
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
+
+### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
+
+Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
+
+El patrón habitual es uno de estos (presta atención a las variantes):
+
+- «el reclamante/interesado/solicitante solicitó el [FECHA] al/ante [ADMINISTRACIÓN], al amparo de la Ley 19/2013…»
+- «con fecha [FECHA], don/doña [NOMBRE] presentó ante [ADMINISTRACIÓN] solicitud de acceso…»
+- «en fecha [FECHA], se presentó solicitud ante [ADMINISTRACIÓN] en la que se pedía…»
+- «mediante escrito de [FECHA] dirigido a [ADMINISTRACIÓN], el interesado solicitó…»
+
+**[info_request_date]**: la FECHA en la que el ciudadano presentó la solicitud ORIGINAL a la administración reclamada (NO la fecha de la reclamación posterior ante el consejo de transparencia).
+
+Normaliza la fecha a ISO 8601 (YYYY-MM-DD). Ejemplos de conversión:
+- "14 de mayo de 2022" → "2022-05-14"
+- "3 de enero de 2024" → "2024-01-03"
+- "7-julio-2023" → "2023-07-07"
+
+**[complained_administration]**: el NOMBRE de la administración u organismo a la que el ciudadano dirigió su solicitud original (la «administración reclamada»). Este campo es CRÍTICO: la inmensa mayoría de las resoluciones lo mencionan de forma explícita en la primera frase de los antecedentes.
+
+Reglas estrictas:
+- NUNCA devuelvas el nombre del consejo/comisión de transparencia que dicta la resolución (CTBG, Consejo de Transparencia de Aragón, Comissió de Garantia, etc.). Esos son los ÓRGANOS REVISORES, no la administración reclamada.
+- Devuelve el nombre más corto y autónomo que identifique al organismo (ej. «Ministerio de Hacienda», «Ayuntamiento de Madrid», «Universidad Complutense de Madrid», «Dirección General de Tráfico»). No le añadas frases como "al amparo de la Ley 19/2013".
+- Normaliza la capitalización (sin TODO EN MAYÚSCULAS): «Ministerio de Asuntos Económicos y Transformación Digital», no «MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL».
+- Si la solicitud fue trasladada de un organismo a otro, devuelve el organismo ORIGINAL destinatario de la solicitud, no al que fue trasladada.
+
+**No devuelvas null sin intentarlo**: antes de devolver null en cualquiera de estos dos campos, relee con cuidado los primeros tres párrafos del apartado «Antecedentes». En el 95% de los casos la información está ahí. Solo devuelve null si tras esa búsqueda cuidadosa no puedes encontrarlo.
+
+**Ejemplo completo**:
+> «I. ANTECEDENTES. 1. Según se desprende del expediente, el reclamante solicitó el 14 de mayo de 2022 al MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL, al amparo de la Ley 19/2013…»
+
+De este fragmento debes extraer:
+- `info_request_date`: "2022-05-14"
+- `complained_administration`: "Ministerio de Asuntos Económicos y Transformación Digital"
+
+[claim_reason]
+Una frase CORTA (máximo 120 caracteres) describiendo el MOTIVO por el que el ciudadano reclama. Es la queja concreta del reclamante contra la actuación (o inactuación) de la administración. NO confundir con el asunto — aquí queremos SOLO el motivo de la queja.
+
+Ejemplos típicos (elige el que mejor encaje o redacta uno equivalente en una sola frase):
+- «silencio administrativo» (cuando la administración no responde)
+- «denegación total del acceso por aplicación del art. 14.X» (cuando se invoca un límite)
+- «inadmisión a trámite por reelaboración» / «por no ser competente» (cuando se invoca una causa de inadmisión)
+- «acceso parcial insuficiente» (se da parte de la información pero falta lo esencial)
+- «denegación de facto por respuesta evasiva» (responden pero no a lo pedido)
+- «información incompleta o en formato no utilizable»
+
+Escribe en castellano.
+
+[outcome]
+Devuelve el código que mejor describe la decisión final del consejo de transparencia, eligiendo UNO de los siguientes valores:
+
+{$outcomesBlock}
+
+Si la decisión no encaja en NINGUNO de estos códigos, devuelve un texto libre breve (máximo 80 caracteres) describiendo la decisión. Si no puedes determinarla, devuelve null.
+
+[limits]
+Lista de LÍMITES al derecho de acceso (art. 14 Ley 19/2013) que la administración reclamada haya alegado para denegar total o parcialmente la información. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguno):
+
+{$limitsBlock}
+
+Solo incluye límites efectivamente alegados por la administración. NO incluyas límites mencionados solo en los fundamentos jurídicos del consejo si no fueron alegados por la administración.
+
+[inadmission_causes]
+Lista de CAUSAS DE INADMISIÓN (art. 18 Ley 19/2013) que la administración reclamada haya alegado para inadmitir la solicitud. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguna):
+
+{$causesBlock}
+
+Solo incluye causas efectivamente alegadas por la administración.
+PROMPT;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildNonCompleteAnalysisSchema(): array
+    {
+        $outcomeCodes = array_keys(Resolution::getOutcomeLabels());
+        $limitCodes = array_keys(Resolution::getLimitLabels());
+        $causeCodes = array_keys(Resolution::getInadmissionCauseLabels());
+
+        return [
+            'type' => 'object',
+            'properties' => [
+                'info_request_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Original date when the citizen requested information from the administration (NOT the claim date). ISO 8601, null if not found.',
+                ],
+                'complained_administration' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Name of the administration the citizen complained about. Never the transparency council. Null if unclear.',
+                ],
+                'claim_reason' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Short sentence (max 120 chars) describing what the claimant is protesting against.',
+                ],
+                'outcome' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'enum' => array_merge($outcomeCodes, [null]),
+                    'description' => 'Outcome code. Must be one of the canonical enum values, or null if undetermined.',
+                ],
+                'limits' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string', 'enum' => $limitCodes],
+                    'description' => 'Codes of art. 14 limits invoked by the administration. Empty array if none.',
+                ],
+                'inadmission_causes' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string', 'enum' => $causeCodes],
+                    'description' => 'Codes of art. 18 inadmission causes invoked by the administration. Empty array if none.',
+                ],
+            ],
+            'required' => [
+                'info_request_date',
+                'complained_administration',
+                'claim_reason',
+                'outcome',
+                'limits',
+                'inadmission_causes',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @return array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     */
+    private function normalizeNonCompleteAnalysisResult(array $result): array
+    {
+        $normalized = [
+            'info_request_date' => $result['info_request_date'] ?? null,
+            'complained_administration' => $result['complained_administration'] ?? null,
+            'claim_reason' => $result['claim_reason'] ?? null,
+            'outcome' => $result['outcome'] ?? null,
+            'limits' => is_array($result['limits'] ?? null) ? array_values(array_filter($result['limits'], 'is_string')) : [],
+            'inadmission_causes' => is_array($result['inadmission_causes'] ?? null) ? array_values(array_filter($result['inadmission_causes'], 'is_string')) : [],
+        ];
+
+        return $normalized;
     }
 
     /**
@@ -847,6 +1206,10 @@ PROMPT;
                 $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
             } catch (\Exception) {
             }
+        }
+
+        if (!empty($result['claim_reason']) && is_string($result['claim_reason'])) {
+            $resolution->setClaimReason(mb_substr($result['claim_reason'], 0, 500));
         }
 
         if (!empty($result['info_request_date']) && is_string($result['info_request_date'])) {

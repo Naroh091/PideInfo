@@ -1,0 +1,140 @@
+{#
+    Reusable resolution list + pagination.
+    Params:
+      - resolutions: Resolution[]
+      - total: int
+      - page: int
+      - totalPages: int
+      - pagination_route: string
+      - pagination_params: map (merged with {page: N} on each link)
+      - empty_message: string (optional override)
+#}
+{% set pagination_params = pagination_params|default({}) %}
+{% set page_size = 50 %}
+
+{% if resolutions|length > 0 %}
+    <div class="space-y-2.5">
+        {% set outcomeAccent = {
+            favorable: '#34d399',
+            partial: '#fbbf24',
+            acuerdo_mediacion: '#818cf8',
+            unfavorable: '#f87171',
+            inadmissible: '#c084fc',
+            archivo: '#38bdf8',
+            perdida_objeto: '#94a3b8',
+            desistimiento: '#94a3b8',
+            derivacion: '#94a3b8',
+        } %}
+        {% set badgeClass = {
+            favorable: 'badge-success',
+            partial: 'badge-warning',
+            acuerdo_mediacion: 'badge-success',
+            unfavorable: 'badge-danger',
+            inadmissible: 'badge-secondary',
+            archivo: 'badge-info',
+            perdida_objeto: 'badge-secondary',
+            desistimiento: 'badge-secondary',
+            derivacion: 'badge-secondary',
+        } %}
+        {% for resolution in resolutions %}
+            <div class="resolution-card group" style="--accent: {{ outcomeAccent[resolution.outcome]|default('#94a3b8') }}">
+                <div class="p-4 sm:p-5">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-2.5 mb-1.5">
+                                <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
+                                    {{ resolution.outcomeLabel }}
+                                </span>
+                                <span class="text-xs text-slate-400 font-mono tracking-tight">{{ resolution.referenceNumber }}</span>
+                                {% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
+                                    <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"
+                                       class="relative z-10 text-xs text-slate-400 hover:text-primary-600 transition-colors">{{ resolution.complaintOrganism.shortName ?? resolution.complaintOrganism.name }}</a>
+                                {% elseif resolution.complaintOrganism %}
+                                    <span class="text-xs text-slate-400">{{ resolution.complaintOrganism.shortName ?? resolution.complaintOrganism.name }}</span>
+                                {% endif %}
+                            </div>
+
+                            <h3 class="text-lg font-semibold leading-snug mb-1">
+                                <a href="{{ path('app_resoluciones_show', { id: resolution.id }) }}"
+                                   class="text-slate-800 group-hover:text-primary-600 transition-colors after:absolute after:inset-0">
+                                    {{ resolution.subject|default(resolution.referenceNumber) }}
+                                </a>
+                            </h3>
+
+                            <p class="text-sm text-slate-500 leading-relaxed">
+                                {{ resolution.summary }}
+                            </p>
+
+                            {% if resolution.keywords is not empty %}
+                                <div class="flex flex-wrap gap-1.5 mt-2.5">
+                                    {% for kw in resolution.keywords|slice(0, 5) %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-50 text-xs text-slate-500 border border-slate-100">{{ kw }}</span>
+                                    {% endfor %}
+                                    {% if resolution.keywords|length > 5 %}
+                                        <span class="text-xs text-slate-400">+{{ resolution.keywords|length - 5 }}</span>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="hidden sm:flex flex-col items-end gap-1 flex-shrink-0 text-right">
+                            <span class="text-sm text-slate-500 tabular-nums">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : '' }}</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300 group-hover:text-primary-400 transition-colors mt-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if totalPages > 1 %}
+        <div class="mt-6 flex items-center justify-between">
+            <p class="text-sm text-slate-500">
+                {{ ((page - 1) * page_size) + 1 }}–{{ min(page * page_size, total) }} de {{ total }}
+            </p>
+            <nav class="flex items-center gap-1" aria-label="Paginación">
+                {% if page > 3 %}
+                    <a href="{{ path(pagination_route, pagination_params|merge({ page: 1 })) }}"
+                       class="btn btn-ghost btn-sm" title="Primera página">
+                        <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% if page > 1 %}
+                    <a href="{{ path(pagination_route, pagination_params|merge({ page: page - 1 })) }}"
+                       class="btn btn-ghost btn-sm">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% for p in max(1, page - 2)..min(totalPages, page + 2) %}
+                    <a href="{{ path(pagination_route, pagination_params|merge({ page: p })) }}"
+                       class="btn btn-sm {{ p == page ? 'btn-primary' : 'btn-ghost' }}">
+                        {{ p }}
+                    </a>
+                {% endfor %}
+
+                {% if page < totalPages %}
+                    <a href="{{ path(pagination_route, pagination_params|merge({ page: page + 1 })) }}"
+                       class="btn btn-ghost btn-sm">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% if page < totalPages - 2 %}
+                    <a href="{{ path(pagination_route, pagination_params|merge({ page: totalPages })) }}"
+                       class="btn btn-ghost btn-sm" title="Última página">
+                        <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+            </nav>
+        </div>
+    {% endif %}
+
+{% else %}
+    <div class="empty-state py-16">
+        <i data-lucide="file-search" class="empty-state-icon"></i>
+        <h3 class="empty-state-title">No se encontraron resoluciones</h3>
+        <p class="empty-state-description">{{ empty_message|default('Prueba a cambiar los filtros de búsqueda') }}</p>
+    </div>
+{% endif %}

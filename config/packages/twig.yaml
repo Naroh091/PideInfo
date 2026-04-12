@@ -1,5 +1,7 @@
 twig:
     file_name_pattern: '*.twig'
+    globals:
+        pdf_font_dir: '%kernel.project_dir%/resources/fonts'
 
 when@test:
     twig:

@@ -164,7 +164,7 @@ class ResolutionController extends AbstractController
         ], $results));
     }
 
-    #[Route('/{id}', name: 'app_resoluciones_show')]
+    #[Route('/{id}', name: 'app_resoluciones_show', requirements: ['id' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])]
     public function show(Resolution $resolution, PublicBodyRepository $publicBodyRepository): Response
     {
         $publicBody = $resolution->getPublicBodyName()
@@ -174,6 +174,8 @@ class ResolutionController extends AbstractController
         return $this->render('resolution/show.html.twig', [
             'resolution' => $resolution,
             'publicBody' => $publicBody,
+            'limitLabels' => Resolution::getLimitLabels(),
+            'inadmissionCauseLabels' => Resolution::getInadmissionCauseLabels(),
         ]);
     }
 
@@ -187,6 +189,8 @@ class ResolutionController extends AbstractController
             'publicBody' => $request->query->get('publicBody', ''),
             'dateFrom' => $request->query->get('dateFrom', ''),
             'dateTo' => $request->query->get('dateTo', ''),
+            'limit' => $request->query->get('limit', ''),
+            'inadmissionCause' => $request->query->get('inadmissionCause', ''),
         ];
     }
 
@@ -226,11 +230,14 @@ class ResolutionController extends AbstractController
             'organisms' => $organismRepository->findAllOrdered(),
             'globalStats' => $globalStats,
             'cardStats' => $cardStats,
+            'invocationCount' => $resolutionRepository->countLimitAndInadmissionInvocations(),
             'filters' => $filters,
             'page' => $page,
             'totalPages' => $totalPages,
             'total' => $total,
             'outcomeStats' => $outcomeStats,
+            'limitLabels' => Resolution::getLimitLabels(),
+            'inadmissionCauseLabels' => Resolution::getInadmissionCauseLabels(),
         ], $extra));
     }
 }

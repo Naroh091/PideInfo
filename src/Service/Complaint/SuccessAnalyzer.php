@@ -5,7 +5,9 @@ namespace App\Service\Complaint;
 use App\DTO\SuccessAnalysis;
 use App\Entity\AccessRequest;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\CustomModelClient;
 use App\Service\AI\ResolutionRetriever;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class SuccessAnalyzer
@@ -19,6 +21,8 @@ final class SuccessAnalyzer
         private readonly string $geminiModel,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
+        private readonly CustomModelClient $customModelClient,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -31,9 +35,15 @@ final class SuccessAnalyzer
         $prompt = $this->buildAnalysisPrompt($accessRequest, $criteria, $resolutions);
 
         try {
-            $result = $this->callGeminiApi($prompt);
+            $result = $this->customModelClient->isEnabled()
+                ? $this->customModelClient->chat($prompt, jsonMode: true, temperature: 0.1)
+                : $this->callGeminiApi($prompt);
             return $this->parseAnalysisResult($result);
         } catch (\Exception $e) {
+            $this->logger->warning('Success analyzer failed', [
+                'request' => (string) $accessRequest->getId(),
+                'error' => $e->getMessage(),
+            ]);
             return new SuccessAnalysis(
                 probability: 50,
                 reasoning: 'No se pudo analizar la probabilidad de éxito debido a un error técnico.',

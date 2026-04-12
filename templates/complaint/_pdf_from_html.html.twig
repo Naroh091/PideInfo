@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reclamación - {{ accessRequest.publicBody.name }}</title>
+    <title>{{ accessRequest.publicBody.name }}</title>
     <style>
         @font-face {
             font-family: 'DM Sans';
@@ -44,7 +44,7 @@
         .masthead {
             border-bottom: 1px solid #e2e8f0;
             padding-bottom: 0.6em;
-            margin-bottom: 1.2em;
+            margin-bottom: 1.6em;
         }
 
         .masthead .wordmark {
@@ -58,23 +58,6 @@
             font-size: 8.5pt;
             color: #64748b;
             margin-top: 0.15em;
-        }
-
-        .addressee {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 10.5pt;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            color: #0369a1;
-            margin: 1.4em 0 1.8em 0;
-            padding-bottom: 0.35em;
-            border-bottom: 1px solid #bae6fd;
-        }
-
-        .addressee .prefix {
-            color: #64748b;
-            margin-right: 0.25em;
         }
 
         .content h1 {
@@ -91,7 +74,7 @@
         }
 
         .content h1:first-child {
-            margin-top: 0.8em;
+            margin-top: 0;
         }
 
         .content h2 {
@@ -152,41 +135,6 @@
             text-decoration: underline;
         }
 
-        .metadata {
-            margin-top: 2.2em;
-            padding-top: 0.9em;
-            border-top: 1px dashed #cbd5e1;
-            font-size: 9pt;
-            color: #64748b;
-        }
-
-        .metadata-title {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 8.5pt;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #0369a1;
-            margin-bottom: 0.6em;
-        }
-
-        .metadata p {
-            margin: 0.3em 0 0.25em 0;
-            color: #334155;
-            font-weight: 700;
-            font-size: 9pt;
-        }
-
-        .metadata ul {
-            margin: 0 0 0.8em 0;
-            padding-left: 1.2em;
-            color: #64748b;
-        }
-
-        .metadata li {
-            margin-bottom: 0.2em;
-        }
-
         .footer {
             position: fixed;
             left: 2.6cm;
@@ -213,35 +161,7 @@
         <div class="tagline">Plataforma de simplificación para el ejercicio del derecho de acceso a información pública</div>
     </div>
 
-    <div class="addressee">
-        <span class="prefix">A/A</span>{{ draft.transparencyCouncil }}
-    </div>
-
-    <div class="content">{{ draft.content|raw }}</div>
-
-    {% if draft.hasCitedCriteria or draft.hasCitedResolutions %}
-    <div class="metadata">
-        <div class="metadata-title">Referencias documentales</div>
-
-        {% if draft.hasCitedCriteria %}
-            <p>Criterios interpretativos citados</p>
-            <ul>
-                {% for criterion in draft.citedCriteria %}
-                    <li>{{ criterion }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-
-        {% if draft.hasCitedResolutions %}
-            <p>Resoluciones citadas</p>
-            <ul>
-                {% for resolution in draft.citedResolutions %}
-                    <li>{{ resolution.reference }}{% if resolution.date %} ({{ resolution.date }}){% endif %}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-    </div>
-    {% endif %}
+    <div class="content">{{ html|raw }}</div>
 
     <div class="footer">
         Documento generado con <span class="brand">Pideinfo.es</span> — Plataforma de simplificación para el ejercicio del derecho de acceso a información pública

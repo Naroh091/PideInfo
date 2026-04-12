@@ -6,12 +6,15 @@ use App\DTO\ComplaintDraft;
 use App\Entity\AccessRequest;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Twig\Environment;
 
 final class PdfGenerator
 {
     public function __construct(
         private readonly Environment $twig,
+        #[Autowire('%kernel.project_dir%')]
+        private readonly string $projectDir,
     ) {
     }
 
@@ -36,7 +39,8 @@ final class PdfGenerator
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isPhpEnabled', false);
         $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('chroot', [$this->projectDir]);
+        $options->set('defaultFont', 'DM Sans');
         $options->set('defaultPaperSize', 'A4');
         $options->set('defaultPaperOrientation', 'portrait');
 

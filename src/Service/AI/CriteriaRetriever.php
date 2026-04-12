@@ -55,7 +55,12 @@ final class CriteriaRetriever
     }
 
     /**
-     * Format retrieved criteria for use in a prompt
+     * Format retrieved criteria for use in a prompt.
+     *
+     * Intentionally omits the raw `topic` / epigraph field because it comes from index metadata
+     * and has proven unreliable (some criteria have generic or misleading topics that do not
+     * reflect what the criterion actually establishes). The LLM must read the full text to
+     * understand each criterion's real content.
      */
     public function formatForPrompt(array $criteria): string
     {
@@ -67,10 +72,9 @@ final class CriteriaRetriever
 
         foreach ($criteria as $index => $criterion) {
             $formatted[] = sprintf(
-                "### Criterio %s (%d) - %s\n%s\n[Fuente: %s, páginas %d-%d]",
+                "### Criterio %s (%d)\n%s\n[Fuente: %s, páginas %d-%d]",
                 $criterion['criterion'],
                 $criterion['year'],
-                $criterion['topic'],
                 $criterion['text'],
                 $criterion['source'],
                 $criterion['pageStart'] ?? 0,
