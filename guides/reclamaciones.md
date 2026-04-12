@@ -64,7 +64,7 @@ Cuando estés satisfecho con el resultado, puedes descargar la reclamación en f
 
 ## Análisis de probabilidad de éxito
 
-En la columna derecha verás un **análisis de probabilidad de éxito** que indica, basándose en resoluciones anteriores del CTBG sobre casos similares, cuántas posibilidades tiene tu reclamación de prosperar.
+Verás un **análisis de probabilidad de éxito** que indica, basándose en resoluciones anteriores del CTBG sobre casos similares, cuántas posibilidades tiene tu reclamación de prosperar.
 
 Este análisis es orientativo y se basa en:
 - Resoluciones favorables del CTBG en casos similares
