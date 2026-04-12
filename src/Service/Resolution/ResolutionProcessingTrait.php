@@ -103,41 +103,14 @@ trait ResolutionProcessingTrait
             $result = $this->analyzer->analyze($cleanedText);
 
             $resolution->setFullText($result['formatted_text']);
-            $resolution->setSummary($result['summary']);
-            $resolution->setKeypoints($result['keypoints']);
-
-            if (!empty($result['subject'])) {
-                $resolution->setSubject(mb_substr($result['subject'], 0, 500));
-            }
-
-            $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
-            if ($result['resolution_date'] && $existingDateSource === null) {
-                try {
-                    $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                    $meta = $resolution->getSourceMetadata() ?? [];
-                    $meta['FECHA_RESOLUCION'] = 'LLM';
-                    $resolution->setSourceMetadata($meta);
-                } catch (\Exception) {
-                }
-            }
-
-            if ($result['claim_date']) {
-                try {
-                    $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
-                } catch (\Exception) {
-                }
-            }
-
-            if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-                $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-                $resolution->setDaysToResolve($days);
-            }
+            $this->analyzer->applyAnalysisResult($resolution, $result);
 
             $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 100) . '...'));
-            $io->text(sprintf('  Keypoints: %d | Dates: res=%s claim=%s',
+            $io->text(sprintf('  Keypoints: %d | Dates: res=%s claim=%s info=%s',
                 count($result['keypoints']),
                 $result['resolution_date'] ?? 'n/a',
                 $result['claim_date'] ?? 'n/a',
+                $result['info_request_date'] ?? 'n/a',
             ));
         } catch (\Exception $e) {
             $this->logger->error('AI analysis failed', [

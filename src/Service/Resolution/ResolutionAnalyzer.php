@@ -2,6 +2,7 @@
 
 namespace App\Service\Resolution;
 
+use App\Entity\Resolution;
 use GuzzleHttp\Client as GuzzleClient;
 use OpenAI;
 use OpenAI\Client as OpenAIClient;
@@ -249,46 +250,23 @@ SUFFIX;
     /**
      * Step 2: Extract summary, keypoints, dates and subject (GEMINI_MID_MODEL or custom model).
      *
-     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
     public function extractAnalysis(string $cleanedText, bool $flex = false): array
     {
-        $prompt = <<<'PROMPT'
-Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
-
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
-
-[summary]
-Escribe un resumen directo en texto plano (máximo 400 caracteres).
-Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
-
-[keypoints]
-Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
-Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
-Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
-
-[resolution_date] y [claim_date]
-Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
-
-[subject]
-Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
-PROMPT;
+        $prompt = self::buildExtractAnalysisPrompt();
 
         if ($this->useCustomModel) {
             $jsonSuffix = <<<'SUFFIX'
 
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "asunto en castellano o null"}
+{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "asunto en castellano o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o texto libre o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
 
             $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints']);
 
-            $result['resolution_date'] = $result['resolution_date'] ?? null;
-            $result['claim_date'] = $result['claim_date'] ?? null;
-            $result['subject'] = $result['subject'] ?? null;
-
-            return $result;
+            return $this->normalizeExtractAnalysisResult($result);
         }
 
         $parts = [
@@ -296,44 +274,11 @@ SUFFIX;
             ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
         ];
 
-        $schema = [
-            'type' => 'object',
-            'properties' => [
-                'summary' => [
-                    'type' => 'string',
-                    'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
-                ],
-                'keypoints' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string'],
-                    'description' => '3-7 key legal reasoning points in Spanish.',
-                ],
-                'resolution_date' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
-                ],
-                'claim_date' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Claim filing date in ISO 8601 (YYYY-MM-DD). Null if not found.',
-                ],
-                'subject' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
-                ],
-            ],
-            'required' => ['summary', 'keypoints', 'resolution_date', 'claim_date', 'subject'],
-        ];
+        $schema = $this->buildExtractAnalysisSchema();
 
         $result = $this->callGeminiApi($this->midModel, $parts, $schema, flex: $flex);
 
-        $result['resolution_date'] = $result['resolution_date'] ?? null;
-        $result['claim_date'] = $result['claim_date'] ?? null;
-        $result['subject'] = $result['subject'] ?? null;
-
-        return $result;
+        return $this->normalizeExtractAnalysisResult($result);
     }
 
     /**
@@ -376,45 +321,30 @@ PROMPT;
      * Only works with custom model.
      *
      * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
-     * @return array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}> Results indexed by same keys
+     * @return array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> Results indexed by same keys
      */
     public function batchExtractAnalysis(array $cleanedTexts): array
     {
-        $prompt = <<<'PROMPT'
-Actúa como un experto en derecho administrativo español y transparencia. Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y extrae la información requerida.
+        $basePrompt = self::buildExtractAnalysisPrompt();
+        $batchHeader = "Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y aplica las siguientes instrucciones a cada una de forma independiente.\n\n";
+        $batchFooter = <<<'FOOTER'
 
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
 
-Para CADA resolución extrae:
-
-[summary]
-Escribe un resumen directo en texto plano (máximo 400 caracteres).
-Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
-
-[keypoints]
-Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
-Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
-Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
-
-[resolution_date] y [claim_date]
-Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación (suele estar en Antecedentes).
-
-[subject]
-Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
-
-Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "... o null"}.
+Responde ÚNICAMENTE con un JSON válido: un array donde cada elemento tiene {"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}.
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-PROMPT;
+FOOTER;
+
+        $prompt = $batchHeader . $basePrompt . $batchFooter;
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['summary', 'keypoints']);
 
         foreach ($results as $i => $result) {
-            $results[$i]['resolution_date'] = $result['resolution_date'] ?? null;
-            $results[$i]['claim_date'] = $result['claim_date'] ?? null;
-            $results[$i]['subject'] = $result['subject'] ?? null;
+            /** @var array<string, mixed> $result */
+            $results[$i] = $this->normalizeExtractAnalysisResult($result);
         }
 
+        /** @var array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
         return $results;
     }
 
@@ -730,5 +660,247 @@ PROMPT;
         }
 
         throw $lastError ?? new \RuntimeException(sprintf('Gemini API call failed after %d attempts (model %s).', $maxRetries + 1, $model));
+    }
+
+    public static function buildExtractAnalysisPrompt(): string
+    {
+        $outcomesBlock = self::renderEnumBlock(Resolution::getOutcomeLabels());
+        $limitsBlock = self::renderEnumBlock(Resolution::getLimitLabels());
+        $causesBlock = self::renderEnumBlock(Resolution::getInadmissionCauseLabels());
+
+        return <<<PROMPT
+Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
+
+REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
+
+[summary]
+Escribe un resumen directo en texto plano (máximo 400 caracteres).
+Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
+
+[keypoints]
+Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
+Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
+Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
+
+[resolution_date] y [claim_date]
+Extrae la fecha de firma de la resolución (suele estar al final) y la fecha de presentación de la reclamación ante el consejo de transparencia (suele estar en Antecedentes).
+
+[info_request_date]
+Extrae la fecha en la que el ciudadano solicitó ORIGINALMENTE la información a la administración competente (NO la fecha de la reclamación posterior ante el consejo de transparencia). Suele aparecer en los Antecedentes con expresiones como "con fecha X solicitó", "el día X presentó solicitud de información", etc. Devuelve null si no aparece.
+
+[complained_administration]
+Nombre de la administración a la que el ciudadano solicitó originalmente la información (la "administración reclamada"). NUNCA devuelvas el nombre del consejo o comisión de transparencia que dicta la resolución. Si no puedes determinarlo con certeza, devuelve null.
+
+[subject]
+Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
+
+[outcome]
+Devuelve el código que mejor describe la decisión final del consejo de transparencia, eligiendo UNO de los siguientes valores:
+
+{$outcomesBlock}
+
+Si la decisión no encaja en NINGUNO de estos códigos, devuelve un texto libre breve (máximo 80 caracteres) describiendo la decisión. Si no puedes determinarla, devuelve null.
+
+[limits]
+Lista de LÍMITES al derecho de acceso (art. 14 Ley 19/2013) que la administración reclamada haya alegado para denegar total o parcialmente la información. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguno):
+
+{$limitsBlock}
+
+Solo incluye límites efectivamente alegados por la administración. NO incluyas límites mencionados solo en los fundamentos jurídicos del consejo si no fueron alegados por la administración.
+
+[inadmission_causes]
+Lista de CAUSAS DE INADMISIÓN (art. 18 Ley 19/2013) que la administración reclamada haya alegado para inadmitir la solicitud. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguna):
+
+{$causesBlock}
+
+Solo incluye causas efectivamente alegadas por la administración.
+PROMPT;
+    }
+
+    /**
+     * @param array<string, string> $labels
+     */
+    private static function renderEnumBlock(array $labels): string
+    {
+        $lines = [];
+        foreach ($labels as $code => $label) {
+            $lines[] = sprintf('- %s: %s', $code, $label);
+        }
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildExtractAnalysisSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'summary' => [
+                    'type' => 'string',
+                    'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
+                ],
+                'keypoints' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => '3-7 key legal reasoning points in Spanish.',
+                ],
+                'resolution_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+                ],
+                'claim_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Claim filing date (before the transparency council) in ISO 8601. Null if not found.',
+                ],
+                'info_request_date' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Original date when the citizen requested information from the administration (NOT the claim date). ISO 8601, null if not found.',
+                ],
+                'complained_administration' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Name of the administration the citizen complained about. Never the transparency council. Null if unclear.',
+                ],
+                'subject' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
+                ],
+                'outcome' => [
+                    'type' => 'string',
+                    'nullable' => true,
+                    'description' => 'Outcome code from the canonical list, or free text if no code matches, or null if undetermined.',
+                ],
+                'limits' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => 'Codes of art. 14 limits invoked by the administration. Empty array if none.',
+                ],
+                'inadmission_causes' => [
+                    'type' => 'array',
+                    'items' => ['type' => 'string'],
+                    'description' => 'Codes of art. 18 inadmission causes invoked by the administration. Empty array if none.',
+                ],
+            ],
+            'required' => ['summary', 'keypoints'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     */
+    private function normalizeExtractAnalysisResult(array $result): array
+    {
+        $result['resolution_date'] = $result['resolution_date'] ?? null;
+        $result['claim_date'] = $result['claim_date'] ?? null;
+        $result['subject'] = $result['subject'] ?? null;
+        $result['info_request_date'] = $result['info_request_date'] ?? null;
+        $result['complained_administration'] = $result['complained_administration'] ?? null;
+        $result['outcome'] = $result['outcome'] ?? null;
+        $result['limits'] = is_array($result['limits'] ?? null) ? array_values(array_filter($result['limits'], 'is_string')) : [];
+        $result['inadmission_causes'] = is_array($result['inadmission_causes'] ?? null) ? array_values(array_filter($result['inadmission_causes'], 'is_string')) : [];
+
+        /** @var array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>} $result */
+        return $result;
+    }
+
+    /**
+     * Apply an extractAnalysis result to a Resolution entity.
+     *
+     * Centralizes merge rules so inline, async, custom-batch and Gemini-batch paths stay in sync.
+     *
+     * @param array<string, mixed> $result Raw or normalized result from extractAnalysis / batchExtractAnalysis.
+     */
+    public function applyAnalysisResult(Resolution $resolution, array $result): void
+    {
+        if (isset($result['summary']) && is_string($result['summary'])) {
+            $resolution->setSummary($result['summary']);
+        }
+
+        if (isset($result['keypoints']) && is_array($result['keypoints'])) {
+            $resolution->setKeypoints(array_values(array_filter($result['keypoints'], 'is_string')));
+        }
+
+        if (!empty($result['subject']) && is_string($result['subject'])) {
+            $resolution->setSubject(mb_substr($result['subject'], 0, 500));
+        }
+
+        $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
+        if (!empty($result['resolution_date']) && is_string($result['resolution_date']) && $existingDateSource === null) {
+            try {
+                $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
+                $meta = $resolution->getSourceMetadata() ?? [];
+                $meta['FECHA_RESOLUCION'] = 'LLM';
+                $resolution->setSourceMetadata($meta);
+            } catch (\Exception) {
+            }
+        }
+
+        if (!empty($result['claim_date']) && is_string($result['claim_date'])) {
+            try {
+                $resolution->setClaimDate(new \DateTimeImmutable($result['claim_date']));
+            } catch (\Exception) {
+            }
+        }
+
+        if (!empty($result['info_request_date']) && is_string($result['info_request_date'])) {
+            try {
+                $resolution->setInfoRequestDate(new \DateTimeImmutable($result['info_request_date']));
+            } catch (\Exception) {
+            }
+        }
+
+        if (
+            !empty($result['complained_administration'])
+            && is_string($result['complained_administration'])
+            && empty($resolution->getPublicBodyName())
+        ) {
+            $resolution->setPublicBodyName(mb_substr($result['complained_administration'], 0, 1000));
+        }
+
+        if (isset($result['limits']) && is_array($result['limits'])) {
+            $resolution->setLimits(array_values(array_filter($result['limits'], 'is_string')));
+        }
+
+        if (isset($result['inadmission_causes']) && is_array($result['inadmission_causes'])) {
+            $resolution->setInadmissionCauses(array_values(array_filter($result['inadmission_causes'], 'is_string')));
+        }
+
+        if (!empty($result['outcome']) && is_string($result['outcome'])) {
+            $this->applyOutcome($resolution, $result['outcome']);
+        }
+
+        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
+            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
+            $resolution->setDaysToResolve($days);
+        }
+    }
+
+    private function applyOutcome(Resolution $resolution, string $llmOutcome): void
+    {
+        $validOutcomes = array_keys(Resolution::getOutcomeLabels());
+        $meta = $resolution->getSourceMetadata() ?? [];
+
+        if (in_array($llmOutcome, $validOutcomes, true)) {
+            $current = $resolution->getOutcome();
+            if ($current !== $llmOutcome) {
+                $meta[Resolution::META_OUTCOME_OVERRIDEN] = [
+                    'previous' => $current,
+                    'new' => $llmOutcome,
+                ];
+                $resolution->setOutcome($llmOutcome);
+                $resolution->setSourceMetadata($meta);
+            }
+            return;
+        }
+
+        $meta[Resolution::META_OUTCOME_RAW] = mb_substr($llmOutcome, 0, 200);
+        $resolution->setSourceMetadata($meta);
     }
 }
