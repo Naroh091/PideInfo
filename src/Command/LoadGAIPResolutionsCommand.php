@@ -77,6 +77,7 @@ class LoadGAIPResolutionsCommand extends Command
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
         ;
     }
 
@@ -123,6 +124,9 @@ class LoadGAIPResolutionsCommand extends Command
         $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
+        $updateMode = $input->getOption('update');
+        $existingCount = 0;
+
         $total = count($allDtos);
         $current = 0;
         foreach ($allDtos as $dto) {
@@ -130,7 +134,7 @@ class LoadGAIPResolutionsCommand extends Command
             $io->text(sprintf('[%d/%d] %s', $current, $total, $dto->referenceNumber));
 
             try {
-                $this->upsertResolution($dto, $dryRun, $io, $stats);
+                $isNew = $this->upsertResolution($dto, $dryRun, $io, $stats);
                 if ($dryRun) {
                     $io->text('  [dry-run] Would upsert');
                     $stats['processed']++;
@@ -138,6 +142,14 @@ class LoadGAIPResolutionsCommand extends Command
                 }
 
                 $stats['processed']++;
+
+                if ($updateMode && !$isNew) {
+                    $existingCount++;
+                    if ($existingCount > 10) {
+                        $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                        break;
+                    }
+                }
 
                 if ($stats['processed'] % self::FLUSH_BATCH_SIZE === 0) {
                     $this->entityManager->flush();
@@ -188,28 +200,34 @@ class LoadGAIPResolutionsCommand extends Command
                     } elseif (!$resolution->getSourceUrl()) {
                         $stats['skippedPdf']++;
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('PDF phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+                }
 
+                try {
                     if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                         $this->analyzeResolution($resolution, $io);
                         $stats['analyzed']++;
                         usleep(500_000);
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('Analysis phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+                }
 
+                try {
                     if (!$skipVectors && !empty($resolution->getFullText())) {
                         $this->vectorizeResolution($resolution, $io);
                         $stats['vectorized']++;
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('Vectorization phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
+                }
 
-                    if (($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
-                        $this->entityManager->flush();
-                    }
-                } catch (\Exception $e) {
-                    $this->logger->error('Error processing GAIP resolution', [
-                        'reference' => $ref,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $io->error('  Error: ' . $e->getMessage());
-                    $stats['errors']++;
+                if (($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
+                    $this->entityManager->flush();
                 }
             }
 
@@ -240,6 +258,10 @@ class LoadGAIPResolutionsCommand extends Command
             ));
         }
 
+        if (!$dryRun) {
+            $this->resolutionRepository->invalidateListingCache();
+        }
+
         return Command::SUCCESS;
     }
 
@@ -259,7 +281,7 @@ class LoadGAIPResolutionsCommand extends Command
         return $resolutions;
     }
 
-    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, array &$stats): Resolution
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, array &$stats): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_GAIP);
         $isNew = $resolution === null;
@@ -345,7 +367,7 @@ class LoadGAIPResolutionsCommand extends Command
             }
         }
 
-        return $resolution;
+        return $isNew;
     }
 
     private function processSpecificResolution(string $reference, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io): int

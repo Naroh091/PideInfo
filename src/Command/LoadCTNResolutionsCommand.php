@@ -80,6 +80,7 @@ class LoadCTNResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('url', null, InputOption::VALUE_REQUIRED, 'Override JSON source URL')
             ->addOption('pdf-path', null, InputOption::VALUE_REQUIRED, 'Local directory containing PDF files (skips HTTP download)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
         ;
     }
 
@@ -99,6 +100,10 @@ class LoadCTNResolutionsCommand extends Command
             $io->error(sprintf('PDF path does not exist: %s', $pdfPath));
             return Command::FAILURE;
         }
+
+        $updateMode = $input->getOption('update');
+        $existingCount = 0;
+        $stopUpdate = false;
 
         $io->title('CTN Resolution Loader');
 
@@ -154,8 +159,16 @@ class LoadCTNResolutionsCommand extends Command
             // 3a: Upsert this batch
             foreach ($batch as $dto) {
                 try {
-                    $this->upsertResolution($dto, $io, $stats);
+                    $isNew = $this->upsertResolution($dto, $io, $stats);
                     $stats['processed']++;
+                    if ($updateMode && !$isNew) {
+                        $existingCount++;
+                        if ($existingCount > 10) {
+                            $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                            $stopUpdate = true;
+                            break;
+                        }
+                    }
                 } catch (\Exception $e) {
                     $this->logger->error('Error upserting CTN resolution', [
                         'reference' => $dto->referenceNumber,
@@ -211,6 +224,10 @@ class LoadCTNResolutionsCommand extends Command
 
             $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
                 $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+
+            if ($stopUpdate) {
+                break;
+            }
         }
 
         // Summary
@@ -236,6 +253,8 @@ class LoadCTNResolutionsCommand extends Command
                 $stats['skippedPdf'],
                 $stats['errors']
             ));
+        if (!$dryRun) {
+            $this->resolutionRepository->invalidateListingCache();
         }
 
         return Command::SUCCESS;
@@ -262,24 +281,30 @@ class LoadCTNResolutionsCommand extends Command
                 } elseif (!$skipPdf && !$resolution->getSourceUrl() && $pdfPath === null) {
                     $stats['skippedPdf']++;
                 }
+            } catch (\Throwable $e) {
+                $this->logger->error('PDF phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+            }
 
+            try {
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
                     usleep(500_000);
                 }
+            } catch (\Throwable $e) {
+                $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+            }
 
+            try {
                 if (!$skipVectors && !empty($resolution->getFullText())) {
                     $this->vectorizeResolution($resolution, $io);
                     $stats['vectorized']++;
                 }
-            } catch (\Exception $e) {
-                $this->logger->error('Error processing CTN resolution', [
-                    'reference' => $resolution->getReferenceNumber(),
-                    'error' => $e->getMessage(),
-                ]);
-                $io->error('  Processing error: ' . $e->getMessage());
-                $stats['errors']++;
+            } catch (\Throwable $e) {
+                $this->logger->error('Vectorization phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
             }
         }
     }
@@ -370,7 +395,7 @@ class LoadCTNResolutionsCommand extends Command
         return null;
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): Resolution
+    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTN);
         $isNew = $resolution === null;
@@ -440,7 +465,7 @@ class LoadCTNResolutionsCommand extends Command
             }
         }
 
-        return $resolution;
+        return $isNew;
     }
 
     private function findComplaintOrganism(string $shortName): ?\App\Entity\ComplaintOrganism
