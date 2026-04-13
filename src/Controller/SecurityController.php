@@ -27,6 +27,7 @@ class SecurityController extends AbstractController
         private EntityManagerInterface $entityManager,
         #[Autowire('%mail_from_address%')] private string $mailFromAddress,
         #[Autowire('%mail_from_name%')] private string $mailFromName,
+        #[Autowire(env: 'bool:USER_NEEDS_MANUAL_ACTIVATION')] private bool $needsManualActivation,
     ) {
     }
 
@@ -74,6 +75,10 @@ class SecurityController extends AbstractController
                 )
             );
 
+            if (!$this->needsManualActivation) {
+                $user->setIsActive(true);
+            }
+
             $this->entityManager->persist($user);
             $this->entityManager->flush();
 
@@ -98,7 +103,11 @@ class SecurityController extends AbstractController
 
             $mailer->send($email);
 
-            $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla. Como PideInfo está en beta cerrada, tu cuenta deberá ser activada manualmente antes de poder acceder.');
+            if ($this->needsManualActivation) {
+                $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla. Como PideInfo está en beta cerrada, tu cuenta deberá ser activada manualmente antes de poder acceder.');
+            } else {
+                $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla.');
+            }
 
             return $this->redirectToRoute('app_login');
         }
