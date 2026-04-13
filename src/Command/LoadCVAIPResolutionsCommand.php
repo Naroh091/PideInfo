@@ -80,6 +80,7 @@ class LoadCVAIPResolutionsCommand extends Command
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip document download (text already extracted during scrape)')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Skip resolutions that already have a sourceUrl in the DB')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
         ;
     }
 
@@ -93,6 +94,10 @@ class LoadCVAIPResolutionsCommand extends Command
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
         $onlyNew = $input->getOption('only-missing-url');
+
+        $updateMode = $input->getOption('update');
+        $existingCount = 0;
+        $stopUpdate = false;
 
         $io->title('CVAIP Resolution Loader (País Vasco)');
 
@@ -188,8 +193,16 @@ class LoadCVAIPResolutionsCommand extends Command
             // 3b: Upsert this batch
             foreach ($batchResults as $result) {
                 try {
-                    $this->upsertResolution($result['dto'], $result['fullText'], $io, $stats);
+                    $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $io, $stats);
                     $stats['processed']++;
+                    if ($updateMode && !$isNew) {
+                        $existingCount++;
+                        if ($existingCount > 10) {
+                            $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                            $stopUpdate = true;
+                            break;
+                        }
+                    }
                 } catch (\Exception $e) {
                     $this->logger->error('Error upserting CVAIP resolution', [
                         'reference' => $result['dto']->referenceNumber,
@@ -245,6 +258,10 @@ class LoadCVAIPResolutionsCommand extends Command
 
             $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
                 $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+
+            if ($stopUpdate) {
+                break;
+            }
         }
 
         // Summary
@@ -273,6 +290,10 @@ class LoadCVAIPResolutionsCommand extends Command
             ));
         }
 
+        if (!$dryRun) {
+            $this->resolutionRepository->invalidateListingCache();
+        }
+
         return Command::SUCCESS;
     }
 
@@ -284,30 +305,32 @@ class LoadCVAIPResolutionsCommand extends Command
                 continue;
             }
 
+            // Text already extracted from Word — skip document download
+
             try {
-                // Text already extracted from Word — skip document download
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
                     usleep(500_000);
                 }
+            } catch (\Throwable $e) {
+                $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+            }
 
+            try {
                 if (!$skipVectors && !empty($resolution->getFullText())) {
                     $this->vectorizeResolution($resolution, $io);
                     $stats['vectorized']++;
                 }
-            } catch (\Exception $e) {
-                $this->logger->error('Error processing CVAIP resolution', [
-                    'reference' => $resolution->getReferenceNumber(),
-                    'error' => $e->getMessage(),
-                ]);
-                $io->error('  Processing error: ' . $e->getMessage());
-                $stats['errors']++;
+            } catch (\Throwable $e) {
+                $this->logger->error('Vectorization phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
             }
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, string $fullText, SymfonyStyle $io, array &$stats): Resolution
+    private function upsertResolution(ResolutionData $dto, string $fullText, SymfonyStyle $io, array &$stats): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CVAIP);
         $isNew = $resolution === null;
@@ -381,7 +404,7 @@ class LoadCVAIPResolutionsCommand extends Command
             }
         }
 
-        return $resolution;
+        return $isNew;
     }
 
     protected function cleanTextForSource(string $text): string

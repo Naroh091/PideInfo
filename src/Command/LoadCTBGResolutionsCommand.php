@@ -84,6 +84,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('national-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached national Excel file')
             ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
         ;
     }
 
@@ -163,12 +164,15 @@ class LoadCTBGResolutionsCommand extends Command
         // Step 3: Upsert entities from Excel data
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
+        $updateMode = $input->getOption('update');
+        $existingCount = 0;
+
         foreach ($allDtos as $idx => $dto) {
             $io->text(sprintf('[%d/%d] %s (%s)', $idx + 1, count($allDtos), $dto->referenceNumber, $dto->source));
 
             try {
                 // 3a: Upsert entity (always synchronous — fast, just DB writes)
-                $resolution = $this->upsertResolution($dto, $dryRun, $io);
+                $isNew = $this->upsertResolution($dto, $dryRun, $io);
                 if ($dryRun) {
                     $io->text('  [dry-run] Would upsert');
                     $stats['processed']++;
@@ -176,6 +180,14 @@ class LoadCTBGResolutionsCommand extends Command
                 }
 
                 $stats['processed']++;
+
+                if ($updateMode && !$isNew) {
+                    $existingCount++;
+                    if ($existingCount > 10) {
+                        $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                        break;
+                    }
+                }
 
                 // Flush in batches
                 if ($stats['processed'] % self::FLUSH_BATCH_SIZE === 0) {
@@ -230,28 +242,34 @@ class LoadCTBGResolutionsCommand extends Command
                     } elseif (!$resolution->getSourceUrl()) {
                         $stats['skippedPdf']++;
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('PDF phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+                }
 
+                try {
                     if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                         $this->analyzeResolution($resolution, $io);
                         $stats['analyzed']++;
                         usleep(500_000);
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('Analysis phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+                }
 
+                try {
                     if (!$skipVectors && !empty($resolution->getFullText())) {
                         $this->vectorizeResolution($resolution, $io);
                         $stats['vectorized']++;
                     }
+                } catch (\Throwable $e) {
+                    $this->logger->error('Vectorization phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                    $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
+                }
 
-                    if (($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
-                        $this->entityManager->flush();
-                    }
-                } catch (\Exception $e) {
-                    $this->logger->error('Error processing resolution', [
-                        'reference' => $ref,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $io->error('  Error: ' . $e->getMessage());
-                    $stats['errors']++;
+                if (($idx + 1) % self::FLUSH_BATCH_SIZE === 0) {
+                    $this->entityManager->flush();
                 }
             }
 
@@ -276,6 +294,10 @@ class LoadCTBGResolutionsCommand extends Command
                 $stats['skippedPdf'],
                 $stats['errors']
             ));
+        }
+
+        if (!$dryRun) {
+            $this->resolutionRepository->invalidateListingCache();
         }
 
         return Command::SUCCESS;
@@ -335,7 +357,7 @@ class LoadCTBGResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io): Resolution
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
         $isNew = $resolution === null;
@@ -403,7 +425,7 @@ class LoadCTBGResolutionsCommand extends Command
             }
         }
 
-        return $resolution;
+        return $isNew;
     }
 
     private function findComplaintOrganism(string $shortName): ?\App\Entity\ComplaintOrganism

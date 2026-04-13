@@ -60,55 +60,72 @@ final class ProcessResolutionHandler
         $ref = $resolution->getReferenceNumber();
         $this->logger->info("Processing resolution $ref");
 
-        // Step 0.5: CTCAN — resolve PDF URL from detail page if not yet known
-        if (!$message->skipPdf && $resolution->getSource() === Resolution::SOURCE_CTCAN
-            && !$resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
-            $detailUrl = ($resolution->getSourceMetadata() ?? [])['detailUrl'] ?? null;
-            if ($detailUrl) {
-                $pdfUrl = $this->ctcanWebReader->fetchDetailPage($detailUrl);
-                if ($pdfUrl) {
-                    $resolution->setSourceUrl($pdfUrl);
-                    $this->logger->info('Resolved CTCAN PDF URL', ['reference' => $ref, 'pdfUrl' => $pdfUrl]);
+        // Block A: Step 0.5 + 1 — CTCAN URL resolution + PDF download/re-extraction
+        try {
+            // Step 0.5: CTCAN — resolve PDF URL from detail page if not yet known
+            if (!$message->skipPdf && $resolution->getSource() === Resolution::SOURCE_CTCAN
+                && !$resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
+                $detailUrl = ($resolution->getSourceMetadata() ?? [])['detailUrl'] ?? null;
+                if ($detailUrl) {
+                    $pdfUrl = $this->ctcanWebReader->fetchDetailPage($detailUrl);
+                    if ($pdfUrl) {
+                        $resolution->setSourceUrl($pdfUrl);
+                        $this->logger->info('Resolved CTCAN PDF URL', ['reference' => $ref, 'pdfUrl' => $pdfUrl]);
+                    }
                 }
             }
+
+            // Step 1: Download/extract PDF text
+            if ($message->forceReExtractText) {
+                $this->reExtractTextFromStorage($resolution);
+            } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
+                $this->downloadAndProcessPdf($resolution);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('PDF step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
         }
 
-        // Step 1: Download/extract PDF text
-        if ($message->forceReExtractText) {
-            $this->reExtractTextFromStorage($resolution);
-        } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
-            $this->downloadAndProcessPdf($resolution);
+        // Block B: Step 1.5 — source-specific metadata extraction from PDF text
+        try {
+            if ($resolution->getSource() === Resolution::SOURCE_CRT) {
+                $this->extractCrtMetadata($resolution);
+            }
+
+            if ($resolution->getSource() === Resolution::SOURCE_CVT) {
+                $this->extractCvtMetadata($resolution);
+            }
+
+            if ($resolution->getSource() === Resolution::SOURCE_CTPDA) {
+                $this->extractCtpdaMetadata($resolution);
+            }
+
+            if ($resolution->getSource() === Resolution::SOURCE_CTCAN) {
+                $this->extractCtcanMetadata($resolution);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Metadata extraction step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
         }
 
-        // Step 1.5: Source-specific metadata extraction from PDF text
-        if ($resolution->getSource() === Resolution::SOURCE_CRT) {
-            $this->extractCrtMetadata($resolution);
+        // Block C: Step 2 — AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
+        try {
+            $needsAnalysis = $message->forceAnalysis || match ($message->analysisMode) {
+                'non-complete' => $resolution->getInadmissionCauses() === null,
+                default => empty($resolution->getKeypoints()),
+            };
+            if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && $needsAnalysis) {
+                $this->analyzeResolution($resolution, $message->flex, $message->analysisMode);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Analysis step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
         }
 
-        if ($resolution->getSource() === Resolution::SOURCE_CVT) {
-            $this->extractCvtMetadata($resolution);
-        }
-
-        if ($resolution->getSource() === Resolution::SOURCE_CTPDA) {
-            $this->extractCtpdaMetadata($resolution);
-        }
-
-        if ($resolution->getSource() === Resolution::SOURCE_CTCAN) {
-            $this->extractCtcanMetadata($resolution);
-        }
-
-        // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
-        $needsAnalysis = $message->forceAnalysis || match ($message->analysisMode) {
-            'non-complete' => $resolution->getInadmissionCauses() === null,
-            default => empty($resolution->getKeypoints()),
-        };
-        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && $needsAnalysis) {
-            $this->analyzeResolution($resolution, $message->flex, $message->analysisMode);
-        }
-
-        // Step 3: Vectorize if needed
-        if (!$message->skipVectors && !empty(trim($resolution->getFullText()))) {
-            $this->vectorizeResolution($resolution);
+        // Block D: Step 3 — Vectorize if needed
+        try {
+            if (!$message->skipVectors && !empty(trim($resolution->getFullText()))) {
+                $this->vectorizeResolution($resolution);
+            }
+        } catch (\Exception $e) {
+            $this->logger->error('Vectorization step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
         }
 
         $this->entityManager->flush();
@@ -314,7 +331,6 @@ final class ProcessResolutionHandler
                 'reference' => $resolution->getReferenceNumber(),
                 'error' => $e->getMessage(),
             ]);
-            throw $e; // Let Messenger retry
         }
     }
 

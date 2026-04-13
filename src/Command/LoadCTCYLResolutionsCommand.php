@@ -80,6 +80,7 @@ class LoadCTCYLResolutionsCommand extends Command
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
         ;
     }
 
@@ -92,6 +93,10 @@ class LoadCTCYLResolutionsCommand extends Command
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
+
+        $updateMode = $input->getOption('update');
+        $existingCount = 0;
+        $stopUpdate = false;
 
         $io->title('CTCYL Resolution Loader (Castilla y León)');
 
@@ -183,8 +188,16 @@ class LoadCTCYLResolutionsCommand extends Command
             // 4a: Upsert this batch
             foreach ($batch as $dto) {
                 try {
-                    $this->upsertResolution($dto, $io, $stats);
+                    $isNew = $this->upsertResolution($dto, $io, $stats);
                     $stats['processed']++;
+                    if ($updateMode && !$isNew) {
+                        $existingCount++;
+                        if ($existingCount > 10) {
+                            $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                            $stopUpdate = true;
+                            break;
+                        }
+                    }
                 } catch (\Exception $e) {
                     $this->logger->error('Error upserting CTCYL resolution', [
                         'reference' => $dto->referenceNumber,
@@ -250,6 +263,10 @@ class LoadCTCYLResolutionsCommand extends Command
 
             $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
                 $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+
+            if ($stopUpdate) {
+                break;
+            }
         }
 
         // Summary
@@ -277,6 +294,8 @@ class LoadCTCYLResolutionsCommand extends Command
                 $stats['skippedPdf'],
                 $stats['errors']
             ));
+        if (!$dryRun) {
+            $this->resolutionRepository->invalidateListingCache();
         }
 
         return Command::SUCCESS;
@@ -300,29 +319,35 @@ class LoadCTCYLResolutionsCommand extends Command
                 } elseif (!$resolution->getSourceUrl()) {
                     $stats['skippedPdf']++;
                 }
+            } catch (\Throwable $e) {
+                $this->logger->error('PDF phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+            }
 
+            try {
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
                     usleep(500_000);
                 }
+            } catch (\Throwable $e) {
+                $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+            }
 
+            try {
                 if (!$skipVectors && !empty($resolution->getFullText())) {
                     $this->vectorizeResolution($resolution, $io);
                     $stats['vectorized']++;
                 }
-            } catch (\Exception $e) {
-                $this->logger->error('Error processing CTCYL resolution', [
-                    'reference' => $resolution->getReferenceNumber(),
-                    'error' => $e->getMessage(),
-                ]);
-                $io->error('  Processing error: ' . $e->getMessage());
-                $stats['errors']++;
+            } catch (\Throwable $e) {
+                $this->logger->error('Vectorization phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
+                $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
             }
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): Resolution
+    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTCYL);
         $isNew = $resolution === null;
@@ -401,7 +426,7 @@ class LoadCTCYLResolutionsCommand extends Command
             }
         }
 
-        return $resolution;
+        return $isNew;
     }
 
     protected function cleanTextForSource(string $text): string
