@@ -106,6 +106,7 @@
     {% set lawName = this.applicableLawName %}
     {% set acName = this.autonomousCommunityName %}
     {% set pendingReminder = this.pendingReminder %}
+    {% set complaintFormUrl = this.complaintFormUrl %}
     <div class="alert-banner {{ silencePositive ? 'alert-banner-emerald' : 'alert-banner-amber' }} mb-6">
         <div class="alert-banner-stripe"></div>
         <div class="flex flex-col sm:flex-row items-start gap-4 p-5">
@@ -147,6 +148,12 @@
                         <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
                         Generar reclamación a {{ council|u.truncate(40, '…') }}
                     </a>
+                    {% if complaintFormUrl %}
+                    <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
+                        Iniciar reclamación
+                    </a>
+                    {% endif %}
                     {% if not pendingReminder %}
                     <form action="{{ path('app_solicitudes_create_reminder', {id: request.id}) }}" method="post" class="inline">
                         <input type="hidden" name="_token" value="{{ csrf_token('reminder-' ~ request.id) }}">

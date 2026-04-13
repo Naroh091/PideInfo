@@ -98,7 +98,11 @@ final class ProcessResolutionHandler
         }
 
         // Step 2: AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
-        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && ($message->forceAnalysis || empty($resolution->getKeypoints()))) {
+        $needsAnalysis = $message->forceAnalysis || match ($message->analysisMode) {
+            'non-complete' => $resolution->getInadmissionCauses() === null,
+            default => empty($resolution->getKeypoints()),
+        };
+        if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && $needsAnalysis) {
             $this->analyzeResolution($resolution, $message->flex, $message->analysisMode);
         }
 
