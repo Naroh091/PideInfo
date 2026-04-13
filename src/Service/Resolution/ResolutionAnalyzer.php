@@ -258,7 +258,7 @@ SUFFIX;
     /**
      * Step 2: Extract summary, keypoints, dates and subject (GEMINI_MID_MODEL or custom model).
      *
-     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
     public function extractAnalysis(string $cleanedText, bool $flex = false): array
     {
@@ -268,7 +268,7 @@ SUFFIX;
             $jsonSuffix = <<<'SUFFIX'
 
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "subject": "asunto en castellano o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o texto libre o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
+{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "claim_reason": "frase corta o null", "subject": "asunto en castellano o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
 
@@ -329,7 +329,7 @@ PROMPT;
      * Only works with custom model.
      *
      * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
-     * @return array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> Results indexed by same keys
+     * @return array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> Results indexed by same keys
      */
     public function batchExtractAnalysis(array $cleanedTexts): array
     {
@@ -338,7 +338,7 @@ PROMPT;
         $batchFooter = <<<'FOOTER'
 
 
-Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
+Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "claim_reason": "... o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 FOOTER;
 
@@ -353,16 +353,17 @@ FOOTER;
             $results[$i] = $this->normalizeExtractAnalysisResult($result);
         }
 
-        /** @var array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
+        /** @var array<int, array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
         return $results;
     }
 
     /**
-     * Extract only the "non-complete" fields added on 2026-04-12: limits, inadmission causes,
-     * info request date, complained administration and outcome. Leaves summary/keypoints/subject
-     * untouched so it can be used to backfill resolutions that were analyzed before these fields existed.
+     * Extract only the "non-complete" backfill fields: info_request_date, complained_administration,
+     * claim_reason, outcome, limits and inadmission_causes. Leaves summary, keypoints, subject and
+     * signature/claim dates untouched so it can be used to top up resolutions that were analyzed
+     * before these fields existed.
      *
-     * @return array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     * @return array{info_request_date: ?string, complained_administration: ?string, claim_reason: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
     public function extractNonCompleteAnalysis(string $cleanedText, bool $flex = false): array
     {
@@ -372,7 +373,7 @@ FOOTER;
             $jsonSuffix = <<<'SUFFIX'
 
 Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o texto libre o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
+{"info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "claim_reason": "frase corta o null", "outcome": "código del enum o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
 
@@ -397,7 +398,7 @@ SUFFIX;
      * Batch variant of extractNonCompleteAnalysis. Only works with custom model.
      *
      * @param array<int, string> $cleanedTexts Indexed array of cleaned texts
-     * @return array<int, array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}>
+     * @return array<int, array{info_request_date: ?string, complained_administration: ?string, claim_reason: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}>
      */
     public function batchExtractNonCompleteAnalysis(array $cleanedTexts): array
     {
@@ -406,7 +407,7 @@ SUFFIX;
         $batchFooter = <<<'FOOTER'
 
 
-Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
+Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "claim_reason": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 FOOTER;
 
@@ -421,7 +422,7 @@ FOOTER;
             $results[$i] = $this->normalizeNonCompleteAnalysisResult($result);
         }
 
-        /** @var array<int, array{info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
+        /** @var array<int, array{info_request_date: ?string, complained_administration: ?string, claim_reason: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}> $results */
         return $results;
     }
 
