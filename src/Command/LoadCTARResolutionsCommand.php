@@ -373,11 +373,6 @@ class LoadCTARResolutionsCommand extends Command
             $resolution->setClaimDate($dto->claimDate);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
-
         // Use "Tema" from listing as summary (CTAR's own summary)
         if ($dto->summary && (empty($resolution->getSummary()) || $resolution->getSummary() === '')) {
             $resolution->setSummary($dto->summary);

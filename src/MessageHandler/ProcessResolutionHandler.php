@@ -325,6 +325,11 @@ final class ProcessResolutionHandler
             $this->logger->info('AI analysis complete', [
                 'reference' => $resolution->getReferenceNumber(),
                 'mode' => $mode,
+                'outcome' => $result['outcome'] ?? null,
+                'limits' => $result['limits'] ?? [],
+                'inadmission_causes' => $result['inadmission_causes'] ?? [],
+                'keypoints_count' => isset($result['keypoints']) ? count((array) $result['keypoints']) : null,
+                'topics' => $result['topics'] ?? [],
             ]);
         } catch (\Exception $e) {
             $this->logger->error('AI analysis failed', [
@@ -436,10 +441,6 @@ final class ProcessResolutionHandler
             $resolution->setClaimDate($metadata['claimDate']);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
     }
 
     private function extractCvtMetadata(Resolution $resolution): void
@@ -462,10 +463,6 @@ final class ProcessResolutionHandler
             $resolution->setClaimDate($metadata['claimDate']);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
     }
 
     private function extractCtpdaMetadata(Resolution $resolution): void
@@ -492,10 +489,6 @@ final class ProcessResolutionHandler
 
         if ($metadata['claimDate']) {
             $resolution->setClaimDate($metadata['claimDate']);
-            if ($resolution->getResolutionDate()) {
-                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
-                $resolution->setDaysToResolve($days);
-            }
         }
     }
 
@@ -523,10 +516,6 @@ final class ProcessResolutionHandler
 
         if ($metadata['claimDate']) {
             $resolution->setClaimDate($metadata['claimDate']);
-            if ($resolution->getResolutionDate()) {
-                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
-                $resolution->setDaysToResolve($days);
-            }
         }
     }
 
@@ -683,10 +672,6 @@ final class ProcessResolutionHandler
 
         if ($metadata['claimDate']) {
             $resolution->setClaimDate($metadata['claimDate']);
-            if ($resolution->getResolutionDate()) {
-                $days = $metadata['claimDate']->diff($resolution->getResolutionDate())->days;
-                $resolution->setDaysToResolve($days);
-            }
         }
     }
 

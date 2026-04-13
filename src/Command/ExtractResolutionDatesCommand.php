@@ -151,10 +151,6 @@ class ExtractResolutionDatesCommand extends Command
                     $meta['FECHA_RESOLUCION'] = 'regex';
                     $resolution->setSourceMetadata($meta);
 
-                    if ($resolution->getClaimDate()) {
-                        $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-                        $resolution->setDaysToResolve($days);
-                    }
                 }
             } else {
                 $stats['not_found']++;
