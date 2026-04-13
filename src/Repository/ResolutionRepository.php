@@ -195,7 +195,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
                     SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
                     SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
-                    ROUND(AVG(EXTRACT(EPOCH FROM (resolution_date - claim_date)) / 86400))::int AS avgDays
+                    ROUND(AVG((resolution_date - claim_date)))::int AS avgDays
                  FROM resolution"
             );
 
@@ -389,7 +389,7 @@ class ResolutionRepository extends ServiceEntityRepository
                 COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
                 SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
                 SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
-                ROUND(AVG(EXTRACT(EPOCH FROM (resolution_date - claim_date)) / 86400))::int AS avgDays
+                ROUND(AVG((resolution_date - claim_date)))::int AS avgDays
              FROM resolution
              {$whereSql}",
             $params
@@ -437,7 +437,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG(EXTRACT(EPOCH FROM (r.resolution_date - r.claim_date)) / 86400))::int AS avg_days
+                    ROUND(AVG((r.resolution_date - r.claim_date)))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level
@@ -489,7 +489,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG(EXTRACT(EPOCH FROM (r.resolution_date - r.claim_date)) / 86400))::int AS avg_days
+                    ROUND(AVG((r.resolution_date - r.claim_date)))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level
