@@ -1234,10 +1234,6 @@ PROMPT;
             $this->applyOutcome($resolution, $result['outcome']);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
     }
 
     private function applyOutcome(Resolution $resolution, string $llmOutcome): void

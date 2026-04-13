@@ -441,11 +441,6 @@ class LoadCTNResolutionsCommand extends Command
             $resolution->setClaimDate($dto->claimDate);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
-
         if ($dto->summary && (empty($resolution->getSummary()) || $resolution->getSummary() === '')) {
             $resolution->setSummary($dto->summary);
         }

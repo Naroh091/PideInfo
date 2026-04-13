@@ -358,10 +358,7 @@ class LoadCVTResolutionsCommand extends Command
             $io->text(sprintf('  Claim date: %s', $metadata['claimDate']->format('Y-m-d')));
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
+
     }
 
     private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats, bool $force = false): bool
@@ -411,10 +408,7 @@ class LoadCVTResolutionsCommand extends Command
             $resolution->setClaimDate($dto->claimDate);
         }
 
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
+
 
         if ($dto->topics) {
             $resolution->setTopics($dto->topics);

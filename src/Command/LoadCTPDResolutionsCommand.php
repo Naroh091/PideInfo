@@ -393,10 +393,6 @@ class LoadCTPDResolutionsCommand extends Command
         }
 
         // Recalculate days to resolve
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
     }
 
     private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats, bool $force = false): bool

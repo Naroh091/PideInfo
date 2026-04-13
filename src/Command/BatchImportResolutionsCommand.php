@@ -344,9 +344,6 @@ class BatchImportResolutionsCommand extends Command
                 $claimDate = new \DateTimeImmutable($result['claim_date']);
                 $resolution->setClaimDate($claimDate);
 
-                if ($resolution->getResolutionDate()) {
-                    $resolution->setDaysToResolve($claimDate->diff($resolution->getResolutionDate())->days);
-                }
             } catch (\Exception) {
                 // keep existing
             }
