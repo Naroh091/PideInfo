@@ -1,0 +1,21 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Tu cuenta en PideInfo ha sido activada{% endblock %}
+
+{% block body %}
+    <p class="greeting">Hola {{ user.firstName }},</p>
+
+    <p class="message">
+        Tu cuenta en PideInfo ha sido activada. Ya puedes acceder y empezar a gestionar tus solicitudes de acceso a información pública.
+    </p>
+
+    <div class="button-container">
+        <a href="{{ url('app_login') }}" class="button" style="display:inline-block;padding:14px 32px;background-color:#0284c7;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:12px;">Acceder a PideInfo</a>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="text-small text-muted text-center mb-0">
+        Si tienes alguna duda, puedes contactarnos en <a href="mailto:info@iniciativafaro.es">info@iniciativafaro.es</a>.
+    </p>
+{% endblock %}
