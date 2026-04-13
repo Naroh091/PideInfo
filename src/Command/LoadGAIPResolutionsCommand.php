@@ -123,7 +123,7 @@ class LoadGAIPResolutionsCommand extends Command
 
         // Step 3: Upsert entities
         $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
-        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
+        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
