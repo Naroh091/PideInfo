@@ -170,8 +170,6 @@ class ResolutionCrudController extends AbstractCrudController
         yield DateField::new('resolutionDate', 'Fecha resolución');
         yield DateField::new('claimDate', 'Fecha reclamación')->hideOnIndex();
         yield IntegerField::new('entryYear', 'Año de entrada')->hideOnIndex();
-        yield IntegerField::new('daysToResolve', 'Días en resolver')->hideOnIndex();
-
         // Parties
         yield AssociationField::new('complaintOrganism', 'Organismo');
         yield TextField::new('publicBodyName', 'Organismo reclamado (texto)')->hideOnIndex();

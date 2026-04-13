@@ -185,21 +185,19 @@ class ResolutionRepository extends ServiceEntityRepository
     public function getGlobalStats(): array
     {
         return $this->cache->get('resolutions_global_stats', function (): array {
-            $qb = $this->createQueryBuilder('r')
-                ->select(
-                    'COUNT(r.id) as totalCount',
-                    'MIN(r.resolutionDate) as dateFrom',
-                    'MAX(r.resolutionDate) as dateTo',
-                    'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
-                    'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
-                    'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
-                    'SUM(CASE WHEN r.outcome IN (:unfavorable) THEN 1 ELSE 0 END) as unfavorableCount',
-                    'AVG(r.daysToResolve) as avgDays'
-                )
-                ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT])
-                ->setParameter('unfavorable', [Resolution::OUTCOME_UNFAVORABLE, Resolution::OUTCOME_INADMISSIBLE]);
-
-            $result = $qb->getQuery()->getSingleResult();
+            $conn = $this->getEntityManager()->getConnection();
+            $result = $conn->fetchAssociative(
+                "SELECT
+                    COUNT(id)::int AS totalCount,
+                    MIN(resolution_date) AS dateFrom,
+                    MAX(resolution_date) AS dateTo,
+                    SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS totalWithOutcome,
+                    COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
+                    SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
+                    SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
+                    ROUND(AVG(EXTRACT(EPOCH FROM (resolution_date - claim_date)) / 86400))::int AS avgDays
+                 FROM resolution"
+            );
 
             $favorableCount = (int) $result['favorableCount'];
             $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
@@ -211,7 +209,7 @@ class ResolutionRepository extends ServiceEntityRepository
                 'totalWithOutcome' => (int) $result['totalWithOutcome'],
                 'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
                 'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
-                'meanDaysToResolve' => $result['avgDays'] !== null ? (int) round((float) $result['avgDays']) : null,
+                'meanDaysToResolve' => $result['avgDays'] !== null ? (int) $result['avgDays'] : null,
             ];
         });
     }
@@ -335,19 +333,67 @@ class ResolutionRepository extends ServiceEntityRepository
      */
     public function getFilteredAggregates(array $filters): array
     {
-        $qb = $this->createFilteredQueryBuilder($filters)
-            ->select(
-                'COUNT(r.id) as totalCount',
-                'SUM(CASE WHEN r.outcome IS NOT NULL THEN 1 ELSE 0 END) as totalWithOutcome',
-                'COUNT(DISTINCT r.publicBodyName) as distinctPublicBodies',
-                'SUM(CASE WHEN r.outcome IN (:favorable) THEN 1 ELSE 0 END) as favorableCount',
-                'SUM(CASE WHEN r.outcome IN (:unfavorable) THEN 1 ELSE 0 END) as unfavorableCount',
-                'AVG(r.daysToResolve) as avgDays'
-            )
-            ->setParameter('favorable', [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_PARTIAL, Resolution::OUTCOME_MEDIATION_AGREEMENT])
-            ->setParameter('unfavorable', [Resolution::OUTCOME_UNFAVORABLE, Resolution::OUTCOME_INADMISSIBLE]);
+        $conn = $this->getEntityManager()->getConnection();
 
-        $result = $qb->getQuery()->getSingleResult();
+        $where = [];
+        $params = [];
+
+        if (!empty($filters['organism'])) {
+            $where[] = 'complaint_organism_id = :organism';
+            $params['organism'] = $filters['organism'];
+        }
+        if (!empty($filters['search'])) {
+            $where[] = '(LOWER(subject) LIKE LOWER(:search) OR LOWER(reference_number) LIKE LOWER(:search) OR LOWER(summary) LIKE LOWER(:search))';
+            $params['search'] = '%' . $filters['search'] . '%';
+        }
+        if (!empty($filters['outcome'])) {
+            $where[] = 'outcome = :outcome';
+            $params['outcome'] = $filters['outcome'];
+        }
+        if (!empty($filters['publicBody'])) {
+            if (!empty($filters['publicBodyExact'])) {
+                $where[] = 'LOWER(public_body_name) = LOWER(:publicBody)';
+                $params['publicBody'] = $filters['publicBody'];
+            } else {
+                $where[] = 'LOWER(public_body_name) LIKE LOWER(:publicBody)';
+                $params['publicBody'] = '%' . $filters['publicBody'] . '%';
+            }
+        }
+        if (!empty($filters['keyword'])) {
+            $where[] = 'keywords @> CAST(:keyword AS jsonb)';
+            $params['keyword'] = json_encode([$filters['keyword']]);
+        }
+        if (!empty($filters['limit'])) {
+            $where[] = 'limits @> CAST(:limitValue AS jsonb)';
+            $params['limitValue'] = json_encode([$filters['limit']]);
+        }
+        if (!empty($filters['inadmissionCause'])) {
+            $where[] = 'inadmission_causes @> CAST(:inadmissionCause AS jsonb)';
+            $params['inadmissionCause'] = json_encode([$filters['inadmissionCause']]);
+        }
+        if (!empty($filters['dateFrom'])) {
+            $where[] = 'resolution_date >= :dateFrom';
+            $params['dateFrom'] = $filters['dateFrom'];
+        }
+        if (!empty($filters['dateTo'])) {
+            $where[] = 'resolution_date <= :dateTo';
+            $params['dateTo'] = $filters['dateTo'];
+        }
+
+        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $result = $conn->fetchAssociative(
+            "SELECT
+                COUNT(id)::int AS totalCount,
+                SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS totalWithOutcome,
+                COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
+                SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
+                SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
+                ROUND(AVG(EXTRACT(EPOCH FROM (resolution_date - claim_date)) / 86400))::int AS avgDays
+             FROM resolution
+             {$whereSql}",
+            $params
+        );
 
         $favorableCount = (int) $result['favorableCount'];
         $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
@@ -357,7 +403,7 @@ class ResolutionRepository extends ServiceEntityRepository
             'totalWithOutcome' => (int) $result['totalWithOutcome'],
             'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
             'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
-            'meanDaysToResolve' => $result['avgDays'] !== null ? (int) round((float) $result['avgDays']) : null,
+            'meanDaysToResolve' => $result['avgDays'] !== null ? (int) $result['avgDays'] : null,
         ];
     }
 
@@ -391,7 +437,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG(r.days_to_resolve))::int AS avg_days
+                    ROUND(AVG(EXTRACT(EPOCH FROM (r.resolution_date - r.claim_date)) / 86400))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level
@@ -443,7 +489,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG(r.days_to_resolve))::int AS avg_days
+                    ROUND(AVG(EXTRACT(EPOCH FROM (r.resolution_date - r.claim_date)) / 86400))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level

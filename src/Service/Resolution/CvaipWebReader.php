@@ -13,10 +13,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class CvaipWebReader
 {
     private const BASE_URL = 'https://www.legegunea.euskadi.eus';
-    private const LISTING_PATH = '/webleg00-rbusav/es/';
-    private const LISTING_QUERY = 'r01PreviewPage=webleg00-contfich/es&r01ResultPage=webleg00-rbusav&r01kSrchSrcId=contenidos.inter&r01kLang=es&r01kQry=tC%3Aeuskadi%3BtF%3Adocumentacion_juridica%3BtT%3Atramita_resolucion_rec_aip%3Bm%3AdocumentLanguage.EQ.es%3Bp%3AInter%3Bpp%3Ar01PageSize.10&r01kSearchResultsHeader=1';
-
-    private const REQUEST_DELAY_US = 1_000_000;
+    private const RSS_URL = 'https://www.legegunea.euskadi.eus/r01htSearchResultWAR/r01hPresentationRSS.jsp?r01kLang=es&r01kQry=tC%3Aeuskadi%3BtF%3Adocumentacion_juridica%3BtT%3Atramita_resolucion_rec_aip%3Bm%3AdocumentLanguage.EQ.es%3Bp%3AInter%3Bpp%3Ar01NavBarBlockSize.500%2Cr01PageSize.500&r01kPageContents=webleg00-contfich/es&r01kRssTitle=null&r01kRss=1';
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -25,35 +22,115 @@ class CvaipWebReader
     }
 
     /**
-     * Fetch all listing entries (reference + detail URL + publication date).
+     * Fetch listing entries via RSS (default) or full HTML pagination (--scrape mode).
+     *
+     * RSS mode: single request, returns the 50 most recent resolutions.
+     * Scrape mode: paginates through all HTML listing pages, no limit.
      *
      * @return array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>
      */
-    public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
+    public function fetchEntries(?int $limit = null, ?callable $onProgress = null, bool $scrape = false): array
+    {
+        if ($scrape) {
+            return $this->fetchEntriesFromHtml($limit, $onProgress);
+        }
+
+        return $this->fetchEntriesFromRss($limit, $onProgress);
+    }
+
+    /**
+     * @return array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>
+     */
+    private function fetchEntriesFromRss(?int $limit, ?callable $onProgress): array
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $progress('Fetching resolution list from CVAIP RSS feed (max 50 most recent)...');
+
+        try {
+            $response = $this->httpClient->request('GET', self::RSS_URL, ['timeout' => 30]);
+            $xmlContent = $response->getContent();
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to fetch CVAIP RSS feed', ['error' => $e->getMessage()]);
+            return [];
+        }
+
+        libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($xmlContent);
+        libxml_clear_errors();
+
+        if ($xml === false) {
+            $this->logger->error('Failed to parse CVAIP RSS XML');
+            return [];
+        }
+
+        $entries = [];
+        foreach ($xml->channel->item as $item) {
+            $titleText = (string) $item->title;
+            $reference = $this->parseReference($titleText);
+            if ($reference === null) {
+                continue;
+            }
+
+            $link = (string) $item->link;
+            $fullUrl = str_starts_with($link, 'http') ? $link : self::BASE_URL . $link;
+
+            // pubDate is RFC 2822 — convert to dd/mm/yyyy for consistency with HTML scraper
+            $pubDate = null;
+            $pubDateStr = (string) $item->pubDate;
+            if ($pubDateStr !== '') {
+                $parsed = \DateTimeImmutable::createFromFormat(\DateTimeInterface::RFC2822, $pubDateStr);
+                if ($parsed !== false) {
+                    $pubDate = $parsed->format('d/m/Y');
+                }
+            }
+
+            // Categories: first is always the document type, skip it; use second as topic
+            $categories = $item->category;
+            $topic = null;
+            if (count($categories) > 1) {
+                $topic = (string) $categories[1];
+            }
+
+            $entries[] = [
+                'reference' => $reference,
+                'url' => $fullUrl,
+                'publicationDate' => $pubDate,
+                'topic' => $topic !== '' ? $topic : null,
+            ];
+
+            if ($limit !== null && count($entries) >= $limit) {
+                break;
+            }
+        }
+
+        $progress(sprintf('  Found %d resolutions in RSS feed.', count($entries)));
+
+        return $entries;
+    }
+
+    /**
+     * Full HTML pagination scrape — use when you need resolutions older than the 50 most recent.
+     *
+     * @return array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>
+     */
+    private function fetchEntriesFromHtml(?int $limit, ?callable $onProgress): array
     {
         $progress = $onProgress ?? fn (string $msg) => null;
         $entries = [];
         $page = 1;
 
+        $listingBase = self::BASE_URL . '/webleg00-rbusav/es/';
+        $listingQuery = 'r01PreviewPage=webleg00-contfich/es&r01ResultPage=webleg00-rbusav&r01kSrchSrcId=contenidos.inter&r01kLang=es&r01kQry=tC%3Aeuskadi%3BtF%3Adocumentacion_juridica%3BtT%3Atramita_resolucion_rec_aip%3Bm%3AdocumentLanguage.EQ.es%3Bp%3AInter%3Bpp%3Ar01PageSize.10&r01kSearchResultsHeader=1';
+
         do {
-            $url = sprintf(
-                '%s%s?%s&r01kTgtPg=%d&r01kPgCmd=%d',
-                self::BASE_URL,
-                self::LISTING_PATH,
-                self::LISTING_QUERY,
-                $page,
-                $page,
-            );
+            $url = sprintf('%s?%s&r01kTgtPg=%d&r01kPgCmd=%d', $listingBase, $listingQuery, $page, $page);
             $progress(sprintf('Fetching listing page %d...', $page));
 
             try {
                 $response = $this->httpClient->request('GET', $url, ['timeout' => 30]);
                 $html = $response->getContent();
             } catch (\Exception $e) {
-                $this->logger->error('Failed to fetch CVAIP listing page', [
-                    'page' => $page,
-                    'error' => $e->getMessage(),
-                ]);
+                $this->logger->error('Failed to fetch CVAIP listing page', ['page' => $page, 'error' => $e->getMessage()]);
                 break;
             }
 
@@ -80,7 +157,6 @@ class CvaipWebReader
 
                 $fullUrl = str_starts_with($href, 'http') ? $href : self::BASE_URL . $href;
 
-                // Extract publication date
                 $pubDate = null;
                 $pubNode = $item->filter('.r01ItemPublishDate');
                 if ($pubNode->count() > 0) {
@@ -90,7 +166,6 @@ class CvaipWebReader
                     }
                 }
 
-                // Extract topic
                 $topic = null;
                 $topicNode = $item->filter('.r01ItemLegalTheme');
                 if ($topicNode->count() > 0) {
@@ -109,7 +184,6 @@ class CvaipWebReader
             });
 
             if (empty($pageEntries)) {
-                $this->logger->info('No entries found on CVAIP page, stopping', ['page' => $page]);
                 break;
             }
 
@@ -122,7 +196,7 @@ class CvaipWebReader
             }
 
             $page++;
-            usleep(self::REQUEST_DELAY_US);
+            usleep(1_000_000);
         } while (true);
 
         return $entries;

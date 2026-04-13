@@ -167,9 +167,6 @@ class Resolution
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $pdfStoragePath = null;
 
-    #[ORM\Column(type: Types::INTEGER, nullable: true)]
-    private ?int $daysToResolve = null;
-
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $sourceMetadata = null;
@@ -504,13 +501,10 @@ class Resolution
 
     public function getDaysToResolve(): ?int
     {
-        return $this->daysToResolve;
-    }
-
-    public function setDaysToResolve(?int $daysToResolve): static
-    {
-        $this->daysToResolve = $daysToResolve;
-        return $this;
+        if ($this->claimDate === null || $this->resolutionDate === null) {
+            return null;
+        }
+        return $this->claimDate->diff($this->resolutionDate)->days;
     }
 
     /** @return array<string, mixed>|null */
