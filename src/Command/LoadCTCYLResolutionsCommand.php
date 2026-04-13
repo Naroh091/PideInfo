@@ -294,6 +294,7 @@ class LoadCTCYLResolutionsCommand extends Command
                 $stats['skippedPdf'],
                 $stats['errors']
             ));
+        }
         if (!$dryRun) {
             $this->resolutionRepository->invalidateListingCache();
         }
