@@ -11,7 +11,9 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class CtarWebReader
 {
     private const BASE_URL = 'https://transparencia.aragon.es';
-    private const LISTING_URL = '/cgi-bin/CTAR/BRSCGI?CMD=VERLST&BASE=CTAR&DOCS={START}-{END}&SEC=CTARRES&SORT=FRES,NRES&SEPARADOR=&TIPO-C=RESOLUCION';
+    // SORT=-FRES,-NRES attempts descending order (newest first) using BRSCGI's minus-prefix convention.
+    // This is unverified — if the source does not support it, entries will still arrive oldest-first.
+    private const LISTING_URL = '/cgi-bin/CTAR/BRSCGI?CMD=VERLST&BASE=CTAR&DOCS={START}-{END}&SEC=CTARRES&SORT=-FRES,-NRES&SEPARADOR=&TIPO-C=RESOLUCION';
     private const PAGE_SIZE = 25;
     private const REQUEST_DELAY_US = 500_000;
 
@@ -46,8 +48,27 @@ class CtarWebReader
      */
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
-        $progress = $onProgress ?? fn (string $msg) => null;
         $entries = [];
+        foreach ($this->streamPages($limit, $onProgress) as $pageEntries) {
+            $entries = array_merge($entries, $pageEntries);
+            if ($limit !== null && count($entries) >= $limit) {
+                return array_slice($entries, 0, $limit);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Yields one page of listing entries at a time (newest first, if the source supports descending sort).
+     * Stops automatically when the source is exhausted or $limit entries have been yielded in total.
+     *
+     * @return \Generator<int, array<int, ResolutionData>>
+     */
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $totalFetched = 0;
         $start = 1;
 
         do {
@@ -67,34 +88,30 @@ class CtarWebReader
                     'start' => $start,
                     'error' => $e->getMessage(),
                 ]);
-                break;
+                return;
             }
 
             $pageEntries = $this->parseListingPage($html);
 
             if (empty($pageEntries)) {
                 $this->logger->info('No entries found on page, stopping pagination', ['start' => $start]);
-                break;
+                return;
             }
 
-            $entries = array_merge($entries, $pageEntries);
-            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+            yield $pageEntries;
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
-                break;
+            $totalFetched += count($pageEntries);
+            if ($limit !== null && $totalFetched >= $limit) {
+                return;
             }
 
-            // Stop if we got fewer entries than page size (last page)
             if (count($pageEntries) < self::PAGE_SIZE) {
-                break;
+                return;
             }
 
             $start += self::PAGE_SIZE;
             usleep(self::REQUEST_DELAY_US);
         } while (true);
-
-        return $entries;
     }
 
     /**

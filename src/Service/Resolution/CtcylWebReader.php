@@ -30,14 +30,16 @@ class CtcylWebReader
     }
 
     /**
-     * Paginate listing pages and return lightweight entries with detail page URLs.
+     * Yields one page of listing entries at a time (assumed oldest-first from the website,
+     * but sorted newest-first after all listing fetching per the command's sort step).
+     * Stopping the generator early stops further listing HTTP requests.
      *
-     * @return array<int, array{reference: string, detailUrl: string, category: string, date: string, summary: string}>
+     * @return \Generator<int, array<int, array{reference: string, detailUrl: string}>>
      */
-    public function fetchListingEntries(?int $limit = null, ?callable $onProgress = null): array
+    public function streamListingPages(?int $limit = null, ?callable $onProgress = null): \Generator
     {
         $progress = $onProgress ?? fn (string $msg) => null;
-        $entries = [];
+        $totalFetched = 0;
         $offset = 1;
         $totalRecords = null;
 
@@ -50,10 +52,9 @@ class CtcylWebReader
                 $html = $response->getContent();
             } catch (\Exception $e) {
                 $this->logger->error('Failed to fetch CTCYL listing page', ['offset' => $offset, 'error' => $e->getMessage()]);
-                break;
+                return;
             }
 
-            // Extract total record count from "Registros: XXXX" on first page
             if ($totalRecords === null && preg_match('/Registros:\s*(\d+)/u', $html, $m)) {
                 $totalRecords = (int) $m[1];
                 $progress(sprintf('  Total records: %d', $totalRecords));
@@ -62,25 +63,39 @@ class CtcylWebReader
             $pageEntries = $this->parseListingPage($html);
 
             if (empty($pageEntries)) {
-                break;
+                return;
             }
 
-            $entries = array_merge($entries, $pageEntries);
-            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+            yield $pageEntries;
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
-                break;
+            $totalFetched += count($pageEntries);
+            if ($limit !== null && $totalFetched >= $limit) {
+                return;
             }
 
-            // Stop when we've passed the total record count
             if ($totalRecords !== null && $offset + self::PAGE_SIZE > $totalRecords) {
-                break;
+                return;
             }
 
             $offset += self::PAGE_SIZE;
             usleep(self::REQUEST_DELAY_US);
         } while (true);
+    }
+
+    /**
+     * Paginate listing pages and return lightweight entries with detail page URLs.
+     *
+     * @return array<int, array{reference: string, detailUrl: string, category: string, date: string, summary: string}>
+     */
+    public function fetchListingEntries(?int $limit = null, ?callable $onProgress = null): array
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $entries = [];
+
+        foreach ($this->streamListingPages($limit, $onProgress) as $pageEntries) {
+            $entries = array_merge($entries, $pageEntries);
+            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+        }
 
         return $entries;
     }

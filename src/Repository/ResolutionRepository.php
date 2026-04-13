@@ -188,28 +188,28 @@ class ResolutionRepository extends ServiceEntityRepository
             $conn = $this->getEntityManager()->getConnection();
             $result = $conn->fetchAssociative(
                 "SELECT
-                    COUNT(id)::int AS totalCount,
-                    MIN(resolution_date) AS dateFrom,
-                    MAX(resolution_date) AS dateTo,
-                    SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS totalWithOutcome,
-                    COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
-                    SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
-                    SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
-                    ROUND(AVG((resolution_date - claim_date)))::int AS avgDays
+                    COUNT(id)::int AS total_count,
+                    MIN(resolution_date) AS date_from,
+                    MAX(resolution_date) AS date_to,
+                    SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS total_with_outcome,
+                    COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
+                    SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
+                    SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable_count,
+                    ROUND(AVG((resolution_date - claim_date)))::int AS avg_days
                  FROM resolution"
             );
 
-            $favorableCount = (int) $result['favorableCount'];
-            $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
+            $favorableCount = (int) $result['favorable_count'];
+            $decisiveTotal = $favorableCount + (int) $result['unfavorable_count'];
 
             return [
-                'totalCount' => (int) $result['totalCount'],
-                'dateFrom' => $result['dateFrom'],
-                'dateTo' => $result['dateTo'],
-                'totalWithOutcome' => (int) $result['totalWithOutcome'],
-                'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
+                'totalCount' => (int) $result['total_count'],
+                'dateFrom' => $result['date_from'],
+                'dateTo' => $result['date_to'],
+                'totalWithOutcome' => (int) $result['total_with_outcome'],
+                'distinctPublicBodies' => (int) $result['distinct_public_bodies'],
                 'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
-                'meanDaysToResolve' => $result['avgDays'] !== null ? (int) $result['avgDays'] : null,
+                'meanDaysToResolve' => $result['avg_days'] !== null ? (int) $result['avg_days'] : null,
             ];
         });
     }
@@ -384,26 +384,26 @@ class ResolutionRepository extends ServiceEntityRepository
 
         $result = $conn->fetchAssociative(
             "SELECT
-                COUNT(id)::int AS totalCount,
-                SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS totalWithOutcome,
-                COUNT(DISTINCT public_body_name) AS distinctPublicBodies,
-                SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorableCount,
-                SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorableCount,
-                ROUND(AVG((resolution_date - claim_date)))::int AS avgDays
+                COUNT(id)::int AS total_count,
+                SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS total_with_outcome,
+                COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
+                SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
+                SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable_count,
+                ROUND(AVG((resolution_date - claim_date)))::int AS avg_days
              FROM resolution
              {$whereSql}",
             $params
         );
 
-        $favorableCount = (int) $result['favorableCount'];
-        $decisiveTotal = $favorableCount + (int) $result['unfavorableCount'];
+        $favorableCount = (int) $result['favorable_count'];
+        $decisiveTotal = $favorableCount + (int) $result['unfavorable_count'];
 
         return [
-            'totalCount' => (int) $result['totalCount'],
-            'totalWithOutcome' => (int) $result['totalWithOutcome'],
-            'distinctPublicBodies' => (int) $result['distinctPublicBodies'],
+            'totalCount' => (int) $result['total_count'],
+            'totalWithOutcome' => (int) $result['total_with_outcome'],
+            'distinctPublicBodies' => (int) $result['distinct_public_bodies'],
             'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
-            'meanDaysToResolve' => $result['avgDays'] !== null ? (int) $result['avgDays'] : null,
+            'meanDaysToResolve' => $result['avg_days'] !== null ? (int) $result['avg_days'] : null,
         ];
     }
 

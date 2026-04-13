@@ -109,14 +109,16 @@ class CvaipWebReader
     }
 
     /**
-     * Full HTML pagination scrape — use when you need resolutions older than the 50 most recent.
+     * Yields one HTML listing page's worth of entries at a time.
+     * Stops when the source is exhausted or the limit is reached.
+     * Stopping the generator early stops further listing HTTP requests.
      *
-     * @return array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>
+     * @return \Generator<int, array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>>
      */
-    private function fetchEntriesFromHtml(?int $limit, ?callable $onProgress): array
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
     {
         $progress = $onProgress ?? fn (string $msg) => null;
-        $entries = [];
+        $totalFetched = 0;
         $page = 1;
 
         $listingBase = self::BASE_URL . '/webleg00-rbusav/es/';
@@ -131,7 +133,7 @@ class CvaipWebReader
                 $html = $response->getContent();
             } catch (\Exception $e) {
                 $this->logger->error('Failed to fetch CVAIP listing page', ['page' => $page, 'error' => $e->getMessage()]);
-                break;
+                return;
             }
 
             $crawler = new Crawler($html);
@@ -184,20 +186,35 @@ class CvaipWebReader
             });
 
             if (empty($pageEntries)) {
-                break;
+                return;
             }
 
-            $entries = array_merge($entries, $pageEntries);
-            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+            yield $pageEntries;
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
-                break;
+            $totalFetched += count($pageEntries);
+            if ($limit !== null && $totalFetched >= $limit) {
+                return;
             }
 
             $page++;
             usleep(1_000_000);
         } while (true);
+    }
+
+    /**
+     * Full HTML pagination scrape — use when you need resolutions older than the 50 most recent.
+     *
+     * @return array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}>
+     */
+    private function fetchEntriesFromHtml(?int $limit, ?callable $onProgress): array
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $entries = [];
+
+        foreach ($this->streamPages($limit, $onProgress) as $pageEntries) {
+            $entries = array_merge($entries, $pageEntries);
+            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+        }
 
         return $entries;
     }

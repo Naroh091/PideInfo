@@ -74,6 +74,12 @@ class CtpdaCsvReader
         $entries = $this->parseCsv($csvContent);
         $progress(sprintf('Parsed %d resolutions from CSV.', count($entries)));
 
+        usort($entries, function (ResolutionData $a, ResolutionData $b): int {
+            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
+            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
+            return $dateB <=> $dateA;
+        });
+
         if ($limit !== null && count($entries) > $limit) {
             $entries = array_slice($entries, 0, $limit);
         }

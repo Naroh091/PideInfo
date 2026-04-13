@@ -39,8 +39,6 @@ class LoadCTGResolutionsCommand extends Command
 {
     use ResolutionProcessingTrait;
 
-    private const BATCH_SIZE = 30;
-
     /** @var array<string, AutonomousCommunity|null> */
     private array $ccaaCache = [];
 
@@ -107,70 +105,55 @@ class LoadCTGResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Fetch listing entries (fast — only listing pages)
+        // Step 2: Stream listing pages and process per-page (allows early exit in update mode)
         $io->section('Fetching resolution list from CTG website...');
-        $entries = $this->ctgReader->fetchEntries($limit, fn (string $msg) => $io->text($msg));
-        $totalEntries = count($entries);
-        $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
 
-        if ($totalEntries === 0) {
-            $io->warning('No resolutions to process.');
-            return Command::SUCCESS;
-        }
-
-        // Deduplicate entries by reference (listing may contain the same resolution on different pages)
-        $seen = [];
-        $entries = array_filter($entries, function (array $entry) use (&$seen) {
-            if (isset($seen[$entry['reference']])) {
-                return false;
-            }
-            $seen[$entry['reference']] = true;
-            return true;
-        });
-        $entries = array_values($entries);
-        $totalEntries = count($entries);
-
-        // Filter to only resolutions missing sourceUrl in DB
-        if ($input->getOption('only-missing-url')) {
-            $entries = array_filter($entries, function (array $entry) {
-                $resolution = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CTG);
-                return $resolution === null || $resolution->getSourceUrl() === null;
-            });
-            $entries = array_values($entries);
-            $io->text(sprintf('Filtered to %d resolutions without URL (from %d total).', count($entries), $totalEntries));
-            $totalEntries = count($entries);
-
-            if ($totalEntries === 0) {
-                $io->success('All resolutions already have URLs.');
-                return Command::SUCCESS;
-            }
-        }
-
-        // Step 3: Process in batches — scrape detail pages, upsert, dispatch
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
+        $onlyMissingUrl = $input->getOption('only-missing-url');
         $existingCount = 0;
-        $stopUpdate = false;
-        $batches = array_chunk($entries, self::BATCH_SIZE);
+        $seen = [];
+        $pageIdx = 0;
 
-        foreach ($batches as $batchIdx => $batch) {
-            $batchStart = $batchIdx * self::BATCH_SIZE + 1;
-            $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
-            $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
+        foreach ($this->ctgReader->streamPages($limit, fn (string $msg) => $io->text($msg)) as $pageEntries) {
+            $pageIdx++;
 
-            // 3a: Scrape detail pages for this batch
-            $batchDtos = [];
-            foreach ($batch as $i => $entry) {
-                $globalIdx = $batchStart + $i;
-                $io->text(sprintf('[%d/%d] Fetching %s...', $globalIdx, $totalEntries, $entry['reference']));
+            // Deduplicate entries by reference across pages
+            $pageEntries = array_values(array_filter($pageEntries, function (array $entry) use (&$seen) {
+                if (isset($seen[$entry['reference']])) {
+                    return false;
+                }
+                $seen[$entry['reference']] = true;
+                return true;
+            }));
+
+            // Filter to only resolutions missing sourceUrl in DB
+            if ($onlyMissingUrl) {
+                $pageEntries = array_values(array_filter($pageEntries, function (array $entry) {
+                    $resolution = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CTG);
+                    return $resolution === null || $resolution->getSourceUrl() === null;
+                }));
+            }
+
+            if (empty($pageEntries)) {
+                $io->text(sprintf('  Page %d: no new entries after filtering, skipping.', $pageIdx));
+                continue;
+            }
+
+            $io->section(sprintf('Page %d — %d entries', $pageIdx, count($pageEntries)));
+
+            // 2a: Scrape detail pages for this listing page
+            $pageDtos = [];
+            foreach ($pageEntries as $i => $entry) {
+                $io->text(sprintf('[%d] Fetching %s...', $i + 1, $entry['reference']));
 
                 try {
                     $dto = $this->ctgReader->fetchResolution($entry);
                     if ($dto !== null) {
-                        $batchDtos[] = $dto;
+                        $pageDtos[] = $dto;
                     } else {
-                        $io->text(sprintf('  <comment>Skipped (no outcome)</comment>'));
+                        $io->text('  <comment>Skipped (no outcome)</comment>');
                         $stats['skipped']++;
                     }
                 } catch (\Exception $e) {
@@ -181,16 +164,17 @@ class LoadCTGResolutionsCommand extends Command
                 usleep(500_000);
             }
 
-            if (empty($batchDtos) || $dryRun) {
-                $stats['processed'] += count($batchDtos);
+            if (empty($pageDtos) || $dryRun) {
+                $stats['processed'] += count($pageDtos);
                 if ($dryRun) {
-                    $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchDtos)));
+                    $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($pageDtos)));
                 }
                 continue;
             }
 
-            // 3b: Upsert this batch
-            foreach ($batchDtos as $dto) {
+            // 2b: Upsert this page's batch
+            $stopUpdate = false;
+            foreach ($pageDtos as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
@@ -216,19 +200,23 @@ class LoadCTGResolutionsCommand extends Command
                 $this->entityManager->flush();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
-                    'batch' => $batchIdx + 1,
+                    'page' => $pageIdx,
                     'error' => $e->getMessage(),
                 ]);
                 $io->error(sprintf('  Batch flush failed: %s', $e->getMessage()));
                 $stats['errors']++;
                 $this->managerRegistry->resetManager();
                 $this->entityManager = $this->managerRegistry->getManager();
+
+                if ($stopUpdate) {
+                    break;
+                }
                 continue;
             }
 
-            // 3c: Dispatch async or process inline for this batch
+            // 2c: Dispatch async or process inline for this page's batch
             if ($async) {
-                foreach ($batchDtos as $dto) {
+                foreach ($pageDtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTG);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -241,12 +229,12 @@ class LoadCTGResolutionsCommand extends Command
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($batchDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($pageDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
                     $this->logger->critical('Inline processing flush failed, resetting EntityManager', [
-                        'batch' => $batchIdx + 1,
+                        'page' => $pageIdx,
                         'error' => $e->getMessage(),
                     ]);
                     $io->error(sprintf('  Processing flush failed: %s', $e->getMessage()));
@@ -255,7 +243,7 @@ class LoadCTGResolutionsCommand extends Command
                 }
             }
 
-            $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
+            $io->text(sprintf('  <info>Page done — %d processed, %d new, %d updated, %d errors so far</info>',
                 $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
 
             if ($stopUpdate) {

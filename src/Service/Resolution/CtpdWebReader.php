@@ -92,6 +92,12 @@ class CtpdWebReader
         $entries = $this->parseListingPage($html);
         $progress(sprintf('Found %d resolutions in listing.', count($entries)));
 
+        usort($entries, function (ResolutionData $a, ResolutionData $b): int {
+            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
+            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
+            return $dateB <=> $dateA;
+        });
+
         if ($limit !== null && count($entries) > $limit) {
             $entries = array_slice($entries, 0, $limit);
         }

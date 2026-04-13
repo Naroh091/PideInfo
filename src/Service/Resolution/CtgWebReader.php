@@ -51,8 +51,33 @@ class CtgWebReader
      */
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
-        $progress = $onProgress ?? fn (string $msg) => null;
         $entries = [];
+
+        foreach ($this->streamPages($limit, $onProgress) as $pageEntries) {
+            $entries = array_merge($entries, $pageEntries);
+
+            if ($onProgress !== null) {
+                ($onProgress)(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+            }
+
+            if ($limit !== null && count($entries) >= $limit) {
+                $entries = array_slice($entries, 0, $limit);
+                break;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Yields one listing page of entries at a time (newest first — CMS default order).
+     *
+     * @return \Generator<int, array<int, array{reference: string, url: string}>>
+     */
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $totalFetched = 0;
         $page = 1;
 
         do {
@@ -63,19 +88,19 @@ class CtgWebReader
                 $response = $this->httpClient->request('GET', $url, ['timeout' => 30]);
                 if ($response->getStatusCode() === 404) {
                     $this->logger->info('Reached last page (404)', ['page' => $page]);
-                    break;
+                    return;
                 }
                 $html = $response->getContent();
             } catch (\Exception $e) {
                 if (str_contains($e->getMessage(), '404')) {
                     $this->logger->info('Reached last page (404)', ['page' => $page]);
-                    break;
+                    return;
                 }
                 $this->logger->error('Failed to fetch CTG listing page', [
                     'page' => $page,
                     'error' => $e->getMessage(),
                 ]);
-                break;
+                return;
             }
 
             $crawler = new Crawler($html);
@@ -109,22 +134,19 @@ class CtgWebReader
 
             if (empty($pageEntries)) {
                 $this->logger->info('No entries found on page, stopping pagination', ['page' => $page]);
-                break;
+                return;
             }
 
-            $entries = array_merge($entries, $pageEntries);
-            $progress(sprintf('  Found %d entries (total: %d)', count($pageEntries), count($entries)));
+            yield $pageEntries;
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
-                break;
+            $totalFetched += count($pageEntries);
+            if ($limit !== null && $totalFetched >= $limit) {
+                return;
             }
 
             $page++;
             usleep(self::REQUEST_DELAY_US);
         } while (true);
-
-        return $entries;
     }
 
     /**

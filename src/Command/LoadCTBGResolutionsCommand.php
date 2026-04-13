@@ -163,7 +163,7 @@ class LoadCTBGResolutionsCommand extends Command
         $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
 
         // Step 3: Upsert entities from Excel data
-        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
+        $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
@@ -182,6 +182,16 @@ class LoadCTBGResolutionsCommand extends Command
                 }
 
                 $stats['processed']++;
+
+                if (!$isNew) {
+                    if ($force) {
+                        $stats['updated']++;
+                    } else {
+                        $stats['skipped']++;
+                    }
+                } else {
+                    $stats['created']++;
+                }
 
                 if ($updateMode && !$isNew) {
                     $existingCount++;
@@ -281,16 +291,22 @@ class LoadCTBGResolutionsCommand extends Command
         $io->newLine();
         if ($async && !$dryRun) {
             $io->success(sprintf(
-                'Import complete. %d upserted, %d dispatched to workers, %d errors. Monitor with: bin/console messenger:stats',
+                'Import complete. %d upserted (%d new, %d updated), %d skipped, %d dispatched to workers, %d errors. Monitor with: bin/console messenger:stats',
                 $stats['processed'],
+                $stats['created'],
+                $stats['updated'],
+                $stats['skipped'],
                 $stats['dispatched'],
                 $stats['errors']
             ));
         } else {
             $io->success(sprintf(
-                '%s complete. %d processed, %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
+                '%s complete. %d processed (%d new, %d updated), %d skipped, %d analyzed, %d vectorized, %d PDF skipped, %d errors.',
                 $dryRun ? 'Dry run' : 'Import',
                 $stats['processed'],
+                $stats['created'],
+                $stats['updated'],
+                $stats['skipped'],
                 $stats['analyzed'],
                 $stats['vectorized'],
                 $stats['skippedPdf'],

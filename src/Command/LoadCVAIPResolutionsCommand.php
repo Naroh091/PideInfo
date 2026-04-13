@@ -116,158 +116,103 @@ class LoadCVAIPResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Fetch listing entries
+        // Step 2: Fetch listing entries and process
         $io->section('Fetching resolution list from CVAIP website...');
         if (!$scrape) {
             $io->note('Using RSS feed (max 50 most recent resolutions). Use --scrape to paginate all historical results.');
         }
-        $entries = $this->cvaipReader->fetchEntries($limit, fn (string $msg) => $io->text($msg), $scrape);
-        $totalEntries = count($entries);
-        $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
 
-        if ($totalEntries === 0) {
-            $io->warning('No resolutions to process.');
-            return Command::SUCCESS;
-        }
-
-        // Deduplicate by reference
-        $seen = [];
-        $entries = array_filter($entries, function (array $entry) use (&$seen) {
-            if (isset($seen[$entry['reference']])) {
-                return false;
-            }
-            $seen[$entry['reference']] = true;
-            return true;
-        });
-        $entries = array_values($entries);
-        $totalEntries = count($entries);
-
-        // Step 3: Process in batches — scrape detail pages + download Word docs, upsert, dispatch
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
-        $batches = array_chunk($entries, self::BATCH_SIZE);
 
-        foreach ($batches as $batchIdx => $batch) {
-            $batchStart = $batchIdx * self::BATCH_SIZE + 1;
-            $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
-            $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
+        if (!$scrape) {
+            // RSS mode: single request, fetch all entries then batch-process
+            $entries = $this->cvaipReader->fetchEntries($limit, fn (string $msg) => $io->text($msg), false);
+            $totalEntries = count($entries);
+            $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
 
-            // 3a: Scrape detail pages + download documents for this batch
-            $batchResults = [];
-            foreach ($batch as $i => $entry) {
-                $globalIdx = $batchStart + $i;
+            if ($totalEntries === 0) {
+                $io->warning('No resolutions to process.');
+                return Command::SUCCESS;
+            }
 
-                // Skip if already imported (has sourceUrl in DB)
-                if ($onlyNew) {
-                    $existing = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CVAIP);
-                    if ($existing !== null && $existing->getSourceUrl()) {
-                        $io->text(sprintf('[%d/%d] %s — already imported, skipping', $globalIdx, $totalEntries, $entry['reference']));
-                        $stats['skipped']++;
-                        continue;
+            // Deduplicate by reference
+            $seen = [];
+            $entries = array_filter($entries, function (array $entry) use (&$seen) {
+                if (isset($seen[$entry['reference']])) {
+                    return false;
+                }
+                $seen[$entry['reference']] = true;
+                return true;
+            });
+            $entries = array_values($entries);
+            $totalEntries = count($entries);
+
+            $batches = array_chunk($entries, self::BATCH_SIZE);
+
+            foreach ($batches as $batchIdx => $batch) {
+                $batchStart = $batchIdx * self::BATCH_SIZE + 1;
+                $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
+                $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
+
+                $batchResults = $this->fetchBatchResults($batch, $batchStart, $totalEntries, $onlyNew, $io, $stats);
+
+                if (empty($batchResults) || $dryRun) {
+                    $stats['processed'] += count($batchResults);
+                    if ($dryRun) {
+                        $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchResults)));
                     }
+                    continue;
                 }
 
-                $io->text(sprintf('[%d/%d] Fetching %s...', $globalIdx, $totalEntries, $entry['reference']));
+                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $batchIdx + 1, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $io, $stats);
 
-                try {
-                    $result = $this->cvaipReader->fetchResolution($entry);
-                    if ($result !== null) {
-                        $batchResults[] = $result;
-                        $io->text(sprintf('  Outcome: %s | Date: %s | Text: %d chars',
-                            $result['dto']->outcome,
-                            $result['dto']->resolutionDate?->format('Y-m-d') ?? 'n/a',
-                            mb_strlen($result['fullText']),
-                        ));
-                    } else {
-                        $io->text('  <comment>Skipped (no document or no outcome)</comment>');
-                        $stats['skipped']++;
+                $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
+                    $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+
+                if ($stopUpdate) {
+                    break;
+                }
+            }
+        } else {
+            // HTML scrape mode: stream pages, process per-page with early stop support
+            $seen = [];
+            $pageIdx = 0;
+
+            foreach ($this->cvaipReader->streamPages($limit, fn (string $msg) => $io->text($msg)) as $listingPage) {
+                $pageIdx++;
+
+                // Deduplicate on the fly
+                $listingPage = array_values(array_filter($listingPage, function (array $entry) use (&$seen) {
+                    if (isset($seen[$entry['reference']])) {
+                        return false;
                     }
-                } catch (\Exception $e) {
-                    $io->text(sprintf('  <error>Error: %s</error>', $e->getMessage()));
-                    $stats['errors']++;
+                    return $seen[$entry['reference']] = true;
+                }));
+
+                if (empty($listingPage)) {
+                    continue;
                 }
 
-                usleep(500_000);
-            }
+                $io->section(sprintf('Processing listing page %d (%d entries)...', $pageIdx, count($listingPage)));
 
-            if (empty($batchResults) || $dryRun) {
-                $stats['processed'] += count($batchResults);
-                if ($dryRun) {
-                    $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchResults)));
-                }
-                continue;
-            }
+                $batchResults = $this->fetchBatchResults($listingPage, 1, count($listingPage), $onlyNew, $io, $stats);
 
-            // 3b: Upsert this batch
-            foreach ($batchResults as $result) {
-                try {
-                    $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $stats, $force);
-                    $stats['processed']++;
-                    if ($updateMode && !$isNew) {
-                        $existingCount++;
-                        if ($existingCount > 10) {
-                            $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
-                            $stopUpdate = true;
-                            break;
-                        }
+                if (empty($batchResults) || $dryRun) {
+                    $stats['processed'] += count($batchResults);
+                    if ($dryRun) {
+                        $io->text(sprintf('  [dry-run] Would upsert %d resolutions', count($batchResults)));
                     }
-                } catch (\Exception $e) {
-                    $this->logger->error('Error upserting CVAIP resolution', [
-                        'reference' => $result['dto']->referenceNumber,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $io->error('  Upsert error: ' . $e->getMessage());
-                    $stats['errors']++;
+                    continue;
                 }
-            }
 
-            try {
-                $this->entityManager->flush();
-            } catch (\Exception $e) {
-                $this->logger->critical('Batch flush failed, resetting EntityManager', [
-                    'batch' => $batchIdx + 1,
-                    'error' => $e->getMessage(),
-                ]);
-                $io->error(sprintf('  Batch flush failed: %s', $e->getMessage()));
-                $stats['errors']++;
-                $this->managerRegistry->resetManager();
-                $this->entityManager = $this->managerRegistry->getManager();
-                continue;
-            }
+                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $pageIdx, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $io, $stats);
 
-            // 3c: Dispatch async or process inline
-            if ($async) {
-                foreach ($batchResults as $result) {
-                    $resolution = $this->resolutionRepository->findByReferenceAndSource($result['dto']->referenceNumber, Resolution::SOURCE_CVAIP);
-                    if ($resolution) {
-                        $this->messageBus->dispatch(new ProcessResolutionMessage(
-                            resolutionId: $resolution->getId(),
-                            skipAnalysis: $skipAnalysis,
-                            skipVectors: $skipVectors,
-                            skipPdf: true, // Text already extracted from Word during scrape
-                        ));
-                        $stats['dispatched']++;
-                    }
+                $io->text(sprintf('  <info>Page %d done — %d processed, %d new, %d updated, %d errors so far</info>',
+                    $pageIdx, $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+
+                if ($stopUpdate) {
+                    break;
                 }
-            } elseif (!$skipAnalysis || !$skipVectors) {
-                $this->processInline($batchResults, $skipAnalysis, $skipVectors, $io, $stats);
-                try {
-                    $this->entityManager->flush();
-                } catch (\Exception $e) {
-                    $this->logger->critical('Inline processing flush failed, resetting EntityManager', [
-                        'batch' => $batchIdx + 1,
-                        'error' => $e->getMessage(),
-                    ]);
-                    $io->error(sprintf('  Processing flush failed: %s', $e->getMessage()));
-                    $this->managerRegistry->resetManager();
-                    $this->entityManager = $this->managerRegistry->getManager();
-                }
-            }
-
-            $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
-                $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
-
-            if ($stopUpdate) {
-                break;
             }
         }
 
@@ -333,6 +278,140 @@ class LoadCVAIPResolutionsCommand extends Command
             ]);
             $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
         }
+    }
+
+    /**
+     * Fetch detail pages + documents for a batch of listing entries.
+     *
+     * @param array<int, array{reference: string, url: string, publicationDate: ?string, topic: ?string}> $entries
+     * @return array<int, array{dto: ResolutionData, fullText: string}>
+     */
+    private function fetchBatchResults(array $entries, int $startIdx, int $total, bool $onlyNew, SymfonyStyle $io, array &$stats): array
+    {
+        $batchResults = [];
+
+        foreach ($entries as $i => $entry) {
+            $globalIdx = $startIdx + $i;
+
+            if ($onlyNew) {
+                $existing = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CVAIP);
+                if ($existing !== null && $existing->getSourceUrl()) {
+                    $io->text(sprintf('[%d/%d] %s — already imported, skipping', $globalIdx, $total, $entry['reference']));
+                    $stats['skipped']++;
+                    continue;
+                }
+            }
+
+            $io->text(sprintf('[%d/%d] Fetching %s...', $globalIdx, $total, $entry['reference']));
+
+            try {
+                $result = $this->cvaipReader->fetchResolution($entry);
+                if ($result !== null) {
+                    $batchResults[] = $result;
+                    $io->text(sprintf('  Outcome: %s | Date: %s | Text: %d chars',
+                        $result['dto']->outcome,
+                        $result['dto']->resolutionDate?->format('Y-m-d') ?? 'n/a',
+                        mb_strlen($result['fullText']),
+                    ));
+                } else {
+                    $io->text('  <comment>Skipped (no document or no outcome)</comment>');
+                    $stats['skipped']++;
+                }
+            } catch (\Exception $e) {
+                $io->text(sprintf('  <error>Error: %s</error>', $e->getMessage()));
+                $stats['errors']++;
+            }
+
+            usleep(500_000);
+        }
+
+        return $batchResults;
+    }
+
+    /**
+     * Upsert a batch of results, flush, and dispatch async or process inline.
+     * Returns the updated $stopUpdate flag.
+     *
+     * @param array<int, array{dto: ResolutionData, fullText: string}> $batchResults
+     */
+    private function upsertAndProcessBatch(
+        array $batchResults,
+        int $batchLabel,
+        bool $updateMode,
+        int &$existingCount,
+        bool $stopUpdate,
+        bool $async,
+        bool $skipAnalysis,
+        bool $skipVectors,
+        bool $force,
+        SymfonyStyle $io,
+        array &$stats,
+    ): bool {
+        foreach ($batchResults as $result) {
+            try {
+                $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $stats, $force);
+                $stats['processed']++;
+                if ($updateMode && !$isNew) {
+                    $existingCount++;
+                    if ($existingCount > 10) {
+                        $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
+                        $stopUpdate = true;
+                        break;
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->logger->error('Error upserting CVAIP resolution', [
+                    'reference' => $result['dto']->referenceNumber,
+                    'error' => $e->getMessage(),
+                ]);
+                $io->error('  Upsert error: ' . $e->getMessage());
+                $stats['errors']++;
+            }
+        }
+
+        try {
+            $this->entityManager->flush();
+        } catch (\Exception $e) {
+            $this->logger->critical('Batch flush failed, resetting EntityManager', [
+                'batch' => $batchLabel,
+                'error' => $e->getMessage(),
+            ]);
+            $io->error(sprintf('  Batch flush failed: %s', $e->getMessage()));
+            $stats['errors']++;
+            $this->managerRegistry->resetManager();
+            $this->entityManager = $this->managerRegistry->getManager();
+            return $stopUpdate;
+        }
+
+        if ($async) {
+            foreach ($batchResults as $result) {
+                $resolution = $this->resolutionRepository->findByReferenceAndSource($result['dto']->referenceNumber, Resolution::SOURCE_CVAIP);
+                if ($resolution) {
+                    $this->messageBus->dispatch(new ProcessResolutionMessage(
+                        resolutionId: $resolution->getId(),
+                        skipAnalysis: $skipAnalysis,
+                        skipVectors: $skipVectors,
+                        skipPdf: true, // Text already extracted from Word during scrape
+                    ));
+                    $stats['dispatched']++;
+                }
+            }
+        } elseif (!$skipAnalysis || !$skipVectors) {
+            $this->processInline($batchResults, $skipAnalysis, $skipVectors, $io, $stats);
+            try {
+                $this->entityManager->flush();
+            } catch (\Exception $e) {
+                $this->logger->critical('Inline processing flush failed, resetting EntityManager', [
+                    'batch' => $batchLabel,
+                    'error' => $e->getMessage(),
+                ]);
+                $io->error(sprintf('  Processing flush failed: %s', $e->getMessage()));
+                $this->managerRegistry->resetManager();
+                $this->entityManager = $this->managerRegistry->getManager();
+            }
+        }
+
+        return $stopUpdate;
     }
 
     private function processInline(array $batchResults, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats): void
