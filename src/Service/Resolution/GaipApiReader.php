@@ -224,12 +224,6 @@ class GaipApiReader
         $resolutionDate = $this->parseDate($record['data_de_resoluci'] ?? null);
         $claimDate = $this->parseDate($record['data_de_reclamaci'] ?? null);
 
-        // Calculate daysToResolve
-        $daysToResolve = null;
-        if ($claimDate !== null && $resolutionDate !== null) {
-            $daysToResolve = $claimDate->diff($resolutionDate)->days;
-        }
-
         // Extract year from reference (e.g., "0001/2015" → 2015)
         $entryYear = null;
         if (preg_match('/\/(\d{4})$/', $reference, $matches)) {

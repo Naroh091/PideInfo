@@ -82,6 +82,7 @@ class LoadCVAIPResolutionsCommand extends Command
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Skip resolutions that already have a sourceUrl in the DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('scrape', null, InputOption::VALUE_NONE, 'Use full HTML pagination scraper instead of RSS (slower, fetches all historical resolutions)')
         ;
     }
 
@@ -96,6 +97,7 @@ class LoadCVAIPResolutionsCommand extends Command
         $async = $input->getOption('async');
         $onlyNew = $input->getOption('only-missing-url');
 
+        $scrape = $input->getOption('scrape');
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
@@ -116,7 +118,10 @@ class LoadCVAIPResolutionsCommand extends Command
 
         // Step 2: Fetch listing entries
         $io->section('Fetching resolution list from CVAIP website...');
-        $entries = $this->cvaipReader->fetchEntries($limit, fn (string $msg) => $io->text($msg));
+        if (!$scrape) {
+            $io->note('Using RSS feed (max 50 most recent resolutions). Use --scrape to paginate all historical results.');
+        }
+        $entries = $this->cvaipReader->fetchEntries($limit, fn (string $msg) => $io->text($msg), $scrape);
         $totalEntries = count($entries);
         $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
 

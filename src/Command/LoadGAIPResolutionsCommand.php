@@ -327,12 +327,6 @@ class LoadGAIPResolutionsCommand extends Command
             $resolution->setClaimDate($dto->claimDate);
         }
 
-        // Calculate daysToResolve
-        if ($resolution->getClaimDate() && $resolution->getResolutionDate()) {
-            $days = $resolution->getClaimDate()->diff($resolution->getResolutionDate())->days;
-            $resolution->setDaysToResolve($days);
-        }
-
         // Set summary from API (initial, in Catalan — AI will overwrite later)
         if ($dto->summary && (empty($resolution->getSummary()) || $resolution->getSummary() === '')) {
             $resolution->setSummary($dto->summary);
