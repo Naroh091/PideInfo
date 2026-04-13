@@ -78,6 +78,7 @@ class LoadGAIPResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -124,6 +125,7 @@ class LoadGAIPResolutionsCommand extends Command
         $io->section(sprintf('Processing %d resolutions...', count($allDtos)));
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
 
@@ -134,7 +136,7 @@ class LoadGAIPResolutionsCommand extends Command
             $io->text(sprintf('[%d/%d] %s', $current, $total, $dto->referenceNumber));
 
             try {
-                $isNew = $this->upsertResolution($dto, $dryRun, $io, $stats);
+                $isNew = $this->upsertResolution($dto, $dryRun, $io, $stats, $force);
                 if ($dryRun) {
                     $io->text('  [dry-run] Would upsert');
                     $stats['processed']++;
@@ -281,10 +283,15 @@ class LoadGAIPResolutionsCommand extends Command
         return $resolutions;
     }
 
-    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, array &$stats): bool
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, array &$stats, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_GAIP);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            $stats['skipped']++;
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();

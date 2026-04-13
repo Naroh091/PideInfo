@@ -81,6 +81,7 @@ class LoadCTARResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -94,6 +95,7 @@ class LoadCTARResolutionsCommand extends Command
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
         $stopUpdate = false;
@@ -177,7 +179,7 @@ class LoadCTARResolutionsCommand extends Command
             // 3a: Upsert this batch
             foreach ($batch as $dto) {
                 try {
-                    $isNew = $this->upsertResolution($dto, $io, $stats);
+                    $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
                     if ($updateMode && !$isNew) {
                         $existingCount++;
@@ -337,10 +339,15 @@ class LoadCTARResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): bool
+    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTAR);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            $stats['skipped']++;
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();

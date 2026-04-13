@@ -204,7 +204,7 @@ class CvaipWebReader
             outcome: $outcome,
             source: Resolution::SOURCE_CVAIP,
             scope: Resolution::SCOPE_AUTONOMOUS,
-            subject: 'Resolución de reclamación de acceso a la información pública',
+            subject: null,
             publicBodyName: null,
             claimReason: null,
             sourceUrl: $fullDocumentUrl,
