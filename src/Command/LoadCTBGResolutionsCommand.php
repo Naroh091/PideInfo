@@ -85,6 +85,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -164,6 +165,7 @@ class LoadCTBGResolutionsCommand extends Command
         // Step 3: Upsert entities from Excel data
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
 
@@ -172,7 +174,7 @@ class LoadCTBGResolutionsCommand extends Command
 
             try {
                 // 3a: Upsert entity (always synchronous — fast, just DB writes)
-                $isNew = $this->upsertResolution($dto, $dryRun, $io);
+                $isNew = $this->upsertResolution($dto, $dryRun, $io, $force);
                 if ($dryRun) {
                     $io->text('  [dry-run] Would upsert');
                     $stats['processed']++;
@@ -357,10 +359,14 @@ class LoadCTBGResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io): bool
+    private function upsertResolution(ResolutionData $dto, bool $dryRun, SymfonyStyle $io, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, $dto->source);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();

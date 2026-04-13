@@ -80,6 +80,7 @@ class LoadCTPDAResolutionsCommand extends Command
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -93,6 +94,7 @@ class LoadCTPDAResolutionsCommand extends Command
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
         $stopUpdate = false;
@@ -164,7 +166,7 @@ class LoadCTPDAResolutionsCommand extends Command
             // 3a: Upsert this batch
             foreach ($batch as $dto) {
                 try {
-                    $isNew = $this->upsertResolution($dto, $io, $stats);
+                    $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
                     if ($updateMode && !$isNew) {
                         $existingCount++;
@@ -356,10 +358,15 @@ class LoadCTPDAResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): bool
+    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTPDA);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            $stats['skipped']++;
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();

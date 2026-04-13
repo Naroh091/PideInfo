@@ -81,6 +81,7 @@ class LoadCTNResolutionsCommand extends Command
             ->addOption('url', null, InputOption::VALUE_REQUIRED, 'Override JSON source URL')
             ->addOption('pdf-path', null, InputOption::VALUE_REQUIRED, 'Local directory containing PDF files (skips HTTP download)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -101,6 +102,7 @@ class LoadCTNResolutionsCommand extends Command
             return Command::FAILURE;
         }
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
         $stopUpdate = false;
@@ -159,7 +161,7 @@ class LoadCTNResolutionsCommand extends Command
             // 3a: Upsert this batch
             foreach ($batch as $dto) {
                 try {
-                    $isNew = $this->upsertResolution($dto, $io, $stats);
+                    $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
                     if ($updateMode && !$isNew) {
                         $existingCount++;
@@ -396,10 +398,15 @@ class LoadCTNResolutionsCommand extends Command
         return null;
     }
 
-    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats): bool
+    private function upsertResolution(ResolutionData $dto, SymfonyStyle $io, array &$stats, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTN);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            $stats['skipped']++;
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();

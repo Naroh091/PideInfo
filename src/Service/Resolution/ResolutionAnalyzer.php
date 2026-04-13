@@ -187,10 +187,10 @@ final class ResolutionAnalyzer
      *
      * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
-    public function analyze(string $cleanedText, bool $flex = false): array
+    public function analyze(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false): array
     {
         $formatted = $this->formatText($cleanedText, flex: $flex);
-        $analysis = $this->extractAnalysis($cleanedText, flex: $flex);
+        $analysis = $this->extractAnalysis($cleanedText, flex: $flex, skipResolutionDate: $skipResolutionDate);
 
         return array_merge($formatted, $analysis);
     }
@@ -260,19 +260,16 @@ SUFFIX;
      *
      * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
-    public function extractAnalysis(string $cleanedText, bool $flex = false): array
+    public function extractAnalysis(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false): array
     {
-        $prompt = self::buildExtractAnalysisPrompt();
+        $prompt = self::buildExtractAnalysisPrompt(skipResolutionDate: $skipResolutionDate);
 
         if ($this->useCustomModel) {
-            $jsonSuffix = <<<'SUFFIX'
+            $jsonSuffix = $skipResolutionDate
+                ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
+                : "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"resolution_date\": \"YYYY-MM-DD o null\", \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
 
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"summary": "resumen en texto plano", "keypoints": ["punto 1", "punto 2", ...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "claim_reason": "frase corta o null", "subject": "asunto en castellano o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "outcome": "código del enum o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
-SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-SUFFIX;
-
-            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints'], $this->buildExtractAnalysisSchema());
+            $result = $this->callCustomModelApi($prompt . $jsonSuffix, $cleanedText, ['summary', 'keypoints'], $this->buildExtractAnalysisSchema(skipResolutionDate: $skipResolutionDate));
 
             return $this->normalizeExtractAnalysisResult($result);
         }
@@ -282,7 +279,7 @@ SUFFIX;
             ['text' => "---\n\nTEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText],
         ];
 
-        $schema = $this->buildExtractAnalysisSchema();
+        $schema = $this->buildExtractAnalysisSchema(skipResolutionDate: $skipResolutionDate);
 
         $result = $this->callGeminiApi($this->midModel, $parts, $schema, flex: $flex);
 
@@ -798,11 +795,12 @@ FOOTER;
         throw $lastError ?? new \RuntimeException(sprintf('Gemini API call failed after %d attempts (model %s).', $maxRetries + 1, $model));
     }
 
-    public static function buildExtractAnalysisPrompt(): string
+    public static function buildExtractAnalysisPrompt(bool $skipResolutionDate = false): string
     {
         $outcomesBlock = self::renderEnumBlock(Resolution::getOutcomeLabels());
         $limitsBlock = self::renderEnumBlock(Resolution::getLimitLabels());
         $causesBlock = self::renderEnumBlock(Resolution::getInadmissionCauseLabels());
+        $resolutionDateBlock = $skipResolutionDate ? '' : "[resolution_date]\nFecha de firma de la resolución del organismo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.\n\n";
 
         return <<<PROMPT
 Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
@@ -818,10 +816,7 @@ Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedente
 Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
 Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
 
-[resolution_date]
-Fecha de firma de la resolución del consejo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.
-
-### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
+{$resolutionDateBlock}### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
 
 Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
 
@@ -877,7 +872,7 @@ Guíate por la queja real del reclamante tal como aparece en los Antecedentes y 
 Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
 
 [outcome]
-Devuelve el código que mejor describe la decisión final del consejo de transparencia, eligiendo UNO de los siguientes valores:
+Devuelve el código que mejor describe la decisión final del organismo de transparencia, eligiendo UNO de los siguientes valores:
 
 {$outcomesBlock}
 
@@ -914,84 +909,83 @@ PROMPT;
     /**
      * @return array<string, mixed>
      */
-    private function buildExtractAnalysisSchema(): array
+    private function buildExtractAnalysisSchema(bool $skipResolutionDate = false): array
     {
         $outcomeCodes = array_keys(Resolution::getOutcomeLabels());
         $limitCodes = array_keys(Resolution::getLimitLabels());
         $causeCodes = array_keys(Resolution::getInadmissionCauseLabels());
 
+        $properties = [
+            'summary' => [
+                'type' => 'string',
+                'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
+            ],
+            'keypoints' => [
+                'type' => 'array',
+                'items' => ['type' => 'string'],
+                'description' => '3-7 key legal reasoning points in Spanish.',
+            ],
+        ];
+
+        if (!$skipResolutionDate) {
+            $properties['resolution_date'] = [
+                'type' => 'string',
+                'nullable' => true,
+                'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
+            ];
+        }
+
+        $properties['claim_date'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'description' => 'Claim filing date (before the transparency council) in ISO 8601. Null if not found.',
+        ];
+        $properties['claim_reason'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'description' => 'Short sentence (max 120 chars) describing what the claimant is protesting against (silencio administrativo, a specific art. 14 limit, an art. 18 inadmission cause, partial access, etc.).',
+        ];
+        $properties['info_request_date'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'description' => 'Original date when the citizen requested information from the administration (NOT the claim date). ISO 8601, null if not found.',
+        ];
+        $properties['complained_administration'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'description' => 'Name of the administration the citizen complained about. Never the transparency council. Null if unclear.',
+        ];
+        $properties['subject'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
+        ];
+        $properties['outcome'] = [
+            'type' => 'string',
+            'nullable' => true,
+            'enum' => array_merge($outcomeCodes, [null]),
+            'description' => 'Outcome code. Must be one of the canonical enum values, or null if undetermined.',
+        ];
+        $properties['limits'] = [
+            'type' => 'array',
+            'items' => ['type' => 'string', 'enum' => $limitCodes],
+            'description' => 'Codes of art. 14 limits invoked by the administration. Empty array if none.',
+        ];
+        $properties['inadmission_causes'] = [
+            'type' => 'array',
+            'items' => ['type' => 'string', 'enum' => $causeCodes],
+            'description' => 'Codes of art. 18 inadmission causes invoked by the administration. Empty array if none.',
+        ];
+
+        $required = ['summary', 'keypoints', 'claim_date', 'claim_reason', 'info_request_date', 'complained_administration', 'subject', 'outcome', 'limits', 'inadmission_causes'];
+        if (!$skipResolutionDate) {
+            array_splice($required, 2, 0, ['resolution_date']);
+        }
+
         return [
             'type' => 'object',
-            'properties' => [
-                'summary' => [
-                    'type' => 'string',
-                    'description' => 'Concise plain-text summary in Spanish, max 400 characters.',
-                ],
-                'keypoints' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string'],
-                    'description' => '3-7 key legal reasoning points in Spanish.',
-                ],
-                'resolution_date' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Resolution signature date in ISO 8601 (YYYY-MM-DD). Null if not found.',
-                ],
-                'claim_date' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Claim filing date (before the transparency council) in ISO 8601. Null if not found.',
-                ],
-                'claim_reason' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Short sentence (max 120 chars) describing what the claimant is protesting against (silencio administrativo, a specific art. 14 limit, an art. 18 inadmission cause, partial access, etc.).',
-                ],
-                'info_request_date' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Original date when the citizen requested information from the administration (NOT the claim date). ISO 8601, null if not found.',
-                ],
-                'complained_administration' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Name of the administration the citizen complained about. Never the transparency council. Null if unclear.',
-                ],
-                'subject' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'description' => 'Brief description of the requested information in Spanish, max 300 chars.',
-                ],
-                'outcome' => [
-                    'type' => 'string',
-                    'nullable' => true,
-                    'enum' => array_merge($outcomeCodes, [null]),
-                    'description' => 'Outcome code. Must be one of the canonical enum values, or null if undetermined.',
-                ],
-                'limits' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string', 'enum' => $limitCodes],
-                    'description' => 'Codes of art. 14 limits invoked by the administration. Empty array if none.',
-                ],
-                'inadmission_causes' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string', 'enum' => $causeCodes],
-                    'description' => 'Codes of art. 18 inadmission causes invoked by the administration. Empty array if none.',
-                ],
-            ],
-            'required' => [
-                'summary',
-                'keypoints',
-                'resolution_date',
-                'claim_date',
-                'claim_reason',
-                'info_request_date',
-                'complained_administration',
-                'subject',
-                'outcome',
-                'limits',
-                'inadmission_causes',
-            ],
+            'properties' => $properties,
+            'required' => $required,
         ];
     }
 
@@ -1075,7 +1069,7 @@ Ejemplos típicos (elige el que mejor encaje o redacta uno equivalente en una so
 Escribe en castellano.
 
 [outcome]
-Devuelve el código que mejor describe la decisión final del consejo de transparencia, eligiendo UNO de los siguientes valores:
+Devuelve el código que mejor describe la decisión final del organismo de transparencia, eligiendo UNO de los siguientes valores:
 
 {$outcomesBlock}
 

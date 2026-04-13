@@ -81,6 +81,7 @@ class LoadCVAIPResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Skip resolutions that already have a sourceUrl in the DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
         ;
     }
 
@@ -95,6 +96,7 @@ class LoadCVAIPResolutionsCommand extends Command
         $async = $input->getOption('async');
         $onlyNew = $input->getOption('only-missing-url');
 
+        $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $existingCount = 0;
         $stopUpdate = false;
@@ -193,7 +195,7 @@ class LoadCVAIPResolutionsCommand extends Command
             // 3b: Upsert this batch
             foreach ($batchResults as $result) {
                 try {
-                    $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $io, $stats);
+                    $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $stats, $force);
                     $stats['processed']++;
                     if ($updateMode && !$isNew) {
                         $existingCount++;
@@ -297,6 +299,37 @@ class LoadCVAIPResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
+    private function analyzeResolution(Resolution $resolution, SymfonyStyle $io): void
+    {
+        $fullText = $resolution->getFullText();
+        if (empty(trim($fullText))) {
+            return;
+        }
+
+        $io->text('  Analyzing with AI...');
+        $cleanedText = $this->analyzer->cleanText($fullText);
+
+        try {
+            $result = $this->analyzer->analyze($cleanedText, skipResolutionDate: true);
+
+            $resolution->setFullText($result['formatted_text']);
+            $this->analyzer->applyAnalysisResult($resolution, $result);
+
+            $io->text(sprintf('  Summary: %s', mb_substr($result['summary'], 0, 100) . '...'));
+            $io->text(sprintf('  Keypoints: %d | Dates: claim=%s info=%s',
+                count($result['keypoints']),
+                $result['claim_date'] ?? 'n/a',
+                $result['info_request_date'] ?? 'n/a',
+            ));
+        } catch (\Exception $e) {
+            $this->logger->error('AI analysis failed', [
+                'reference' => $resolution->getReferenceNumber(),
+                'error' => $e->getMessage(),
+            ]);
+            $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+        }
+    }
+
     private function processInline(array $batchResults, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats): void
     {
         foreach ($batchResults as $result) {
@@ -330,10 +363,15 @@ class LoadCVAIPResolutionsCommand extends Command
         }
     }
 
-    private function upsertResolution(ResolutionData $dto, string $fullText, SymfonyStyle $io, array &$stats): bool
+    private function upsertResolution(ResolutionData $dto, string $fullText, array &$stats, bool $force = false): bool
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CVAIP);
         $isNew = $resolution === null;
+
+        if (!$isNew && !$force) {
+            $stats['skipped']++;
+            return false;
+        }
 
         if ($isNew) {
             $resolution = new Resolution();
@@ -349,7 +387,9 @@ class LoadCVAIPResolutionsCommand extends Command
 
         $resolution->setOutcome($dto->outcome);
         $resolution->setScope($dto->scope);
-        $resolution->setSubject($dto->subject ? mb_substr($dto->subject, 0, 500) : null);
+        if ($dto->subject !== null) {
+            $resolution->setSubject(mb_substr($dto->subject, 0, 500));
+        }
         $resolution->setPublicBodyName($dto->publicBodyName);
         $resolution->setPublicBody($this->publicBodyResolver->resolve($dto->publicBodyName));
         $resolution->setClaimReason($dto->claimReason);
