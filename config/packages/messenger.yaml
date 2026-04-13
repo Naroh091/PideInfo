@@ -38,3 +38,4 @@ framework:
             App\Message\ProcessDocumentBatchMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async
+            App\Message\UpdateExpiredRequestsMessage: async

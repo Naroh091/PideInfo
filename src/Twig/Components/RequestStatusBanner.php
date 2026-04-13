@@ -36,6 +36,11 @@ class RequestStatusBanner
         return $this->request->getApplicableLaw()->isSilenceIsPositive();
     }
 
+    public function getComplaintFormUrl(): ?string
+    {
+        return $this->request->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrl();
+    }
+
     public function getAutonomousCommunityName(): ?string
     {
         return $this->request->getApplicableLaw()->getAutonomousCommunity()?->getName();
