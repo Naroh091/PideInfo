@@ -181,7 +181,7 @@ class GaipApiReader
                 '$select' => $select,
                 '$limit' => $pageSize,
                 '$offset' => $offset,
-                '$order' => 'reclamaci',
+                '$order' => 'data_de_resoluci DESC',
             ]);
 
             $this->logger->info('Fetching GAIP API', ['offset' => $offset, 'limit' => $pageSize]);

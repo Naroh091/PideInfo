@@ -85,6 +85,12 @@ class ExcelResolutionReader
             }
         }
 
+        uasort($results, function (ResolutionData $a, ResolutionData $b): int {
+            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
+            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
+            return $dateB <=> $dateA;
+        });
+
         return $results;
     }
 
@@ -131,6 +137,12 @@ class ExcelResolutionReader
                 }
             }
         }
+
+        uasort($results, function (ResolutionData $a, ResolutionData $b): int {
+            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
+            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
+            return $dateB <=> $dateA;
+        });
 
         return $results;
     }

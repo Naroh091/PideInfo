@@ -52,8 +52,34 @@ class CrtWebReader
      */
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
-        $progress = $onProgress ?? fn (string $msg) => null;
         $entries = [];
+        $remaining = $limit;
+
+        foreach ($this->streamPages($limit, $onProgress) as $pageDtos) {
+            foreach ($pageDtos as $dto) {
+                $entries[] = $dto;
+            }
+
+            if ($remaining !== null) {
+                $remaining -= count($pageDtos);
+                if ($remaining <= 0) {
+                    break;
+                }
+            }
+        }
+
+        return $limit !== null ? array_slice($entries, 0, $limit) : $entries;
+    }
+
+    /**
+     * Stream resolutions year by year (newest first). Each yield is one year's ResolutionData[].
+     *
+     * @return \Generator<int, ResolutionData[]>
+     */
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $totalFetched = 0;
 
         foreach (self::YEAR_URLS as $yearKey => $path) {
             $year = $yearKey === 'anioactual' ? (int) date('Y') : (int) $yearKey;
@@ -73,18 +99,25 @@ class CrtWebReader
             }
 
             $yearEntries = $this->parseYearPage($html, $year);
-            $entries = array_merge($entries, $yearEntries);
-            $progress(sprintf('  Found %d resolutions (total: %d)', count($yearEntries), count($entries)));
+            $progress(sprintf('  Found %d resolutions (total fetched: %d)', count($yearEntries), $totalFetched + count($yearEntries)));
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
+            if ($limit !== null) {
+                $remaining = $limit - $totalFetched;
+                if (count($yearEntries) > $remaining) {
+                    $yearEntries = array_slice($yearEntries, 0, $remaining);
+                }
+            }
+
+            $totalFetched += count($yearEntries);
+
+            yield $yearEntries;
+
+            if ($limit !== null && $totalFetched >= $limit) {
                 break;
             }
 
             usleep(self::REQUEST_DELAY_US);
         }
-
-        return $entries;
     }
 
     /**

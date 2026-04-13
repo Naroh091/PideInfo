@@ -113,59 +113,48 @@ class LoadCTARResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Fetch all entries from listing pages (metadata + document URLs)
-        $io->section('Fetching resolution list from CTAR website...');
-        $dtos = $this->ctarReader->fetchEntries($limit, fn (string $msg) => $io->text($msg));
-        $totalEntries = count($dtos);
-        $io->success(sprintf('Found %d resolutions in listing.', $totalEntries));
-
-        if ($totalEntries === 0) {
-            $io->warning('No resolutions to process.');
-            return Command::SUCCESS;
-        }
-
-        // Deduplicate by reference
+        // Step 2: Fetch listing entries page by page and process
+        $io->section('Fetching and processing CTAR resolutions...');
         $seen = [];
-        $dtos = array_filter($dtos, function (ResolutionData $dto) use (&$seen) {
-            if (isset($seen[$dto->referenceNumber])) {
-                return false;
-            }
-            $seen[$dto->referenceNumber] = true;
-            return true;
-        });
-        $dtos = array_values($dtos);
-        $totalEntries = count($dtos);
-
-        // Filter to only resolutions missing sourceUrl in DB
-        if ($input->getOption('only-missing-url')) {
-            $dtos = array_filter($dtos, function (ResolutionData $dto) {
-                $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTAR);
-                return $resolution === null || $resolution->getSourceUrl() === null;
-            });
-            $dtos = array_values($dtos);
-            $io->text(sprintf('Filtered to %d resolutions without URL (from %d total).', count($dtos), $totalEntries));
-            $totalEntries = count($dtos);
-
-            if ($totalEntries === 0) {
-                $io->success('All resolutions already have URLs.');
-                return Command::SUCCESS;
-            }
-        }
-
-        // Step 3: Process in batches — upsert + dispatch/process
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
-        $batches = array_chunk($dtos, self::BATCH_SIZE);
+        $pageIdx = 0;
+        $onlyMissingUrl = $input->getOption('only-missing-url');
 
-        foreach ($batches as $batchIdx => $batch) {
-            $batchStart = $batchIdx * self::BATCH_SIZE + 1;
-            $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
-            $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
+        foreach ($this->ctarReader->streamPages($limit, fn (string $msg) => $io->text($msg)) as $pageEntries) {
+            $pageIdx++;
+
+            // Deduplicate on the fly (across pages) and apply --only-missing-url filter
+            $batch = [];
+            foreach ($pageEntries as $dto) {
+                if (isset($seen[$dto->referenceNumber])) {
+                    continue;
+                }
+                $seen[$dto->referenceNumber] = true;
+
+                if ($onlyMissingUrl) {
+                    $existing = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTAR);
+                    if ($existing !== null && $existing->getSourceUrl() !== null) {
+                        continue;
+                    }
+                }
+
+                $batch[] = $dto;
+            }
+
+            $io->section(sprintf('Page %d (%d entries after dedup/filter)', $pageIdx, count($batch)));
+
+            if (empty($batch)) {
+                $io->text('  No new entries on this page, skipping.');
+                if ($stopUpdate) {
+                    break;
+                }
+                continue;
+            }
 
             if ($dryRun) {
                 foreach ($batch as $i => $dto) {
-                    $globalIdx = $batchStart + $i;
-                    $io->text(sprintf('[%d/%d] %s — %s | %s | %s',
-                        $globalIdx, $totalEntries,
+                    $io->text(sprintf('[%d] %s — %s | %s | %s',
+                        $stats['processed'] + $i + 1,
                         $dto->referenceNumber,
                         $dto->outcome,
                         $dto->resolutionDate?->format('Y-m-d') ?? 'n/a',
@@ -176,7 +165,7 @@ class LoadCTARResolutionsCommand extends Command
                 continue;
             }
 
-            // 3a: Upsert this batch
+            // 3a: Upsert this page's batch
             foreach ($batch as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
@@ -207,7 +196,7 @@ class LoadCTARResolutionsCommand extends Command
                 $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
-                    'batch' => $batchIdx + 1,
+                    'page' => $pageIdx,
                     'error' => $e->getMessage(),
                 ]);
                 $io->error(sprintf('  Batch flush failed: %s', $e->getMessage()));
@@ -217,6 +206,9 @@ class LoadCTARResolutionsCommand extends Command
                 $this->ccaaCache = [];
                 $this->organismCache = [];
                 $this->publicBodyResolver->clearCache();
+                if ($stopUpdate) {
+                    break;
+                }
                 continue;
             }
 
@@ -240,7 +232,7 @@ class LoadCTARResolutionsCommand extends Command
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
                     $this->logger->critical('Inline processing flush failed, resetting EntityManager', [
-                        'batch' => $batchIdx + 1,
+                        'page' => $pageIdx,
                         'error' => $e->getMessage(),
                     ]);
                     $io->error(sprintf('  Processing flush failed: %s', $e->getMessage()));
@@ -252,12 +244,16 @@ class LoadCTARResolutionsCommand extends Command
                 }
             }
 
-            $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
+            $io->text(sprintf('  <info>Page done — %d processed, %d new, %d updated, %d errors so far</info>',
                 $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
 
             if ($stopUpdate) {
                 break;
             }
+        }
+
+        if ($stats['processed'] === 0 && !$dryRun) {
+            $io->warning('No resolutions were processed.');
         }
 
         // Summary

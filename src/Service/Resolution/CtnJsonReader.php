@@ -68,6 +68,12 @@ class CtnJsonReader
             $this->logger->info('Skipped non-AR entries', ['count' => $skipped]);
         }
 
+        usort($dtos, function (ResolutionData $a, ResolutionData $b): int {
+            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
+            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
+            return $dateB <=> $dateA;
+        });
+
         $progress(sprintf('Mapped %d resolutions.', count($dtos)));
 
         return $dtos;

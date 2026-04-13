@@ -113,82 +113,67 @@ class LoadCTCYLResolutionsCommand extends Command
             ]);
         }
 
-        // Step 2: Scrape listing pages
+        // Step 2: Scrape listing pages and process per-page
         $io->section('Fetching resolution list from CTCYL website...');
-        $listingEntries = $this->webReader->fetchListingEntries($limit, fn (string $msg) => $io->text($msg));
-        $totalListing = count($listingEntries);
-        $io->success(sprintf('Found %d resolutions in listing.', $totalListing));
 
-        if ($totalListing === 0) {
-            $io->warning('No resolutions to process.');
-            return Command::SUCCESS;
-        }
-
-        // Deduplicate by reference
-        $seen = [];
-        $listingEntries = array_filter($listingEntries, function (array $entry) use (&$seen) {
-            if (isset($seen[$entry['reference']])) {
-                return false;
-            }
-            $seen[$entry['reference']] = true;
-            return true;
-        });
-        $listingEntries = array_values($listingEntries);
-        $totalListing = count($listingEntries);
-
-        // Filter to only resolutions missing sourceUrl in DB
-        if ($input->getOption('only-missing-url')) {
-            $listingEntries = array_filter($listingEntries, function (array $entry) {
-                $resolution = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CTCYL);
-                return $resolution === null || $resolution->getSourceUrl() === null;
-            });
-            $listingEntries = array_values($listingEntries);
-            $io->text(sprintf('Filtered to %d resolutions without URL (from %d total).', count($listingEntries), $totalListing));
-            $totalListing = count($listingEntries);
-
-            if ($totalListing === 0) {
-                $io->success('All resolutions already have URLs.');
-                return Command::SUCCESS;
-            }
-        }
-
-        // Step 3: Fetch detail pages concurrently → build DTOs
-        $io->section(sprintf('Fetching %d detail pages (10 concurrent)...', $totalListing));
-        $dtos = $this->webReader->fetchDetailPagesBatch($listingEntries, 10, fn (string $msg) => $io->text($msg));
-        $io->success(sprintf('Fetched %d detail pages.', count($dtos)));
-
-        $totalEntries = count($dtos);
-        if ($totalEntries === 0) {
-            $io->warning('No resolutions to process.');
-            return Command::SUCCESS;
-        }
-
-        // Step 4: Process in batches — upsert + dispatch/process
         $stats = ['processed' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'dispatched' => 0, 'skippedPdf' => 0, 'analyzed' => 0, 'vectorized' => 0, 'errors' => 0];
-        $batches = array_chunk($dtos, self::BATCH_SIZE);
+        $seen = [];
+        $onlyMissingUrl = $input->getOption('only-missing-url');
+        $pageIdx = 0;
 
-        foreach ($batches as $batchIdx => $batch) {
-            $batchStart = $batchIdx * self::BATCH_SIZE + 1;
-            $batchEnd = min($batchStart + count($batch) - 1, $totalEntries);
-            $io->section(sprintf('Batch %d/%d [%d–%d of %d]', $batchIdx + 1, count($batches), $batchStart, $batchEnd, $totalEntries));
+        foreach ($this->webReader->streamListingPages($limit, fn (string $msg) => $io->text($msg)) as $listingPage) {
+            $pageIdx++;
+
+            // Deduplicate listing entries on the fly
+            $listingPage = array_values(array_filter($listingPage, function (array $entry) use (&$seen) {
+                if (isset($seen[$entry['reference']])) {
+                    return false;
+                }
+                return $seen[$entry['reference']] = true;
+            }));
+
+            if (empty($listingPage)) {
+                continue;
+            }
+
+            // Filter to only resolutions missing sourceUrl in DB
+            if ($onlyMissingUrl) {
+                $listingPage = array_values(array_filter($listingPage, function (array $entry) {
+                    $resolution = $this->resolutionRepository->findByReferenceAndSource($entry['reference'], Resolution::SOURCE_CTCYL);
+                    return $resolution === null || $resolution->getSourceUrl() === null;
+                }));
+            }
+
+            if (empty($listingPage)) {
+                continue;
+            }
+
+            // Fetch detail pages for this listing page's entries concurrently
+            $io->text(sprintf('  Fetching detail pages for %d entries (page %d)...', count($listingPage), $pageIdx));
+            $dtos = $this->webReader->fetchDetailPagesBatch($listingPage, 10, fn (string $msg) => $io->text($msg));
+
+            if (empty($dtos)) {
+                continue;
+            }
+
+            $io->section(sprintf('Processing %d resolutions from listing page %d...', count($dtos), $pageIdx));
 
             if ($dryRun) {
-                foreach ($batch as $i => $dto) {
-                    $globalIdx = $batchStart + $i;
-                    $io->text(sprintf('[%d/%d] %s — %s | %s | %s',
-                        $globalIdx, $totalEntries,
+                foreach ($dtos as $i => $dto) {
+                    $io->text(sprintf('[%d] %s — %s | %s | %s',
+                        $i + 1,
                         $dto->referenceNumber,
                         $dto->outcome,
                         $dto->resolutionDate?->format('Y-m-d') ?? 'n/a',
                         mb_substr($dto->publicBodyName ?? '', 0, 60),
                     ));
                 }
-                $stats['processed'] += count($batch);
+                $stats['processed'] += count($dtos);
                 continue;
             }
 
-            // 4a: Upsert this batch
-            foreach ($batch as $dto) {
+            // Upsert this listing page's DTOs
+            foreach ($dtos as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
@@ -218,7 +203,7 @@ class LoadCTCYLResolutionsCommand extends Command
                 $this->publicBodyResolver->clearCache();
             } catch (\Exception $e) {
                 $this->logger->critical('Batch flush failed, resetting EntityManager', [
-                    'batch' => $batchIdx + 1,
+                    'page' => $pageIdx,
                     'error' => $e->getMessage(),
                 ]);
                 $io->error(sprintf('  Batch flush failed: %s', $e->getMessage()));
@@ -228,12 +213,15 @@ class LoadCTCYLResolutionsCommand extends Command
                 $this->ccaaCache = [];
                 $this->organismCache = [];
                 $this->publicBodyResolver->clearCache();
+                if ($stopUpdate) {
+                    break;
+                }
                 continue;
             }
 
-            // 4b: Dispatch async or process inline
+            // Dispatch async or process inline
             if ($async) {
-                foreach ($batch as $dto) {
+                foreach ($dtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTCYL);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -246,12 +234,12 @@ class LoadCTCYLResolutionsCommand extends Command
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($batch, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($dtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
                     $this->logger->critical('Inline processing flush failed, resetting EntityManager', [
-                        'batch' => $batchIdx + 1,
+                        'page' => $pageIdx,
                         'error' => $e->getMessage(),
                     ]);
                     $io->error(sprintf('  Processing flush failed: %s', $e->getMessage()));
@@ -263,8 +251,8 @@ class LoadCTCYLResolutionsCommand extends Command
                 }
             }
 
-            $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
-                $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
+            $io->text(sprintf('  <info>Page %d done — %d processed, %d new, %d updated, %d errors so far</info>',
+                $pageIdx, $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
 
             if ($stopUpdate) {
                 break;

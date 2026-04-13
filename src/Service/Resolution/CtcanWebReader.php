@@ -63,8 +63,34 @@ class CtcanWebReader
      */
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
-        $progress = $onProgress ?? fn (string $msg) => null;
         $entries = [];
+        $remaining = $limit;
+
+        foreach ($this->streamPages($limit, $onProgress) as $pageDtos) {
+            foreach ($pageDtos as $dto) {
+                $entries[] = $dto;
+            }
+
+            if ($remaining !== null) {
+                $remaining -= count($pageDtos);
+                if ($remaining <= 0) {
+                    break;
+                }
+            }
+        }
+
+        return $limit !== null ? array_slice($entries, 0, $limit) : $entries;
+    }
+
+    /**
+     * Stream resolutions year by year (newest first). Each yield is one year's ResolutionData[].
+     *
+     * @return \Generator<int, ResolutionData[]>
+     */
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
+    {
+        $progress = $onProgress ?? fn (string $msg) => null;
+        $totalFetched = 0;
 
         foreach (self::YEAR_URLS as $year => $path) {
             $progress(sprintf('Fetching year %d...', $year));
@@ -72,8 +98,10 @@ class CtcanWebReader
             $cards = $this->fetchPaginatedYear($path, $year, $progress);
             $progress(sprintf('  Found %d cards for year %d', count($cards), $year));
 
+            $yearEntries = [];
+
             foreach ($cards as $card) {
-                $entries[] = new ResolutionData(
+                $yearEntries[] = new ResolutionData(
                     referenceNumber: $card['reference'],
                     outcome: $card['outcome'],
                     source: Resolution::SOURCE_CTCAN,
@@ -85,16 +113,24 @@ class CtcanWebReader
                     complaintOrganismShortName: 'CTCAN',
                     sourceMetadata: ['detailUrl' => $card['detailUrl']],
                 );
+            }
 
-                if ($limit !== null && count($entries) >= $limit) {
-                    return array_slice($entries, 0, $limit);
+            if ($limit !== null) {
+                $remaining = $limit - $totalFetched;
+                if (count($yearEntries) > $remaining) {
+                    $yearEntries = array_slice($yearEntries, 0, $remaining);
                 }
             }
 
-            $progress(sprintf('  Total so far: %d entries', count($entries)));
-        }
+            $totalFetched += count($yearEntries);
+            $progress(sprintf('  Total so far: %d entries', $totalFetched));
 
-        return $entries;
+            yield $yearEntries;
+
+            if ($limit !== null && $totalFetched >= $limit) {
+                break;
+            }
+        }
     }
 
     /**

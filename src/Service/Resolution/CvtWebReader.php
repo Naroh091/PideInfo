@@ -96,6 +96,32 @@ class CvtWebReader
      */
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
+        $entries = [];
+        $remaining = $limit;
+
+        foreach ($this->streamPages($limit, $onProgress) as $pageDtos) {
+            foreach ($pageDtos as $dto) {
+                $entries[] = $dto;
+            }
+
+            if ($remaining !== null) {
+                $remaining -= count($pageDtos);
+                if ($remaining <= 0) {
+                    break;
+                }
+            }
+        }
+
+        return $limit !== null ? array_slice($entries, 0, $limit) : $entries;
+    }
+
+    /**
+     * Stream resolutions year by year (newest first). Each yield is one year's ResolutionData[].
+     *
+     * @return \Generator<int, ResolutionData[]>
+     */
+    public function streamPages(?int $limit = null, ?callable $onProgress = null): \Generator
+    {
         $progress = $onProgress ?? fn (string $msg) => null;
         $progress('Fetching CVT listing page...');
 
@@ -107,13 +133,13 @@ class CvtWebReader
         } catch (\Exception $e) {
             $this->logger->error('Failed to fetch CVT listing page', ['error' => $e->getMessage()]);
 
-            return [];
+            return;
         }
 
         $yearFolders = $this->parseYearFolders($html);
         $progress(sprintf('Found %d year folders.', count($yearFolders)));
 
-        $entries = [];
+        $totalFetched = 0;
 
         foreach ($yearFolders as $folder) {
             $year = $folder['year'];
@@ -134,6 +160,8 @@ class CvtWebReader
             $pdfLinks = $this->parsePdfLinks($folder['contentNode']);
             $progress(sprintf('  Found %d PDF links.', count($pdfLinks)));
 
+            $yearEntries = [];
+
             foreach ($pdfLinks as $pdf) {
                 $number = $pdf['number'];
                 $meta = $excelMap[$number] ?? null;
@@ -149,7 +177,7 @@ class CvtWebReader
 
                 $subject = $this->extractSubjectFromLinkText($pdf['linkText'], $motiu);
 
-                $entries[] = new ResolutionData(
+                $yearEntries[] = new ResolutionData(
                     referenceNumber: $reference,
                     outcome: $outcome,
                     source: Resolution::SOURCE_CVT,
@@ -169,8 +197,18 @@ class CvtWebReader
 
             $progress(sprintf('  Year %d: %d resolutions.', $year, count($pdfLinks)));
 
-            if ($limit !== null && count($entries) >= $limit) {
-                $entries = array_slice($entries, 0, $limit);
+            if ($limit !== null) {
+                $remaining = $limit - $totalFetched;
+                if (count($yearEntries) > $remaining) {
+                    $yearEntries = array_slice($yearEntries, 0, $remaining);
+                }
+            }
+
+            $totalFetched += count($yearEntries);
+
+            yield $yearEntries;
+
+            if ($limit !== null && $totalFetched >= $limit) {
                 break;
             }
 
@@ -178,8 +216,6 @@ class CvtWebReader
                 usleep(self::REQUEST_DELAY_US);
             }
         }
-
-        return $entries;
     }
 
     /**
