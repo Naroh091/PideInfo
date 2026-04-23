@@ -1,0 +1,48 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Tus solicitudes caducan hoy - PideInfo{% endblock %}
+
+{% block body %}
+    <p class="greeting">Hola {{ user.firstName }},</p>
+
+    <p class="message">
+        Hoy vence el plazo de respuesta de
+        {% if accessRequests|length == 1 %}
+            la siguiente solicitud de información pública:
+        {% else %}
+            las siguientes solicitudes de información pública:
+        {% endif %}
+    </p>
+
+    {% for accessRequest in accessRequests %}
+    <div class="info-box info-box-highlight" style="margin-bottom: 24px;">
+        <p class="info-label">Solicitud</p>
+        <p class="info-value">{{ accessRequest.title }}</p>
+
+        <div style="margin-top: 12px;">
+            <p class="info-label">Organismo</p>
+            <p class="info-value">{{ accessRequest.publicBody.name }}</p>
+        </div>
+
+        <div class="info-box-warning" style="margin-top: 12px; padding: 10px 14px; border-radius: 8px; border: 1px solid #fde68a; background-color: #fffbeb;">
+            <p class="info-label" style="margin: 0 0 2px 0;">Fecha límite de respuesta</p>
+            <p class="info-value" style="margin: 0;">{{ accessRequest.deadlineAt|date('d/m/Y') }}</p>
+        </div>
+
+        <div class="button-container" style="margin: 16px 0 0 0;">
+            <a href="{{ url('app_solicitudes_show', {id: accessRequest.id}) }}" class="button" style="display:inline-block;padding:10px 24px;background-color:#0284c7;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:10px;">Ver solicitud</a>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="info-box" style="background-color: #f0fdf4; border-color: #bbf7d0; margin-top: 8px;">
+        <p class="info-label" style="color: #15803d;">Ten en cuenta</p>
+        <p class="info-value" style="color: #166534; font-weight: 400; font-size: 14px;">Los tiempos de la administración son inescrutables. Es posible que tu solicitud haya llegado a la unidad responsable de resolverla más tarde de lo esperado, por lo que el plazo efectivo podría ser diferente.</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="text-small text-muted text-center mb-0">
+        Si recibes respuesta, recuerda registrarla en PideInfo para mantener tu expediente actualizado.
+    </p>
+{% endblock %}

@@ -86,6 +86,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -103,6 +104,10 @@ class LoadCTBGResolutionsCommand extends Command
         $async = $input->getOption('async');
 
         $io->title('CTBG Resolution Loader');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CTBG, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         if (!in_array($source, ['national', 'local', 'all'], true)) {
             $io->error('--source must be national, local, or all');

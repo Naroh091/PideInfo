@@ -79,6 +79,7 @@ class LoadGAIPResolutionsCommand extends Command
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -95,6 +96,10 @@ class LoadGAIPResolutionsCommand extends Command
         $reference = $input->getOption('reference');
 
         $io->title('GAIP Resolution Loader');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_GAIP, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         if ($reference) {
             return $this->processSpecificResolution($reference, $skipPdf, $skipAnalysis, $skipVectors, $io);

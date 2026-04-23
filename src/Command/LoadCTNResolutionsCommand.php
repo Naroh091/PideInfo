@@ -82,6 +82,7 @@ class LoadCTNResolutionsCommand extends Command
             ->addOption('pdf-path', null, InputOption::VALUE_REQUIRED, 'Local directory containing PDF files (skips HTTP download)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -108,6 +109,10 @@ class LoadCTNResolutionsCommand extends Command
         $stopUpdate = false;
 
         $io->title('CTN Resolution Loader');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CTN, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {

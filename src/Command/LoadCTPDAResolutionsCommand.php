@@ -81,6 +81,7 @@ class LoadCTPDAResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -100,6 +101,10 @@ class LoadCTPDAResolutionsCommand extends Command
         $stopUpdate = false;
 
         $io->title('CTPDA Resolution Loader (Andalucía — CSV export)');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CTPDA, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
