@@ -82,6 +82,7 @@ class LoadCTCYLResolutionsCommand extends Command
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -101,6 +102,10 @@ class LoadCTCYLResolutionsCommand extends Command
         $stopUpdate = false;
 
         $io->title('CTCYL Resolution Loader (Castilla y León)');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CTCYL, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {

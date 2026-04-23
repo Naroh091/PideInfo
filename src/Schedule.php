@@ -26,6 +26,7 @@ class Schedule implements ScheduleProviderInterface
             ->processOnlyLastMissedRun(true) // ensure only last missed task is run
             ->add(RecurringMessage::cron('* * * * *', new CheckCustomDeadlinesMessage()))
             ->add(RecurringMessage::cron('0 7 * * *', new UpdateExpiredRequestsMessage()))
+            ->add(RecurringMessage::cron('0 9 * * *', new RunCommandMessage('app:requests:notify-expiring')))
             ->add(RecurringMessage::cron('0 13 * * *', new RunCommandMessage('app:cvaip:load-resolutions --update')))
         ;
     }

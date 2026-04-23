@@ -3,9 +3,11 @@
 namespace App\Service\Resolution;
 
 use App\Entity\Resolution;
+use App\Message\ProcessResolutionMessage;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
@@ -25,6 +27,118 @@ use Symfony\Component\Uid\Uuid;
 trait ResolutionProcessingTrait
 {
     private const MAX_CHUNK_CHARS = 4000;
+
+    /**
+     * Backfill PDF extraction + AI analysis + vectorization for resolutions that have a sourceUrl
+     * but no extracted fullText. Dispatches async messages when $async is true, otherwise processes inline.
+     *
+     * Requires the consuming command to provide:
+     * - $this->resolutionRepository (ResolutionRepository)
+     * - $this->messageBus (MessageBusInterface)
+     * - $this->entityManager (EntityManagerInterface)
+     */
+    private function processMissingPdfs(
+        string $source,
+        bool $async,
+        bool $skipAnalysis,
+        bool $skipVectors,
+        ?int $limit,
+        SymfonyStyle $io,
+    ): int {
+        $qb = $this->resolutionRepository->createQueryBuilder('r')
+            ->where('r.source = :source')
+            ->andWhere('r.sourceUrl IS NOT NULL')
+            ->andWhere('(r.fullText IS NULL OR r.fullText = :empty)')
+            ->setParameter('source', $source)
+            ->setParameter('empty', '')
+            ->orderBy('r.createdAt', 'DESC');
+
+        if ($limit !== null) {
+            $qb->setMaxResults($limit);
+        }
+
+        $ids = array_column($qb->getQuery()->getArrayResult(), 'id');
+        $count = count($ids);
+
+        if ($count === 0) {
+            $io->success('No resolutions with missing PDF text found.');
+            return Command::SUCCESS;
+        }
+
+        $io->info(sprintf('Found %d resolutions with missing PDF text.', $count));
+
+        if ($async) {
+            foreach ($ids as $id) {
+                $this->messageBus->dispatch(new ProcessResolutionMessage(
+                    resolutionId: $id,
+                    skipAnalysis: $skipAnalysis,
+                    skipVectors: $skipVectors,
+                    skipPdf: false,
+                ));
+            }
+            $io->success(sprintf('Dispatched %d resolutions to workers.', $count));
+            return Command::SUCCESS;
+        }
+
+        $processed = 0;
+        $errors = 0;
+
+        foreach ($ids as $id) {
+            $resolution = $this->resolutionRepository->find($id);
+            if (!$resolution || !$resolution->getSourceUrl()) {
+                continue;
+            }
+
+            $ref = $resolution->getReferenceNumber();
+            $io->text(sprintf('  [%d/%d] %s — %s', $processed + $errors + 1, $count, $ref, $resolution->getSourceUrl()));
+
+            try {
+                $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                usleep(200_000);
+            } catch (\Throwable $e) {
+                $this->logger->error('PDF phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
+                $errors++;
+                continue;
+            }
+
+            try {
+                if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
+                    $this->analyzeResolution($resolution, $io);
+                    usleep(500_000);
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('Analysis phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
+                $errors++;
+            }
+
+            try {
+                if (!$skipVectors && !empty($resolution->getFullText())) {
+                    $this->vectorizeResolution($resolution, $io);
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('Vectorization phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                $io->text('  <comment>Vectorization error: ' . $e->getMessage() . '</comment>');
+                $errors++;
+            }
+
+            try {
+                $this->entityManager->flush();
+                $this->entityManager->clear();
+            } catch (\Exception $e) {
+                $this->logger->error('Flush failed', ['reference' => $ref, 'error' => $e->getMessage()]);
+                $io->error('  Flush error: ' . $e->getMessage());
+                $errors++;
+                continue;
+            }
+
+            $processed++;
+        }
+
+        $io->success(sprintf('Done. %d processed, %d errors.', $processed, $errors));
+        return Command::SUCCESS;
+    }
 
     private function downloadAndProcessPdf(Resolution $resolution, string $documentUrl, SymfonyStyle $io): void
     {

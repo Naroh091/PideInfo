@@ -167,6 +167,31 @@ class AccessRequestRepository extends ServiceEntityRepository
     /**
      * @return AccessRequest[]
      */
+    public function findExpiringToday(): array
+    {
+        $today = new \DateTimeImmutable('today');
+        $tomorrow = $today->modify('+1 day');
+
+        return $this->createQueryBuilder('ar')
+            ->where('ar.deadlineAt >= :today')
+            ->andWhere('ar.deadlineAt < :tomorrow')
+            ->andWhere('ar.status IN (:activeStatuses)')
+            ->andWhere('ar.deadlineSuspendedAt IS NULL')
+            ->setParameter('today', $today)
+            ->setParameter('tomorrow', $tomorrow)
+            ->setParameter('activeStatuses', [
+                AccessRequest::STATUS_SENT,
+                AccessRequest::STATUS_PROCESSING,
+                AccessRequest::STATUS_PENDING,
+            ])
+            ->orderBy('ar.deadlineAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return AccessRequest[]
+     */
     public function findWithApproachingComplianceDeadlines(User $user, int $daysAhead = 5): array
     {
         $today = new \DateTimeImmutable('today');

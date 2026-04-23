@@ -83,6 +83,7 @@ class LoadCVAIPResolutionsCommand extends Command
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
             ->addOption('scrape', null, InputOption::VALUE_NONE, 'Use full HTML pagination scraper instead of RSS (slower, fetches all historical resolutions)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -104,6 +105,10 @@ class LoadCVAIPResolutionsCommand extends Command
         $stopUpdate = false;
 
         $io->title('CVAIP Resolution Loader (País Vasco)');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CVAIP, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {

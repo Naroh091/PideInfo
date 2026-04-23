@@ -80,6 +80,7 @@ class LoadCTCANResolutionsCommand extends Command
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
+            ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
     }
 
@@ -94,6 +95,10 @@ class LoadCTCANResolutionsCommand extends Command
         $async = $input->getOption('async');
 
         $io->title('CTCAN Resolution Loader (Canarias)');
+
+        if ($input->getOption('missing-pdf')) {
+            return $this->processMissingPdfs(Resolution::SOURCE_CTCAN, $async, $skipAnalysis, $skipVectors, $limit, $io);
+        }
 
         // Step 1: Setup vector store
         if (!$dryRun && !$skipVectors && $this->vectorStore instanceof ManagedStoreInterface) {
@@ -160,10 +165,12 @@ class LoadCTCANResolutionsCommand extends Command
             }
 
             // Upsert each DTO in this page
+            $upsertedDtos = [];
             foreach ($pageDtos as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
+                    $upsertedDtos[] = $dto;
                     if ($updateMode && !$isNew) {
                         if (++$existingCount > 10) {
                             $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
@@ -209,7 +216,7 @@ class LoadCTCANResolutionsCommand extends Command
 
             // Dispatch async or process inline
             if ($async) {
-                foreach ($pageDtos as $dto) {
+                foreach ($upsertedDtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTCAN);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -221,8 +228,8 @@ class LoadCTCANResolutionsCommand extends Command
                         $stats['dispatched']++;
                     }
                 }
-            } elseif (!$stopUpdate && (!$skipPdf || !$skipAnalysis || !$skipVectors)) {
-                $this->processInline($pageDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+            } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
