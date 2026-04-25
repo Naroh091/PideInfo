@@ -5,23 +5,18 @@ namespace App\Service\Complaint;
 use App\DTO\SuccessAnalysis;
 use App\Entity\AccessRequest;
 use App\Service\AI\CriteriaRetriever;
-use App\Service\AI\CustomModelClient;
+use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\LlmClient;
+use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class SuccessAnalyzer
 {
-    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
-
     public function __construct(
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_MID_MODEL')]
-        private readonly string $geminiModel,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
-        private readonly CustomModelClient $customModelClient,
+        private readonly LlmClient $llmClient,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -45,10 +40,17 @@ final class SuccessAnalyzer
         $schema = $this->buildResponseSchema();
 
         try {
-            $result = $this->customModelClient->isEnabled()
-                ? $this->customModelClient->chat($prompt, jsonSchema: $schema, temperature: 0.1, schemaName: 'success_analysis')
-                : $this->callGeminiApi($prompt, $schema);
-            return $this->parseAnalysisResult($result);
+            $result = $this->llmClient->chatJson(new ChatRequest(
+                systemPrompt: $prompt,
+                size: ModelSize::Mid,
+                temperature: 0.1,
+                jsonSchema: $schema,
+                schemaName: 'success_analysis',
+                maxOutputTokens: 2048,
+                requiredJsonKeys: ['probability', 'reasoning', 'strengths', 'weaknesses'],
+            ));
+
+            return SuccessAnalysis::fromArray($result);
         } catch (\Exception $e) {
             $this->logger->warning('Success analyzer failed', [
                 'request' => (string) $accessRequest->getId(),
@@ -183,66 +185,5 @@ En `weaknesses` incluye 2-4 riesgos o puntos en contra (precedentes desfavorable
 
 NO inventes referencias a resoluciones o criterios que no estén en el contexto proporcionado. Si no hay evidencia suficiente, refléjalo en la probabilidad y el razonamiento.
 PROMPT;
-    }
-
-    /**
-     * @param array<string, mixed> $schema
-     */
-    private function callGeminiApi(string $prompt, array $schema): string
-    {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt],
-                    ],
-                ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'topK' => 1,
-                'topP' => 1,
-                'maxOutputTokens' => 2048,
-                'responseMimeType' => 'application/json',
-                'responseSchema' => $schema,
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error: ' . $response);
-        }
-
-        $data = json_decode($response, true);
-
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    }
-
-    private function parseAnalysisResult(string $result): SuccessAnalysis
-    {
-        $result = preg_replace('/^```json\s*/', '', $result);
-        $result = preg_replace('/\s*```$/', '', $result);
-        $result = trim($result);
-
-        $data = json_decode($result, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Failed to parse analysis result as JSON: ' . $result);
-        }
-
-        return SuccessAnalysis::fromArray($data);
     }
 }

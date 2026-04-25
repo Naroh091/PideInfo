@@ -2,6 +2,8 @@
 
 namespace App\Service\AI;
 
+use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\ContentPart;
 use GuzzleHttp\Client as GuzzleClient;
 use OpenAI;
 use OpenAI\Client as OpenAIClient;
@@ -40,39 +42,108 @@ final class CustomModelClient
     }
 
     /**
-     * Send a chat completion request. Returns the raw assistant content string.
-     *
-     * @param array<int, array{role: string, content: string}> $extraMessages Messages appended after the system prompt.
-     * @param array<string, mixed>|null $jsonSchema When provided, uses structured outputs (`json_schema`
-     *     response_format) to constrain the model output to the given JSON schema. Takes precedence over
-     *     the coarser `$jsonMode` flag.
-     * @throws \RuntimeException When all retries are exhausted.
+     * Dispatch a backend-agnostic ChatRequest to the custom model. Used by LlmClient
+     * to route every call (chat, structured output, multi-turn, multimodal) through here.
      */
-    public function chat(
-        string $systemPrompt,
-        array $extraMessages = [],
-        bool $jsonMode = false,
-        float $temperature = 0.3,
-        int $maxRetries = 2,
-        ?array $jsonSchema = null,
-        string $schemaName = 'structured_response',
-    ): string {
-        $messages = [['role' => 'system', 'content' => $systemPrompt]];
+    public function call(ChatRequest $req): string
+    {
+        $messages = [];
 
-        if (empty($extraMessages)) {
+        if ($req->systemPrompt !== '') {
+            $messages[] = ['role' => 'system', 'content' => $req->systemPrompt];
+        }
+
+        if ($req->userParts !== null) {
+            $messages[] = ['role' => 'user', 'content' => $this->renderParts($req->userParts)];
+        } elseif ($req->userText !== null) {
+            $messages[] = ['role' => 'user', 'content' => $req->userText];
+        } elseif (!empty($req->messages)) {
+            foreach ($req->messages as $m) {
+                $messages[] = [
+                    'role' => $m->role === 'user' ? 'user' : 'assistant',
+                    'content' => $m->content,
+                ];
+            }
+        } else {
             $messages[] = [
                 'role' => 'user',
                 'content' => 'Procede ahora siguiendo las instrucciones del sistema.',
             ];
-        } else {
-            foreach ($extraMessages as $m) {
-                $messages[] = [
-                    'role' => $m['role'] === 'user' ? 'user' : 'assistant',
-                    'content' => $m['content'],
-                ];
-            }
         }
 
+        $responseFormat = null;
+        if ($req->jsonSchema !== null) {
+            $responseFormat = [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => $req->schemaName,
+                    'schema' => $req->jsonSchema,
+                ],
+            ];
+        } elseif ($req->jsonMode) {
+            $responseFormat = ['type' => 'json_object'];
+        }
+
+        return $this->dispatch($messages, $req->temperature, $req->maxRetries, $responseFormat);
+    }
+
+    /**
+     * Lower-level entrypoint used by services that need precise control over the OpenAI
+     * messages array (e.g. ResolutionAnalyzer's batch path, where the user content is a
+     * pre-built block of multiple resolutions).
+     *
+     * @param array<int, array<string, mixed>> $messages OpenAI-style messages.
+     * @param array<string, mixed>|null $jsonSchema When provided, enforces the schema via `json_schema` response_format.
+     */
+    public function chatRaw(
+        array $messages,
+        ?array $jsonSchema = null,
+        string $schemaName = 'structured_response',
+        float $temperature = 0.1,
+        int $maxRetries = 2,
+    ): string {
+        $responseFormat = $jsonSchema !== null
+            ? [
+                'type' => 'json_schema',
+                'json_schema' => [
+                    'name' => $schemaName,
+                    'schema' => $jsonSchema,
+                ],
+            ]
+            : null;
+
+        return $this->dispatch($messages, $temperature, $maxRetries, $responseFormat);
+    }
+
+    /**
+     * @param ContentPart[] $parts
+     * @return array<int, array<string, mixed>>
+     */
+    private function renderParts(array $parts): array
+    {
+        $rendered = [];
+        foreach ($parts as $part) {
+            $rendered[] = match ($part->kind) {
+                'text' => ['type' => 'text', 'text' => $part->text],
+                'inline_data' => [
+                    'type' => 'image_url',
+                    'image_url' => [
+                        'url' => sprintf('data:%s;base64,%s', $part->mimeType, $part->base64),
+                    ],
+                ],
+                default => throw new \InvalidArgumentException('Unknown ContentPart kind: ' . $part->kind),
+            };
+        }
+
+        return $rendered;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $messages
+     * @param array<string, mixed>|null $responseFormat
+     */
+    private function dispatch(array $messages, float $temperature, int $maxRetries, ?array $responseFormat): string
+    {
         $params = [
             'model' => $this->model,
             'messages' => $messages,
@@ -80,22 +151,14 @@ final class CustomModelClient
             'max_tokens' => $this->maxTokens,
         ];
 
-        if ($jsonSchema !== null) {
-            $params['response_format'] = [
-                'type' => 'json_schema',
-                'json_schema' => [
-                    'name' => $schemaName,
-                    'schema' => $jsonSchema,
-                ],
-            ];
-        } elseif ($jsonMode) {
-            $params['response_format'] = ['type' => 'json_object'];
+        if ($responseFormat !== null) {
+            $params['response_format'] = $responseFormat;
         }
 
         $lastError = null;
         for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
             if ($attempt > 0) {
-                $this->logger->warning(sprintf('Retrying custom model chat (attempt %d/%d)', $attempt + 1, $maxRetries + 1));
+                $this->logger->warning(sprintf('Retrying custom model call (attempt %d/%d)', $attempt + 1, $maxRetries + 1));
                 usleep(500_000 * $attempt);
             }
 

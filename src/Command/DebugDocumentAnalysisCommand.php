@@ -4,6 +4,10 @@ namespace App\Command;
 
 use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\ContentPart;
+use App\Service\AI\Llm\LlmClient;
+use App\Service\AI\Llm\ModelSize;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -12,23 +16,17 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 #[AsCommand(
     name: 'app:debug:document-analysis',
-    description: 'Analyze a document with Gemini and show chain of thought reasoning',
+    description: 'Analyze a document with the active LLM and show chain of thought reasoning',
 )]
 class DebugDocumentAnalysisCommand extends Command
 {
-    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
-
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_MID_MODEL')]
-        private readonly string $geminiModel,
+        private readonly LlmClient $llmClient,
     ) {
         parent::__construct();
     }
@@ -61,43 +59,40 @@ class DebugDocumentAnalysisCommand extends Command
                 ['MIME Type', $document->getMimeType()],
                 ['Current Type', $document->getType()->value . ' (' . $document->getTypeLabel() . ')'],
                 ['Processed', $document->isProcessed() ? 'Yes' : 'No'],
+                ['Active backend', $this->llmClient->isCustomEnabled() ? 'custom' : 'gemini'],
             ]
         );
 
-        $io->section('Running Gemini Analysis with Chain of Thought...');
+        $io->section('Running LLM Analysis with Chain of Thought...');
 
         try {
             $content = $this->documentsStorage->read($document->getStoredFilename());
-            $base64Content = base64_encode($content);
 
             $parts = [
-                [
-                    'inline_data' => [
-                        'mime_type' => $document->getMimeType(),
-                        'data' => $base64Content,
-                    ],
-                ],
-                [
-                    'text' => sprintf('[Documento: %s]', $document->getOriginalFilename()),
-                ],
-                [
-                    'text' => $this->buildDebugPrompt(),
-                ],
+                ContentPart::inlineData($document->getMimeType(), base64_encode($content)),
+                ContentPart::text(sprintf('[Documento: %s]', $document->getOriginalFilename())),
+                ContentPart::text($this->buildDebugPrompt()),
             ];
 
-            $response = $this->callGeminiApi($parts);
+            $rawText = $this->llmClient->chat(new ChatRequest(
+                systemPrompt: '',
+                userParts: $parts,
+                size: ModelSize::Mid,
+                temperature: 0.1,
+                jsonMode: true,
+                maxOutputTokens: 4096,
+            ));
 
-            $io->section('Raw Gemini Response');
-            $text = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $io->writeln($text);
+            $io->section('Raw LLM Response');
+            $io->writeln($rawText);
 
             $io->section('Parsed Analysis');
-            $analysis = $this->parseResponse($text);
+            $analysis = $this->parseResponse($rawText);
 
             $rows = [];
             foreach ($analysis as $key => $value) {
                 if ($key === 'reasoning') {
-                    continue; // Show separately
+                    continue;
                 }
                 if ($value instanceof DocumentType) {
                     $rows[] = [$key, $value->value . ' (' . $value->label() . ')'];
@@ -176,53 +171,10 @@ PROMPT;
     }
 
     /**
-     * @param array<int, array<string, mixed>> $parts
-     * @return array<string, mixed>
-     */
-    private function callGeminiApi(array $parts): array
-    {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'contents' => [
-                [
-                    'parts' => $parts,
-                ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'topK' => 1,
-                'topP' => 1,
-                'maxOutputTokens' => 4096,
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error (HTTP ' . $httpCode . '): ' . $response);
-        }
-
-        return json_decode($response, true);
-    }
-
-    /**
      * @return array<string, mixed>
      */
     private function parseResponse(string $text): array
     {
-        // Clean up the response - remove markdown code blocks if present
         $text = preg_replace('/^```json\s*/', '', $text);
         $text = preg_replace('/\s*```$/', '', $text);
         $text = trim($text);
@@ -233,7 +185,6 @@ PROMPT;
             throw new \RuntimeException('Failed to parse response as JSON: ' . $text);
         }
 
-        // Map document type to enum
         $data['documentType'] = DocumentType::fromAiValue($data['documentType'] ?? 'otro');
 
         return $data;

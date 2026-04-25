@@ -77,11 +77,11 @@ Pure calculation service with no side effects. Handles:
 
 `src/Service/Complaint/ComplaintGenerator.php`
 
-Generates legally-structured complaint documents using Google Gemini:
+Generates legally-structured complaint documents through `LlmClient` (Gemini or custom model, depending on `USE_CUSTOM_MODEL`):
 1. Retrieves similar favorable resolutions via vector search (`ResolutionRetriever`)
 2. Retrieves relevant interpretive criteria (`CriteriaRetriever`)
 3. Builds a detailed prompt with request context, timeline, legal framework, and retrieved references
-4. Calls Gemini API for generation (supports multi-turn conversation for refinement)
+4. Calls `LlmClient::chat()` with `ModelSize::Big` (supports multi-turn conversation for refinement)
 5. Extracts cited resolutions and criteria from the generated text
 
 Also generates responses to administration allegations (*alegaciones*) using a similar flow.
@@ -90,9 +90,9 @@ Also generates responses to administration allegations (*alegaciones*) using a s
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-Analyzes uploaded documents using Gemini:
+Analyzes uploaded documents through `LlmClient` (multimodal, `ModelSize::Mid`):
 - Reads file content from S3, encodes to base64
-- Sends to Gemini with a structured prompt requesting JSON output
+- Builds `ContentPart[]` (text + `inline_data`) and calls `LlmClient::chatJson()`; the facade translates to either Gemini's native `inline_data` parts or OpenAI-style `image_url` data URIs depending on `USE_CUSTOM_MODEL`
 - Extracts: document type, reference number, public body, applicable law, dates, status, denial reasons, redirection targets, third-party rights flags
 - Supports both single-document and multi-document (batch) analysis
 
@@ -173,7 +173,7 @@ ProcessDocumentMessage dispatched (async)
         │
         ▼
 ProcessDocumentHandler
-  ├── DocumentAnalyzer (Gemini API)
+  ├── DocumentAnalyzer (via LlmClient)
   ├── Find/create AccessRequest
   ├── Update request state
   ├── Record StatusHistory
@@ -248,7 +248,7 @@ Key design: the agent is thin — it only downloads and forwards. PideInfo is th
 - **Storage**: AWS S3 via Flysystem (three buckets: default, documents, and resolutions)
 - **Message queue**: Symfony Messenger with Doctrine transport (async document processing)
 - **Real-time**: Mercure hub for live dashboard updates
-- **AI models**: Two Gemini models — a smaller one for document analysis (`GEMINI_MID_MODEL`) and a larger one for complaint generation (`GEMINI_BIG_MODEL`)
+- **AI models**: All chat/completion calls go through `App\Service\AI\Llm\LlmClient`, a facade that routes to either Google Gemini or an OpenAI-compatible self-hosted model (vLLM/llama.cpp). Toggled by `USE_CUSTOM_MODEL`. When using Gemini, callers pick a model "size" (`Big`/`Mid`/`Small`/`Free`) which maps to `GEMINI_BIG_MODEL` (complaint generation), `GEMINI_MID_MODEL` (document & resolution analysis), `GEMINI_SMALL_MODEL` (text formatting), or `GEMINI_FREE_MODEL`. When `USE_CUSTOM_MODEL=true`, the size is ignored and every call hits the single `CUSTOM_MODEL`. Embeddings are independent: `EmbeddingGenerator` dispatches to `GeminiEmbedder` or `QwenEmbedder` based on `USE_CUSTOM_EMBEDDING_MODEL` (default: Gemini, 3072 dims). Switching the embedder requires re-vectorizing the corpus. Async batch resolution analysis still goes through `GeminiBatchService` (Gemini-only).
 - **Vector stores**: Two pgvector stores — one for resolutions (CTBG national + local/autonomous, GAIP, CTG, CVAIP, CTAR, CTCYL), one for interpretive criteria
 - **Resolution pipeline**: `app:ctbg:load-resolutions` downloads CTBG Excel files (national + local/autonomous), extracts metadata + PDF hyperlinks, downloads PDFs to S3 (`resolutions.storage`), extracts text, runs Gemini analysis (summary, keypoints, resolution/claim dates), and vectorizes full text + keypoints. Sources: `CTBG` (national, 2019+), `CTBG_LOCAL` (autonomous/local, 2021+), `GAIP` (Catalonia), `CTG` (Galicia), `CVAIP` (País Vasco — Word .docx parsed with PhpWord), `CTAR` (Aragón — metadata from listing pages, PDFs for full text), `CTCYL` (Castilla y León — Excel files for 2019-2025 + web scraping for detail pages and older years)
 - **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email` (see [inbound-email.md](inbound-email.md))
