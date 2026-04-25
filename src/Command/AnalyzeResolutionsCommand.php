@@ -106,7 +106,7 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         if ($vectorsOnly) {
-            return $this->processVectorsOnly($source, $reference, $limit, $slow, $io);
+            return $this->processVectorsOnly($source, $reference, $limit, $slow, $async, $force, $io);
         }
 
         $mode = $formatOnly
@@ -535,8 +535,11 @@ class AnalyzeResolutionsCommand extends Command
      * Re-vectorize resolutions into the pgvector store using the active EmbeddingGenerator.
      * Skips text cleaning and AI analysis — assumes fullText and keypoints are already
      * populated. Used after wiping the vector store to switch embedding backends.
+     *
+     * Skips resolutions whose reference number already has rows in `ai_ctbg_resolutions`
+     * unless $force is true.
      */
-    private function processVectorsOnly(?string $source, ?string $reference, ?int $limit, bool $slow, SymfonyStyle $io): int
+    private function processVectorsOnly(?string $source, ?string $reference, ?int $limit, bool $slow, bool $async, bool $force, SymfonyStyle $io): int
     {
         $io->section(sprintf('Vectorizing with embedder: %s (dim %d)', $this->embeddingGenerator->getName(), $this->embeddingGenerator->getDimension()));
 
@@ -554,6 +557,15 @@ class AnalyzeResolutionsCommand extends Command
             $qb->andWhere('r.source = :source')->setParameter('source', $source);
         }
 
+        if (!$force) {
+            $existingRefs = $this->findVectorizedReferences();
+            if (!empty($existingRefs)) {
+                $qb->andWhere('r.referenceNumber NOT IN (:existingRefs)')
+                    ->setParameter('existingRefs', $existingRefs);
+                $io->info(sprintf('Skipping %d resolutions already vectorized (use --force to override).', count($existingRefs)));
+            }
+        }
+
         $countQb = clone $qb;
         $total = (int) $countQb->select('COUNT(r.id)')->resetDQLPart('orderBy')->getQuery()->getSingleScalarResult();
         if ($limit !== null) {
@@ -565,7 +577,11 @@ class AnalyzeResolutionsCommand extends Command
             return Command::SUCCESS;
         }
 
-        $io->info(sprintf('Vectorizing %d resolutions.', $total));
+        if ($async) {
+            return $this->dispatchVectorsOnly($qb, $limit, $io);
+        }
+
+        $io->info(sprintf('Vectorizing %d resolutions inline.', $total));
 
         $processed = 0;
         $errors = 0;
@@ -610,6 +626,50 @@ class AnalyzeResolutionsCommand extends Command
         $io->success(sprintf('Done. %d vectorized, %d errors.', $processed, $errors));
 
         return $errors > 0 ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    /**
+     * Dispatch ProcessResolutionMessage for each candidate, skipping PDF + analysis steps
+     * so the worker only runs vectorization.
+     */
+    private function dispatchVectorsOnly(\Doctrine\ORM\QueryBuilder $qb, ?int $limit, SymfonyStyle $io): int
+    {
+        $idQb = clone $qb;
+        $idQb->select('r.id');
+        if ($limit !== null) {
+            $idQb->setMaxResults($limit);
+        }
+
+        $ids = array_column($idQb->getQuery()->getArrayResult(), 'id');
+        $dispatched = 0;
+
+        foreach ($ids as $id) {
+            $this->messageBus->dispatch(new ProcessResolutionMessage(
+                resolutionId: $id,
+                skipAnalysis: true,
+                skipVectors: false,
+                skipPdf: true,
+            ));
+            $dispatched++;
+        }
+
+        $io->success(sprintf('Dispatched %d resolutions to workers (vectors-only).', $dispatched));
+
+        return Command::SUCCESS;
+    }
+
+    /**
+     * Read the set of reference numbers that already have rows in the pgvector store.
+     * Used by --vectors-only to skip resolutions that were already vectorized.
+     *
+     * @return array<int, string>
+     */
+    private function findVectorizedReferences(): array
+    {
+        $sql = "SELECT DISTINCT metadata->>'reference' AS ref FROM ai_ctbg_resolutions WHERE metadata->>'reference' IS NOT NULL";
+        $rows = $this->entityManager->getConnection()->executeQuery($sql)->fetchAllAssociative();
+
+        return array_values(array_filter(array_column($rows, 'ref'), fn ($v) => $v !== null && $v !== ''));
     }
 
     private function vectorizeResolution(Resolution $resolution, int $index, int $total, SymfonyStyle $io): void
