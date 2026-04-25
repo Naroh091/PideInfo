@@ -84,7 +84,7 @@ final class CustomModelClient
             $responseFormat = ['type' => 'json_object'];
         }
 
-        return $this->dispatch($messages, $req->temperature, $req->maxRetries, $responseFormat);
+        return $this->dispatch($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
     }
 
     /**
@@ -112,7 +112,7 @@ final class CustomModelClient
             ]
             : null;
 
-        return $this->dispatch($messages, $temperature, $maxRetries, $responseFormat);
+        return $this->dispatch($messages, $temperature, $this->maxTokens, $maxRetries, $responseFormat);
     }
 
     /**
@@ -142,13 +142,13 @@ final class CustomModelClient
      * @param array<int, array<string, mixed>> $messages
      * @param array<string, mixed>|null $responseFormat
      */
-    private function dispatch(array $messages, float $temperature, int $maxRetries, ?array $responseFormat): string
+    private function dispatch(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): string
     {
         $params = [
             'model' => $this->model,
             'messages' => $messages,
             'temperature' => $temperature,
-            'max_tokens' => $this->maxTokens,
+            'max_tokens' => $maxTokens,
         ];
 
         if ($responseFormat !== null) {
@@ -164,6 +164,33 @@ final class CustomModelClient
 
             try {
                 $response = $this->getClient()->chat()->create($params);
+            } catch (OpenAI\Exceptions\UnserializableResponse $e) {
+                $body = '';
+                $status = null;
+                try {
+                    $httpResponse = $e->response ?? null;
+                    if ($httpResponse !== null) {
+                        $status = $httpResponse->getStatusCode();
+                        $body = (string) $httpResponse->getBody();
+                    }
+                } catch (\Throwable) {
+                    // best-effort diagnostics only
+                }
+                $len = strlen($body);
+                $this->logger->warning('Custom model returned unparseable JSON body', [
+                    'attempt' => $attempt + 1,
+                    'http_status' => $status,
+                    'body_length' => $len,
+                    'body_head' => mb_substr($body, 0, 500),
+                    'body_tail' => $len > 700 ? mb_substr($body, -200) : '',
+                ]);
+                $lastError = new \RuntimeException(sprintf(
+                    'Custom model returned unparseable JSON (status=%s, body_len=%d): %s',
+                    $status ?? 'unknown',
+                    $len,
+                    $e->getMessage()
+                ), 0, $e);
+                continue;
             } catch (OpenAI\Exceptions\RateLimitException $e) {
                 $lastError = new \RuntimeException('Custom model rate limit: ' . $e->getMessage(), 0, $e);
                 continue;

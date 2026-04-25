@@ -42,10 +42,11 @@ final class LlmClient
     public function chatJson(ChatRequest $req): array
     {
         $lastError = null;
+        $tag = $req->label !== null ? sprintf(' [%s]', $req->label) : '';
 
         for ($attempt = 0; $attempt <= $req->maxRetries; $attempt++) {
             if ($attempt > 0) {
-                $this->logger->warning(sprintf('Retrying chatJson (attempt %d/%d): %s', $attempt + 1, $req->maxRetries + 1, $lastError?->getMessage() ?? ''));
+                $this->logger->warning(sprintf('Retrying chatJson%s (attempt %d/%d): %s', $tag, $attempt + 1, $req->maxRetries + 1, $lastError?->getMessage() ?? ''));
                 usleep(500_000 * $attempt);
             }
 
@@ -63,6 +64,7 @@ final class LlmClient
                 $lastError = new \RuntimeException('Invalid JSON from LLM: ' . json_last_error_msg());
                 $this->logger->warning('Invalid JSON from LLM, will retry', [
                     'attempt' => $attempt + 1,
+                    'label' => $req->label,
                     'response_preview' => mb_substr($content, 0, 200),
                 ]);
                 continue;
@@ -75,6 +77,7 @@ final class LlmClient
                     $this->logger->warning('LLM response missing required keys, will retry', [
                         'missing' => $missing,
                         'attempt' => $attempt + 1,
+                        'label' => $req->label,
                     ]);
                     continue;
                 }
@@ -83,7 +86,7 @@ final class LlmClient
             return $decoded;
         }
 
-        throw $lastError ?? new \RuntimeException(sprintf('chatJson failed after %d attempts.', $req->maxRetries + 1));
+        throw $lastError ?? new \RuntimeException(sprintf('chatJson%s failed after %d attempts.', $tag, $req->maxRetries + 1));
     }
 
     private function stripCodeFences(string $content): string
