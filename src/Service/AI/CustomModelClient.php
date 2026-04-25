@@ -149,6 +149,7 @@ final class CustomModelClient
             'messages' => $messages,
             'temperature' => $temperature,
             'max_tokens' => $maxTokens,
+            'stream' => true,
         ];
 
         if ($responseFormat !== null) {
@@ -162,32 +163,24 @@ final class CustomModelClient
                 usleep(500_000 * $attempt);
             }
 
+            $content = '';
             try {
-                $response = $this->getClient()->chat()->create($params);
-            } catch (OpenAI\Exceptions\UnserializableResponse $e) {
-                $body = '';
-                $status = null;
-                try {
-                    $httpResponse = $e->response ?? null;
-                    if ($httpResponse !== null) {
-                        $status = $httpResponse->getStatusCode();
-                        $body = (string) $httpResponse->getBody();
+                $stream = $this->getClient()->chat()->createStreamed($params);
+                foreach ($stream as $chunk) {
+                    $delta = $chunk->choices[0]->delta->content ?? null;
+                    if (is_string($delta) && $delta !== '') {
+                        $content .= $delta;
                     }
-                } catch (\Throwable) {
-                    // best-effort diagnostics only
                 }
-                $len = strlen($body);
-                $this->logger->warning('Custom model returned unparseable JSON body', [
+            } catch (OpenAI\Exceptions\UnserializableResponse $e) {
+                $this->logger->warning('Custom model stream returned unparseable chunk', [
                     'attempt' => $attempt + 1,
-                    'http_status' => $status,
-                    'body_length' => $len,
-                    'body_head' => mb_substr($body, 0, 500),
-                    'body_tail' => $len > 700 ? mb_substr($body, -200) : '',
+                    'partial_content_length' => strlen($content),
+                    'message' => $e->getMessage(),
                 ]);
                 $lastError = new \RuntimeException(sprintf(
-                    'Custom model returned unparseable JSON (status=%s, body_len=%d): %s',
-                    $status ?? 'unknown',
-                    $len,
+                    'Custom model stream parse error (partial_len=%d): %s',
+                    strlen($content),
                     $e->getMessage()
                 ), 0, $e);
                 continue;
@@ -205,8 +198,7 @@ final class CustomModelClient
                 throw $lastError;
             }
 
-            $content = $response->choices[0]->message->content ?? null;
-            if (!$content || strlen(trim($content)) < 5) {
+            if (strlen(trim($content)) < 5) {
                 $lastError = new \RuntimeException('Empty response from custom model.');
                 continue;
             }
