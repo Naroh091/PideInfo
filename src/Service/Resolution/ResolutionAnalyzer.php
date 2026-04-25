@@ -11,6 +11,8 @@ use Psr\Log\LoggerInterface;
 
 final class ResolutionAnalyzer
 {
+    private const SECTION_HEADER_REGEX = '/^[ \t]*[IVXivx]+\.\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+?[ \t]*$/m';
+
     public function __construct(
         private readonly LlmClient $llmClient,
         private readonly CustomModelClient $customModelClient,
@@ -165,6 +167,62 @@ final class ResolutionAnalyzer
      */
     public function formatText(string $cleanedText, bool $flex = false): array
     {
+        $chunks = self::splitBySectionHeaders($cleanedText);
+        $total = count($chunks);
+        $prompt = $this->buildFormatTextSystemPrompt();
+
+        if ($total === 1) {
+            $result = $this->llmClient->chatJson(new ChatRequest(
+                systemPrompt: $prompt,
+                userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
+                size: ModelSize::Small,
+                temperature: 0.1,
+                jsonSchema: $this->buildFormatTextSchema(),
+                schemaName: 'resolution_analysis',
+                maxOutputTokens: 65536,
+                requiredJsonKeys: ['formatted_text'],
+                flex: $flex,
+                label: 'resolution.formatText',
+            ));
+
+            return ['formatted_text' => $result['formatted_text']];
+        }
+
+        $pieces = [];
+        foreach ($chunks as $i => $chunk) {
+            $oneBased = $i + 1;
+            $label = sprintf('resolution.formatText.chunk[%d/%d]', $oneBased, $total);
+            $chunkText = ($chunk['header'] !== null ? $chunk['header'] . "\n\n" : '') . $chunk['body'];
+
+            try {
+                $result = $this->llmClient->chatJson(new ChatRequest(
+                    systemPrompt: $prompt,
+                    userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $chunkText,
+                    size: ModelSize::Small,
+                    temperature: 0.1,
+                    jsonSchema: $this->buildFormatTextSchema(),
+                    schemaName: 'resolution_analysis',
+                    maxOutputTokens: 65536,
+                    requiredJsonKeys: ['formatted_text'],
+                    flex: $flex,
+                    label: $label,
+                ));
+                $pieces[] = trim((string) $result['formatted_text']);
+            } catch (\Throwable $e) {
+                $this->logger->warning(sprintf(
+                    'formatText chunk %d/%d failed, using degraded fallback',
+                    $oneBased,
+                    $total
+                ), ['exception' => $e->getMessage(), 'label' => $label]);
+                $pieces[] = trim(self::buildDegradedFormattedHtml($chunk['header'], $chunk['body']));
+            }
+        }
+
+        return ['formatted_text' => implode("\n\n", array_filter($pieces, static fn ($p) => $p !== ''))];
+    }
+
+    private function buildFormatTextSystemPrompt(): string
+    {
         $prompt = <<<'PROMPT'
 Actúa como un experto en derecho administrativo español. Formatea el texto de la resolución adjunta cumpliendo ESTRICTAMENTE las siguientes reglas.
 
@@ -190,17 +248,82 @@ SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 SUFFIX;
         }
 
-        return $this->llmClient->chatJson(new ChatRequest(
-            systemPrompt: $prompt,
-            userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
-            size: ModelSize::Small,
-            temperature: 0.1,
-            jsonSchema: $this->buildFormatTextSchema(),
-            schemaName: 'resolution_analysis',
-            maxOutputTokens: 65536,
-            requiredJsonKeys: ['formatted_text'],
-            flex: $flex,
-        ));
+        return $prompt;
+    }
+
+    /**
+     * Split a cleaned resolution text on Roman-numeral section headers
+     * (e.g. "I. ANTECEDENTES", "II. FUNDAMENTOS JURÍDICOS").
+     *
+     * Returns a single chunk with header=null when fewer than 2 headers are found,
+     * signalling the caller to take the legacy single-pass path. When 2+ headers
+     * are found, any preamble before the first header is prepended to the first chunk.
+     *
+     * @return array<int, array{header: ?string, body: string}>
+     */
+    private static function splitBySectionHeaders(string $text): array
+    {
+        if (preg_match_all(self::SECTION_HEADER_REGEX, $text, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [['header' => null, 'body' => $text]];
+        }
+
+        $hits = $matches[0];
+        if (count($hits) < 2) {
+            return [['header' => null, 'body' => $text]];
+        }
+
+        $chunks = [];
+        $count = count($hits);
+        for ($i = 0; $i < $count; $i++) {
+            $rawHeader = $hits[$i][0];
+            $start = $hits[$i][1];
+            $end = $i + 1 < $count ? $hits[$i + 1][1] : strlen($text);
+
+            $section = substr($text, $start, $end - $start);
+            $header = rtrim($rawHeader);
+            $body = ltrim(substr($section, strlen($rawHeader)));
+
+            if ($i === 0 && $start > 0) {
+                $preamble = trim(substr($text, 0, $start));
+                if ($preamble !== '') {
+                    $body = $preamble . "\n\n" . $body;
+                }
+            }
+
+            $body = trim($body);
+
+            if ($header === '' && $body === '') {
+                continue;
+            }
+
+            $chunks[] = ['header' => $header !== '' ? $header : null, 'body' => $body];
+        }
+
+        return $chunks;
+    }
+
+    /**
+     * Build degraded HTML for a chunk whose model call exhausted retries.
+     * Preserves the original cleaned text content; only the formatting quality
+     * of this section is degraded.
+     */
+    private static function buildDegradedFormattedHtml(?string $header, string $body): string
+    {
+        $out = '';
+        if ($header !== null && $header !== '') {
+            $out .= '<h2>' . htmlspecialchars($header, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</h2>';
+        }
+
+        $paragraphs = preg_split('/\n\s*\n+/', $body) ?: [];
+        foreach ($paragraphs as $paragraph) {
+            $trimmed = trim($paragraph);
+            if ($trimmed === '') {
+                continue;
+            }
+            $out .= '<p>' . htmlspecialchars($trimmed, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
+        }
+
+        return $out;
     }
 
     /**
@@ -245,6 +368,7 @@ SUFFIX;
             maxOutputTokens: 65536,
             requiredJsonKeys: ['summary', 'keypoints'],
             flex: $flex,
+            label: 'resolution.extractAnalysis',
         ));
 
         return $this->normalizeExtractAnalysisResult($result);
@@ -350,6 +474,7 @@ SUFFIX;
             maxOutputTokens: 65536,
             requiredJsonKeys: ['limits', 'inadmission_causes'],
             flex: $flex,
+            label: 'resolution.extractNonCompleteAnalysis',
         ));
 
         return $this->normalizeNonCompleteAnalysisResult($result);
