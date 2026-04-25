@@ -2,86 +2,57 @@
 
 namespace App\Service\AI;
 
+use App\Service\AI\Embedding\EmbedderInterface;
+use App\Service\AI\Embedding\GeminiEmbedder;
+use App\Service\AI\Embedding\QwenEmbedder;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
+/**
+ * Public facade for embedding generation. Dispatches to either GeminiEmbedder or
+ * QwenEmbedder based on the explicit `USE_CUSTOM_EMBEDDING_MODEL` flag.
+ *
+ * The chat/completion `USE_CUSTOM_MODEL` toggle is intentionally NOT consulted here:
+ * embedders and chat backends are independent. Switching the embedder is a manual
+ * migration (drop + recreate vector tables + reindex), not a runtime toggle — that
+ * is why activation requires its own explicit flag.
+ */
 final class EmbeddingGenerator
 {
-    private const API_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:embedContent';
+    private readonly EmbedderInterface $active;
 
     public function __construct(
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_EMBEDDING_MODEL')]
-        private readonly string $embeddingModel,
+        #[Autowire(env: 'bool:USE_CUSTOM_EMBEDDING_MODEL')]
+        bool $useCustom,
+        GeminiEmbedder $gemini,
+        QwenEmbedder $qwen,
     ) {
+        $this->active = $useCustom ? $qwen : $gemini;
     }
 
     /**
-     * Generate an embedding vector for a single text
-     *
      * @return array<int, float>
      */
     public function generate(string $text): array
     {
-        $url = sprintf(self::API_ENDPOINT, $this->embeddingModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'model' => 'models/' . $this->embeddingModel,
-            'content' => [
-                'parts' => [
-                    ['text' => $text],
-                ],
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini Embedding API error: ' . $response);
-        }
-
-        $data = json_decode($response, true);
-
-        if (!isset($data['embedding']['values'])) {
-            throw new \RuntimeException('Invalid embedding response: ' . $response);
-        }
-
-        return $data['embedding']['values'];
+        return $this->active->generate($text);
     }
 
     /**
-     * Generate embeddings for multiple texts in batch
-     *
      * @param array<int, string> $texts
      * @return array<int, array<int, float>>
      */
     public function generateBatch(array $texts): array
     {
-        $embeddings = [];
-
-        foreach ($texts as $text) {
-            $embeddings[] = $this->generate($text);
-            usleep(100000);
-        }
-
-        return $embeddings;
+        return $this->active->generateBatch($texts);
     }
 
-    /**
-     * Get the dimension of the embedding vectors
-     */
     public function getDimension(): int
     {
-        return 768;
+        return $this->active->getDimension();
+    }
+
+    public function getName(): string
+    {
+        return $this->active->getName();
     }
 }

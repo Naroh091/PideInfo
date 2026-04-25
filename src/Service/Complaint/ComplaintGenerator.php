@@ -11,30 +11,23 @@ use App\Entity\ApplicableLaw;
 use App\Entity\Document;
 use App\Enum\DocumentType;
 use App\Service\AI\CriteriaRetriever;
-use App\Service\AI\CustomModelClient;
+use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\LlmClient;
+use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\TransparencyCouncilResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
-use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ComplaintGenerator
 {
-    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
-
     public function __construct(
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_BIG_MODEL')]
-        private readonly string $geminiModel,
-        private readonly CustomModelClient $customModelClient,
+        private readonly LlmClient $llmClient,
         private readonly CriteriaRetriever $criteriaRetriever,
         private readonly ResolutionRetriever $resolutionRetriever,
         private readonly SuccessAnalyzer $successAnalyzer,
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
-        private readonly LoggerInterface $logger,
         private readonly TransparencyCouncilResolver $councilResolver,
     ) {
     }
@@ -79,17 +72,13 @@ final class ComplaintGenerator
             $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        if ($this->customModelClient->isEnabled()) {
-            $extraMessages = array_map(
-                fn (ChatMessage $m) => ['role' => $m->role, 'content' => $m->content],
-                $conversationHistory,
-            );
-            $content = $this->customModelClient->chat($prompt, $extraMessages, temperature: 0.3);
-        } elseif (!empty($conversationHistory)) {
-            $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
-        } else {
-            $content = $this->callGeminiApi($prompt);
-        }
+        $content = $this->llmClient->chat(new ChatRequest(
+            systemPrompt: $prompt,
+            messages: $conversationHistory,
+            size: ModelSize::Big,
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+        ));
 
         $content = $this->sanitizeHtmlResponse($content);
 
@@ -431,17 +420,13 @@ PROMPT;
             $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        if ($this->customModelClient->isEnabled()) {
-            $extraMessages = array_map(
-                fn (ChatMessage $m) => ['role' => $m->role, 'content' => $m->content],
-                $conversationHistory,
-            );
-            $content = $this->customModelClient->chat($prompt, $extraMessages, temperature: 0.3);
-        } elseif (!empty($conversationHistory)) {
-            $content = $this->callGeminiApiMultiTurn($prompt, $conversationHistory);
-        } else {
-            $content = $this->callGeminiApi($prompt);
-        }
+        $content = $this->llmClient->chat(new ChatRequest(
+            systemPrompt: $prompt,
+            messages: $conversationHistory,
+            size: ModelSize::Big,
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+        ));
 
         $content = $this->sanitizeHtmlResponse($content);
 
@@ -636,118 +621,6 @@ PROMPT;
         }
 
         return $content;
-    }
-
-    /**
-     * @param ChatMessage[] $conversationHistory
-     */
-    private function callGeminiApiMultiTurn(string $systemPrompt, array $conversationHistory): string
-    {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $contents = [];
-
-        // System prompt as first user turn
-        $contents[] = [
-            'role' => 'user',
-            'parts' => [['text' => $systemPrompt]],
-        ];
-
-        // Model acknowledgment
-        $contents[] = [
-            'role' => 'model',
-            'parts' => [['text' => 'Entendido. Procedo a redactar el documento según las instrucciones proporcionadas.']],
-        ];
-
-        // Add conversation history
-        foreach ($conversationHistory as $message) {
-            $contents[] = $message->toGeminiFormat();
-        }
-
-        $payload = [
-            'contents' => $contents,
-            'generationConfig' => [
-                'temperature' => 0.3,
-                'topK' => 40,
-                'topP' => 0.95,
-                'maxOutputTokens' => 8192,
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 240);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($response === false) {
-            throw new \RuntimeException('Gemini API connection error: ' . $curlError);
-        }
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error: ' . $response);
-        }
-
-        $data = json_decode($response, true);
-
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-    }
-
-    private function callGeminiApi(string $prompt): string
-    {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt],
-                    ],
-                ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.3,
-                'topK' => 40,
-                'topP' => 0.95,
-                'maxOutputTokens' => 8192,
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 240);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($ch);
-        curl_close($ch);
-
-        if ($response === false) {
-            throw new \RuntimeException('Gemini API connection error: ' . $curlError);
-        }
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error: ' . $response);
-        }
-
-        $data = json_decode($response, true);
-
-        return $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     }
 
     /**

@@ -4,19 +4,17 @@ namespace App\Service\AI;
 
 use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\ContentPart;
+use App\Service\AI\Llm\LlmClient;
+use App\Service\AI\Llm\ModelSize;
 use League\Flysystem\FilesystemOperator;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class DocumentAnalyzer
 {
-    private const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent';
-
     public function __construct(
         private readonly FilesystemOperator $documentsStorage,
-        #[Autowire(env: 'GEMINI_API_KEY')]
-        private readonly string $geminiApiKey,
-        #[Autowire(env: 'GEMINI_MID_MODEL')]
-        private readonly string $geminiModel,
+        private readonly LlmClient $llmClient,
     ) {
     }
 
@@ -47,16 +45,9 @@ final class DocumentAnalyzer
 
         if ($mimeType === 'text/plain') {
             $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
-            $parts[] = [
-                'text' => sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content),
-            ];
+            $parts[] = ContentPart::text(sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content));
         } else {
-            $parts[] = [
-                'inline_data' => [
-                    'mime_type' => $mimeType,
-                    'data' => base64_encode($content),
-                ],
-            ];
+            $parts[] = ContentPart::inlineData($mimeType, base64_encode($content));
 
             $contextLabel = sprintf('[Documento: %s]', $document->getOriginalFilename());
 
@@ -67,14 +58,21 @@ final class DocumentAnalyzer
                 }
             }
 
-            $parts[] = ['text' => $contextLabel];
+            $parts[] = ContentPart::text($contextLabel);
         }
 
-        $parts[] = ['text' => $this->buildPrompt()];
+        $parts[] = ContentPart::text($this->buildPrompt());
 
-        $response = $this->callGeminiApiWithParts($parts);
+        $data = $this->llmClient->chatJson(new ChatRequest(
+            systemPrompt: '',
+            userParts: $parts,
+            size: ModelSize::Mid,
+            temperature: 0.1,
+            jsonMode: true,
+            maxOutputTokens: 16384,
+        ));
 
-        return $this->parseResponse($response);
+        return $this->normalizeDocumentAnalysis($data);
     }
 
     /**
@@ -118,19 +116,11 @@ final class DocumentAnalyzer
 
             if ($mimeType === 'text/plain') {
                 $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
-                $parts[] = [
-                    'text' => sprintf("[Documento %d - %s: %s]\n%s", $index + 1, $label, $document->getOriginalFilename(), $content),
-                ];
+                $parts[] = ContentPart::text(sprintf("[Documento %d - %s: %s]\n%s", $index + 1, $label, $document->getOriginalFilename(), $content));
             } else {
-                $parts[] = [
-                    'inline_data' => [
-                        'mime_type' => $mimeType,
-                        'data' => base64_encode($content),
-                    ],
-                ];
+                $parts[] = ContentPart::inlineData($mimeType, base64_encode($content));
                 $contextLabel = sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename());
 
-                // Add portal metadata context if available
                 if ($document->isFromPortal()) {
                     $portalContext = $this->buildPortalContext($document);
                     if ($portalContext) {
@@ -138,17 +128,22 @@ final class DocumentAnalyzer
                     }
                 }
 
-                $parts[] = [
-                    'text' => $contextLabel,
-                ];
+                $parts[] = ContentPart::text($contextLabel);
             }
         }
 
-        $parts[] = ['text' => $this->buildMultiDocumentPrompt(count($documents))];
+        $parts[] = ContentPart::text($this->buildMultiDocumentPrompt(count($documents)));
 
-        $response = $this->callGeminiApiWithParts($parts);
+        $data = $this->llmClient->chatJson(new ChatRequest(
+            systemPrompt: '',
+            userParts: $parts,
+            size: ModelSize::Mid,
+            temperature: 0.1,
+            jsonMode: true,
+            maxOutputTokens: 16384,
+        ));
 
-        return $this->parseMultiResponse($response, count($documents));
+        return $this->parseMultiData($data, count($documents));
     }
 
     private function buildMultiDocumentPrompt(int $documentCount): string
@@ -539,111 +534,13 @@ PROMPT;
     }
 
     /**
-     * @param array<int, array<string, mixed>> $parts
-     * @return array<string, mixed>
-     */
-    private function callGeminiApiWithParts(array $parts): array
-    {
-        $url = sprintf(self::GEMINI_ENDPOINT, $this->geminiModel) . '?key=' . $this->geminiApiKey;
-
-        $payload = [
-            'contents' => [
-                [
-                    'parts' => $parts,
-                ],
-            ],
-            'generationConfig' => [
-                'temperature' => 0.1,
-                'topK' => 1,
-                'topP' => 1,
-                'maxOutputTokens' => 16384,
-                'responseMimeType' => 'application/json',
-            ],
-        ];
-
-        $ch = curl_init($url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json',
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200) {
-            throw new \RuntimeException('Gemini API error: ' . $response);
-        }
-
-        return json_decode($response, true);
-    }
-
-    /**
-     * @param array<string, mixed> $response
-     * @return array<string, mixed>
-     */
-    private function parseResponse(array $response): array
-    {
-        $text = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-        // Clean up the response - remove markdown code blocks if present
-        $text = preg_replace('/^```json\s*/', '', $text);
-        $text = preg_replace('/\s*```$/', '', $text);
-        $text = trim($text);
-
-        $data = json_decode($text, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Failed to parse Gemini response as JSON: ' . $text);
-        }
-
-        // Map document type to enum
-        $data['documentType'] = DocumentType::fromAiValue($data['documentType'] ?? 'otro');
-
-        // If isRedirection is true but documentType wasn't detected correctly, override it
-        if (($data['isRedirection'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
-            $data['documentType'] = DocumentType::Redirection;
-        }
-
-        // If isThirdPartyRights is true but documentType wasn't detected correctly, override it
-        if (($data['isThirdPartyRights'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
-            $data['documentType'] = DocumentType::ThirdPartyRights;
-        }
-
-        // If isProcessingStart is true but documentType wasn't detected correctly, override it
-        if (($data['isProcessingStart'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
-            $data['documentType'] = DocumentType::ProcessingStart;
-        }
-
-        // If alegationPoints is a non-empty array and type is Other, set to Alegaciones
-        if (!empty($data['alegationPoints']) && is_array($data['alegationPoints']) && $data['documentType'] === DocumentType::Other) {
-            $data['documentType'] = DocumentType::Alegaciones;
-        }
-
-        return $data;
-    }
-
-    /**
      * Parse a multi-document response that contains shared + per-document analyses.
      *
+     * @param array<string, mixed> $data
      * @return array{shared: array<string, mixed>, documents: array<int, array<string, mixed>>}
      */
-    private function parseMultiResponse(array $response, int $expectedCount): array
+    private function parseMultiData(array $data, int $expectedCount): array
     {
-        $text = $response['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-        $text = preg_replace('/^```json\s*/', '', $text);
-        $text = preg_replace('/\s*```$/', '', $text);
-        $text = trim($text);
-
-        $data = json_decode($text, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException('Failed to parse Gemini multi-response as JSON: ' . $text);
-        }
-
         $shared = $data['shared'] ?? $data;
         $docResults = $data['documents'] ?? [];
 
