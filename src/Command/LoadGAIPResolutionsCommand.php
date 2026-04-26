@@ -39,6 +39,7 @@ class LoadGAIPResolutionsCommand extends Command
     use ResolutionProcessingTrait;
 
     private const FLUSH_BATCH_SIZE = 50;
+    private const UPDATE_CONSECUTIVE_EXISTING_LIMIT = 50;
 
     /** @var array<string, AutonomousCommunity|null> */
     private array $ccaaCache = [];
@@ -77,7 +78,7 @@ class LoadGAIPResolutionsCommand extends Command
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
-            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop after a streak of consecutive already-existing resolutions (counter resets when a new one is found, so interleaved new entries still get imported)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
             ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
@@ -132,7 +133,7 @@ class LoadGAIPResolutionsCommand extends Command
 
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
-        $existingCount = 0;
+        $consecutiveExisting = 0;
 
         $total = count($allDtos);
         $current = 0;
@@ -150,11 +151,15 @@ class LoadGAIPResolutionsCommand extends Command
 
                 $stats['processed']++;
 
-                if ($updateMode && !$isNew) {
-                    $existingCount++;
-                    if ($existingCount > 10) {
-                        $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
-                        break;
+                if ($updateMode) {
+                    if ($isNew) {
+                        $consecutiveExisting = 0;
+                    } else {
+                        $consecutiveExisting++;
+                        if ($consecutiveExisting >= self::UPDATE_CONSECUTIVE_EXISTING_LIMIT) {
+                            $io->note(sprintf('Update mode: %d consecutive existing resolutions, stopping import.', $consecutiveExisting));
+                            break;
+                        }
                     }
                 }
 

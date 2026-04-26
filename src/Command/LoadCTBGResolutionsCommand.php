@@ -42,6 +42,7 @@ class LoadCTBGResolutionsCommand extends Command
     private const LOCAL_EXCEL_URL = 'https://consejodetransparencia.es/content/dam/ctransparencia/portal-ctbg/reclamaciones/nuestras-resoluciones/resoluciones-%C3%A1mbito-auton%C3%B3mico-y-local/Resoluciones_AAyL.xlsx';
 
     private const FLUSH_BATCH_SIZE = 50;
+    private const UPDATE_CONSECUTIVE_EXISTING_LIMIT = 100;
 
     /** @var array<string, AutonomousCommunity|null> */
     private array $ccaaCache = [];
@@ -84,7 +85,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('national-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached national Excel file')
             ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
-            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop after a streak of consecutive already-existing resolutions (counter resets when a new one is found, so interleaved new entries still get imported)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
             ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
@@ -172,7 +173,7 @@ class LoadCTBGResolutionsCommand extends Command
 
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
-        $existingCount = 0;
+        $consecutiveExisting = 0;
 
         foreach ($allDtos as $idx => $dto) {
             $io->text(sprintf('[%d/%d] %s (%s)', $idx + 1, count($allDtos), $dto->referenceNumber, $dto->source));
@@ -198,11 +199,15 @@ class LoadCTBGResolutionsCommand extends Command
                     $stats['created']++;
                 }
 
-                if ($updateMode && !$isNew) {
-                    $existingCount++;
-                    if ($existingCount > 10) {
-                        $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
-                        break;
+                if ($updateMode) {
+                    if ($isNew) {
+                        $consecutiveExisting = 0;
+                    } else {
+                        $consecutiveExisting++;
+                        if ($consecutiveExisting >= self::UPDATE_CONSECUTIVE_EXISTING_LIMIT) {
+                            $io->note(sprintf('Update mode: %d consecutive existing resolutions, stopping import.', $consecutiveExisting));
+                            break;
+                        }
                     }
                 }
 

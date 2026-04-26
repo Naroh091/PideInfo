@@ -41,6 +41,7 @@ class LoadCTPDResolutionsCommand extends Command
     use ResolutionProcessingTrait;
 
     private const BATCH_SIZE = 30;
+    private const UPDATE_CONSECUTIVE_EXISTING_LIMIT = 100;
 
     /** @var array<string, AutonomousCommunity|null> */
     private array $ccaaCache = [];
@@ -81,7 +82,7 @@ class LoadCTPDResolutionsCommand extends Command
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
             ->addOption('legacy', null, InputOption::VALUE_NONE, 'Use legacy asambleamadrid.es scraper')
-            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
+            ->addOption('update', null, InputOption::VALUE_NONE, 'Stop after a streak of consecutive already-existing resolutions (counter resets when a new one is found, so interleaved new entries still get imported)')
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
             ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
         ;
@@ -100,7 +101,7 @@ class LoadCTPDResolutionsCommand extends Command
 
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
-        $existingCount = 0;
+        $consecutiveExisting = 0;
         $stopUpdate = false;
 
         $io->title('CTPD Resolution Loader (Comunidad de Madrid)');
@@ -198,12 +199,16 @@ class LoadCTPDResolutionsCommand extends Command
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
-                    if ($updateMode && !$isNew) {
-                        $existingCount++;
-                        if ($existingCount > 10) {
-                            $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));
-                            $stopUpdate = true;
-                            break;
+                    if ($updateMode) {
+                        if ($isNew) {
+                            $consecutiveExisting = 0;
+                        } else {
+                            $consecutiveExisting++;
+                            if ($consecutiveExisting >= self::UPDATE_CONSECUTIVE_EXISTING_LIMIT) {
+                                $io->note(sprintf('Update mode: %d consecutive existing resolutions, stopping import.', $consecutiveExisting));
+                                $stopUpdate = true;
+                                break;
+                            }
                         }
                     }
                 } catch (\Exception $e) {
