@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -13,10 +14,15 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 class AgentTokenController extends AbstractController
 {
     #[Route('/perfil/agent-token', name: 'app_agent_token_generate', methods: ['POST'])]
-    public function generate(JWTTokenManagerInterface $jwtManager): JsonResponse
+    public function generate(JWTTokenManagerInterface $jwtManager, EntityManagerInterface $em): JsonResponse
     {
         /** @var User $user */
         $user = $this->getUser();
+
+        $issuedAt = new \DateTimeImmutable();
+        $user->setAgentTokenIssuedAt($issuedAt);
+        $user->setAgentTokensInvalidatedAt(null);
+        $em->flush();
 
         $token = $jwtManager->createFromPayload($user, [
             'type' => 'agent',

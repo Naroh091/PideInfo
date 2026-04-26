@@ -8,3 +8,15 @@ framework:
             policy: sliding_window
             limit: 60
             interval: '1 minute'
+        oauth_token:
+            policy: sliding_window
+            limit: 30
+            interval: '1 minute'
+        oauth_register:
+            policy: sliding_window
+            limit: 5
+            interval: '10 minutes'
+        mcp_call:
+            policy: sliding_window
+            limit: 120
+            interval: '1 minute'

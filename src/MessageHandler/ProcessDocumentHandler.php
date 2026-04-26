@@ -475,7 +475,8 @@ final class ProcessDocumentHandler
                 break;
 
             case DocumentType::Complaint:
-                if ($accessRequest->getComplaint() === null) {
+                $existingComplaint = $accessRequest->getComplaint();
+                if ($existingComplaint === null || $existingComplaint->getFiledAt() === null) {
                     $previousComplaintStatus = $accessRequest->getComplaintStatus();
                     $complaint = $this->ensureComplaint($accessRequest);
                     $complaintDate = $eventDate ?? new \DateTimeImmutable();

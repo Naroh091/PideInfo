@@ -104,7 +104,7 @@ class SecurityController extends AbstractController
             $mailer->send($email);
 
             if ($this->needsManualActivation) {
-                $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla. Como PideInfo está en beta cerrada, tu cuenta deberá ser activada manualmente antes de poder acceder.');
+                $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla. Tu cuenta deberá ser activada antes de poder acceder; recibirás un aviso cuando esté lista.');
             } else {
                 $this->addFlash('success', 'Tu cuenta ha sido creada. Revisa tu correo electrónico para confirmarla.');
             }

@@ -171,10 +171,14 @@ class LoadCTARResolutionsCommand extends Command
             }
 
             // 3a: Upsert this page's batch
+            $upsertedDtos = [];
             foreach ($batch as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
+                    if ($isNew || $force) {
+                        $upsertedDtos[] = $dto;
+                    }
                     if ($updateMode && !$isNew) {
                         $existingCount++;
                         if ($existingCount > 10) {
@@ -219,7 +223,7 @@ class LoadCTARResolutionsCommand extends Command
 
             // 3b: Dispatch async or process inline
             if ($async) {
-                foreach ($batch as $dto) {
+                foreach ($upsertedDtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTAR);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -232,7 +236,7 @@ class LoadCTARResolutionsCommand extends Command
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($batch, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {

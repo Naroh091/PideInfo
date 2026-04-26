@@ -1,0 +1,58 @@
+{% extends 'layouts/auth.html.twig' %}
+
+{% set scope_descriptions = {
+    'mcp:read': 'Ver tus solicitudes, plazos y resoluciones',
+    'mcp:write': 'Crear y modificar solicitudes y reclamaciones',
+    'mcp:documents': 'Leer los documentos adjuntos a tus solicitudes',
+    'offline_access': 'Mantener la sesión activa cuando no estés conectado',
+} %}
+
+{% block title %}Autorizar acceso - PideInfo{% endblock %}
+
+{% block auth_content %}
+    <div class="text-center mb-6">
+        {% if client_logo_uri %}
+            <img src="{{ client_logo_uri }}" alt="" class="mx-auto mb-3 w-16 h-16 rounded-lg object-cover">
+        {% endif %}
+        <h2 class="text-xl font-semibold text-slate-800">
+            {{ client_name }}
+        </h2>
+        <p class="text-sm text-slate-600 mt-1">
+            quiere acceder a tu cuenta de PideInfo
+        </p>
+        {% if is_dynamic %}
+            <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5 mt-3 inline-block">
+                Esta aplicación se ha registrado automáticamente. Solo concede acceso si confías en ella.
+            </p>
+        {% endif %}
+    </div>
+
+    <div class="border border-slate-200 rounded-lg p-4 mb-5 bg-slate-50">
+        <p class="text-sm font-medium text-slate-700 mb-3">
+            Tendrá permiso para:
+        </p>
+        <ul class="space-y-2">
+            {% for scope in scopes %}
+                <li class="flex items-start gap-2 text-sm text-slate-700">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 mt-0.5 text-emerald-600 flex-shrink-0"></i>
+                    <span>{{ scope_descriptions[scope] ?? scope }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <p class="text-xs text-slate-500 mb-5">
+        Conectado como <strong>{{ user.email }}</strong>. Puedes revocar el acceso en cualquier momento desde
+        <a href="{{ path('app_panel') }}" class="underline">tu panel</a>.
+    </p>
+
+    <form method="post" action="{{ form_action }}" class="space-y-3">
+        <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
+        <button type="submit" name="_consent" value="approve" class="btn btn-primary w-full">
+            Permitir acceso
+        </button>
+        <button type="submit" name="_consent" value="deny" class="btn btn-secondary w-full">
+            Denegar
+        </button>
+    </form>
+{% endblock %}

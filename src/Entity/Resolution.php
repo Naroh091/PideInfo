@@ -105,7 +105,7 @@ class Resolution
     private ?string $sourceUrl = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $topics = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
@@ -115,14 +115,14 @@ class Resolution
     private ?string $subject = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $keywords = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $claimReason = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $keypoints = null;
 
     #[ORM\ManyToOne(targetEntity: PublicBody::class)]
@@ -154,11 +154,11 @@ class Resolution
     private ?int $entryYear = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $challengedActs = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $councilCriteria = null;
 
     #[ORM\Column(length: 100, nullable: true)]
@@ -168,18 +168,18 @@ class Resolution
     private ?string $pdfStoragePath = null;
 
     /** @var array<string, mixed>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $sourceMetadata = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $infoRequestDate = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $limits = null;
 
     /** @var array<string>|null */
-    #[ORM\Column(type: Types::JSON, nullable: true)]
+    #[ORM\Column(type: Types::JSONB, nullable: true)]
     private ?array $inadmissionCauses = null;
 
     public function __construct()

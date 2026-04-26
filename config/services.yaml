@@ -55,6 +55,16 @@ services:
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
     League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
 
+    # OAuth2 discovery controller — needs the public key file path resolved
+    App\Controller\OAuth2\DiscoveryController:
+        arguments:
+            $publicKeyPath: '%env(resolve:OAUTH_PUBLIC_KEY)%'
+            $mcpEndpointPath: '/mcp'
+
+    # OAuthTokenContext is request-scoped (one instance per request)
+    App\Security\OAuth2\OAuthTokenContext:
+        public: true
+
 when@prod:
     services:
         Redis:

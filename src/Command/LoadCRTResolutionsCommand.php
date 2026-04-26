@@ -170,7 +170,9 @@ class LoadCRTResolutionsCommand extends Command
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
-                    $upsertedDtos[] = $dto;
+                    if ($isNew || $force) {
+                        $upsertedDtos[] = $dto;
+                    }
                     if ($updateMode && !$isNew) {
                         if (++$existingCount > 10) {
                             $io->note(sprintf('Update mode: found %d existing resolutions, stopping import.', $existingCount));

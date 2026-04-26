@@ -9,3 +9,7 @@
 
 controllers:
     resource: routing.controllers
+
+mcp:
+    resource: .
+    type: mcp

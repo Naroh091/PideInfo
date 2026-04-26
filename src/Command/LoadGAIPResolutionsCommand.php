@@ -134,6 +134,7 @@ class LoadGAIPResolutionsCommand extends Command
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $consecutiveExisting = 0;
+        $dispatchableDtos = [];
 
         $total = count($allDtos);
         $current = 0;
@@ -150,6 +151,10 @@ class LoadGAIPResolutionsCommand extends Command
                 }
 
                 $stats['processed']++;
+
+                if ($isNew || $force) {
+                    $dispatchableDtos[] = $dto;
+                }
 
                 if ($updateMode) {
                     if ($isNew) {
@@ -184,7 +189,7 @@ class LoadGAIPResolutionsCommand extends Command
         // Step 4: Process heavy work
         if (!$dryRun && $async) {
             $io->section('Dispatching to Messenger workers...');
-            $resolutions = $this->getResolutionsForProcessing($allDtos);
+            $resolutions = $this->getResolutionsForProcessing($dispatchableDtos);
 
             foreach ($resolutions as $resolution) {
                 $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -199,7 +204,7 @@ class LoadGAIPResolutionsCommand extends Command
             $io->success(sprintf('Dispatched %d messages to async workers.', $stats['dispatched']));
         } elseif (!$dryRun) {
             $io->section('Processing inline (use --async for parallel processing)...');
-            $resolutions = $this->getResolutionsForProcessing($allDtos);
+            $resolutions = $this->getResolutionsForProcessing($dispatchableDtos);
 
             foreach ($resolutions as $idx => $resolution) {
                 $ref = $resolution->getReferenceNumber();

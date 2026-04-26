@@ -181,10 +181,14 @@ class LoadCTGResolutionsCommand extends Command
 
             // 2b: Upsert this page's batch
             $stopUpdate = false;
+            $upsertedDtos = [];
             foreach ($pageDtos as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
+                    if ($isNew || $force) {
+                        $upsertedDtos[] = $dto;
+                    }
                     if ($updateMode) {
                         if ($isNew) {
                             $consecutiveExisting = 0;
@@ -227,7 +231,7 @@ class LoadCTGResolutionsCommand extends Command
 
             // 2c: Dispatch async or process inline for this page's batch
             if ($async) {
-                foreach ($pageDtos as $dto) {
+                foreach ($upsertedDtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTG);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -240,7 +244,7 @@ class LoadCTGResolutionsCommand extends Command
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($pageDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {

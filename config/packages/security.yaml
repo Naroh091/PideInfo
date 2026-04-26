@@ -12,12 +12,29 @@ security:
         dev:
             pattern: ^/(_profiler|_wdt|assets|build)/
             security: false
+        oauth_token:
+            pattern: ^/oauth2/token$
+            security: false
+        oauth_register:
+            pattern: ^/oauth2/register$
+            security: false
+        oauth_well_known:
+            pattern: ^/\.well-known/(oauth-|jwks)
+            security: false
         api:
             pattern: ^/api/
             stateless: true
             provider: app_user_provider
             user_checker: App\Security\UserChecker
             jwt: ~
+        mcp:
+            pattern: ^/mcp
+            stateless: true
+            provider: app_user_provider
+            user_checker: App\Security\UserChecker
+            entry_point: App\Security\OAuth2\McpAuthenticationEntryPoint
+            access_token:
+                token_handler: App\Security\OAuth2\OAuth2TokenHandler
         main:
             lazy: true
             provider: app_user_provider
@@ -45,6 +62,10 @@ security:
         - { path: ^/webhook/, roles: PUBLIC_ACCESS }
         - { path: ^/guias/privacidad, roles: PUBLIC_ACCESS }
         - { path: ^/resoluciones, roles: PUBLIC_ACCESS }
+        - { path: ^/\.well-known/(oauth-|jwks), roles: PUBLIC_ACCESS }
+        - { path: ^/oauth2/(token|register)$, roles: PUBLIC_ACCESS }
+        - { path: ^/oauth2/authorize, roles: ROLE_USER }
+        - { path: ^/mcp, roles: ROLE_USER }
         - { path: ^/api/, roles: ROLE_USER }
         - { path: ^/admin, roles: ROLE_ADMIN }
         - { path: ^/, roles: ROLE_USER }

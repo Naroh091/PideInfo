@@ -178,10 +178,14 @@ class LoadCTCYLResolutionsCommand extends Command
             }
 
             // Upsert this listing page's DTOs
+            $upsertedDtos = [];
             foreach ($dtos as $dto) {
                 try {
                     $isNew = $this->upsertResolution($dto, $io, $stats, $force);
                     $stats['processed']++;
+                    if ($isNew || $force) {
+                        $upsertedDtos[] = $dto;
+                    }
                     if ($updateMode && !$isNew) {
                         $existingCount++;
                         if ($existingCount > 10) {
@@ -226,7 +230,7 @@ class LoadCTCYLResolutionsCommand extends Command
 
             // Dispatch async or process inline
             if ($async) {
-                foreach ($dtos as $dto) {
+                foreach ($upsertedDtos as $dto) {
                     $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTCYL);
                     if ($resolution) {
                         $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -239,7 +243,7 @@ class LoadCTCYLResolutionsCommand extends Command
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($dtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {

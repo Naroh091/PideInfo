@@ -23,8 +23,8 @@ final class Version20260425100000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('TRUNCATE TABLE ai_ctbg_resolutions');
-        $this->addSql('TRUNCATE TABLE ai_ctbg_criteria');
+        $this->addSql("DO $$ BEGIN IF to_regclass('ai_ctbg_resolutions') IS NOT NULL THEN TRUNCATE TABLE ai_ctbg_resolutions; END IF; END $$");
+        $this->addSql("DO $$ BEGIN IF to_regclass('ai_ctbg_criteria') IS NOT NULL THEN TRUNCATE TABLE ai_ctbg_criteria; END IF; END $$");
     }
 
     public function down(Schema $schema): void

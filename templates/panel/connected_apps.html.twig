@@ -1,0 +1,144 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Aplicaciones conectadas - PideInfo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <header class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-900">Aplicaciones conectadas</h1>
+        <p class="text-slate-600 mt-1">
+            Gestiona qué aplicaciones tienen acceso a tu cuenta de PideInfo.
+            Puedes revocar el acceso en cualquier momento.
+        </p>
+    </header>
+
+    {# Agente PideInfo #}
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                <i data-lucide="bot" class="w-6 h-6 text-primary-600"></i>
+            </div>
+            <div class="flex-1">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <h2 class="text-lg font-semibold text-slate-900">Agente PideInfo</h2>
+                        <p class="text-sm text-slate-500 mt-0.5">
+                            Cliente de escritorio que sincroniza tus expedientes desde el Portal de Transparencia.
+                        </p>
+                    </div>
+                    {% if agent.connected %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium">
+                            <i data-lucide="check-circle" class="w-3 h-3"></i>
+                            Conectado
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+                            <i data-lucide="circle" class="w-3 h-3"></i>
+                            Sin conectar
+                        </span>
+                    {% endif %}
+                </div>
+                {% if agent.issuedAt %}
+                    <p class="text-xs text-slate-500 mt-3">
+                        Token emitido el {{ agent.issuedAt|date('d/m/Y H:i') }}
+                        {% if agent.invalidatedAt and agent.invalidatedAt >= agent.issuedAt %}
+                            · Revocado el {{ agent.invalidatedAt|date('d/m/Y H:i') }}
+                        {% endif %}
+                    </p>
+                {% endif %}
+
+                <div class="flex flex-wrap gap-2 mt-4">
+                    <button type="button"
+                            @click="$dispatch('open-agent-token-modal')"
+                            class="btn btn-primary btn-sm">
+                        <i data-lucide="key" class="w-4 h-4 mr-1"></i>
+                        {{ agent.connected ? 'Generar nuevo token' : 'Conectar' }}
+                    </button>
+                    {% if agent.connected %}
+                        <form method="post" action="{{ path('app_connected_apps_revoke_agent') }}"
+                              onsubmit="return confirm('¿Revocar el token actual del agente? Tendrás que generar uno nuevo y reconectarlo en cada equipo.');">
+                            <input type="hidden" name="_token" value="{{ csrf_token('connected-apps-revoke-agent') }}">
+                            <button type="submit" class="btn btn-ghost btn-sm text-red-600 hover:bg-red-50">
+                                <i data-lucide="x-circle" class="w-4 h-4 mr-1"></i>
+                                Revocar token
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# Aplicaciones MCP / OAuth2 #}
+    <section>
+        <h2 class="text-lg font-semibold text-slate-900 mb-3">Aplicaciones MCP</h2>
+        <p class="text-sm text-slate-500 mb-4">
+            Asistentes de IA y otros clientes MCP autorizados con tu cuenta vía OAuth.
+        </p>
+
+        {% if apps is empty %}
+            <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+                <div class="w-12 h-12 mx-auto rounded-xl bg-slate-50 flex items-center justify-center mb-3">
+                    <i data-lucide="plug" class="w-6 h-6 text-slate-400"></i>
+                </div>
+                <p class="text-sm text-slate-600">No tienes aplicaciones MCP conectadas.</p>
+                <p class="text-xs text-slate-500 mt-1">
+                    Conecta Claude.ai, ChatGPT u otro cliente compatible apuntando a
+                    <code class="px-1 py-0.5 bg-slate-100 rounded text-xs">/mcp</code>.
+                </p>
+            </div>
+        {% else %}
+            <ul class="space-y-3">
+                {% for app in apps %}
+                    <li class="bg-white rounded-2xl border border-slate-200 p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                                {% if app.logoUri %}
+                                    <img src="{{ app.logoUri }}" alt="" class="w-full h-full object-contain">
+                                {% else %}
+                                    <i data-lucide="puzzle" class="w-6 h-6 text-slate-400"></i>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-start justify-between gap-4">
+                                    <div class="min-w-0">
+                                        <h3 class="text-base font-semibold text-slate-900 truncate">
+                                            {% if app.clientUri %}
+                                                <a href="{{ app.clientUri }}" target="_blank" rel="noopener" class="hover:text-primary-600">
+                                                    {{ app.displayName }}
+                                                </a>
+                                            {% else %}
+                                                {{ app.displayName }}
+                                            {% endif %}
+                                        </h3>
+                                        <p class="text-xs text-slate-500 mt-0.5 font-mono truncate">{{ app.clientId }}</p>
+                                    </div>
+                                    {% if app.isDynamic %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium flex-shrink-0">
+                                            Auto-registrada
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-xs text-slate-500 mt-2">
+                                    {{ app.activeTokens }} {{ app.activeTokens == 1 ? 'token activo' : 'tokens activos' }}
+                                    · expira el {{ app.lastExpiry|date('d/m/Y H:i') }}
+                                </p>
+                                <div class="mt-3">
+                                    <form method="post" action="{{ path('app_connected_apps_revoke_oauth', {clientId: app.clientId}) }}"
+                                          onsubmit="return confirm('¿Desconectar {{ app.displayName|e('js') }}? Tendrá que volver a autorizarse desde la aplicación.');">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('connected-apps-revoke-' ~ app.clientId) }}">
+                                        <button type="submit" class="btn btn-ghost btn-sm text-red-600 hover:bg-red-50">
+                                            <i data-lucide="unplug" class="w-4 h-4 mr-1"></i>
+                                            Desconectar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
