@@ -85,11 +85,7 @@ class ExcelResolutionReader
             }
         }
 
-        uasort($results, function (ResolutionData $a, ResolutionData $b): int {
-            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
-            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
-            return $dateB <=> $dateA;
-        });
+        $this->sortNewestFirst($results);
 
         return $results;
     }
@@ -138,13 +134,41 @@ class ExcelResolutionReader
             }
         }
 
-        uasort($results, function (ResolutionData $a, ResolutionData $b): int {
-            $dateA = $a->resolutionDate ?? new \DateTimeImmutable('@0');
-            $dateB = $b->resolutionDate ?? new \DateTimeImmutable('@0');
-            return $dateB <=> $dateA;
-        });
+        $this->sortNewestFirst($results);
 
         return $results;
+    }
+
+    /**
+     * Sort DTOs newest-first using the resolution date when available, otherwise by the
+     * year + sequence parsed from the reference number. The CTBG Excels list resolutions
+     * oldest-to-newest within each sheet and never populate a resolution date, so without
+     * this the importer would walk through the oldest entries first and the `--update`
+     * early-exit would trigger before reaching the recently added rows.
+     *
+     * @param array<string, ResolutionData> $results
+     */
+    private function sortNewestFirst(array &$results): void
+    {
+        uasort($results, function (ResolutionData $a, ResolutionData $b): int {
+            if ($a->resolutionDate && $b->resolutionDate) {
+                return $b->resolutionDate <=> $a->resolutionDate;
+            }
+            return self::referenceOrderKey($b->referenceNumber) <=> self::referenceOrderKey($a->referenceNumber);
+        });
+    }
+
+    /**
+     * Build a sortable integer for a reference like "R/0382/2026" so that a later year and a
+     * higher sequence number always rank above an earlier one.
+     */
+    private static function referenceOrderKey(string $reference): int
+    {
+        if (preg_match('/(\d{4})\D+(\d{4})$/', $reference, $m)) {
+            // Year takes the high digits; sequence the low ones (max 9999 ⇒ 4 digits).
+            return ((int) $m[2]) * 10000 + (int) $m[1];
+        }
+        return 0;
     }
 
     /**

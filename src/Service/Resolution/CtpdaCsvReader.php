@@ -9,7 +9,13 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class CtpdaCsvReader
 {
-    private const CSV_URL = 'https://www.ctpdandalucia.es/sites/default/files/views_data_export/vista_buscar_reclamaciones_data_export_1/1775309127/Vista%20Buscar%20Reclamaciones.csv';
+    private const BASE_URL = 'https://www.ctpdandalucia.es';
+    private const SEARCH_PATH = '/buscar-resoluciones-sobre-reclamaciones';
+    // Triggering this path with the CSV format starts a Drupal batch that regenerates the export.
+    private const CSV_TRIGGER_QUERY = '?page&_format=csv';
+    private const BATCH_POLL_INTERVAL_US = 500_000;
+    private const BATCH_POLL_TIMEOUT_S = 600;
+    private const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
     private const OUTCOME_MAP = [
         'estimada' => Resolution::OUTCOME_FAVORABLE,
@@ -52,20 +58,17 @@ class CtpdaCsvReader
     public function fetchEntries(?int $limit = null, ?callable $onProgress = null): array
     {
         $progress = $onProgress ?? fn (string $msg) => null;
-        $progress('Downloading CTPDA CSV export (this may take a few minutes)...');
+        $progress('Triggering CTPDA CSV regeneration (this may take a few minutes)...');
 
         try {
-            $response = $this->httpClient->request('GET', self::CSV_URL, [
-                'timeout' => 300,
-                'verify_peer' => false,
-                'headers' => [
-                    'User-Agent' => 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                ],
-            ]);
-            $csvContent = $response->getContent();
+            $csvContent = $this->downloadCsv($progress);
         } catch (\Exception $e) {
             $this->logger->error('Failed to download CTPDA CSV', ['error' => $e->getMessage()]);
 
+            return [];
+        }
+
+        if ($csvContent === null) {
             return [];
         }
 
@@ -85,6 +88,159 @@ class CtpdaCsvReader
         }
 
         return $entries;
+    }
+
+    /**
+     * Trigger the Drupal Views Data Export batch, wait for completion, then download the
+     * regenerated CSV file from the storage path the page advertises.
+     */
+    private function downloadCsv(callable $progress): ?string
+    {
+        $cookies = [];
+
+        // Step 1: trigger the batch — server redirects to /batch?id=NNN&op=start.
+        $triggerUrl = self::BASE_URL . self::SEARCH_PATH . self::CSV_TRIGGER_QUERY;
+        $response = $this->httpClient->request('GET', $triggerUrl, [
+            'timeout' => 60,
+            'verify_peer' => false,
+            'max_redirects' => 0,
+            'headers' => ['User-Agent' => self::USER_AGENT],
+        ]);
+
+        $this->captureCookies($response, $cookies);
+        $location = $response->getHeaders(false)['location'][0] ?? null;
+        if ($location === null || !preg_match('/[?&]id=(\d+)/', $location, $m)) {
+            $this->logger->error('CTPDA CSV trigger did not redirect to a batch URL', [
+                'status' => $response->getStatusCode(),
+                'location' => $location,
+            ]);
+            return null;
+        }
+        $batchId = (int) $m[1];
+        $progress(sprintf('Started CTPDA CSV batch (id=%d).', $batchId));
+
+        // Step 2: prime the batch with op=start so Drupal initialises the queue.
+        $startUrl = self::BASE_URL . '/batch?' . http_build_query(['id' => $batchId, 'op' => 'start']);
+        $startResponse = $this->httpClient->request('GET', $startUrl, [
+            'timeout' => 60,
+            'verify_peer' => false,
+            'headers' => $this->buildHeaders($cookies),
+        ]);
+        $this->captureCookies($startResponse, $cookies);
+        $startResponse->getContent(false);
+
+        // Step 3: poll op=do until it reports 100 % (or another finished signal).
+        $doUrl = self::BASE_URL . '/batch?' . http_build_query(['id' => $batchId, 'op' => 'do']);
+        $deadline = microtime(true) + self::BATCH_POLL_TIMEOUT_S;
+        $lastReported = -1;
+
+        while (microtime(true) < $deadline) {
+            $pollResponse = $this->httpClient->request('GET', $doUrl, [
+                'timeout' => 60,
+                'verify_peer' => false,
+                'headers' => $this->buildHeaders($cookies),
+            ]);
+            $this->captureCookies($pollResponse, $cookies);
+
+            $body = $pollResponse->getContent(false);
+            $payload = json_decode($body, true);
+            if (!is_array($payload)) {
+                $this->logger->warning('CTPDA batch poll returned non-JSON', ['body' => mb_substr($body, 0, 200)]);
+                break;
+            }
+
+            $percentage = isset($payload['percentage']) ? (float) $payload['percentage'] : null;
+            if ($percentage !== null) {
+                $rounded = (int) floor($percentage / 10) * 10;
+                if ($rounded > $lastReported) {
+                    $progress(sprintf('CTPDA CSV batch progress: %s%%', $payload['percentage']));
+                    $lastReported = $rounded;
+                }
+            }
+
+            if (($payload['status'] ?? null) === false || ($percentage !== null && $percentage >= 100.0)) {
+                break;
+            }
+
+            usleep(self::BATCH_POLL_INTERVAL_US);
+        }
+
+        // Step 3b: tell Drupal the batch is done so the export URL is queued as a status message.
+        $finishedUrl = self::BASE_URL . '/batch?' . http_build_query(['id' => $batchId, 'op' => 'finished']);
+        $finishedResponse = $this->httpClient->request('GET', $finishedUrl, [
+            'timeout' => 60,
+            'verify_peer' => false,
+            'max_redirects' => 0,
+            'headers' => $this->buildHeaders($cookies),
+        ]);
+        $this->captureCookies($finishedResponse, $cookies);
+        $finishedResponse->getContent(false);
+
+        // Step 4: fetch the search page — Drupal renders the new export URL in a status message.
+        $finalResponse = $this->httpClient->request('GET', self::BASE_URL . self::SEARCH_PATH, [
+            'timeout' => 60,
+            'verify_peer' => false,
+            'headers' => $this->buildHeaders($cookies),
+        ]);
+        $this->captureCookies($finalResponse, $cookies);
+        $finalHtml = $finalResponse->getContent(false);
+
+        // The advertised path is JSON-escaped inside drupalSettings, hence the \/ separators.
+        if (!preg_match(
+            '#sites\\\\?/default\\\\?/files\\\\?/views_data_export\\\\?/vista_buscar_reclamaciones_data_export_1\\\\?/(\d+)\\\\?/Vista[^"\']+\.csv#u',
+            $finalHtml,
+            $m
+        )) {
+            $this->logger->error('Could not locate generated CTPDA CSV path in search page response');
+            return null;
+        }
+
+        $csvUrl = sprintf(
+            '%s/sites/default/files/views_data_export/vista_buscar_reclamaciones_data_export_1/%s/Vista%%20Buscar%%20Reclamaciones.csv',
+            self::BASE_URL,
+            $m[1]
+        );
+        $progress(sprintf('Downloading CTPDA CSV from %s', $csvUrl));
+
+        $csvResponse = $this->httpClient->request('GET', $csvUrl, [
+            'timeout' => 300,
+            'verify_peer' => false,
+            'headers' => $this->buildHeaders($cookies),
+        ]);
+
+        return $csvResponse->getContent();
+    }
+
+    /**
+     * @param array<string, string> $cookies
+     * @return array<string, string>
+     */
+    private function buildHeaders(array $cookies): array
+    {
+        $headers = ['User-Agent' => self::USER_AGENT];
+        if (!empty($cookies)) {
+            $headers['Cookie'] = implode('; ', array_map(
+                fn (string $name, string $value) => "$name=$value",
+                array_keys($cookies),
+                array_values($cookies)
+            ));
+        }
+        return $headers;
+    }
+
+    /**
+     * @param array<string, string> $cookies
+     */
+    private function captureCookies(\Symfony\Contracts\HttpClient\ResponseInterface $response, array &$cookies): void
+    {
+        $setCookies = $response->getHeaders(false)['set-cookie'] ?? [];
+        foreach ($setCookies as $setCookie) {
+            $first = explode(';', $setCookie, 2)[0] ?? '';
+            $parts = explode('=', $first, 2);
+            if (count($parts) === 2 && $parts[0] !== '') {
+                $cookies[trim($parts[0])] = trim($parts[1]);
+            }
+        }
     }
 
     /**
