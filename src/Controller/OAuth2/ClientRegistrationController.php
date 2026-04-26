@@ -93,15 +93,19 @@ final class ClientRegistrationController
             }
         }
 
-        $requestedScopeString = $payload['scope'] ?? 'mcp:read';
-        if (!is_string($requestedScopeString)) {
-            return $this->error('invalid_client_metadata', 'scope must be a space-delimited string.');
-        }
-        $requestedScopes = array_filter(explode(' ', $requestedScopeString));
-        foreach ($requestedScopes as $scope) {
-            if (!in_array($scope, self::SUPPORTED_SCOPES, true)) {
-                return $this->error('invalid_scope', \sprintf('Unsupported scope "%s".', $scope));
+        if (array_key_exists('scope', $payload)) {
+            $requestedScopeString = $payload['scope'];
+            if (!is_string($requestedScopeString)) {
+                return $this->error('invalid_client_metadata', 'scope must be a space-delimited string.');
             }
+            $requestedScopes = array_values(array_filter(explode(' ', $requestedScopeString)));
+            foreach ($requestedScopes as $scope) {
+                if (!in_array($scope, self::SUPPORTED_SCOPES, true)) {
+                    return $this->error('invalid_scope', \sprintf('Unsupported scope "%s".', $scope));
+                }
+            }
+        } else {
+            $requestedScopes = self::SUPPORTED_SCOPES;
         }
 
         $clientName = $payload['client_name'] ?? 'MCP Client';
