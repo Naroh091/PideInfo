@@ -7,8 +7,8 @@ ai:
         vector_field: 'embedding'
         distance: 'cosine'
 
-      ctbg_resolutions:
+      resolutions:
         dbal_connection: 'doctrine.dbal.default_connection'
-        table_name: 'ai_ctbg_resolutions'
+        table_name: 'ai_resolutions'
         vector_field: 'embedding'
         distance: 'cosine'

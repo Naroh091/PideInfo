@@ -58,6 +58,14 @@ class AccessRequest
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $pendingPortalNotifications = null;
 
+    /**
+     * Free-form key-value bag for cached AI artifacts and other lightweight metadata.
+     * Reserved keys:
+     * - success_analysis: {fingerprint: string, result: array, computedAt: ISO8601}
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $metadata = null;
+
     #[ORM\Column(length: 255)]
     private string $title;
 
@@ -237,6 +245,40 @@ class AccessRequest
     public function hasPendingPortalNotifications(): bool
     {
         return !empty($this->pendingPortalNotifications);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getMetadata(): ?array
+    {
+        return $this->metadata;
+    }
+
+    /**
+     * @param array<string, mixed>|null $metadata
+     */
+    public function setMetadata(?array $metadata): static
+    {
+        $this->metadata = $metadata;
+        return $this;
+    }
+
+    public function getMetadataValue(string $key): mixed
+    {
+        return $this->metadata[$key] ?? null;
+    }
+
+    public function setMetadataValue(string $key, mixed $value): static
+    {
+        $metadata = $this->metadata ?? [];
+        if ($value === null) {
+            unset($metadata[$key]);
+        } else {
+            $metadata[$key] = $value;
+        }
+        $this->metadata = $metadata === [] ? null : $metadata;
+        return $this;
     }
 
     public function getTitle(): string
