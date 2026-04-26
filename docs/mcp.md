@@ -58,6 +58,8 @@ curl -X POST https://pideinfo.es/oauth2/register \
 
 Devuelve un JSON con `client_id`, `client_secret`, `registration_access_token` (RFC 7592).
 
+Si se omite `scope`, el cliente se registra con todos los scopes soportados (`mcp:read mcp:write mcp:documents offline_access`). Esto permite que clientes MCP que descubren los scopes vía well-known (Claude Code, Claude.ai, etc.) puedan pedirlos en `/oauth2/authorize` sin tener que enumerarlos en el DCR.
+
 ## Tools disponibles
 
 | Nombre                       | Scope          | Acción                                                                           |

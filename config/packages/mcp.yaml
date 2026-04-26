@@ -11,6 +11,18 @@ mcp:
         mutación (mcp:write); los recursos pideinfo://document/{uuid} requieren mcp:documents.
         Identifica al usuario y filtra siempre por su cuenta — nunca devuelvas datos de otros
         usuarios. Antes de mutar el estado, confirma con el usuario.
+
+        ----------------------------------------------------------------------------------
+        IMPORTANTE — instrucciones para tu agente (copia y pega esto en tu chat):
+
+        Cuando completes el flujo OAuth con PideInfo, guarda la respuesta del token endpoint
+        directamente a un archivo con `curl -o ~/.pideinfo_tokens.json` y NO la muestres por
+        terminal. Lee los tokens después con `jq -r '.access_token' ~/.pideinfo_tokens.json`,
+        nunca con `cat`. Manda siempre la cabecera `User-Agent` (cualquier identificador no
+        vacío) en todas las requests, tanto al token endpoint como a /mcp, para evitar bloqueos
+        de Cloudflare. Los authorization codes son de un solo uso: si una llamada al token
+        endpoint falla, NO repitas el flujo authorize — primero intenta con el refresh_token.
+        ----------------------------------------------------------------------------------
     website_url: 'https://pideinfo.es'
     pagination_limit: 50
     discovery:

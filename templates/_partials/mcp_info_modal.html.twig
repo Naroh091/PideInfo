@@ -2,26 +2,27 @@
 <div x-data="{
         show: false,
         copied: false,
+        copiedAgent: false,
         endpoint: window.location.origin + '/mcp',
-        async copyEndpoint() {
+        agentInstructions: 'Para conectarme al MCP de PideInfo (' + window.location.origin + '/mcp): guarda la respuesta del token endpoint con `curl -o ~/.pideinfo_tokens.json` y NO la imprimas por terminal; lee los tokens con `jq -r \'.access_token\' ~/.pideinfo_tokens.json`; manda siempre cabecera `User-Agent` en TODAS las requests (al token endpoint y a /mcp) para evitar bloqueos de Cloudflare; si una llamada al token endpoint falla, usa el refresh_token antes de repetir el authorize — los authorization codes son de un solo uso.',
+        async copyText(text, flag) {
             try {
-                await navigator.clipboard.writeText(this.endpoint);
-                this.copied = true;
-                setTimeout(() => this.copied = false, 2000);
+                await navigator.clipboard.writeText(text);
             } catch (e) {
                 const ta = document.createElement('textarea');
-                ta.value = this.endpoint;
+                ta.value = text;
                 document.body.appendChild(ta);
                 ta.select();
                 document.execCommand('copy');
                 document.body.removeChild(ta);
-                this.copied = true;
-                setTimeout(() => this.copied = false, 2000);
             }
+            this[flag] = true;
+            setTimeout(() => this[flag] = false, 2000);
         },
         close() {
             this.show = false;
             this.copied = false;
+            this.copiedAgent = false;
         }
      }"
      @open-mcp-info-modal.window="show = true; copied = false"
@@ -54,7 +55,7 @@
                 <div class="flex gap-2 items-stretch">
                     <code class="flex-1 px-3 py-2.5 bg-slate-900 text-emerald-300 rounded-lg text-xs font-mono break-all select-all flex items-center"
                           x-text="endpoint"></code>
-                    <button @click="copyEndpoint()"
+                    <button @click="copyText(endpoint, 'copied')"
                             class="flex-shrink-0 px-3 rounded-lg border transition-all duration-200"
                             :class="copied ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
                         <i x-show="!copied" data-lucide="copy" class="w-4 h-4"></i>
@@ -83,6 +84,26 @@
                         <span>Inicia sesión y aprueba los permisos. Tu asistente ya puede consultar y gestionar tus solicitudes.</span>
                     </li>
                 </ol>
+            </div>
+
+            {# Agent instructions (CLI agents that run OAuth manually) #}
+            <div>
+                <label class="block text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">
+                    Si tu agente ejecuta el flujo OAuth a mano
+                </label>
+                <p class="text-xs text-slate-500 mb-2">
+                    Solo necesario para CLIs como Hermes o Codex donde el modelo lanza los <code class="text-[11px]">curl</code>. Pega esto en el chat antes de empezar:
+                </p>
+                <div class="flex gap-2 items-stretch">
+                    <pre class="flex-1 px-3 py-2.5 bg-slate-900 text-slate-100 rounded-lg text-xs font-mono whitespace-pre-wrap break-words select-all max-h-40 overflow-y-auto leading-relaxed"
+                         x-text="agentInstructions"></pre>
+                    <button @click="copyText(agentInstructions, 'copiedAgent')"
+                            class="flex-shrink-0 px-3 rounded-lg border transition-all duration-200"
+                            :class="copiedAgent ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                        <i x-show="!copiedAgent" data-lucide="copy" class="w-4 h-4"></i>
+                        <i x-show="copiedAgent" data-lucide="check" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
 
             {# Capabilities #}
