@@ -7,6 +7,7 @@ use App\Entity\AccessRequest;
 use App\Enum\DocumentType;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Complaint\SuccessAnalyzer;
+use App\Service\Document\DocumentContentsCollector;
 use App\Service\Document\PdfGenerator;
 use App\Service\Document\WordGenerator;
 use League\Flysystem\FilesystemOperator;
@@ -27,6 +28,7 @@ class ComplaintController extends AbstractController
         private readonly PdfGenerator $pdfGenerator,
         private readonly WordGenerator $wordGenerator,
         private readonly FilesystemOperator $documentsStorage,
+        private readonly DocumentContentsCollector $documentContentsCollector,
     ) {
     }
 
@@ -328,21 +330,6 @@ class ComplaintController extends AbstractController
      */
     private function gatherDocumentContents(AccessRequest $accessRequest, array $documentIds): array
     {
-        if (empty($documentIds)) {
-            return [];
-        }
-
-        $contents = [];
-        foreach ($accessRequest->getDocuments() as $document) {
-            if (in_array((string) $document->getId(), $documentIds, true) && $document->getExtractedText()) {
-                $contents[] = [
-                    'name' => $document->getOriginalFilename(),
-                    'type' => $document->getType()->label(),
-                    'content' => $document->getExtractedText(),
-                ];
-            }
-        }
-
-        return $contents;
+        return $this->documentContentsCollector->collect($accessRequest, $documentIds);
     }
 }

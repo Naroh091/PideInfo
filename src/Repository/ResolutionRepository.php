@@ -92,6 +92,34 @@ class ResolutionRepository extends ServiceEntityRepository
         return $map;
     }
 
+    /**
+     * Fetch multiple resolutions by UUID in a single query.
+     * Returns a map keyed by the canonical UUID string (RFC 4122) for direct lookup
+     * from values stored in the vector store metadata.
+     *
+     * @param list<string> $ids
+     * @return array<string, Resolution>
+     */
+    public function findByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('r')
+            ->where('r.id IN (:ids)')
+            ->setParameter('ids', array_values(array_unique($ids)))
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($rows as $r) {
+            $map[(string) $r->getId()] = $r;
+        }
+
+        return $map;
+    }
+
     public function findByReferenceAndSource(string $referenceNumber, string $source): ?Resolution
     {
         return $this->findOneBy(['referenceNumber' => $referenceNumber, 'source' => $source]);

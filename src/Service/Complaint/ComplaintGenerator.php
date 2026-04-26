@@ -47,7 +47,7 @@ final class ComplaintGenerator
             );
         }
 
-        $successAnalysis = $this->successAnalyzer->analyze($accessRequest);
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
 
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
@@ -276,6 +276,8 @@ SILENCE;
             $timeline .= " Transcurrido el plazo legal de un mes sin obtener respuesta, se ha producido silencio administrativo negativo.";
         }
 
+        $documentsBlock = $this->formatDocumentContents($documentContents);
+
         $prompt = <<<PROMPT
 Eres un abogado especialista en derecho de acceso a información pública en España.
 Redacta una reclamación ante el {$transparencyCouncil} con la siguiente estructura:
@@ -294,12 +296,38 @@ Escribe un párrafo breve que resuma:
 Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas). Incluye esta información de forma fluida:
 {$timeline}
 
-## 3. FUNDAMENTOS JURÍDICOS
+## 3. FUNDAMENTACIÓN DE LA RECLAMACIÓN
 
-Desarrolla los fundamentos jurídicos basándote en:
+Desarrolla la fundamentación basándote en:
 - {$applicableLawName}
 - Los criterios interpretativos recuperados (ver abajo) — solo si son REALMENTE relevantes
 - Las resoluciones favorables similares (ver abajo) — solo si son REALMENTE relevantes
+- Los documentos del expediente (ver abajo) — son tu fuente PRIMARIA de hechos
+
+### ESTRUCTURA DE LA FUNDAMENTACIÓN
+
+Cada fundamento debe ser un punto numerado con título temático descriptivo que indique claramente qué cuestión jurídica aborda. Usa numeración ordinal: PRIMERO, SEGUNDO, TERCERO, CUARTO, QUINTO...
+
+Cada punto debe seguir esta estructura:
+1. **Título temático** en negrita que identifique la cuestión (ej. "Sobre la inadmisibilidad de...", "Sobre la forma de acceso a la información pública y la vulneración del artículo 22.1 de la LTAIBG", "Sobre la naturaleza electrónica de los expedientes...", "Inaplicabilidad de la causa de inadmisión por reelaboración", "Sobre la interoperabilidad y los medios electrónicos en la Administración")
+2. **Argumentación**: cita artículos de ley literalmente, refuta los argumentos de la administración punto por punto, y apoya con criterios interpretativos y resoluciones favorables cuando sean relevantes
+
+Ejemplos de títulos temáticos correctos:
+- "Sobre la inadmisibilidad de [causa invocada por la Administración]"
+- "Sobre la forma de acceso a la información pública y la vulneración del artículo [X] de la LTAIBG"
+- "Sobre la naturaleza electrónica de los [documentos solicitados]"
+- "Inaplicabilidad de la causa de [causa de inadmisión]"
+- "La normativa de [norma] como umbral mínimo, no como límite al derecho de acceso"
+- "La dispersión de la información no justifica la denegación del acceso"
+- "Sobre la [cuestión concreta que refutes]"
+
+### CASO DE SILENCIO ADMINISTRATIVO NEGATIVO
+
+Si en la documentación no hay respuesta de la Administración (solo existe la solicitud y quizá su acuse de recibo), se trata de una reclamación por silencio administrativo negativo. En este caso:
+
+- **NO cites doctrina sobre el silencio administrativo** ni argumentes extensamente sobre su naturaleza jurídica.
+- En su lugar, céntrate en argumentar **por qué lo que pediste es información pública** y **por qué no cae en ningún límite ni causa de inadmisión**.
+- Sé conciso con lo formal: menciona brevemente el silencio, pero reserva la extensión para la argumentación de fondo.
 
 ### CÓMO JUZGAR LA RELEVANCIA DE RESOLUCIONES Y CRITERIOS
 
@@ -332,6 +360,17 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 
 ---
 
+## DOCUMENTOS DEL EXPEDIENTE
+
+A continuación se incluyen los documentos adjuntos al expediente. Úsalos como fuente PRIMARIA de hechos:
+- La resolución/denegación contiene los argumentos de la Administración que debes refutar.
+- Los acuses de recibo y inicio de tramitación contienen fechas clave.
+- Las alegaciones de la administración son los argumentos que debes rebatir.
+
+Las resoluciones y criterios que verás después son precedente jurídico-interpretativo, no hechos del caso.
+
+---
+
 ## CONTEXTO DE LA SOLICITUD
 
 **Título de la solicitud:** {$accessRequest->getTitle()}
@@ -345,7 +384,7 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 
 ---
 
-{$this->formatDocumentContents($documentContents)}
+{$documentsBlock}
 ## CRITERIOS INTERPRETATIVOS RECUPERADOS
 
 {$criteriaText}
@@ -366,9 +405,12 @@ Redacta la petición formal al {$transparencyCouncil} solicitando que estime la 
 4. ESPAÑOL JURÍDICO: Usa lenguaje formal jurídico-administrativo
 5. CITAS RELEVANTES Y ATRIBUIDAS: Solo menciona una resolución, criterio interpretativo o doctrina si es REALMENTE relevante para el fondo de la reclamación — no las incluyas como adorno ni para engrosar el texto. Cuando cites una resolución o doctrina, IDENTIFICA SIEMPRE al órgano que la emitió (ej. "el {$transparencyCouncil}, en su Resolución R/0123/2023..."; "el Tribunal Supremo, en su sentencia de 16 de octubre de 2017..."). Si el órgano emisor no consta en las fuentes proporcionadas, no inventes el nombre.
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
-7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal ("Resumen de la reclamación", "Antecedentes", "Fundamentos jurídicos", "Solicitud"). Para subsecciones dentro de una sección, usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
+7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal ("Resumen de la reclamación", "Antecedentes", "Fundamentación de la reclamación", "Solicitud"). Para subsecciones dentro de una sección, usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
 8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo, y aún así — especialmente en supuestos de silencio administrativo — prefiere la brevedad: no alargues la argumentación cuando el caso es sencillo.
 9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
+10. PRIORIDAD DE FUENTES: Los documentos del expediente son hechos del caso concreto. Las resoluciones y criterios RAG son precedente interpretativo. Distingue claramente entre ambos en tu argumentación: usa los documentos del expediente para los hechos y la refutación de la administración; usa las resoluciones y criterios RAG para el fundamento jurídico.
+11. NO SOLICITAR SANCIONES: La reclamación solo pide que se estime la solicitud de acceso. NO pidas sanciones, multas ni medidas disciplinarias contra ningún funcionario.
+12. ABREVIATURAS OFICIALES: Usa siempre las abreviaturas oficiales de los consejos de transparencia en el cuerpo del texto: CTBG (Consejo de Transparencia y Buen Gobierno), GAIP (Comissió de Garantia del Dret d'Accés a la Informació Pública), CTCYL (Comisionado de Transparencia de Castilla y León), CVAIP (Comisión Vasca de Acceso a la Información Pública), CTPD (Consejo de Transparencia y Protección de Datos de Madrid), CTPDA (Consejo de Transparencia y Protección de Datos de Andalucía), CTR (Consejo Regional de Transparencia y Buen Gobierno de Castilla-La Mancha), CVT (Consell de Transparència de la Comunitat Valenciana), CTAR (Consejo de Transparencia de Aragón), CTCAN (Comisionado de Transparencia y Acceso a la Información Pública de Canarias), CTG (Comisión de Transparencia de Galicia), CTN (Consejo de Transparencia de Navarra). No uses el nombre completo salvo en la primera mención.
 
 Responde ÚNICAMENTE con el HTML de la reclamación, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.
 PROMPT;
@@ -393,7 +435,7 @@ PROMPT;
             );
         }
 
-        $successAnalysis = $this->successAnalyzer->analyze($accessRequest);
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
 
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();

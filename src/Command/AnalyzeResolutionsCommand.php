@@ -40,7 +40,7 @@ class AnalyzeResolutionsCommand extends Command
         private readonly ManagerRegistry $managerRegistry,
         private readonly MessageBusInterface $messageBus,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
+        #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $vectorStore,
     ) {
         $this->entityManager = $managerRegistry->getManager();
@@ -536,7 +536,7 @@ class AnalyzeResolutionsCommand extends Command
      * Skips text cleaning and AI analysis — assumes fullText and keypoints are already
      * populated. Used after wiping the vector store to switch embedding backends.
      *
-     * Skips resolutions whose reference number already has rows in `ai_ctbg_resolutions`
+     * Skips resolutions whose id already has rows in `ai_resolutions`
      * unless $force is true.
      */
     private function processVectorsOnly(?string $source, ?string $reference, ?int $limit, bool $slow, bool $async, bool $force, SymfonyStyle $io): int
@@ -558,11 +558,11 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         if (!$force) {
-            $existingRefs = $this->findVectorizedReferences();
-            if (!empty($existingRefs)) {
-                $qb->andWhere('r.referenceNumber NOT IN (:existingRefs)')
-                    ->setParameter('existingRefs', $existingRefs);
-                $io->info(sprintf('Skipping %d resolutions already vectorized (use --force to override).', count($existingRefs)));
+            $existingIds = $this->findVectorizedResolutionIds();
+            if (!empty($existingIds)) {
+                $qb->andWhere('r.id NOT IN (:existingIds)')
+                    ->setParameter('existingIds', $existingIds);
+                $io->info(sprintf('Skipping %d resolutions already vectorized (use --force to override).', count($existingIds)));
             }
         }
 
@@ -659,17 +659,17 @@ class AnalyzeResolutionsCommand extends Command
     }
 
     /**
-     * Read the set of reference numbers that already have rows in the pgvector store.
+     * Read the set of resolution ids that already have rows in the pgvector store.
      * Used by --vectors-only to skip resolutions that were already vectorized.
      *
      * @return array<int, string>
      */
-    private function findVectorizedReferences(): array
+    private function findVectorizedResolutionIds(): array
     {
-        $sql = "SELECT DISTINCT metadata->>'reference' AS ref FROM ai_ctbg_resolutions WHERE metadata->>'reference' IS NOT NULL";
+        $sql = "SELECT DISTINCT metadata->>'resolution_id' AS id FROM ai_resolutions WHERE metadata->>'resolution_id' IS NOT NULL";
         $rows = $this->entityManager->getConnection()->executeQuery($sql)->fetchAllAssociative();
 
-        return array_values(array_filter(array_column($rows, 'ref'), fn ($v) => $v !== null && $v !== ''));
+        return array_values(array_filter(array_column($rows, 'id'), fn ($v) => $v !== null && $v !== ''));
     }
 
     private function vectorizeResolution(Resolution $resolution, int $index, int $total, SymfonyStyle $io): void
@@ -681,18 +681,10 @@ class AnalyzeResolutionsCommand extends Command
 
         $baseMeta = array_filter([
             Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
-            'reference' => $resolution->getReferenceNumber(),
+            'resolution_id' => (string) $resolution->getId(),
             'outcome' => $resolution->getOutcome(),
             'source' => $resolution->getSource(),
-            'scope' => $resolution->getScope(),
-            'subject' => $resolution->getSubject(),
-            'publicBody' => $resolution->getPublicBodyName(),
-            'entityType' => $resolution->getEntityType(),
         ], fn ($v) => $v !== null);
-
-        if ($resolution->getAutonomousCommunity()) {
-            $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
-        }
 
         $chunks = $this->chunkText($fullText);
         $documents = [];

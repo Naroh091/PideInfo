@@ -180,12 +180,34 @@ class AccessRequestManager
         }
 
         $previousDeadline = $request->getDeadlineAt();
-        $newDeadline = $explicitNewDeadline
-            ?? $this->deadlineCalculator->calculateExtension($previousDeadline, $request->getApplicableLaw());
+        $previousStatus = $request->getStatus();
+        $wasDelayed = $previousStatus === AccessRequest::STATUS_DELAYED;
+
+        if ($explicitNewDeadline !== null) {
+            $newDeadline = $explicitNewDeadline;
+        } elseif ($wasDelayed) {
+            // Issue #25: when extending after silencio administrativo, the new deadline
+            // restarts from the extension's issue date (trigger document date if known,
+            // otherwise today), not from the already-expired previous deadline.
+            $issueDate = $triggerDocument?->getDocumentDate() ?? new \DateTimeImmutable('today');
+            $newDeadline = $this->deadlineCalculator->addDuration(
+                $issueDate,
+                $request->getApplicableLaw()->getExtensionValue(),
+                $request->getApplicableLaw()->getExtensionUnit()
+            );
+        } else {
+            $newDeadline = $this->deadlineCalculator->calculateExtension($previousDeadline, $request->getApplicableLaw());
+        }
 
         $request->setDeadlineAt($newDeadline);
         $request->incrementExtensionCount();
         $request->setExtensionReason('Prórroga según ' . $request->getApplicableLaw()->getShortCode());
+
+        if ($wasDelayed) {
+            // Move the request back to "En trámite" — the administration is again
+            // engaged and the silencio administrativo no longer applies.
+            $request->setStatus(AccessRequest::STATUS_PROCESSING);
+        }
 
         $deadlineHistory = new DeadlineHistory();
         $deadlineHistory->setAccessRequest($request);
@@ -205,13 +227,14 @@ class AccessRequestManager
         $statusHistory = new StatusHistory();
         $statusHistory->setAccessRequest($request);
         $statusHistory->setStatusType(StatusHistory::TYPE_STATUS);
-        $statusHistory->setFromStatus($request->getStatus());
+        $statusHistory->setFromStatus($previousStatus);
         $statusHistory->setToStatus($request->getStatus());
         $statusHistory->setNotes(sprintf(
-            'Prórroga según %s. Plazo anterior: %s → Nuevo plazo: %s',
+            'Prórroga según %s. Plazo anterior: %s → Nuevo plazo: %s%s',
             $request->getApplicableLaw()->getShortCode(),
             $previousDeadline->format('d/m/Y'),
-            $newDeadline->format('d/m/Y')
+            $newDeadline->format('d/m/Y'),
+            $wasDelayed ? '. Silencio administrativo levantado por la prórroga: solicitud vuelve a "En trámite".' : ''
         ));
         $statusHistory->setTriggerDocument($triggerDocument);
         $request->addStatusHistory($statusHistory);

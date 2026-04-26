@@ -22,6 +22,15 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
+            mail:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    queue_name: mail
+                    use_notify: true
+                    check_delayed_interval: 60000
+                retry_strategy:
+                    max_retries: 3
+                    multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
             # sync: 'sync://'
 
@@ -31,9 +40,9 @@ framework:
             messenger.bus.default: []
 
         routing:
-            Symfony\Component\Mailer\Messenger\SendEmailMessage: async
-            Symfony\Component\Notifier\Message\ChatMessage: async
-            Symfony\Component\Notifier\Message\SmsMessage: async
+            Symfony\Component\Mailer\Messenger\SendEmailMessage: mail
+            Symfony\Component\Notifier\Message\ChatMessage: mail
+            Symfony\Component\Notifier\Message\SmsMessage: mail
             App\Message\ProcessDocumentMessage: analysis
             App\Message\ProcessDocumentBatchMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async

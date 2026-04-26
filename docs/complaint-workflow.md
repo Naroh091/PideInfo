@@ -74,13 +74,14 @@ The complaint is triggered when the access request is in status `denied`, `delay
 
 **AI-assisted filing.** The user clicks "Generar reclamación" on the request detail page. The `ComplaintGenerator` service:
 1. Checks eligibility via `canGenerateComplaint()` — request must be denied or delayed
-2. Runs a `SuccessAnalyzer` to estimate success probability
+2. Runs a `SuccessAnalyzer` to estimate success probability. The result is cached in `AccessRequest.metadata['success_analysis']` keyed by a fingerprint of the request status + attached document IDs, so subsequent calls reuse it until the request changes.
 3. Retrieves similar favorable resolutions via vector search against the CTBG resolution database
 4. Retrieves relevant interpretive criteria from the CTBG criteria database
-5. Builds a detailed legal prompt with the request context, timeline, and retrieved references
-6. Calls Google Gemini to generate a Markdown-formatted complaint
-7. Supports multi-turn conversation — the user can request revisions
-8. The final draft can be saved as a `Document` (type: `complaint`) and downloaded as PDF or Word
+5. Loads the extracted text of every attached document via `DocumentContentsCollector` (truncated per document) and includes it in the prompt as a primary "DOCUMENTOS DEL EXPEDIENTE" section. The `SuccessAnalyzer` consumes the same documents.
+6. Builds a detailed legal prompt with the request context, timeline, expediente documents, and retrieved references
+7. Calls Google Gemini to generate an HTML-formatted complaint
+8. Supports multi-turn conversation — the user can request revisions
+9. The final draft can be saved as a `Document` (type: `complaint`) and downloaded as PDF or Word
 
 **Automatic detection.** When a document classified as `DocumentType::Complaint` is uploaded, the system automatically creates the complaint entity and records a timeline entry.
 
