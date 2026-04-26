@@ -46,7 +46,7 @@
         <a href="{{ path('app_connected_apps') }}" class="underline">aplicaciones conectadas</a>.
     </p>
 
-    <form method="post" action="{{ form_action }}" class="space-y-3">
+    <form method="post" action="{{ form_action }}" class="space-y-3" data-turbo="false">
         <input type="hidden" name="_csrf_token" value="{{ csrf_token }}">
         <button type="submit" name="_consent" value="approve" class="btn btn-primary w-full">
             Permitir acceso
