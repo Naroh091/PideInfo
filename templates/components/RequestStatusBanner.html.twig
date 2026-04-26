@@ -99,8 +99,8 @@
     </div>
 {% endif %}
 
-{# Deadline expired — silence administrativo #}
-{% if request.isDeadlinePassed and not request.isDeadlineSuspended and request.status != 'reclaimed' %}
+{# Deadline expired — silence administrativo (skip if a complaint already exists) #}
+{% if request.isDeadlinePassed and not request.isDeadlineSuspended and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
     {% set silencePositive = this.isSilencePositive %}
     {% set lawName = this.applicableLawName %}

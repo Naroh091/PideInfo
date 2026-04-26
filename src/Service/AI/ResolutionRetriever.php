@@ -10,18 +10,18 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 final class ResolutionRetriever
 {
     public function __construct(
-        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
-        private readonly StoreInterface $ctbgResolutionsStore,
+        #[Autowire(service: 'ai.store.postgres.resolutions')]
+        private readonly StoreInterface $resolutionsStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly ResolutionRepository $resolutionRepository,
     ) {
     }
 
     /**
-     * Retrieve similar CTBG resolutions, filtered by outcome.
+     * Retrieve similar resolutions, filtered by outcome.
      *
      * Does a two-step lookup:
-     * 1. Vector search in the semantic store to find candidate references.
+     * 1. Vector search in the semantic store to find candidate `resolution_id`s.
      * 2. Enrich each hit with the full resolution data (summary, keypoints, fullText, issuing
      *    body) from the `resolution` table, so the LLM can judge relevance from the curated
      *    summary/keypoints rather than a cherry-picked chunk.
@@ -66,37 +66,37 @@ final class ResolutionRetriever
             }
 
             // Cast a slightly wider net — we may drop rows that don't have a matching DB record.
-            $documents = $this->ctbgResolutionsStore->query($vector, [
+            $documents = $this->resolutionsStore->query($vector, [
                 'limit' => max($topK * 2, $topK + 3),
                 'where' => "metadata->>'outcome' IN (" . implode(', ', $placeholders) . ')',
                 'params' => $params,
             ]);
 
-            // Collect unique references from vector hits, preserving relevance order.
-            $references = [];
+            // Collect unique resolution ids from vector hits, preserving relevance order.
+            $resolutionIds = [];
             $scores = [];
             foreach ($documents as $document) {
-                $reference = $document->metadata['reference'] ?? null;
-                if (!$reference || isset($references[$reference])) {
+                $resolutionId = $document->metadata['resolution_id'] ?? null;
+                if (!$resolutionId || isset($resolutionIds[$resolutionId])) {
                     continue;
                 }
-                $references[$reference] = true;
-                $scores[$reference] = $document->score;
+                $resolutionIds[$resolutionId] = true;
+                $scores[$resolutionId] = $document->score;
             }
 
-            if (empty($references)) {
+            if (empty($resolutionIds)) {
                 return [];
             }
 
-            // One DB query to fetch the authoritative data for all candidates.
-            $resolutionMap = $this->resolutionRepository->findByReferenceNumbers(array_keys($references));
+            // One DB query to fetch the authoritative data for all candidates, joined by id.
+            $resolutionMap = $this->resolutionRepository->findByIds(array_keys($resolutionIds));
 
             $results = [];
-            foreach (array_keys($references) as $reference) {
-                if (!isset($resolutionMap[$reference])) {
+            foreach (array_keys($resolutionIds) as $resolutionId) {
+                if (!isset($resolutionMap[$resolutionId])) {
                     continue;
                 }
-                $resolution = $resolutionMap[$reference];
+                $resolution = $resolutionMap[$resolutionId];
 
                 $results[] = [
                     'reference' => $resolution->getReferenceNumber(),
@@ -107,7 +107,7 @@ final class ResolutionRetriever
                     'summary' => $resolution->getSummary(),
                     'keypoints' => $resolution->getKeypoints() ?? [],
                     'fullText' => $resolution->getFullText(),
-                    'score' => $scores[$reference] ?? null,
+                    'score' => $scores[$resolutionId] ?? null,
                 ];
 
                 if (count($results) >= $topK) {

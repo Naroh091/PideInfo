@@ -78,7 +78,7 @@ Si se omite `scope`, el cliente se registra con todos los scopes soportados (`mc
 | `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |
-| `generate_complaint_draft`   | mcp:write      | Borrador de reclamación con citas (vía `ComplaintGenerator` + `LlmClient`).       |
+| `generate_complaint_draft`   | mcp:write      | Borrador de reclamación con citas (vía `ComplaintGenerator` + `LlmClient`). Carga el texto extraído de todos los documentos del expediente vía `DocumentContentsCollector`; reutiliza el análisis de éxito cacheado en `AccessRequest.metadata['success_analysis']`. |
 | `file_complaint`             | mcp:write      | Presenta reclamación: crea `AccessRequestComplaint` con deadline +3 meses, transiciona la solicitud a `reclaimed` y registra `StatusHistory`/`DeadlineHistory`. |
 | `update_complaint_status`    | mcp:write      | Registra resolución del CTBG (granted/denied/archived); fija `complianceDeadlineAt` opcional. |
 | `add_reminder`               | mcp:write      | Recordatorio en una fecha futura (opcionalmente vinculado a una solicitud).      |
