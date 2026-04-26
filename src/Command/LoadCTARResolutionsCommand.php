@@ -49,7 +49,7 @@ class LoadCTARResolutionsCommand extends Command
     private array $organismCache = [];
 
     public function __construct(
-        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
+        #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly CtarWebReader $ctarReader,

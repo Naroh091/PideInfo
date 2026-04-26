@@ -41,7 +41,7 @@ final class ProcessResolutionHandler
         private readonly ResolutionAnalyzer $analyzer,
         private readonly ResolutionDateExtractor $dateExtractor,
         private readonly EmbeddingGenerator $embeddingGenerator,
-        #[Autowire(service: 'ai.store.postgres.ctbg_resolutions')]
+        #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly CtcanWebReader $ctcanWebReader,
         private readonly PublicBodyResolver $publicBodyResolver,
@@ -388,18 +388,10 @@ final class ProcessResolutionHandler
 
         $baseMeta = array_filter([
             Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
-            'reference' => $resolution->getReferenceNumber(),
+            'resolution_id' => (string) $resolution->getId(),
             'outcome' => $resolution->getOutcome(),
             'source' => $resolution->getSource(),
-            'scope' => $resolution->getScope(),
-            'subject' => $this->sanitizeUtf8($resolution->getSubject()),
-            'publicBody' => $this->sanitizeUtf8($resolution->getPublicBodyName()),
-            'entityType' => $resolution->getEntityType(),
         ], fn ($v) => $v !== null);
-
-        if ($resolution->getAutonomousCommunity()) {
-            $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
-        }
 
         $documents = [];
 

@@ -9,6 +9,7 @@ use App\Mcp\Dto\ComplaintDraftSummary;
 use App\Repository\AccessRequestRepository;
 use App\Security\OAuth2\OAuthTokenContext;
 use App\Service\Complaint\ComplaintGenerator;
+use App\Service\Document\DocumentContentsCollector;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Exception\InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -32,6 +33,7 @@ final class GenerateComplaintDraftTool
         private readonly OAuthTokenContext $tokenContext,
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly ComplaintGenerator $complaintGenerator,
+        private readonly DocumentContentsCollector $documentContentsCollector,
     ) {
     }
 
@@ -64,7 +66,7 @@ final class GenerateComplaintDraftTool
             accessRequest: $request,
             conversationHistory: [],
             userDirections: $additionalContext,
-            documentContents: [],
+            documentContents: $this->documentContentsCollector->collect($request),
         );
 
         return ComplaintDraftSummary::fromDomain($draft);
