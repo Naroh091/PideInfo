@@ -211,3 +211,13 @@ On the request detail page, when a complaint exists, the user can:
 - Set the complaint filing date
 
 These inline fields submit to `AccessRequestController::editComplaint()`.
+
+## MCP integration
+
+Clientes MCP pueden cubrir el ciclo completo de la reclamación con tres tools (`docs/mcp.md`):
+
+- **`file_complaint(requestId, externalId?, filedAt?, notes?)`** — paso 1 ("Filing the complaint"). Reusa `AccessRequestManager::changeStatus(..., TYPE_COMPLAINT, STATUS_RECLAIMED, ...)`, crea el `AccessRequestComplaint` con deadline +3 meses y registra `StatusHistory` + `DeadlineHistory` con `notes` prefijado `[mcp/{client_id}]`.
+- **`list_complaints(status?, page?, limit?)`** — listado del usuario (filtrable por estado), útil para que el agente repase plazos pendientes.
+- **`update_complaint_status(requestId, newStatus, externalId?, complianceDeadlineAt?, notes?)`** — paso 8 ("Resolution"). Permite registrar `complaint_granted`/`complaint_denied`/`complaint_archived` y, cuando aplica, fijar `complianceDeadlineAt` añadiendo entrada `DeadlineHistory` (`TYPE_COMPLIANCE`, `REASON_COMPLAINT_RESOLUTION`).
+
+`generate_complaint_draft` (ya existente) cubre el borrador del texto antes de presentar; `get_complaint_draft` da el estado actual de la reclamación. Los pasos intermedios (acuse, alegaciones, audiencia, prórroga) no tienen tool dedicado y se reflejan vía `update_request_status` o cambios en el portal cuando se notifican.

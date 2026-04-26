@@ -29,7 +29,7 @@ final class SearchResolutionsTool
      * @param int          $topK     Number of results to return (1-10, default 5).
      * @param list<string> $outcomes CTBG outcome codes to include. Default: favorable + partial.
      *
-     * @return list<array<string,mixed>>
+     * @return array{results: list<array<string,mixed>>, count: int}
      */
     public function __invoke(string $query, int $topK = 5, array $outcomes = ['favorable', 'partial']): array
     {
@@ -38,6 +38,8 @@ final class SearchResolutionsTool
         $topK = max(1, min(10, $topK));
         $outcomes = array_values(array_filter($outcomes, 'is_string')) ?: ['favorable', 'partial'];
 
-        return $this->resolutionRetriever->retrieveSimilarCases($query, $topK, $outcomes);
+        $results = $this->resolutionRetriever->retrieveSimilarCases($query, $topK, $outcomes);
+
+        return ['results' => $results, 'count' => count($results)];
     }
 }

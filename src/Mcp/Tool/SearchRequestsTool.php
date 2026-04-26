@@ -33,7 +33,7 @@ final class SearchRequestsTool
      * @param int         $limit    Maximum results to return (1-100, default 20).
      * @param int         $page     1-based page number for pagination.
      *
-     * @return list<AccessRequestSummary>
+     * @return array{requests: list<AccessRequestSummary>, page: int, limit: int, count: int}
      */
     public function __invoke(
         ?string $query = null,
@@ -55,10 +55,17 @@ final class SearchRequestsTool
             limit: $limit,
         );
 
-        return array_map(
+        $requests = array_map(
             static fn ($entity) => AccessRequestSummary::fromEntity($entity),
             $results,
         );
+
+        return [
+            'requests' => $requests,
+            'page' => $page,
+            'limit' => $limit,
+            'count' => count($requests),
+        ];
     }
 
     private function getUser(): User

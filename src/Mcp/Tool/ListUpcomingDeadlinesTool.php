@@ -31,7 +31,7 @@ final class ListUpcomingDeadlinesTool
     /**
      * @param int $daysAhead Window in days from today (default 30; max 365).
      *
-     * @return list<DeadlineEntry>
+     * @return array{deadlines: list<DeadlineEntry>, count: int, daysAhead: int}
      */
     public function __invoke(int $daysAhead = 30): array
     {
@@ -61,7 +61,11 @@ final class ListUpcomingDeadlinesTool
 
         usort($entries, static fn (DeadlineEntry $a, DeadlineEntry $b) => $a->daysRemaining <=> $b->daysRemaining);
 
-        return $entries;
+        return [
+            'deadlines' => $entries,
+            'count' => count($entries),
+            'daysAhead' => $daysAhead,
+        ];
     }
 
     private function requireUser(): User
