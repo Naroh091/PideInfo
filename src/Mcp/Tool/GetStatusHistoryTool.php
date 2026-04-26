@@ -34,7 +34,7 @@ final class GetStatusHistoryTool
     /**
      * @param string $requestId UUID of the access request.
      *
-     * @return StatusHistoryEntry[]
+     * @return array{requestId: string, entries: list<StatusHistoryEntry>, count: int}
      */
     public function __invoke(string $requestId): array
     {
@@ -59,7 +59,13 @@ final class GetStatusHistoryTool
             static fn ($a, $b) => $a->getCreatedAt() <=> $b->getCreatedAt(),
         );
 
-        return array_map(static fn ($e) => StatusHistoryEntry::fromEntity($e), $entries);
+        $summaries = array_map(static fn ($e) => StatusHistoryEntry::fromEntity($e), $entries);
+
+        return [
+            'requestId' => $requestId,
+            'entries' => $summaries,
+            'count' => count($summaries),
+        ];
     }
 
     private function requireUser(): User

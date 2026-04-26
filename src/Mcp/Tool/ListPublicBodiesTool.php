@@ -29,7 +29,7 @@ final class ListPublicBodiesTool
      * @param string $query Search string (matches name; minimum 2 characters).
      * @param int    $limit Maximum number of results (1-50).
      *
-     * @return PublicBodySummary[]
+     * @return array{bodies: list<PublicBodySummary>, count: int}
      */
     public function __invoke(string $query, int $limit = 20): array
     {
@@ -37,12 +37,13 @@ final class ListPublicBodiesTool
 
         $query = trim($query);
         if (strlen($query) < 2) {
-            return [];
+            return ['bodies' => [], 'count' => 0];
         }
         $limit = max(1, min(50, $limit));
 
         $bodies = $this->publicBodyRepository->searchByName($query, $limit);
+        $summaries = array_map(static fn ($body) => PublicBodySummary::fromEntity($body), $bodies);
 
-        return array_map(static fn ($body) => PublicBodySummary::fromEntity($body), $bodies);
+        return ['bodies' => $summaries, 'count' => count($summaries)];
     }
 }

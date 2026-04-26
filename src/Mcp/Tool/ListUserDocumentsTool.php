@@ -37,7 +37,7 @@ final class ListUserDocumentsTool
      * @param string|null $requestId Optional access-request UUID; when set, only documents on that request are returned.
      * @param int         $limit     Maximum entries (1-200, default 50).
      *
-     * @return list<DocumentSummary>
+     * @return array{documents: list<DocumentSummary>, count: int}
      */
     public function __invoke(?string $requestId = null, int $limit = 50): array
     {
@@ -57,17 +57,17 @@ final class ListUserDocumentsTool
 
             $documents = $request->getDocuments()->toArray();
             $documents = array_slice($documents, 0, $limit);
-
-            return array_map(static fn ($d) => DocumentSummary::fromEntity($d), $documents);
+        } else {
+            $documents = $this->documentRepository->findBy(
+                ['uploadedBy' => $user],
+                ['createdAt' => 'DESC'],
+                $limit,
+            );
         }
 
-        $documents = $this->documentRepository->findBy(
-            ['uploadedBy' => $user],
-            ['createdAt' => 'DESC'],
-            $limit,
-        );
+        $summaries = array_map(static fn ($d) => DocumentSummary::fromEntity($d), $documents);
 
-        return array_map(static fn ($d) => DocumentSummary::fromEntity($d), $documents);
+        return ['documents' => $summaries, 'count' => count($summaries)];
     }
 
     private function requireUser(): User

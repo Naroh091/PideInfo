@@ -108,6 +108,14 @@ final class ClientRegistrationController
             $requestedScopes = self::SUPPORTED_SCOPES;
         }
 
+        // `offline_access` controls refresh-token issuance and is not part of the
+        // protected-resource metadata, so MCP clients (Claude Code, Claude Desktop…)
+        // omit it during DCR but still ask for it at /authorize. Auto-grant it when
+        // the client requests the refresh_token grant so the two stay consistent.
+        if (in_array('refresh_token', $grantTypes, true) && !in_array('offline_access', $requestedScopes, true)) {
+            $requestedScopes[] = 'offline_access';
+        }
+
         $clientName = $payload['client_name'] ?? 'MCP Client';
         if (!is_string($clientName) || '' === trim($clientName)) {
             $clientName = 'MCP Client';

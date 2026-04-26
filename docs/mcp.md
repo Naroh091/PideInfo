@@ -71,11 +71,16 @@ Si se omite `scope`, el cliente se registra con todos los scopes soportados (`mc
 | `list_public_bodies`         | mcp:read       | Búsqueda de organismos por nombre — devuelve UUIDs aptos para `create_access_request`. |
 | `search_resolutions`         | mcp:read       | Búsqueda semántica en CTBG (vector store).                                       |
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
+| `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
+| `read_document`              | mcp:documents  | Lee un documento como texto extraído (default) o `mode=blob` en base64. Cachea texto en `Document.extractedText`. |
+| `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. Capa a 5 docs en `mode=blob`. |
 | `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |
 | `generate_complaint_draft`   | mcp:write      | Borrador de reclamación con citas (vía `ComplaintGenerator` + `LlmClient`).       |
+| `file_complaint`             | mcp:write      | Presenta reclamación: crea `AccessRequestComplaint` con deadline +3 meses, transiciona la solicitud a `reclaimed` y registra `StatusHistory`/`DeadlineHistory`. |
+| `update_complaint_status`    | mcp:write      | Registra resolución del CTBG (granted/denied/archived); fija `complianceDeadlineAt` opcional. |
 | `add_reminder`               | mcp:write      | Recordatorio en una fecha futura (opcionalmente vinculado a una solicitud).      |
 
 ## Recursos
@@ -84,7 +89,7 @@ Si se omite `scope`, el cliente se registra con todos los scopes soportados (`mc
 |-------------------------------------------|------------------|--------------------------------------------|
 | `pideinfo://document/{uuid}`              | mcp:documents    | Bytes del documento (Flysystem S3) en base64. |
 
-> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama.
+> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama. Mientras tanto, **`read_document` y `read_request_documents`** son la vía operativa: devuelven texto extraído (cacheado en `Document.extractedText`) o el binario en base64 con `mode=blob`.
 
 ## Auditoría
 
