@@ -11,7 +11,11 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class CtgWebReader
 {
     private const BASE_URL = 'https://www.comisiondatransparencia.gal';
-    private const LISTING_PATH = '/es/page/{PAGE}/?unonce=a9d590008d&uformid=8493&s=uwpsfsearchtrg&taxo%5B0%5D%5Bname%5D=post_tag&taxo%5B0%5D%5Bopt%5D=3&taxo%5B0%5D%5Bterm%5D=uwpqsftaxoall&taxo%5B1%5D%5Bname%5D=post_tag&taxo%5B1%5D%5Bopt%5D=3&taxo%5B1%5D%5Bterm%5D=uwpqsftaxoall&taxo%5B2%5D%5Bname%5D=post_tag&taxo%5B2%5D%5Bopt%5D=3&taxo%5B2%5D%5Bterm%5D=uwpqsftaxoall&skeyword';
+    // WordPress category archive — reverse-chronological by publication date, which surfaces
+    // newly-posted resolutions first. The previous search-form URL ordered by reference and
+    // hid pagination beyond a few static years, so newer posts (e.g. 2024 references published
+    // in 2026) were never reached.
+    private const LISTING_PATH = '/es/category/resoluciones-de-la-comision-de-la-transparencia/page/{PAGE}/';
 
     private const REQUEST_DELAY_US = 500_000;
 

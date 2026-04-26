@@ -18,15 +18,6 @@ class CtpdWebReader
     private const BASE_URL_NEW = 'https://www.comunidad.madrid';
     private const LISTING_URL_NEW = '/servicios/consejo-transparencia-proteccion-datos/derecho-acceso-informacion-publica';
 
-    private const ACCORDION_OUTCOME_MAP = [
-        '493737' => Resolution::OUTCOME_FAVORABLE,
-        '493738' => Resolution::OUTCOME_PARTIAL,
-        '493739' => Resolution::OUTCOME_UNFAVORABLE,
-        '493740' => Resolution::OUTCOME_WITHDRAWAL,
-        '493741' => Resolution::OUTCOME_INADMISSIBLE,
-        '493742' => Resolution::OUTCOME_LOSS_OF_PURPOSE,
-    ];
-
     private const OUTCOME_MAP = [
         'estimación' => Resolution::OUTCOME_FAVORABLE,
         'estimatoria' => Resolution::OUTCOME_FAVORABLE,
@@ -113,11 +104,32 @@ class CtpdWebReader
         $crawler = new Crawler($html);
         $entries = [];
 
-        foreach (self::ACCORDION_OUTCOME_MAP as $accordionId => $outcome) {
-            $panel = $crawler->filter('#panel-' . $accordionId);
+        $items = $crawler->filter('.component-accordion .component-accordion-item');
+        if ($items->count() === 0) {
+            $this->logger->warning('No accordion items found in CTPD listing page');
+
+            return $entries;
+        }
+
+        $items->each(function (Crawler $item) use (&$entries) {
+            $titleNode = $item->filter('.accordion-title');
+            if ($titleNode->count() === 0) {
+                return;
+            }
+            $title = trim($titleNode->text());
+
+            $outcome = self::inferOutcomeFromHeading($title);
+            if ($outcome === null) {
+                $this->logger->warning('Could not infer outcome from CTPD section heading', ['title' => $title]);
+
+                return;
+            }
+
+            $trigger = $item->filter('.accordion-trigger');
+            $panelId = $trigger->count() > 0 ? $trigger->attr('aria-controls') : null;
+            $panel = $panelId !== null ? $item->filter('#' . $panelId) : $item;
             if ($panel->count() === 0) {
-                $this->logger->warning('Accordion panel not found', ['id' => $accordionId]);
-                continue;
+                $panel = $item;
             }
 
             $panel->filter('a[href$=".pdf"]')->each(function (Crawler $link) use (&$entries, $outcome) {
@@ -129,9 +141,52 @@ class CtpdWebReader
                     $entries[] = $dto;
                 }
             });
-        }
+        });
 
         return $entries;
+    }
+
+    private static function inferOutcomeFromHeading(string $title): ?string
+    {
+        $normalized = self::normalizeForMatch($title);
+        if ($normalized === '') {
+            return null;
+        }
+
+        if (str_contains($normalized, 'parcial')) {
+            return Resolution::OUTCOME_PARTIAL;
+        }
+        if (str_contains($normalized, 'desestim')) {
+            return Resolution::OUTCOME_UNFAVORABLE;
+        }
+        if (str_contains($normalized, 'inadmis')) {
+            return Resolution::OUTCOME_INADMISSIBLE;
+        }
+        if (str_contains($normalized, 'desistim') || str_contains($normalized, 'renuncia')) {
+            return Resolution::OUTCOME_WITHDRAWAL;
+        }
+        if (str_contains($normalized, 'perdida de objeto') || str_contains($normalized, 'perdida sobrevenida')) {
+            return Resolution::OUTCOME_LOSS_OF_PURPOSE;
+        }
+        if (str_contains($normalized, 'estim')) {
+            return Resolution::OUTCOME_FAVORABLE;
+        }
+        if (str_contains($normalized, 'archivo')) {
+            return Resolution::OUTCOME_LOSS_OF_PURPOSE;
+        }
+
+        return null;
+    }
+
+    private static function normalizeForMatch(string $value): string
+    {
+        $lowered = mb_strtolower($value, 'UTF-8');
+        $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $lowered);
+        if ($ascii === false) {
+            $ascii = $lowered;
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $ascii) ?? '');
     }
 
     private function parseLinkEntry(string $href, string $text, string $outcome): ?ResolutionData
@@ -160,8 +215,8 @@ class CtpdWebReader
         // Detect anomalies
         $errors = [];
 
-        if (!str_contains($href, '/sites/default/files/')) {
-            $errors[] = 'URL missing /sites/default/files/ prefix';
+        if (!str_contains($href, '/sites/default/files/') && !str_contains($href, '/docs/assets/')) {
+            $errors[] = 'URL has unexpected path prefix';
         }
 
         // Check filename/text number mismatch
