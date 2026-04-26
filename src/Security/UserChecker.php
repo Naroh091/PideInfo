@@ -17,7 +17,7 @@ class UserChecker implements UserCheckerInterface
 
         if (!$user->isActive()) {
             throw new CustomUserMessageAccountStatusException(
-                'Tu cuenta aún no ha sido activada. PideInfo está en fase de beta cerrada. Si quieres participar como tester, escríbenos por DM en Twitter a @naroh o a info@iniciativafaro.es.'
+                'Tu cuenta aún no ha sido activada. Recibirás un aviso por correo cuando esté lista. Si tienes dudas, escríbenos por DM en Twitter a @naroh o a info@iniciativafaro.es.'
             );
         }
     }

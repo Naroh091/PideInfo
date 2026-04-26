@@ -145,10 +145,20 @@ final class ProcessResolutionHandler
                 return;
             }
 
+            $effectiveExtension = $extension ?: 'pdf';
+            if ($effectiveExtension === 'pdf' && !str_starts_with($content, '%PDF-')) {
+                $this->logger->warning('Downloaded content is not a valid PDF, skipping storage', [
+                    'reference' => $resolution->getReferenceNumber(),
+                    'url' => $documentUrl,
+                    'firstBytes' => substr($content, 0, 32),
+                ]);
+                return;
+            }
+
             // Store in Flysystem
             $year = $resolution->getEntryYear() ?? date('Y');
             $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
-            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $extension ?: 'pdf');
+            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $effectiveExtension);
 
             $this->resolutionsStorage->write($storagePath, $content);
             $resolution->setPdfStoragePath($storagePath);
@@ -228,6 +238,17 @@ final class ProcessResolutionHandler
                 }
             }
 
+            $extensionForCheck = $storagePath ? strtolower(pathinfo($storagePath, PATHINFO_EXTENSION)) : 'pdf';
+            if ($content !== null && $extensionForCheck === 'pdf' && !str_starts_with($content, '%PDF-')) {
+                $this->logger->warning('Stored file is not a valid PDF, will re-download from sourceUrl', [
+                    'reference' => $ref,
+                    'storagePath' => $storagePath,
+                    'firstBytes' => substr($content, 0, 32),
+                ]);
+                $content = null;
+            }
+
+            $reDownloaded = false;
             if ($content === null || strlen($content) < 100) {
                 $sourceUrl = $resolution->getSourceUrl();
                 if (!$sourceUrl) {
@@ -237,6 +258,19 @@ final class ProcessResolutionHandler
                 $content = $this->fetchDocumentContent($sourceUrl);
                 if ($content === null || strlen($content) < 100) {
                     return;
+                }
+                $reDownloaded = true;
+            }
+
+            if ($reDownloaded && $storagePath && $extensionForCheck === 'pdf' && str_starts_with($content, '%PDF-')) {
+                try {
+                    $this->resolutionsStorage->write($storagePath, $content);
+                } catch (\Exception $e) {
+                    $this->logger->warning('Could not overwrite stored file after re-download', [
+                        'reference' => $ref,
+                        'storagePath' => $storagePath,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
@@ -275,6 +309,12 @@ final class ProcessResolutionHandler
 
             $text = $this->cleanTextForSource($text, $resolution->getSource());
             $resolution->setFullText($this->sanitizeUtf8($text));
+
+            $meta = $resolution->getSourceMetadata() ?? [];
+            if (isset($meta['pdf_error'])) {
+                unset($meta['pdf_error']);
+                $resolution->setSourceMetadata($meta ?: null);
+            }
 
             // Clear stale analysis data so downstream steps re-analyze
             $resolution->setSummary('');

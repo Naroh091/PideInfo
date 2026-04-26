@@ -44,7 +44,7 @@ class PublicBodyRepository extends ServiceEntityRepository
     public function searchByName(string $query, int $limit = 20): array
     {
         return $this->createQueryBuilder('pb')
-            ->where('pb.name LIKE :query')
+            ->where('LOWER(pb.name) LIKE LOWER(:query)')
             ->setParameter('query', '%' . $query . '%')
             ->orderBy('pb.name', 'ASC')
             ->setMaxResults($limit)

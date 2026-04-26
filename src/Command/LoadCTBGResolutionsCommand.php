@@ -174,6 +174,7 @@ class LoadCTBGResolutionsCommand extends Command
         $force = $input->getOption('force');
         $updateMode = $input->getOption('update');
         $consecutiveExisting = 0;
+        $dispatchableDtos = [];
 
         foreach ($allDtos as $idx => $dto) {
             $io->text(sprintf('[%d/%d] %s (%s)', $idx + 1, count($allDtos), $dto->referenceNumber, $dto->source));
@@ -192,11 +193,13 @@ class LoadCTBGResolutionsCommand extends Command
                 if (!$isNew) {
                     if ($force) {
                         $stats['updated']++;
+                        $dispatchableDtos[] = $dto;
                     } else {
                         $stats['skipped']++;
                     }
                 } else {
                     $stats['created']++;
+                    $dispatchableDtos[] = $dto;
                 }
 
                 if ($updateMode) {
@@ -235,7 +238,7 @@ class LoadCTBGResolutionsCommand extends Command
         if (!$dryRun && $async) {
             // Async mode: dispatch messages for 6 workers to process in parallel
             $io->section('Dispatching to Messenger workers...');
-            $resolutions = $this->getResolutionsForProcessing($allDtos);
+            $resolutions = $this->getResolutionsForProcessing($dispatchableDtos);
 
             foreach ($resolutions as $resolution) {
                 $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -251,7 +254,7 @@ class LoadCTBGResolutionsCommand extends Command
         } elseif (!$dryRun) {
             // Sync mode: process inline (slower, but good for debugging)
             $io->section('Processing inline (use --async for 6x faster)...');
-            $resolutions = $this->getResolutionsForProcessing($allDtos);
+            $resolutions = $this->getResolutionsForProcessing($dispatchableDtos);
 
             foreach ($resolutions as $idx => $resolution) {
                 $ref = $resolution->getReferenceNumber();

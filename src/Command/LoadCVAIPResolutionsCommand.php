@@ -352,10 +352,14 @@ class LoadCVAIPResolutionsCommand extends Command
         SymfonyStyle $io,
         array &$stats,
     ): bool {
+        $upsertedResults = [];
         foreach ($batchResults as $result) {
             try {
                 $isNew = $this->upsertResolution($result['dto'], $result['fullText'], $stats, $force);
                 $stats['processed']++;
+                if ($isNew || $force) {
+                    $upsertedResults[] = $result;
+                }
                 if ($updateMode && !$isNew) {
                     $existingCount++;
                     if ($existingCount > 10) {
@@ -389,7 +393,7 @@ class LoadCVAIPResolutionsCommand extends Command
         }
 
         if ($async) {
-            foreach ($batchResults as $result) {
+            foreach ($upsertedResults as $result) {
                 $resolution = $this->resolutionRepository->findByReferenceAndSource($result['dto']->referenceNumber, Resolution::SOURCE_CVAIP);
                 if ($resolution) {
                     $this->messageBus->dispatch(new ProcessResolutionMessage(
@@ -402,7 +406,7 @@ class LoadCVAIPResolutionsCommand extends Command
                 }
             }
         } elseif (!$skipAnalysis || !$skipVectors) {
-            $this->processInline($batchResults, $skipAnalysis, $skipVectors, $io, $stats);
+            $this->processInline($upsertedResults, $skipAnalysis, $skipVectors, $io, $stats);
             try {
                 $this->entityManager->flush();
             } catch (\Exception $e) {

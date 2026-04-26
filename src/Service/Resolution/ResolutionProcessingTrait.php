@@ -153,9 +153,15 @@ trait ResolutionProcessingTrait
                 return;
             }
 
+            $effectiveExtension = $extension ?: 'pdf';
+            if ($effectiveExtension === 'pdf' && !str_starts_with($content, '%PDF-')) {
+                $io->text(sprintf('  <comment>Downloaded content is not a valid PDF (first bytes: %s), skipping storage</comment>', bin2hex(substr($content, 0, 8))));
+                return;
+            }
+
             $year = $resolution->getEntryYear() ?? date('Y');
             $safeRef = str_replace(['/', ' '], ['_', '_'], $resolution->getReferenceNumber());
-            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $extension ?: 'pdf');
+            $storagePath = sprintf('%s/%d/%s.%s', $resolution->getSource(), $year, $safeRef, $effectiveExtension);
 
             $this->resolutionsStorage->write($storagePath, $content);
             $resolution->setPdfStoragePath($storagePath);

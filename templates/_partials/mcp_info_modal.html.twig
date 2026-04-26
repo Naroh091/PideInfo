@@ -1,0 +1,131 @@
+{# MCP server connection instructions modal #}
+<div x-data="{
+        show: false,
+        copied: false,
+        endpoint: window.location.origin + '/mcp',
+        async copyEndpoint() {
+            try {
+                await navigator.clipboard.writeText(this.endpoint);
+                this.copied = true;
+                setTimeout(() => this.copied = false, 2000);
+            } catch (e) {
+                const ta = document.createElement('textarea');
+                ta.value = this.endpoint;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                this.copied = true;
+                setTimeout(() => this.copied = false, 2000);
+            }
+        },
+        close() {
+            this.show = false;
+            this.copied = false;
+        }
+     }"
+     @open-mcp-info-modal.window="show = true; copied = false"
+     x-show="show"
+     x-cloak
+     class="modal-backdrop"
+     style="display: none;">
+
+    <div class="modal-content max-w-xl w-full mx-4" @click.away="close()">
+        {# Header #}
+        <div class="modal-header flex items-start justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center flex-shrink-0 text-white">
+                    <i data-lucide="cpu" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900" style="font-family: 'DM Sans', sans-serif">Servidor MCP</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Conecta tu asistente IA a esta cuenta vía OAuth.</p>
+                </div>
+            </div>
+            <button @click="close()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div class="modal-body space-y-5">
+            {# Endpoint #}
+            <div>
+                <label class="block text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">URL del servidor</label>
+                <div class="flex gap-2 items-stretch">
+                    <code class="flex-1 px-3 py-2.5 bg-slate-900 text-emerald-300 rounded-lg text-xs font-mono break-all select-all flex items-center"
+                          x-text="endpoint"></code>
+                    <button @click="copyEndpoint()"
+                            class="flex-shrink-0 px-3 rounded-lg border transition-all duration-200"
+                            :class="copied ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'">
+                        <i x-show="!copied" data-lucide="copy" class="w-4 h-4"></i>
+                        <i x-show="copied" data-lucide="check" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">
+                    Pega esta URL como servidor MCP en tu cliente compatible.
+                </p>
+            </div>
+
+            {# Steps #}
+            <div>
+                <label class="block text-xs font-medium uppercase tracking-wider text-slate-500 mb-3">Pasos para conectar</label>
+                <ol class="space-y-2.5">
+                    <li class="flex gap-3 text-sm text-slate-700">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center" style="font-family: 'DM Serif Display', serif">1</span>
+                        <span>En Claude.ai, ChatGPT, Cursor, OpenClaw o Hermes añade <strong>"servidor MCP"</strong> (o <em>"conector"</em>) y pega la URL.</span>
+                    </li>
+                    <li class="flex gap-3 text-sm text-slate-700">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center" style="font-family: 'DM Serif Display', serif">2</span>
+                        <span>El cliente se registrará automáticamente y abrirá la pantalla de autorización de PideInfo.</span>
+                    </li>
+                    <li class="flex gap-3 text-sm text-slate-700">
+                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center" style="font-family: 'DM Serif Display', serif">3</span>
+                        <span>Inicia sesión y aprueba los permisos. Tu asistente ya puede consultar y gestionar tus solicitudes.</span>
+                    </li>
+                </ol>
+            </div>
+
+            {# Capabilities #}
+            <div>
+                <label class="block text-xs font-medium uppercase tracking-wider text-slate-500 mb-2">Lo que tu asistente podrá hacer</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                        <i data-lucide="search" class="w-3.5 h-3.5 text-emerald-700 flex-shrink-0"></i>
+                        <span class="text-xs text-emerald-900">Buscar solicitudes</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50/50 border border-emerald-100">
+                        <i data-lucide="calendar-clock" class="w-3.5 h-3.5 text-emerald-700 flex-shrink-0"></i>
+                        <span class="text-xs text-emerald-900">Consultar plazos</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/50 border border-amber-100">
+                        <i data-lucide="file-plus" class="w-3.5 h-3.5 text-amber-700 flex-shrink-0"></i>
+                        <span class="text-xs text-amber-900">Crear solicitudes</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50/50 border border-amber-100">
+                        <i data-lucide="gavel" class="w-3.5 h-3.5 text-amber-700 flex-shrink-0"></i>
+                        <span class="text-xs text-amber-900">Generar reclamaciones</span>
+                    </div>
+                </div>
+            </div>
+
+            {# Privacy note #}
+            <div class="flex items-start gap-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <i data-lucide="shield-check" class="w-4 h-4 text-slate-500 flex-shrink-0 mt-0.5"></i>
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    El asistente actúa con tu identidad mediante OAuth — no compartes contraseñas. Puedes revocar el acceso cuando quieras desde
+                    <a href="{{ path('app_connected_apps') }}" class="text-primary-700 hover:text-primary-800 underline">Aplicaciones conectadas</a>.
+                </p>
+            </div>
+        </div>
+
+        {# Footer #}
+        <div class="modal-footer">
+            <div class="flex gap-3 w-full justify-between items-center">
+                <a href="{{ path('app_connected_apps') }}" class="text-sm text-slate-500 hover:text-slate-700">
+                    Aplicaciones conectadas
+                </a>
+                <button @click="close()" class="btn btn-primary btn-sm">Entendido</button>
+            </div>
+        </div>
+    </div>
+</div>

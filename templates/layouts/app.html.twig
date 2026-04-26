@@ -14,7 +14,9 @@
                     <span>PideInfo</span>
                 </a>
 
-                <div class="hidden md:flex items-center ml-10 space-x-1">
+                <span class="hidden md:block w-px h-6 bg-slate-200 mx-6" aria-hidden="true"></span>
+
+                <div class="hidden md:flex items-center space-x-1">
                     <a href="{{ path('app_dashboard') }}"
                        class="nav-link {{ app.request.attributes.get('_route') == 'app_dashboard' ? 'active' : '' }}">
                         <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
@@ -84,6 +86,18 @@
                             <i data-lucide="link" class="w-4 h-4"></i>
                             Conectar agente
                         </button>
+                        <button type="button"
+                                @click="open = false; $dispatch('open-mcp-info-modal')"
+                                class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
+                            <i data-lucide="cpu" class="w-4 h-4"></i>
+                            Servidor MCP
+                            <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-medium uppercase tracking-wide">IA</span>
+                        </button>
+                        <a href="{{ path('app_connected_apps') }}"
+                           class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                            <i data-lucide="plug" class="w-4 h-4"></i>
+                            Aplicaciones conectadas
+                        </a>
                         <div class="border-t border-slate-100 my-1"></div>
                         <a href="{{ path('app_logout') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                             <i data-lucide="log-out" class="w-4 h-4"></i>
@@ -168,6 +182,7 @@
 </footer>
 
 {% include '_partials/agent_token_modal.html.twig' %}
+{% include '_partials/mcp_info_modal.html.twig' %}
 
 {# Alpine.js for interactivity #}
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>

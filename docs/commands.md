@@ -4,6 +4,18 @@ Referencia de todos los comandos Symfony relevantes para la importación, proces
 
 ---
 
+## Opciones comunes a los importadores
+
+Todos los `app:*:load-resolutions` aceptan, además de las opciones específicas listadas más abajo:
+
+| Opción | Descripción |
+|--------|-------------|
+| `--update` | Para imports incrementales: el importador continúa procesando hasta encontrar una racha **consecutiva** de resoluciones ya existentes (50–100 según la fuente). El contador se reinicia cada vez que aparece una nueva, así que las resoluciones nuevas intercaladas en listados desordenados (CTPD, CTPDA…) o en posiciones "antiguas" del orden por fecha (GAIP, CTBG) se siguen importando. |
+| `--force` | Sobrescribe resoluciones existentes (por defecto se omiten). |
+| `--missing-pdf` | Reprocesa resoluciones existentes que tienen `sourceUrl` pero no texto extraído. |
+
+---
+
 ## Importación de resoluciones
 
 ### `app:gaip:load-resolutions`
@@ -52,6 +64,9 @@ php bin/console app:ctbg:load-resolutions [opciones]
 | `--local-excel=PATH` | Ruta a un Excel local en caché |
 | `--async` | Despachar procesamiento a workers de Messenger (6× más rápido) |
 
+**Particularidades:**
+- Los dos Excel (`ResolucionesAE.xlsx` y `Resoluciones_AAyL.xlsx`) listan las resoluciones **de la más antigua a la más reciente** dentro de cada hoja anual y no incluyen una columna de fecha de resolución utilizable. `ExcelResolutionReader` ordena los DTOs por (año DESC, secuencia DESC) extraídos de la referencia, de forma que las recientes se procesen primero y `--update` corte por la cola correcta del histórico.
+
 **Ejemplo — importar con procesamiento async:**
 ```bash
 php bin/console app:ctbg:load-resolutions --source=national --async
@@ -75,6 +90,9 @@ php bin/console app:ctg:load-resolutions [opciones]
 | `--skip-vectors` | Omitir vectorización |
 | `--skip-pdf` | Omitir descarga y extracción de PDF |
 | `--async` | Despachar procesamiento a workers de Messenger |
+
+**Particularidades:**
+- Se utiliza el archivo de categoría de WordPress (`/es/category/resoluciones-de-la-comision-de-la-transparencia/page/N/`), que devuelve los posts ordenados por fecha de publicación descendente. La URL antigua basada en el formulario de búsqueda alteraba el orden por número de referencia y dejaba fuera resoluciones publicadas recientemente.
 
 ---
 
@@ -293,7 +311,7 @@ php bin/console app:ctpda:load-resolutions [opciones]
 | `--async` | Despachar procesamiento a workers de Messenger |
 
 **Particularidades:**
-- Fuente: CSV tab-separated en `https://www.ctpdandalucia.es/sites/default/files/views_data_export/...Vista%20Buscar%20Reclamaciones.csv`
+- Fuente: el CSV se regenera bajo demanda mediante el módulo Drupal Views Data Export. El importador dispara `https://www.ctpdandalucia.es/buscar-resoluciones-sobre-reclamaciones?page&_format=csv`, espera a que el batch termine y descarga la URL `sites/default/files/views_data_export/.../Vista Buscar Reclamaciones.csv` que el portal anuncia tras la generación. La ruta antigua con timestamp fijo dejaba de existir periódicamente y por eso ya no se hardcodea.
 - El CSV incluye: referencia, fecha, resumen, sentido (outcome), ámbito, organismo, provincia y URL al PDF.
 - La fecha de resolución y el outcome se obtienen directamente del CSV (no del PDF).
 - El ámbito determina el scope: "Administración Local" → local, resto → autonomous.

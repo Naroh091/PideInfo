@@ -71,6 +71,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $pendingDehuNotifications = null;
 
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $agentTokenIssuedAt = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $agentTokensInvalidatedAt = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -252,6 +258,34 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->pendingDehuNotifications = $notifications;
         return $this;
+    }
+
+    public function getAgentTokenIssuedAt(): ?\DateTimeImmutable
+    {
+        return $this->agentTokenIssuedAt;
+    }
+
+    public function setAgentTokenIssuedAt(?\DateTimeImmutable $agentTokenIssuedAt): static
+    {
+        $this->agentTokenIssuedAt = $agentTokenIssuedAt;
+        return $this;
+    }
+
+    public function getAgentTokensInvalidatedAt(): ?\DateTimeImmutable
+    {
+        return $this->agentTokensInvalidatedAt;
+    }
+
+    public function setAgentTokensInvalidatedAt(?\DateTimeImmutable $agentTokensInvalidatedAt): static
+    {
+        $this->agentTokensInvalidatedAt = $agentTokensInvalidatedAt;
+        return $this;
+    }
+
+    public function isAgentConnected(): bool
+    {
+        return null !== $this->agentTokenIssuedAt
+            && (null === $this->agentTokensInvalidatedAt || $this->agentTokensInvalidatedAt < $this->agentTokenIssuedAt);
     }
 
     public function __toString(): string

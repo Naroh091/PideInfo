@@ -1,0 +1,28 @@
+league_oauth2_server:
+    authorization_server:
+        private_key: '%env(resolve:OAUTH_PRIVATE_KEY)%'
+        private_key_passphrase: '%env(resolve:OAUTH_PASSPHRASE)%'
+        encryption_key: '%env(OAUTH_ENCRYPTION_KEY)%'
+        encryption_key_type: plain
+        access_token_ttl: PT1H
+        refresh_token_ttl: P30D
+        auth_code_ttl: PT10M
+        enable_auth_code_grant: true
+        enable_refresh_token_grant: true
+        enable_client_credentials_grant: false
+        enable_password_grant: false
+        enable_implicit_grant: false
+        require_code_challenge_for_public_clients: true
+    resource_server:
+        public_key: '%env(resolve:OAUTH_PUBLIC_KEY)%'
+    scopes:
+        available: ['mcp:read', 'mcp:write', 'mcp:documents', 'offline_access']
+        default: ['mcp:read']
+    persistence:
+        doctrine:
+            entity_manager: default
+
+when@test:
+    league_oauth2_server:
+        persistence:
+            in_memory: null

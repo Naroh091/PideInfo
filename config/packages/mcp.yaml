@@ -1,0 +1,27 @@
+mcp:
+    app: 'PideInfo'
+    version: '1.0.0'
+    description: |
+        Asistente de solicitudes de acceso a información pública (FOIA) en España. Permite buscar tus
+        solicitudes, consultar plazos, crear nuevas solicitudes, generar borradores de reclamación y
+        leer tus documentos. Todas las acciones se ejecutan bajo tu identidad mediante OAuth2.
+    instructions: |
+        Este servidor expone las solicitudes de acceso a información pública (transparencia)
+        del usuario autenticado. Las herramientas están agrupadas en lectura (mcp:read) y
+        mutación (mcp:write); los recursos pideinfo://document/{uuid} requieren mcp:documents.
+        Identifica al usuario y filtra siempre por su cuenta — nunca devuelvas datos de otros
+        usuarios. Antes de mutar el estado, confirma con el usuario.
+    website_url: 'https://pideinfo.es'
+    pagination_limit: 50
+    discovery:
+        scan_dirs: ['src/Mcp']
+    client_transports:
+        http: true
+        stdio: false
+    http:
+        path: /mcp
+        session:
+            store: cache
+            # Defaults to cache.mcp.sessions (auto-wrapped from cache.app as PSR-16 by the bundle).
+            prefix: 'pideinfo-mcp-'
+            ttl: 3600
