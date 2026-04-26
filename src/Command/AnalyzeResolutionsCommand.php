@@ -635,7 +635,9 @@ class AnalyzeResolutionsCommand extends Command
     private function dispatchVectorsOnly(\Doctrine\ORM\QueryBuilder $qb, ?int $limit, SymfonyStyle $io): int
     {
         $idQb = clone $qb;
-        $idQb->select('r.id');
+        // SELECT r.id drops the HIDDEN sortDate alias added in processVectorsOnly,
+        // so the orderBy that referenced it would fail with a semantic error.
+        $idQb->select('r.id')->resetDQLPart('orderBy');
         if ($limit !== null) {
             $idQb->setMaxResults($limit);
         }
