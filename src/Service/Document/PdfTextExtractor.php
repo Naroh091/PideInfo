@@ -81,6 +81,17 @@ final class PdfTextExtractor
     }
 
     /**
+     * Extract all text from in-memory PDF bytes without chunking.
+     */
+    public function extractFullTextFromContent(string $pdfBytes): string
+    {
+        $pdf = $this->parser->parseContent($pdfBytes);
+        $text = $pdf->getText();
+
+        return $this->cleanText($text);
+    }
+
+    /**
      * Clean extracted text by removing excessive whitespace and normalizing
      */
     private function cleanText(string $text): string

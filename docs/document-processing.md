@@ -41,7 +41,14 @@ Maximum file size: 50 MB.
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-The analyzer reads the document from S3, encodes it to base64, and sends it to Google Gemini's multimodal API. It uses the smaller Gemini model configured via `GEMINI_MID_MODEL` for fast, cost-effective analysis.
+The analyzer reads the document from S3, encodes it to base64, and sends it through `LlmClient`, which routes to either Gemini (default) or an OpenAI-compatible custom backend depending on `USE_CUSTOM_MODEL`. It uses the smaller Gemini model configured via `GEMINI_MID_MODEL` for fast, cost-effective analysis on the Gemini path.
+
+**PDF handling on the custom backend.** OpenAI-compatible chat APIs only accept images via `image_url`, so PDFs cannot be forwarded as-is (the upstream image decoder fails to identify the bytes). When `USE_CUSTOM_MODEL=true` and the document is a PDF, `DocumentAnalyzer` instead sends a hybrid payload:
+
+- Extracted text from the PDF (via `PdfTextExtractor::extractFullTextFromContent`).
+- The first 30 pages rasterized to PNG via `PdfRasterizer` (shells out to `pdftoppm` from `poppler-utils`) and attached as `image_url` parts.
+
+This redundancy covers both selectable-text PDFs (where the extracted text is authoritative) and scanned/image-only PDFs (where the rasterized pages carry the load). Gemini receives the original `application/pdf` inline data unchanged — its backend rasterizes natively. Plain images and `text/plain` documents are unaffected by this branch.
 
 **API call structure:**
 - Model: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
