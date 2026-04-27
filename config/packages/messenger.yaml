@@ -37,7 +37,10 @@ framework:
         default_bus: messenger.bus.default
 
         buses:
-            messenger.bus.default: []
+            messenger.bus.default:
+                middleware:
+                    - 'App\Messenger\UserContextMiddleware'
+                    - 'App\Messenger\TracingMiddleware'
 
         routing:
             Symfony\Component\Mailer\Messenger\SendEmailMessage: mail

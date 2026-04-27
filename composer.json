@@ -21,9 +21,15 @@
         "league/flysystem-bundle": "^3.6",
         "league/oauth2-server-bundle": "^0.9",
         "lexik/jwt-authentication-bundle": "^3.2",
+        "malditaes/langfuse-php": "dev-master",
         "nyholm/psr7": "^1.8",
         "omines/datatables-bundle": "^0.10.7",
+        "open-telemetry/api": "^1.9",
+        "open-telemetry/exporter-otlp": "^1.4",
+        "open-telemetry/sdk": "^1.14",
+        "open-telemetry/sem-conv": "^1.38",
         "openai-php/client": "^0.19.1",
+        "php-http/guzzle7-adapter": "^1.1",
         "phpoffice/phpspreadsheet": "^5.5",
         "phpoffice/phpword": "^1.4",
         "phpstan/phpdoc-parser": "^2.3",
@@ -143,5 +149,11 @@
         "symfony/maker-bundle": "^1.0",
         "symfony/stopwatch": "7.4.*",
         "symfony/web-profiler-bundle": "7.4.*"
-    }
+    },
+    "repositories": [
+        {
+        "type": "vcs",
+        "url": "git@github.com:MalditaEs/langfuse-php.git"
+      }
+    ]
 }

@@ -1,0 +1,17 @@
+services:
+    # TracerProvider built lazily by TracerFactory; falls back to noop when Langfuse is not configured.
+    OpenTelemetry\API\Trace\TracerProviderInterface:
+        factory: ['@App\Observability\TracerFactory', 'create']
+
+    # Register the messenger middleware as a tagged service so it can be referenced by id from messenger.yaml.
+    App\Messenger\TracingMiddleware:
+        tags:
+            - { name: 'messenger.middleware' }
+
+    App\Messenger\UserContextMiddleware:
+        tags:
+            - { name: 'messenger.middleware' }
+
+    App\Prompt\BundledPromptLoader:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
