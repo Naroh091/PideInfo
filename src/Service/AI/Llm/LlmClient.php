@@ -10,7 +10,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * Public facade for all chat/completion LLM calls. Routes each request to either
  * the Gemini backend or the OpenAI-compatible custom backend based on USE_CUSTOM_MODEL.
  */
-final class LlmClient
+class LlmClient
 {
     public function __construct(
         #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
@@ -26,7 +26,7 @@ final class LlmClient
         return $this->useCustom;
     }
 
-    public function chat(ChatRequest $req): string
+    public function chat(ChatRequest $req): ChatResult
     {
         return $this->useCustom
             ? $this->customClient->call($req)
@@ -51,7 +51,7 @@ final class LlmClient
             }
 
             try {
-                $content = $this->chat($req);
+                $content = $this->chat($req)->content;
             } catch (\Throwable $e) {
                 $lastError = $e;
                 continue;

@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * migration (drop + recreate vector tables + reindex), not a runtime toggle — that
  * is why activation requires its own explicit flag.
  */
-final class EmbeddingGenerator
+class EmbeddingGenerator
 {
     private readonly EmbedderInterface $active;
 

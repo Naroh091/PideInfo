@@ -29,7 +29,7 @@ final class GeminiChatClient
     ) {
     }
 
-    public function call(ChatRequest $req): string
+    public function call(ChatRequest $req): ChatResult
     {
         $model = $this->resolveModel($req->size);
         $url = sprintf(self::ENDPOINT, $model) . '?key=' . $this->apiKey;
@@ -91,7 +91,15 @@ final class GeminiChatClient
                 continue;
             }
 
-            return $text;
+            $usage = $data['usageMetadata'] ?? [];
+
+            return new ChatResult(
+                content: $text,
+                promptTokens: isset($usage['promptTokenCount']) ? (int) $usage['promptTokenCount'] : null,
+                completionTokens: isset($usage['candidatesTokenCount']) ? (int) $usage['candidatesTokenCount'] : null,
+                modelId: $data['modelVersion'] ?? $model,
+                finishReason: $data['candidates'][0]['finishReason'] ?? null,
+            );
         }
 
         throw $lastError ?? new \RuntimeException(sprintf('Gemini API call failed after %d attempts (model %s).', $req->maxRetries + 1, $model));

@@ -3,6 +3,7 @@
 namespace App\Service\AI;
 
 use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\ChatResult;
 use App\Service\AI\Llm\ContentPart;
 use GuzzleHttp\Client as GuzzleClient;
 use OpenAI;
@@ -45,7 +46,7 @@ final class CustomModelClient
      * Dispatch a backend-agnostic ChatRequest to the custom model. Used by LlmClient
      * to route every call (chat, structured output, multi-turn, multimodal) through here.
      */
-    public function call(ChatRequest $req): string
+    public function call(ChatRequest $req): ChatResult
     {
         $messages = [];
 
@@ -101,7 +102,7 @@ final class CustomModelClient
         string $schemaName = 'structured_response',
         float $temperature = 0.1,
         int $maxRetries = 2,
-    ): string {
+    ): ChatResult {
         $responseFormat = $jsonSchema !== null
             ? [
                 'type' => 'json_schema',
@@ -142,7 +143,7 @@ final class CustomModelClient
      * @param array<int, array<string, mixed>> $messages
      * @param array<string, mixed>|null $responseFormat
      */
-    private function dispatch(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): string
+    private function dispatch(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): ChatResult
     {
         $params = [
             'model' => $this->model,
@@ -150,6 +151,7 @@ final class CustomModelClient
             'temperature' => $temperature,
             'max_tokens' => $maxTokens,
             'stream' => true,
+            'stream_options' => ['include_usage' => true],
         ];
 
         if ($responseFormat !== null) {
@@ -164,12 +166,25 @@ final class CustomModelClient
             }
 
             $content = '';
+            $promptTokens = null;
+            $completionTokens = null;
+            $modelId = null;
+            $finishReason = null;
+
             try {
                 $stream = $this->getClient()->chat()->createStreamed($params);
                 foreach ($stream as $chunk) {
                     $delta = $chunk->choices[0]->delta->content ?? null;
                     if (is_string($delta) && $delta !== '') {
                         $content .= $delta;
+                    }
+
+                    $finishReason = $chunk->choices[0]->finishReason ?? $finishReason;
+                    $modelId = $chunk->model ?? $modelId;
+
+                    if ($chunk->usage !== null) {
+                        $promptTokens = $chunk->usage->promptTokens ?? $promptTokens;
+                        $completionTokens = $chunk->usage->completionTokens ?? $completionTokens;
                     }
                 }
             } catch (OpenAI\Exceptions\UnserializableResponse $e) {
@@ -203,7 +218,7 @@ final class CustomModelClient
                 continue;
             }
 
-            return $content;
+            return new ChatResult($content, $promptTokens, $completionTokens, $modelId, $finishReason);
         }
 
         throw $lastError ?? new \RuntimeException(sprintf('Custom model call failed after %d attempts.', $maxRetries + 1));

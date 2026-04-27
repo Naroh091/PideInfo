@@ -3,6 +3,8 @@
 namespace App\Service\Resolution;
 
 use App\Entity\Resolution;
+use App\Observability\Tracer;
+use App\Prompt\PromptStore;
 use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
@@ -17,6 +19,8 @@ final class ResolutionAnalyzer
         private readonly LlmClient $llmClient,
         private readonly CustomModelClient $customModelClient,
         private readonly LoggerInterface $logger,
+        private readonly Tracer $tracer,
+        private readonly PromptStore $promptStore,
     ) {
     }
 
@@ -171,6 +175,20 @@ final class ResolutionAnalyzer
         $total = count($chunks);
         $prompt = $this->buildFormatTextSystemPrompt();
 
+        return $this->tracer->span(
+            name: 'resolution.formatText',
+            attributes: ['chunk.count' => $total, 'text.length' => strlen($cleanedText)],
+            fn: fn () => $this->doFormatText($cleanedText, $chunks, $total, $prompt, $flex),
+        );
+    }
+
+    /**
+     * @param array<int, array{header: ?string, body: string}> $chunks
+     * @return array{formatted_text: string}
+     */
+    private function doFormatText(string $cleanedText, array $chunks, int $total, string $prompt, bool $flex): array
+    {
+
         if ($total === 1) {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
@@ -223,32 +241,13 @@ final class ResolutionAnalyzer
 
     private function buildFormatTextSystemPrompt(): string
     {
-        $prompt = <<<'PROMPT'
-Actúa como un experto en derecho administrativo español. Formatea el texto de la resolución adjunta cumpliendo ESTRICTAMENTE las siguientes reglas.
+        $customSuffix = $this->llmClient->isCustomEnabled()
+            ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"formatted_text\": \"HTML formateado aquí\"}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
+            : '';
 
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO. Utiliza terminología jurídica precisa en castellano.
-
-[formatted_text]
-- Transcribe TODO el texto principal (traducido si aplica) usando HTML semántico. ES VITAL QUE NO RESUMAS ESTE CAMPO; debe contener todo el contenido original. NO REDACTES LAS COSAS DE FORMA DISTINTA A LA ORIGINAL.
-- Limpia artefactos: une párrafos cortados y elimina espacios extra.
-- Etiquetas permitidas: <h2>, <h3>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <a>, <cite>, <br>, <hr>.
-- Jerarquía: <h2> para secciones principales (ANTECEDENTES, FUNDAMENTOS JURÍDICOS, RESOLUCIÓN), <h3> para subsecciones.
-- Estilos: <strong> (términos legales, organismos), <em> (citas de solicitudes), <blockquote> (citas extensas/leyes), <cite> (leyes 1ª vez).
-- ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
-- PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
-PROMPT;
-
-        if ($this->llmClient->isCustomEnabled()) {
-            $prompt .= <<<'SUFFIX'
-
-
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"formatted_text": "HTML formateado aquí"}
-SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-SUFFIX;
-        }
-
-        return $prompt;
+        return $this->promptStore->compile('pideinfo/resolution/format-text-system', [
+            'custom_suffix' => $customSuffix,
+        ]);
     }
 
     /**
@@ -350,13 +349,25 @@ SUFFIX;
      */
     public function extractAnalysis(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false): array
     {
-        $prompt = self::buildExtractAnalysisPrompt(skipResolutionDate: $skipResolutionDate);
+        return $this->tracer->span(
+            name: 'resolution.extractAnalysis',
+            attributes: ['text.length' => strlen($cleanedText)],
+            fn: fn () => $this->doExtractAnalysis($cleanedText, $flex, $skipResolutionDate),
+        );
+    }
 
+    /**
+     * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
+     */
+    private function doExtractAnalysis(string $cleanedText, bool $flex, bool $skipResolutionDate): array
+    {
+        $customSuffix = '';
         if ($this->llmClient->isCustomEnabled()) {
-            $prompt .= $skipResolutionDate
+            $customSuffix = $skipResolutionDate
                 ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
                 : "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"resolution_date\": \"YYYY-MM-DD o null\", \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
         }
+        $prompt = $this->buildExtractAnalysisPrompt(skipResolutionDate: $skipResolutionDate, customSuffix: $customSuffix);
 
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $prompt,
@@ -383,25 +394,7 @@ SUFFIX;
      */
     public function batchFormatText(array $cleanedTexts): array
     {
-        $prompt = <<<'PROMPT'
-Actúa como un experto en derecho administrativo español. Se te proporcionan varios textos de resoluciones, cada uno identificado por un número.
-
-Para CADA resolución, formatea el texto cumpliendo ESTRICTAMENTE estas reglas:
-
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR TRADUCIDA AL CASTELLANO. Utiliza terminología jurídica precisa en castellano.
-
-[formatted_text]
-- Transcribe TODO el texto principal (traducido si aplica) usando HTML semántico. ES VITAL QUE NO RESUMAS; debe contener todo el contenido original. NO REDACTES LAS COSAS DE FORMA DISTINTA A LA ORIGINAL.
-- Limpia artefactos: une párrafos cortados y elimina espacios extra.
-- Etiquetas permitidas: <h2>, <h3>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <a>, <cite>, <br>, <hr>.
-- Jerarquía: <h2> para secciones principales (ANTECEDENTES, FUNDAMENTOS JURÍDICOS, RESOLUCIÓN), <h3> para subsecciones.
-- Estilos: <strong> (términos legales, organismos), <em> (citas de solicitudes), <blockquote> (citas extensas/leyes), <cite> (leyes 1ª vez).
-- ELIMINA: Metadatos iniciales/finales ("Número de expediente:", "Reclamante:", etc.), firmas, cabeceras del archivo y URLs sueltas no integradas en el texto.
-- PROHIBIDO: Usar <html>, <head>, <body> o estilos/clases CSS.
-
-Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "formatted_text": "HTML"}, ...]}.
-SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-PROMPT;
+        $prompt = $this->promptStore->compile('pideinfo/resolution/format-text-batch');
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildFormatTextSchema());
@@ -418,16 +411,9 @@ PROMPT;
      */
     public function batchExtractAnalysis(array $cleanedTexts): array
     {
-        $basePrompt = self::buildExtractAnalysisPrompt();
-        $batchHeader = "Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y aplica las siguientes instrucciones a cada una de forma independiente.\n\n";
-        $batchFooter = <<<'FOOTER'
-
-
-Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index": N, "summary": "...", "keypoints": [...], "resolution_date": "YYYY-MM-DD o null", "claim_date": "YYYY-MM-DD o null", "claim_reason": "... o null", "info_request_date": "YYYY-MM-DD o null", "complained_administration": "... o null", "subject": "... o null", "outcome": "código o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}, ...]}.
-SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-FOOTER;
-
-        $prompt = $batchHeader . $basePrompt . $batchFooter;
+        $prompt = $this->promptStore->compile('pideinfo/resolution/extract-analysis-batch', [
+            'base_prompt' => $this->buildExtractAnalysisPrompt(),
+        ]);
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildExtractAnalysisSchema());
@@ -452,17 +438,10 @@ FOOTER;
      */
     public function extractNonCompleteAnalysis(string $cleanedText, bool $flex = false): array
     {
-        $prompt = self::buildNonCompleteAnalysisPrompt();
-
-        if ($this->llmClient->isCustomEnabled()) {
-            $prompt .= <<<'SUFFIX'
-
-
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta:
-{"info_request_date": "YYYY-MM-DD o null", "complained_administration": "nombre o null", "claim_reason": "frase corta o null", "outcome": "código del enum o null", "limits": ["código", ...], "inadmission_causes": ["código", ...]}
-SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
-SUFFIX;
-        }
+        $customSuffix = $this->llmClient->isCustomEnabled()
+            ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"claim_reason\": \"frase corta o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
+            : '';
+        $prompt = $this->buildNonCompleteAnalysisPrompt($customSuffix);
 
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $prompt,
@@ -488,7 +467,7 @@ SUFFIX;
      */
     public function batchExtractNonCompleteAnalysis(array $cleanedTexts): array
     {
-        $basePrompt = self::buildNonCompleteAnalysisPrompt();
+        $basePrompt = $this->buildNonCompleteAnalysisPrompt();
         $batchHeader = "Se te proporcionan varios textos de resoluciones, cada uno identificado por un número. Analiza CADA resolución y aplica las siguientes instrucciones a cada una de forma independiente.\n\n";
         $batchFooter = <<<'FOOTER'
 
@@ -587,7 +566,7 @@ FOOTER;
                     schemaName: 'resolution_analysis_batch',
                     temperature: 0.1,
                     maxRetries: 0,
-                );
+                )->content;
             } catch (\Throwable $e) {
                 $lastError = $e;
                 continue;
@@ -664,105 +643,16 @@ FOOTER;
         throw $lastError ?? new \RuntimeException(sprintf('Custom model batch API call failed after %d attempts.', $maxRetries + 1));
     }
 
-    public static function buildExtractAnalysisPrompt(bool $skipResolutionDate = false): string
+    public function buildExtractAnalysisPrompt(bool $skipResolutionDate = false, string $customSuffix = ''): string
     {
-        $outcomesBlock = self::renderEnumBlock(Resolution::getOutcomeLabels());
-        $limitsBlock = self::renderEnumBlock(Resolution::getLimitLabels());
-        $causesBlock = self::renderEnumBlock(Resolution::getInadmissionCauseLabels());
-        $resolutionDateBlock = $skipResolutionDate ? '' : "[resolution_date]\nFecha de firma de la resolución del organismo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.\n\n";
-
-        return <<<PROMPT
-Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae la información requerida.
-
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
-
-[summary]
-Escribe un resumen directo en texto plano (máximo 400 caracteres).
-Explica: 1) Qué se solicitó y a quién. 2) Si se alegó algo 3) Decisión del organismo de transparencia (presta atención a su nombre) y por qué.
-
-[keypoints]
-Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedentes, argumentación jurídica de los motivos de estimación/desestimación).
-Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
-Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
-
-{$resolutionDateBlock}### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
-
-Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
-
-El patrón habitual es uno de estos (presta atención a las variantes):
-
-- «el reclamante/interesado/solicitante solicitó el [FECHA] al/ante [ADMINISTRACIÓN], al amparo de la Ley 19/2013…»
-- «con fecha [FECHA], don/doña [NOMBRE] presentó ante [ADMINISTRACIÓN] solicitud de acceso…»
-- «en fecha [FECHA], se presentó solicitud ante [ADMINISTRACIÓN] en la que se pedía…»
-- «mediante escrito de [FECHA] dirigido a [ADMINISTRACIÓN], el interesado solicitó…»
-
-**[info_request_date]**: la FECHA en la que el ciudadano presentó la solicitud ORIGINAL a la administración reclamada (NO la fecha de la reclamación posterior ante el consejo de transparencia — esa va en claim_date).
-
-Normaliza la fecha a ISO 8601 (YYYY-MM-DD). Ejemplos de conversión:
-- "14 de mayo de 2022" → "2022-05-14"
-- "3 de enero de 2024" → "2024-01-03"
-- "7-julio-2023" → "2023-07-07"
-
-**[complained_administration]**: el NOMBRE de la administración u organismo a la que el ciudadano dirigió su solicitud original (la «administración reclamada»). Este campo es CRÍTICO: la inmensa mayoría de las resoluciones lo mencionan de forma explícita en la primera frase de los antecedentes.
-
-Reglas estrictas:
-- NUNCA devuelvas el nombre del consejo/comisión de transparencia que dicta la resolución (CTBG, Consejo de Transparencia de Aragón, Comissió de Garantia, etc.). Esos son los ÓRGANOS REVISORES, no la administración reclamada.
-- Devuelve el nombre más corto y autónomo que identifique al organismo (ej. «Ministerio de Hacienda», «Ayuntamiento de Madrid», «Universidad Complutense de Madrid», «Dirección General de Tráfico»). No le añadas frases como "al amparo de la Ley 19/2013".
-- Normaliza la capitalización (sin TODO EN MAYÚSCULAS): «Ministerio de Asuntos Económicos y Transformación Digital», no «MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL».
-- Si la solicitud fue trasladada de un organismo a otro, devuelve el organismo ORIGINAL destinatario de la solicitud, no al que fue trasladada.
-
-**No devuelvas null sin intentarlo**: antes de devolver null en cualquiera de estos dos campos, relee con cuidado los primeros tres párrafos del apartado «Antecedentes». En el 95% de los casos la información está ahí. Solo devuelve null si tras esa búsqueda cuidadosa no puedes encontrarlo.
-
-**Ejemplo completo**:
-> «I. ANTECEDENTES. 1. Según se desprende del expediente, el reclamante solicitó el 14 de mayo de 2022 al MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL, al amparo de la Ley 19/2013…»
-
-De este fragmento debes extraer:
-- `info_request_date`: "2022-05-14"
-- `complained_administration`: "Ministerio de Asuntos Económicos y Transformación Digital"
-
-[claim_date]
-Fecha de presentación de la RECLAMACIÓN ante el consejo de transparencia (NO la fecha de la solicitud original — esa va en info_request_date). Suele aparecer más abajo en los Antecedentes con frases del tipo «mediante escrito registrado el [FECHA], el interesado interpuso reclamación ante este Consejo…». Formato ISO 8601. Null solo si tras búsqueda cuidadosa no aparece.
-
-[claim_reason]
-Una frase CORTA (máximo 120 caracteres) describiendo el MOTIVO por el que el ciudadano reclama. Es la queja concreta del reclamante contra la actuación (o inactuación) de la administración. NO confundir con el asunto de la solicitud — aquí queremos SOLO el motivo de la queja.
-
-Ejemplos típicos (elige el que mejor encaje al caso, o redacta uno equivalente en una sola frase):
-- «Silencio administrativo» (cuando la administración simplemente no responde)
-- «Denegación total del acceso por aplicación del art. 14.X» (cuando se invoca un límite concreto)
-- «Inadmisión a trámite por reelaboración» / «por no ser competente» (cuando se invoca una causa de inadmisión)
-- «Acceso parcial insuficiente» (cuando se da parte de la información pero el reclamante considera que falta)
-- «Denegación de facto por respuesta evasiva» (cuando responden pero no a lo pedido)
-- «Información incompleta o en formato no utilizable»
-- «Silencio administrativo tras solicitud de ampliación» (variante de silencio)
-
-Guíate por la queja real del reclamante tal como aparece en los Antecedentes y en la reclamación. Escribe en castellano.
-
-[subject]
-Devuelve el asunto de la resolución en castellano. En el caso de que el texto original no sea descriptivo o no sea natural, retorna un texto descriptivo de la solicitud y resultado en menos de 300 caracteres y sin punto al final.
-
-[outcome]
-Devuelve el código que mejor describe la decisión final del organismo de transparencia, eligiendo UNO de los siguientes valores:
-
-{$outcomesBlock}
-
-Si la decisión no encaja en NINGUNO de estos códigos, devuelve un texto libre breve (máximo 80 caracteres) describiendo la decisión. Si no puedes determinarla, devuelve null.
-
-[limits]
-Lista de LÍMITES al derecho de acceso (art. 14 Ley 19/2013) que la administración reclamada haya alegado para denegar total o parcialmente la información. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguno):
-
-{$limitsBlock}
-
-Solo incluye límites efectivamente alegados por la administración. NO incluyas límites mencionados solo en los fundamentos jurídicos del consejo si no fueron alegados por la administración.
-
-[inadmission_causes]
-Lista de CAUSAS DE INADMISIÓN (art. 18 Ley 19/2013) que la administración reclamada haya alegado para inadmitir la solicitud. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguna):
-
-{$causesBlock}
-
-Solo incluye causas efectivamente alegadas por la administración.
-PROMPT;
+        return $this->promptStore->compile('pideinfo/resolution/extract-analysis', [
+            'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
+            'limits_block' => self::renderEnumBlock(Resolution::getLimitLabels()),
+            'causes_block' => self::renderEnumBlock(Resolution::getInadmissionCauseLabels()),
+            'resolution_date_block' => $skipResolutionDate ? '' : "[resolution_date]\nFecha de firma de la resolución del organismo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.\n\n",
+            'custom_suffix' => $customSuffix,
+        ]);
     }
-
     /**
      * @param array<string, string> $labels
      */
@@ -878,86 +768,14 @@ PROMPT;
         return $result;
     }
 
-    public static function buildNonCompleteAnalysisPrompt(): string
+    public function buildNonCompleteAnalysisPrompt(string $customSuffix = ''): string
     {
-        $outcomesBlock = self::renderEnumBlock(Resolution::getOutcomeLabels());
-        $limitsBlock = self::renderEnumBlock(Resolution::getLimitLabels());
-        $causesBlock = self::renderEnumBlock(Resolution::getInadmissionCauseLabels());
-
-        return <<<PROMPT
-Actúa como un experto en derecho administrativo español y transparencia. Analiza la resolución adjunta y extrae ÚNICAMENTE los campos indicados más abajo. NO generes resumen, keypoints, asunto ni fechas de resolución/reclamación — esos datos ya existen y no deben tocarse.
-
-REGLA GLOBAL (IDIOMA): Si el texto original está en catalán, gallego, euskera u otro idioma, TODA tu respuesta DEBE ESTAR EN CASTELLANO.
-
-### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
-
-Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
-
-El patrón habitual es uno de estos (presta atención a las variantes):
-
-- «el reclamante/interesado/solicitante solicitó el [FECHA] al/ante [ADMINISTRACIÓN], al amparo de la Ley 19/2013…»
-- «con fecha [FECHA], don/doña [NOMBRE] presentó ante [ADMINISTRACIÓN] solicitud de acceso…»
-- «en fecha [FECHA], se presentó solicitud ante [ADMINISTRACIÓN] en la que se pedía…»
-- «mediante escrito de [FECHA] dirigido a [ADMINISTRACIÓN], el interesado solicitó…»
-
-**[info_request_date]**: la FECHA en la que el ciudadano presentó la solicitud ORIGINAL a la administración reclamada (NO la fecha de la reclamación posterior ante el consejo de transparencia).
-
-Normaliza la fecha a ISO 8601 (YYYY-MM-DD). Ejemplos de conversión:
-- "14 de mayo de 2022" → "2022-05-14"
-- "3 de enero de 2024" → "2024-01-03"
-- "7-julio-2023" → "2023-07-07"
-
-**[complained_administration]**: el NOMBRE de la administración u organismo a la que el ciudadano dirigió su solicitud original (la «administración reclamada»). Este campo es CRÍTICO: la inmensa mayoría de las resoluciones lo mencionan de forma explícita en la primera frase de los antecedentes.
-
-Reglas estrictas:
-- NUNCA devuelvas el nombre del consejo/comisión de transparencia que dicta la resolución (CTBG, Consejo de Transparencia de Aragón, Comissió de Garantia, etc.). Esos son los ÓRGANOS REVISORES, no la administración reclamada.
-- Devuelve el nombre más corto y autónomo que identifique al organismo (ej. «Ministerio de Hacienda», «Ayuntamiento de Madrid», «Universidad Complutense de Madrid», «Dirección General de Tráfico»). No le añadas frases como "al amparo de la Ley 19/2013".
-- Normaliza la capitalización (sin TODO EN MAYÚSCULAS): «Ministerio de Asuntos Económicos y Transformación Digital», no «MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL».
-- Si la solicitud fue trasladada de un organismo a otro, devuelve el organismo ORIGINAL destinatario de la solicitud, no al que fue trasladada.
-
-**No devuelvas null sin intentarlo**: antes de devolver null en cualquiera de estos dos campos, relee con cuidado los primeros tres párrafos del apartado «Antecedentes». En el 95% de los casos la información está ahí. Solo devuelve null si tras esa búsqueda cuidadosa no puedes encontrarlo.
-
-**Ejemplo completo**:
-> «I. ANTECEDENTES. 1. Según se desprende del expediente, el reclamante solicitó el 14 de mayo de 2022 al MINISTERIO DE ASUNTOS ECONÓMICOS Y TRANSFORMACIÓN DIGITAL, al amparo de la Ley 19/2013…»
-
-De este fragmento debes extraer:
-- `info_request_date`: "2022-05-14"
-- `complained_administration`: "Ministerio de Asuntos Económicos y Transformación Digital"
-
-[claim_reason]
-Una frase CORTA (máximo 120 caracteres) describiendo el MOTIVO por el que el ciudadano reclama. Es la queja concreta del reclamante contra la actuación (o inactuación) de la administración. NO confundir con el asunto — aquí queremos SOLO el motivo de la queja.
-
-Ejemplos típicos (elige el que mejor encaje o redacta uno equivalente en una sola frase):
-- «silencio administrativo» (cuando la administración no responde)
-- «denegación total del acceso por aplicación del art. 14.X» (cuando se invoca un límite)
-- «inadmisión a trámite por reelaboración» / «por no ser competente» (cuando se invoca una causa de inadmisión)
-- «acceso parcial insuficiente» (se da parte de la información pero falta lo esencial)
-- «denegación de facto por respuesta evasiva» (responden pero no a lo pedido)
-- «información incompleta o en formato no utilizable»
-
-Escribe en castellano.
-
-[outcome]
-Devuelve el código que mejor describe la decisión final del organismo de transparencia, eligiendo UNO de los siguientes valores:
-
-{$outcomesBlock}
-
-Si la decisión no encaja en NINGUNO de estos códigos, devuelve un texto libre breve (máximo 80 caracteres) describiendo la decisión. Si no puedes determinarla, devuelve null.
-
-[limits]
-Lista de LÍMITES al derecho de acceso (art. 14 Ley 19/2013) que la administración reclamada haya alegado para denegar total o parcialmente la información. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguno):
-
-{$limitsBlock}
-
-Solo incluye límites efectivamente alegados por la administración. NO incluyas límites mencionados solo en los fundamentos jurídicos del consejo si no fueron alegados por la administración.
-
-[inadmission_causes]
-Lista de CAUSAS DE INADMISIÓN (art. 18 Ley 19/2013) que la administración reclamada haya alegado para inadmitir la solicitud. Devuelve un array con los códigos correspondientes (puede estar vacío si no se alegó ninguna):
-
-{$causesBlock}
-
-Solo incluye causas efectivamente alegadas por la administración.
-PROMPT;
+        return $this->promptStore->compile('pideinfo/resolution/extract-noncomplete', [
+            'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
+            'limits_block' => self::renderEnumBlock(Resolution::getLimitLabels()),
+            'causes_block' => self::renderEnumBlock(Resolution::getInadmissionCauseLabels()),
+            'custom_suffix' => $customSuffix,
+        ]);
     }
 
     /**

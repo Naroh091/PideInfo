@@ -46,6 +46,7 @@ final class ProcessResolutionHandler
         private readonly CtcanWebReader $ctcanWebReader,
         private readonly PublicBodyResolver $publicBodyResolver,
         private readonly LoggerInterface $logger,
+        private readonly \App\Observability\Tracer $tracer,
     ) {
     }
 
@@ -393,10 +394,28 @@ final class ProcessResolutionHandler
             'source' => $resolution->getSource(),
         ], fn ($v) => $v !== null);
 
+        $chunks = $this->chunkText($fullText);
+
+        $this->tracer->span(
+            name: 'resolution.vectorize',
+            attributes: [
+                'chunk.count' => count($chunks),
+                'resolution.id' => (string) $resolution->getId(),
+                'resolution.source' => $resolution->getSource(),
+            ],
+            fn: fn () => $this->doVectorize($resolution, $chunks, $baseMeta),
+        );
+    }
+
+    /**
+     * @param array<int, string> $chunks
+     * @param array<string, mixed> $baseMeta
+     */
+    private function doVectorize(Resolution $resolution, array $chunks, array $baseMeta): void
+    {
         $documents = [];
 
         // Full text chunks
-        $chunks = $this->chunkText($fullText);
         foreach ($chunks as $index => $chunkText) {
             try {
                 $embedding = $this->embeddingGenerator->generate($chunkText);
