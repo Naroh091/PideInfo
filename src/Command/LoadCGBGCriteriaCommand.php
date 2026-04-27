@@ -54,7 +54,7 @@ class LoadCGBGCriteriaCommand extends Command
             $io->section('Setting up PostgreSQL vector store...');
             $this->ctbgCriteriaStore->setup([
                 'vector_type' => 'halfvec',
-                'vector_size' => 4096,
+                'vector_size' => 3072,
                 'index_method' => 'hnsw',
                 'index_opclass' => 'halfvec_cosine_ops',
             ]);

@@ -31,8 +31,6 @@ final class QwenEmbedder implements EmbedderInterface
         string $embeddingEndpoint = '',
         #[Autowire(env: 'CUSTOM_EMBEDDING_API_KEY')]
         string $embeddingApiKey = '',
-        #[Autowire(env: 'int:CUSTOM_EMBEDDING_TRUNCATE_TO')]
-        private readonly int $truncateTo = 0,
     ) {
         $this->endpoint = $embeddingEndpoint !== '' ? $embeddingEndpoint : $chatEndpoint;
         $this->apiKey = $embeddingApiKey !== '' ? $embeddingApiKey : $chatApiKey;
@@ -85,11 +83,11 @@ final class QwenEmbedder implements EmbedderInterface
             'input' => $input,
         ];
 
-        // Opt-in Matryoshka truncation. Only set when the model actually supports it
-        // (e.g. Qwen3-Embedding-4B with MRL). Sending `dimensions` to a non-MRL model
-        // like Qwen3-Embedding-8B degrades quality.
-        if ($this->truncateTo > 0) {
-            $payload['dimensions'] = $this->truncateTo;
+        // Request Matryoshka truncation when a target dimension is configured.
+        // Lets us keep the existing pgvector schema (e.g. halfvec(3072)) when the
+        // model's native output is larger (Qwen3-Embedding-8B → 4096).
+        if ($this->dimension > 0) {
+            $payload['dimensions'] = $this->dimension;
         }
 
         return $payload;
