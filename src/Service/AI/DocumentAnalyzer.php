@@ -9,14 +9,22 @@ use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\AI\Llm\ModelSize;
+use App\Service\Document\PdfRasterizer;
+use App\Service\Document\PdfTextExtractor;
 use League\Flysystem\FilesystemOperator;
+use Psr\Log\LoggerInterface;
 
 final class DocumentAnalyzer
 {
+    private const PDF_RASTERIZE_MAX_PAGES = 30;
+
     public function __construct(
         private readonly FilesystemOperator $documentsStorage,
         private readonly LlmClient $llmClient,
         private readonly PromptStore $promptStore,
+        private readonly PdfTextExtractor $pdfTextExtractor,
+        private readonly PdfRasterizer $pdfRasterizer,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -41,28 +49,9 @@ final class DocumentAnalyzer
     private function analyzeSingle(Document $document): array
     {
         $content = $this->documentsStorage->read($document->getStoredFilename());
-        $mimeType = $document->getMimeType();
+        $contextLabel = sprintf('[Documento: %s]', $document->getOriginalFilename());
 
-        $parts = [];
-
-        if ($mimeType === 'text/plain') {
-            $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
-            $parts[] = ContentPart::text(sprintf("[%s: %s]\n%s", $label, $document->getOriginalFilename(), $content));
-        } else {
-            $parts[] = ContentPart::inlineData($mimeType, base64_encode($content));
-
-            $contextLabel = sprintf('[Documento: %s]', $document->getOriginalFilename());
-
-            if ($document->isFromPortal()) {
-                $portalContext = $this->buildPortalContext($document);
-                if ($portalContext) {
-                    $contextLabel .= "\n" . $portalContext;
-                }
-            }
-
-            $parts[] = ContentPart::text($contextLabel);
-        }
-
+        $parts = $this->buildDocumentParts($document, $content, $contextLabel);
         $parts[] = ContentPart::text($this->buildPrompt());
 
         $data = $this->llmClient->chatJson(new ChatRequest(
@@ -114,23 +103,10 @@ final class DocumentAnalyzer
         // Add each document as a separate part
         foreach ($documents as $index => $document) {
             $content = $this->documentsStorage->read($document->getStoredFilename());
-            $mimeType = $document->getMimeType();
+            $contextLabel = sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename());
 
-            if ($mimeType === 'text/plain') {
-                $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
-                $parts[] = ContentPart::text(sprintf("[Documento %d - %s: %s]\n%s", $index + 1, $label, $document->getOriginalFilename(), $content));
-            } else {
-                $parts[] = ContentPart::inlineData($mimeType, base64_encode($content));
-                $contextLabel = sprintf('[Documento %d: %s]', $index + 1, $document->getOriginalFilename());
-
-                if ($document->isFromPortal()) {
-                    $portalContext = $this->buildPortalContext($document);
-                    if ($portalContext) {
-                        $contextLabel .= "\n" . $portalContext;
-                    }
-                }
-
-                $parts[] = ContentPart::text($contextLabel);
+            foreach ($this->buildDocumentParts($document, $content, $contextLabel, $index + 1) as $part) {
+                $parts[] = $part;
             }
         }
 
@@ -156,6 +132,87 @@ final class DocumentAnalyzer
     private function buildPrompt(): string
     {
         return $this->promptStore->compile('pideinfo/document/analyze-single');
+    }
+
+    /**
+     * Build the chat content parts for one document. Bifurcates by MIME and backend:
+     *   - text/plain  → single text part with the file body inlined.
+     *   - application/pdf on OpenAI-compat backend  → extracted text + first 30 pages
+     *     rasterized as PNGs (PDFs can't go through `image_url`; rasterizing + extracted
+     *     text together gives the model both the layout and a textual fallback).
+     *   - everything else (PDFs on Gemini, images) → original `inlineData` part.
+     *
+     * @return ContentPart[]
+     */
+    private function buildDocumentParts(Document $document, string $content, string $contextLabel, ?int $index = null): array
+    {
+        $mimeType = $document->getMimeType();
+        $filename = $document->getOriginalFilename();
+
+        if ($mimeType === 'text/plain') {
+            $label = $document->isFromEmail() ? 'Cuerpo de email' : 'Documento de texto';
+            $prefix = $index !== null
+                ? sprintf('[Documento %d - %s: %s]', $index, $label, $filename)
+                : sprintf('[%s: %s]', $label, $filename);
+
+            return [ContentPart::text(sprintf("%s\n%s", $prefix, $content))];
+        }
+
+        if ($document->isFromPortal()) {
+            $portalContext = $this->buildPortalContext($document);
+            if ($portalContext) {
+                $contextLabel .= "\n" . $portalContext;
+            }
+        }
+
+        if ($mimeType === 'application/pdf' && $this->llmClient->isCustomEnabled()) {
+            return $this->buildPdfPartsForCustomBackend($content, $contextLabel, $filename);
+        }
+
+        return [
+            ContentPart::inlineData($mimeType, base64_encode($content)),
+            ContentPart::text($contextLabel),
+        ];
+    }
+
+    /**
+     * @return ContentPart[]
+     */
+    private function buildPdfPartsForCustomBackend(string $pdfBytes, string $contextLabel, string $filename): array
+    {
+        $parts = [];
+
+        try {
+            $extracted = $this->pdfTextExtractor->extractFullTextFromContent($pdfBytes);
+        } catch (\Throwable $e) {
+            $this->logger->warning('PDF text extraction failed, sending only rasterized pages', [
+                'filename' => $filename,
+                'error' => $e->getMessage(),
+            ]);
+            $extracted = '';
+        }
+
+        if ($extracted !== '') {
+            $parts[] = ContentPart::text(sprintf("[Texto extraído del PDF: %s]\n%s", $filename, $extracted));
+        }
+
+        try {
+            $pages = $this->pdfRasterizer->rasterizeFromContent($pdfBytes, self::PDF_RASTERIZE_MAX_PAGES);
+        } catch (\Throwable $e) {
+            $this->logger->error('PDF rasterization failed, sending only extracted text', [
+                'filename' => $filename,
+                'error' => $e->getMessage(),
+            ]);
+            $pages = [];
+        }
+
+        foreach ($pages as $pagePng) {
+            $parts[] = ContentPart::inlineData('image/png', base64_encode($pagePng));
+        }
+
+        $parts[] = ContentPart::text($contextLabel);
+
+        return $parts;
     }
 
     /**
