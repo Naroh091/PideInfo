@@ -15,16 +15,25 @@ final class QwenEmbedder implements EmbedderInterface
 {
     private ?OpenAIClient $client = null;
 
+    private readonly string $endpoint;
+    private readonly string $apiKey;
+
     public function __construct(
         #[Autowire(env: 'CUSTOM_EMBEDDING_MODEL')]
         private readonly string $model,
         #[Autowire(env: 'CUSTOM_MODEL_ENDPOINT')]
-        private readonly string $endpoint,
+        string $chatEndpoint,
         #[Autowire(env: 'CUSTOM_MODEL_API_KEY')]
-        private readonly string $apiKey,
+        string $chatApiKey,
         #[Autowire(env: 'int:CUSTOM_EMBEDDING_DIMENSION')]
         private readonly int $dimension,
+        #[Autowire(env: 'CUSTOM_EMBEDDING_ENDPOINT')]
+        string $embeddingEndpoint = '',
+        #[Autowire(env: 'CUSTOM_EMBEDDING_API_KEY')]
+        string $embeddingApiKey = '',
     ) {
+        $this->endpoint = $embeddingEndpoint !== '' ? $embeddingEndpoint : $chatEndpoint;
+        $this->apiKey = $embeddingApiKey !== '' ? $embeddingApiKey : $chatApiKey;
     }
 
     public function generate(string $text): array
