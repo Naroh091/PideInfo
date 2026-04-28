@@ -83,7 +83,13 @@ final class ClientRegistrationController
             return $this->error('invalid_client_metadata', 'Unsupported token_endpoint_auth_method.');
         }
 
-        $grantTypes = $payload['grant_types'] ?? ['authorization_code'];
+        // RFC 7591 default is ['authorization_code'], but league/oauth2-server only
+        // emits a refresh token when the client has the `refresh_token` grant
+        // (AbstractGrant::issueRefreshToken). MCP clients (Claude.ai, Claude Code,
+        // Cursor…) DCR with no grant_types and then ask for offline_access at
+        // /authorize, expecting refreshable sessions. Default to both grants so
+        // those clients actually receive a refresh_token in the code exchange.
+        $grantTypes = $payload['grant_types'] ?? ['authorization_code', 'refresh_token'];
         if (!is_array($grantTypes)) {
             return $this->error('invalid_client_metadata', 'grant_types must be an array.');
         }
