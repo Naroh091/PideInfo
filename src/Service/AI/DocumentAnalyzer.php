@@ -17,6 +17,8 @@ use Psr\Log\LoggerInterface;
 final class DocumentAnalyzer
 {
     private const PDF_RASTERIZE_MAX_PAGES = 30;
+    private const PDF_TEXT_MIN_LENGTH = 200;
+    private const PDF_TEXT_MIN_ALNUM_RATIO = 0.5;
 
     public function __construct(
         private readonly FilesystemOperator $documentsStorage,
@@ -176,22 +178,42 @@ final class DocumentAnalyzer
     }
 
     /**
+     * Build PDF parts for the OpenAI-compatible backend.
+     *
+     * Try to extract selectable text first. If the extracted text is usable, send
+     * it as the sole representation of the PDF — the model gets a clean textual
+     * input and we skip the much heavier rasterized image payload. Only when the
+     * extraction yields nothing usable (empty or garbled, typical of scanned or
+     * image-only PDFs) do we fall back to rasterizing the first pages and
+     * shipping them as images.
+     *
      * @return ContentPart[]
      */
     private function buildPdfPartsForCustomBackend(string $pdfBytes, string $contextLabel, string $filename): array
     {
-        $parts = [];
-
         try {
             $extracted = $this->pdfTextExtractor->extractFullTextFromContent($pdfBytes);
         } catch (\Throwable $e) {
-            $this->logger->warning('PDF text extraction failed, sending only rasterized pages', [
+            $this->logger->warning('PDF text extraction failed, falling back to rasterized pages', [
                 'filename' => $filename,
                 'error' => $e->getMessage(),
             ]);
             $extracted = '';
         }
 
+        if ($this->isExtractedTextUseful($extracted)) {
+            return [
+                ContentPart::text(sprintf("[Texto extraído del PDF: %s]\n%s", $filename, $extracted)),
+                ContentPart::text($contextLabel),
+            ];
+        }
+
+        $this->logger->info('PDF extracted text not usable, rasterizing pages', [
+            'filename' => $filename,
+            'extractedLength' => strlen($extracted),
+        ]);
+
+        $parts = [];
         if ($extracted !== '') {
             $parts[] = ContentPart::text(sprintf("[Texto extraído del PDF: %s]\n%s", $filename, $extracted));
         }
@@ -213,6 +235,28 @@ final class DocumentAnalyzer
         $parts[] = ContentPart::text($contextLabel);
 
         return $parts;
+    }
+
+    /**
+     * Heuristic: extracted PDF text is "useful" if it has enough volume and a
+     * sensible ratio of letters/digits to noise. Scanned PDFs typically come
+     * back empty or as a sparse stream of glyph artifacts that fails both checks.
+     */
+    private function isExtractedTextUseful(string $text): bool
+    {
+        $trimmed = trim($text);
+        if (strlen($trimmed) < self::PDF_TEXT_MIN_LENGTH) {
+            return false;
+        }
+
+        $letters = preg_match_all('/[\p{L}\p{N}]/u', $trimmed);
+        $nonSpace = preg_match_all('/\S/u', $trimmed);
+
+        if ($nonSpace === 0) {
+            return false;
+        }
+
+        return ($letters / $nonSpace) >= self::PDF_TEXT_MIN_ALNUM_RATIO;
     }
 
     /**
