@@ -60,6 +60,8 @@ Devuelve un JSON con `client_id`, `client_secret`, `registration_access_token` (
 
 Si se omite `scope`, el cliente se registra con todos los scopes soportados (`mcp:read mcp:write mcp:documents offline_access`). Esto permite que clientes MCP que descubren los scopes vía well-known (Claude Code, Claude.ai, etc.) puedan pedirlos en `/oauth2/authorize` sin tener que enumerarlos en el DCR.
 
+Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'refresh_token']` (no sólo el default `authorization_code` de RFC 7591). `league/oauth2-server` sólo emite refresh token cuando el cliente tiene `refresh_token` en sus grants — sin esto, los clientes MCP que piden `offline_access` en `/authorize` recibirían access token pero ningún `refresh_token`. Para limpiar clientes ya registrados sin el grant: `bin/console app:oauth:backfill-refresh-grant [--dry-run]`.
+
 ## Tools disponibles
 
 | Nombre                       | Scope          | Acción                                                                           |

@@ -13,6 +13,8 @@ Lo que hacen los clientes MCP: leen ese metadata, mandan **DCR sin `offline_acce
 
 **Fix vivo en el código** (`src/Controller/OAuth2/ClientRegistrationController.php`): si DCR pide `refresh_token` como `grant_types`, auto-añadimos `offline_access` a los scopes del cliente aunque no venga en `scope`. No tocar sin entender esto.
 
+**Simétrico — y más importante**: por defecto, DCR registra a los clientes con `grant_types = ['authorization_code', 'refresh_token']`, no con el default RFC 7591 (`['authorization_code']`). Razón: `league/oauth2-server` `AbstractGrant::issueRefreshToken()` retorna `null` si el cliente no tiene `refresh_token` en sus grants, **independientemente del scope**. Sin este default, un cliente MCP que omite `grant_types` recibe `access_token` pero **no** `refresh_token`, aunque haya pedido `offline_access`. Para limpiar clientes preexistentes sin `refresh_token`: `bin/console app:oauth:backfill-refresh-grant`.
+
 ## 2. El JWT subject debe ser UUID, no email
 
 `User::getUserIdentifier()` devuelve el email (es lo que usa el firewall `main` de Symfony — `security.yaml`). Si dejas que league use eso como `sub`, `App\Security\OAuth2\OAuth2TokenHandler::64` rechaza el bearer con `OAuth2 token user identifier is not a valid UUID` porque hace `Uuid::isValid($sub)`.
