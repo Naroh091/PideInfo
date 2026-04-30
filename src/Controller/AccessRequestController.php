@@ -13,6 +13,7 @@ use App\Form\CustomDeadlineType;
 use App\Repository\AccessRequestListRepository;
 use App\Repository\AccessRequestRepository;
 use App\Repository\CustomDeadlineRepository;
+use App\Repository\StatusHistoryRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
@@ -306,6 +307,30 @@ class AccessRequestController extends AbstractController
             $this->entityManager->flush();
 
             $this->addFlash('success', 'Recordatorio eliminado correctamente.');
+        }
+
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    #[Route('/{id}/historial/{historyId}/eliminar', name: 'app_solicitudes_status_history_delete', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function deleteStatusHistory(
+        Request $request,
+        AccessRequest $accessRequest,
+        string $historyId,
+        StatusHistoryRepository $statusHistoryRepository
+    ): Response {
+        $history = $statusHistoryRepository->find($historyId);
+
+        if (!$history || $history->getAccessRequest()->getId() !== $accessRequest->getId()) {
+            throw $this->createNotFoundException('Evento no encontrado.');
+        }
+
+        if ($this->isCsrfTokenValid('delete-status-history-' . $historyId, $request->request->get('_token'))) {
+            $this->entityManager->remove($history);
+            $this->entityManager->flush();
+
+            $this->addFlash('success', 'Evento eliminado del historial.');
         }
 
         return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
