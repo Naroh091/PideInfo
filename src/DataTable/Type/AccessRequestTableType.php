@@ -4,6 +4,7 @@ namespace App\DataTable\Type;
 
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
+use App\Entity\AccessRequestListItem;
 use App\Entity\User;
 use Doctrine\ORM\QueryBuilder;
 use Omines\DataTablesBundle\Adapter\Doctrine\ORMAdapter;
@@ -30,18 +31,19 @@ class AccessRequestTableType implements DataTableTypeInterface
                 'label' => 'Solicitud',
                 'template' => 'datatable/columns/request_title.html.twig',
                 'orderable' => true,
-                'className' => 'min-w-[280px]',
+                'className' => 'sm:min-w-[280px]',
             ])
             ->add('status', TwigColumn::class, [
                 'label' => 'Estado',
                 'template' => 'datatable/columns/request_status.html.twig',
                 'orderable' => true,
+                'className' => 'hidden sm:table-cell',
             ])
             ->add('deadlineAt', TwigColumn::class, [
                 'label' => 'Plazo',
                 'template' => 'datatable/columns/request_deadline.html.twig',
                 'orderable' => true,
-                'className' => 'hidden sm:table-cell w-[180px]',
+                'className' => 'hidden md:table-cell w-[180px]',
             ])
             ->createAdapter(ORMAdapter::class, [
                 'entity' => AccessRequest::class,
@@ -94,11 +96,14 @@ class AccessRequestTableType implements DataTableTypeInterface
                             ->setParameter('search', '%' . $search . '%');
                     }
 
-                    // Filter by list
+                    // Filter by list — use EXISTS subquery so the Doctrine Paginator
+                    // doesn't try to walk AccessRequestListItem.accessRequest during
+                    // iteration (a regular JOIN trips it on Doctrine ORM 3+).
                     if ($listId !== null && $listId !== '') {
                         $builder
-                            ->join('ar.listItems', 'li')
-                            ->andWhere('li.list = :listId')
+                            ->andWhere(
+                                'EXISTS (SELECT 1 FROM ' . AccessRequestListItem::class . ' li WHERE li.accessRequest = ar AND li.list = :listId)'
+                            )
                             ->setParameter('listId', $listId);
                     }
 
