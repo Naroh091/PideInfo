@@ -2,9 +2,11 @@
 
 namespace App\Messenger;
 
+use App\Message\CheckCustomDeadlinesMessage;
 use App\Messenger\Stamp\UserContextStamp;
 use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
+use Symfony\Component\Mailer\Messenger\SendEmailMessage;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Middleware\MiddlewareInterface;
 use Symfony\Component\Messenger\Middleware\StackInterface;
@@ -15,9 +17,25 @@ use Symfony\Component\Messenger\Stamp\TransportMessageIdStamp;
 /**
  * Wraps every consumed message in a Langfuse trace. Producer-side dispatch is
  * skipped (no `ReceivedStamp`), so spans only appear once per actual handler run.
+ *
+ * Routine maintenance jobs that don't talk to an LLM (deadline checks, expired-
+ * request sweeps) are excluded — they'd flood Langfuse with noise traces that
+ * have no generations under them.
  */
 final class TracingMiddleware implements MiddlewareInterface
 {
+    /**
+     * Message classes whose execution we deliberately don't trace. These are
+     * scheduled chores with no AI work inside; tracing them only adds noise to
+     * the Langfuse trace list.
+     *
+     * @var array<int, class-string>
+     */
+    private const EXCLUDED_MESSAGES = [
+        CheckCustomDeadlinesMessage::class,
+        SendEmailMessage::class,
+    ];
+
     public function __construct(
         private readonly Tracer $tracer,
     ) {
@@ -31,6 +49,11 @@ final class TracingMiddleware implements MiddlewareInterface
 
         $message = $envelope->getMessage();
         $messageClass = $message::class;
+
+        if (in_array($messageClass, self::EXCLUDED_MESSAGES, true)) {
+            return $stack->next()->handle($envelope, $stack);
+        }
+
         $shortName = substr($messageClass, strrpos($messageClass, '\\') + 1);
 
         $attrs = [
