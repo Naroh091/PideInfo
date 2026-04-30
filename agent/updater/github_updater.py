@@ -20,7 +20,7 @@ from version import __version__
 
 console = Console()
 
-_RELEASES_URL = "https://api.github.com/repos/Naroh091/vigia/releases"
+_RELEASES_URL = "https://api.github.com/repos/Naroh091/pideinfo/releases"
 _TAG_PREFIX = "agent-v"
 
 # Platform → expected asset name suffix

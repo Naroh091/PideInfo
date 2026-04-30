@@ -24,6 +24,15 @@ class SyncState:
     # currently shows as having pending notifications.
     ctbg_pending_expediente_refs: set[str] = field(default_factory=set)
 
+    # Set of CTBG notification "registro" identifiers whose document has been
+    # downloaded and sent to PideInfo.
+    ctbg_synced_registros: set[str] = field(default_factory=set)
+
+    # Set of CSVs (Códigos Seguros de Verificación) of CTBG expediente documents
+    # already downloaded and sent. CSVs are stable across Wicket sessions, unlike
+    # the ?x=... URLs.
+    ctbg_synced_csvs: set[str] = field(default_factory=set)
+
     # Set of DEHú sent_reference values that PideInfo currently shows as pending.
     dehu_pending_sent_references: set[str] = field(default_factory=set)
 
@@ -67,6 +76,8 @@ def load_state(path: Path) -> SyncState:
             synced_document_keys=set(data.get("synced_document_keys", [])),
             pending_notification_expediente_ids=set(data.get("pending_notification_expediente_ids", [])),
             ctbg_pending_expediente_refs=set(data.get("ctbg_pending_expediente_refs", [])),
+            ctbg_synced_registros=set(data.get("ctbg_synced_registros", [])),
+            ctbg_synced_csvs=set(data.get("ctbg_synced_csvs", [])),
             dehu_pending_sent_references=set(data.get("dehu_pending_sent_references", [])),
             redsara_synced_registry_numbers=set(data.get("redsara_synced_registry_numbers", [])),
             redsara_last_sync_at=data.get("redsara_last_sync_at", 0.0),
@@ -84,6 +95,8 @@ def save_state(state: SyncState, path: Path) -> None:
         "synced_document_keys": sorted(state.synced_document_keys),
         "pending_notification_expediente_ids": sorted(state.pending_notification_expediente_ids),
         "ctbg_pending_expediente_refs": sorted(state.ctbg_pending_expediente_refs),
+        "ctbg_synced_registros": sorted(state.ctbg_synced_registros),
+        "ctbg_synced_csvs": sorted(state.ctbg_synced_csvs),
         "dehu_pending_sent_references": sorted(state.dehu_pending_sent_references),
         "redsara_synced_registry_numbers": sorted(state.redsara_synced_registry_numbers),
         "redsara_last_sync_at": state.redsara_last_sync_at,

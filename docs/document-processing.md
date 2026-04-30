@@ -9,8 +9,12 @@ User drags file onto dropzone (or clicks to select)
         │
         ▼
 POST /document/upload
+  ├── SHA-256 of upload computed and looked up in (uploadedBy, contentHash)
+  │   └── If a match exists → respond 409 with the existing document info,
+  │       the dropzone shows a "Archivos duplicados omitidos" modal and
+  │       the upload is skipped (no S3 write, no entity created).
   ├── File stored in S3 (documents.storage)
-  ├── Document entity created (type: unprocessed, processed: false)
+  ├── Document entity created (type: unprocessed, processed: false, contentHash set)
   └── ProcessDocumentMessage dispatched to async queue
         │
         ▼
@@ -23,6 +27,16 @@ ProcessDocumentHandler::__invoke()
   ├── Update request state from document
   └── Mark document as processed
 ```
+
+Hash-based deduplication is now uniform across all ingestion paths: manual upload (`DocumentController::upload`), agent webhook (`AgentWebhookProcessor`), and inbound email (`InboundEmailController`). All key on `(uploadedBy, contentHash)`, so the same file uploaded through any combination of channels lands as a single `Document`.
+
+Documents created before the manual-upload deduplication landed have `contentHash = NULL` and so won't dedupe against new uploads until backfilled. The backfill command streams each existing file from storage and computes its SHA-256:
+
+```bash
+php bin/console app:documents:backfill-content-hash [--dry-run] [--limit N] [--batch-size 50] [--list-duplicates]
+```
+
+`--list-duplicates` reports `(uploadedBy, contentHash)` groups with more than one document — useful to surface pre-existing duplicates that the new check would have prevented. The command does not delete duplicates; cleanup is intentionally manual.
 
 ## Supported file types
 

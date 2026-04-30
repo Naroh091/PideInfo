@@ -30,12 +30,7 @@ class AccessRequestTableType implements DataTableTypeInterface
                 'label' => 'Solicitud',
                 'template' => 'datatable/columns/request_title.html.twig',
                 'orderable' => true,
-                'className' => 'w-2/5 min-w-[200px]',
-            ])
-            ->add('publicBody', TwigColumn::class, [
-                'label' => 'Organismo',
-                'template' => 'datatable/columns/request_public_body.html.twig',
-                'orderable' => true,
+                'className' => 'min-w-[280px]',
             ])
             ->add('status', TwigColumn::class, [
                 'label' => 'Estado',
@@ -46,7 +41,7 @@ class AccessRequestTableType implements DataTableTypeInterface
                 'label' => 'Plazo',
                 'template' => 'datatable/columns/request_deadline.html.twig',
                 'orderable' => true,
-                'className' => 'hidden sm:table-cell',
+                'className' => 'hidden sm:table-cell w-[180px]',
             ])
             ->createAdapter(ORMAdapter::class, [
                 'entity' => AccessRequest::class,
@@ -104,8 +99,7 @@ class AccessRequestTableType implements DataTableTypeInterface
                         $builder
                             ->join('ar.listItems', 'li')
                             ->andWhere('li.list = :listId')
-                            ->setParameter('listId', $listId)
-                            ->distinct();
+                            ->setParameter('listId', $listId);
                     }
 
                     // Default sort by createdAt DESC

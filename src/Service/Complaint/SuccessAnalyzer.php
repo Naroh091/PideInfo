@@ -60,6 +60,12 @@ final class SuccessAnalyzer
         return $analysis;
     }
 
+    /**
+     * Maximum total characters in the four returned fields combined. The model
+     * is instructed to respect this; we also enforce it post-hoc to protect the UI.
+     */
+    private const MAX_PAYLOAD_CHARS = 2000;
+
     public function analyze(AccessRequest $accessRequest): SuccessAnalysis
     {
         $documentContents = $this->documentContentsCollector->collect($accessRequest);
@@ -93,22 +99,77 @@ final class SuccessAnalyzer
                 jsonSchema: $schema,
                 schemaName: 'success_analysis',
                 maxOutputTokens: 2048,
-                requiredJsonKeys: ['probability', 'reasoning', 'strengths', 'weaknesses'],
+                requiredJsonKeys: ['percentage', 'summary', 'strengths', 'weaknesses'],
+                label: 'complaint.analyze_success',
             ));
 
-            return SuccessAnalysis::fromArray($result);
+            return $this->normalize($result);
         } catch (\Exception $e) {
             $this->logger->warning('Success analyzer failed', [
                 'request' => (string) $accessRequest->getId(),
                 'error' => $e->getMessage(),
             ]);
             return new SuccessAnalysis(
-                probability: 50,
-                reasoning: 'No se pudo analizar la probabilidad de éxito debido a un error técnico.',
-                strengths: [],
-                weaknesses: [],
+                percentage: 50,
+                summary: 'No se pudo analizar la probabilidad de éxito debido a un error técnico.',
+                strengths: '',
+                weaknesses: '',
             );
         }
+    }
+
+    /**
+     * Sanitize HTML to <b>/<i> only and enforce the 2000-char total budget.
+     *
+     * @param array<string, mixed> $raw
+     */
+    private function normalize(array $raw): SuccessAnalysis
+    {
+        $analysis = SuccessAnalysis::fromArray($raw);
+
+        $summary = $this->sanitize($analysis->summary);
+        $strengths = $this->sanitize($analysis->strengths);
+        $weaknesses = $this->sanitize($analysis->weaknesses);
+
+        $total = mb_strlen($summary) + mb_strlen($strengths) + mb_strlen($weaknesses);
+        if ($total > self::MAX_PAYLOAD_CHARS) {
+            $this->logger->warning('Success analyzer payload exceeded budget; truncating', [
+                'total_chars' => $total,
+                'budget' => self::MAX_PAYLOAD_CHARS,
+            ]);
+
+            // Trim proportionally so the relative emphasis between sections is preserved.
+            $factor = self::MAX_PAYLOAD_CHARS / $total;
+            $summary = $this->trimToBudget($summary, (int) floor(mb_strlen($summary) * $factor));
+            $strengths = $this->trimToBudget($strengths, (int) floor(mb_strlen($strengths) * $factor));
+            $weaknesses = $this->trimToBudget($weaknesses, (int) floor(mb_strlen($weaknesses) * $factor));
+        }
+
+        return new SuccessAnalysis(
+            percentage: $analysis->percentage,
+            summary: $summary,
+            strengths: $strengths,
+            weaknesses: $weaknesses,
+        );
+    }
+
+    private function sanitize(string $html): string
+    {
+        if ($html === '') {
+            return '';
+        }
+        // Allow only <b>, <i>, <br>, <ul>, <li> (the last two so legacy array→html
+        // conversion and any list-formatted output still render cleanly).
+        return strip_tags($html, ['b', 'i', 'br', 'ul', 'li']);
+    }
+
+    private function trimToBudget(string $html, int $budget): string
+    {
+        if ($budget <= 0 || mb_strlen($html) <= $budget) {
+            return $html;
+        }
+
+        return rtrim(mb_substr($html, 0, max(0, $budget - 1))) . '…';
     }
 
     /**
@@ -119,28 +180,26 @@ final class SuccessAnalyzer
         return [
             'type' => 'object',
             'properties' => [
-                'probability' => [
+                'percentage' => [
                     'type' => 'integer',
                     'minimum' => 0,
                     'maximum' => 100,
-                    'description' => 'Probabilidad estimada (0-100) de que una reclamación sobre esta solicitud sea estimada por el consejo de transparencia competente.',
+                    'description' => 'Probabilidad estimada (0-100) de que la reclamación sea estimada por el consejo de transparencia competente.',
                 ],
-                'reasoning' => [
+                'summary' => [
                     'type' => 'string',
-                    'description' => 'Explicación breve (1-2 frases) del razonamiento que sustenta la probabilidad.',
+                    'description' => 'Resumen ejecutivo del veredicto en 1-2 frases. HTML restringido a <b> y <i> (sin otras etiquetas, sin enlaces, sin listas).',
                 ],
                 'strengths' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string'],
-                    'description' => 'De 2 a 4 puntos concretos a favor del reclamante (precedentes favorables, criterios aplicables, ausencia de límites claros).',
+                    'type' => 'string',
+                    'description' => 'Puntos a favor del reclamante. HTML restringido a <b> y <i>; separa los puntos con <br>. 2-4 puntos breves.',
                 ],
                 'weaknesses' => [
-                    'type' => 'array',
-                    'items' => ['type' => 'string'],
-                    'description' => 'De 2 a 4 riesgos o puntos en contra (precedentes desfavorables, posibles causas de inadmisión, límites aplicables).',
+                    'type' => 'string',
+                    'description' => 'Riesgos o puntos en contra. HTML restringido a <b> y <i>; separa los puntos con <br>. 2-4 puntos breves.',
                 ],
             ],
-            'required' => ['probability', 'reasoning', 'strengths', 'weaknesses'],
+            'required' => ['percentage', 'summary', 'strengths', 'weaknesses'],
         ];
     }
 
@@ -202,7 +261,7 @@ final class SuccessAnalyzer
             : $this->resolutionRetriever->formatForPrompt($unfavorablePrecedents);
         $documentsText = $this->formatDocuments($documentContents);
 
-        return $this->promptStore->compile('pideinfo/complaint/analyze-success-probability', [
+        return $this->promptStore->compile('pideinfo-complaint-analyze-success-probability', [
             'request_title' => (string) $accessRequest->getTitle(),
             'request_description' => (string) $accessRequest->getDescription(),
             'public_body_name' => $accessRequest->getPublicBody()?->getName() ?? '',
@@ -240,6 +299,8 @@ final class SuccessAnalyzer
         }
         sort($documentIds);
 
-        return sha1($accessRequest->getStatus() . '|' . implode(',', $documentIds));
+        // Schema version is included so cached payloads from older shapes (v1: probability/
+        // reasoning/strengths[]/weaknesses[]) are invalidated automatically and recomputed.
+        return sha1(SuccessAnalysis::SCHEMA_VERSION . '|' . $accessRequest->getStatus() . '|' . implode(',', $documentIds));
     }
 }

@@ -1,42 +1,266 @@
+{# Agenda — plazos agrupados por urgencia, sin acordeón.
+   La sección es la pieza más visible del dashboard: lista compacta y escaneable. #}
 <div {{ attributes.defaults({class: 'deadline-alerts', 'data-action': 'documents:processed@window->live#$render'}) }}>
     {% set alerts = this.alerts %}
+    {% set passed = [] %}
+    {% set imminent = [] %}  {# 0-3 días #}
+    {% set upcoming = [] %}  {# 4-7 días #}
+    {% for a in alerts %}
+        {% if a.isPassed %}
+            {% set passed = passed|merge([a]) %}
+        {% elseif a.daysUntil <= 3 %}
+            {% set imminent = imminent|merge([a]) %}
+        {% else %}
+            {% set upcoming = upcoming|merge([a]) %}
+        {% endif %}
+    {% endfor %}
 
-    <section class="dash-section" style="animation: fade-slide-up 0.5s ease-out both"
-             data-controller="accordion" data-accordion-key-value="deadlines">
-        <button type="button" class="dash-section-header cursor-pointer w-full" data-action="click->accordion#toggle">
+    <section class="dash-section agenda" style="animation: fade-slide-up 0.5s ease-out both"
+             x-data="{ expanded: false, max: 22 }">
+        <div class="dash-section-header">
             <h2 class="dash-section-title">
-                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                <i data-lucide="calendar-clock" class="w-4 h-4 text-primary-500"></i>
                 Plazos
-                {% if alerts|length > 0 %}
-                    <span class="dash-count dash-count-warn">{{ alerts|length }}</span>
-                {% endif %}
             </h2>
-            <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform duration-200" data-accordion-target="icon"></i>
-        </button>
-
-        <div data-accordion-target="body">
-            {% if alerts|length > 0 %}
-                <div class="space-y-1">
-                    {% for alert in alerts %}
-                        <a href="{{ path('app_solicitudes_show', {id: alert.id}) }}"
-                           class="dash-item group">
-                            <div class="dash-item-indicator {{ alert.type == 'danger' ? 'dash-indicator-danger' : (alert.type == 'warning' ? 'dash-indicator-warn' : 'dash-indicator-info') }}"></div>
-                            <div class="flex-1 min-w-0">
-                                <p class="text-base font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">{{ alert.title }}</p>
-                                <p class="text-sm text-slate-400 truncate mt-0.5">{{ alert.publicBody }}</p>
-                            </div>
-                            <span class="badge {{ alert.type == 'danger' ? 'badge-danger' : (alert.type == 'warning' ? 'badge-warning' : 'badge-info') }} flex-shrink-0 text-xs">
-                                {% if alert.isPassed %}<i data-lucide="alert-circle" class="w-3 h-3 mr-0.5"></i>{% endif %}
-                                {{ alert.message }}
-                            </span>
-                        </a>
-                    {% endfor %}
-                </div>
-            {% else %}
-                <div class="py-8 text-center">
-                    <p class="text-sm text-slate-400">Sin plazos pendientes</p>
-                </div>
-            {% endif %}
+            <div class="agenda-legend">
+                {% if passed|length > 0 %}<span class="legend-dot legend-passed"></span>{{ passed|length }} vencidos{% endif %}
+                {% if imminent|length > 0 %}<span class="legend-dot legend-imminent ml-3"></span>{{ imminent|length }} inminentes{% endif %}
+            </div>
         </div>
+
+        {% if alerts|length == 0 %}
+            <div class="agenda-empty">
+                <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>
+                <div>
+                    <p class="agenda-empty-title">Estás al día.</p>
+                    <p class="agenda-empty-sub">Sin plazos próximos en los próximos 7 días.</p>
+                </div>
+            </div>
+        {% else %}
+            <div class="collapsible-body" :class="{ 'is-expanded': expanded }">
+                {% if passed|length > 0 %}
+                    <div class="agenda-bucket agenda-bucket-passed">
+                        <div class="agenda-bucket-label">
+                            <span class="bucket-tag bucket-tag-danger">Vencidos</span>
+                        </div>
+                        {% for alert in passed %}
+                            {{ _self.alertRow(alert) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if imminent|length > 0 %}
+                    <div class="agenda-bucket">
+                        <div class="agenda-bucket-label">
+                            <span class="bucket-tag bucket-tag-warn">Próximos 3 días</span>
+                        </div>
+                        {% for alert in imminent %}
+                            {{ _self.alertRow(alert) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                {% if upcoming|length > 0 %}
+                    <div class="agenda-bucket">
+                        <div class="agenda-bucket-label">
+                            <span class="bucket-tag bucket-tag-info">Esta semana</span>
+                        </div>
+                        {% for alert in upcoming %}
+                            {{ _self.alertRow(alert) }}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <div class="collapsible-fade" x-show="!expanded" x-cloak></div>
+            </div>
+
+            {# Toggle visible only when content overflows the collapsed max #}
+            {% if alerts|length > 4 %}
+                <button type="button" class="collapsible-toggle" @click="expanded = !expanded">
+                    <span x-show="!expanded" x-cloak>Mostrar todos ({{ alerts|length }})</span>
+                    <span x-show="expanded" x-cloak>Mostrar menos</span>
+                    <i data-lucide="chevron-down" class="w-3.5 h-3.5 collapsible-chev" :class="{ 'is-up': expanded }"></i>
+                </button>
+            {% endif %}
+        {% endif %}
     </section>
 </div>
+
+{% macro alertRow(alert) %}
+    <a href="{{ path('app_solicitudes_show', {id: alert.id}) }}" class="agenda-row group" data-turbo="false">
+        <div class="agenda-row-when">
+            {% if alert.isPassed %}
+                <span class="when-num when-passed">·</span>
+                <span class="when-unit">vencido</span>
+            {% elseif alert.daysUntil == 0 %}
+                <span class="when-num when-today">·</span>
+                <span class="when-unit">hoy</span>
+            {% elseif alert.daysUntil == 1 %}
+                <span class="when-num">1</span>
+                <span class="when-unit">día</span>
+            {% else %}
+                <span class="when-num">{{ alert.daysUntil }}</span>
+                <span class="when-unit">días</span>
+            {% endif %}
+        </div>
+        <div class="agenda-row-rule {{ alert.isPassed ? 'is-passed' : (alert.daysUntil <= 3 ? 'is-warn' : 'is-info') }}"></div>
+        <div class="agenda-row-main">
+            <p class="agenda-row-title group-hover:text-primary-700">{{ alert.title }}</p>
+            <p class="agenda-row-meta">
+                <span class="truncate">{{ alert.publicBody }}</span>
+                {% if alert.isComplaint is defined %}
+                    <span class="agenda-row-tag tag-complaint">reclamación</span>
+                {% elseif alert.isCompliance is defined %}
+                    <span class="agenda-row-tag tag-compliance">cumplimiento</span>
+                {% elseif alert.isCustom is defined %}
+                    <span class="agenda-row-tag tag-custom">recordatorio</span>
+                {% endif %}
+            </p>
+        </div>
+        <div class="agenda-row-date">
+            {{ alert.deadlineAt|date('d/m') }}
+        </div>
+    </a>
+{% endmacro %}
+
+<style>
+    .agenda-legend {
+        font-family: 'Inter', sans-serif;
+        font-size: .68rem;
+        color: rgb(100 116 139);
+        display: inline-flex; align-items: center;
+        font-feature-settings: "tnum";
+    }
+    .legend-dot {
+        display: inline-block;
+        width: .5rem; height: .5rem;
+        border-radius: 999px;
+        margin-right: .3rem;
+    }
+    .legend-passed   { background: rgb(220 38 38); }
+    .legend-imminent { background: rgb(245 158 11); }
+
+    .agenda-empty {
+        display: flex; align-items: center; gap: .85rem;
+        padding: 2rem 1.5rem;
+    }
+    .agenda-empty-title {
+        font-family: 'DM Serif Display', Georgia, serif;
+        font-size: 1.1rem;
+        color: rgb(15 23 42);
+        line-height: 1.2;
+    }
+    .agenda-empty-sub {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .85rem;
+        color: rgb(100 116 139);
+        margin-top: .15rem;
+    }
+
+    .agenda-bucket {
+        padding: .25rem 0;
+    }
+    .agenda-bucket + .agenda-bucket {
+        border-top: 1px dashed rgb(241 245 249);
+    }
+    .agenda-bucket-passed {
+        background: linear-gradient(180deg, rgba(254,226,226,.4), transparent 70%);
+    }
+    .agenda-bucket-label {
+        padding: .65rem 1.25rem .35rem;
+    }
+    .bucket-tag {
+        display: inline-flex; align-items: center;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .72rem;
+        font-weight: 600;
+        padding: .15rem .6rem;
+        border-radius: 999px;
+    }
+    .bucket-tag-danger { background: rgb(254 226 226); color: rgb(185 28 28); }
+    .bucket-tag-warn   { background: rgb(254 243 199); color: rgb(180 83 9); }
+    .bucket-tag-info   { background: rgb(224 242 254); color: rgb(2 132 199); }
+
+    .agenda-row {
+        display: grid;
+        grid-template-columns: 4.25rem 3px minmax(0, 1fr) auto;
+        gap: .85rem;
+        align-items: center;
+        padding: .65rem 1.25rem;
+        text-decoration: none;
+        color: inherit;
+        transition: background .12s ease;
+    }
+    .agenda-row:hover { background: rgb(248 250 252); }
+
+    .agenda-row-when {
+        display: flex; flex-direction: column; align-items: flex-end;
+        line-height: 1;
+        font-feature-settings: "tnum";
+    }
+    .when-num {
+        font-family: 'DM Serif Display', Georgia, serif;
+        font-size: 1.5rem;
+        font-weight: 400;
+        color: rgb(15 23 42);
+        letter-spacing: -.02em;
+    }
+    .when-passed { color: rgb(220 38 38); }
+    .when-today  { color: rgb(245 158 11); }
+    .when-unit {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .7rem;
+        font-weight: 500;
+        color: rgb(148 163 184);
+        margin-top: .15rem;
+    }
+
+    .agenda-row-rule {
+        align-self: stretch;
+        border-radius: 2px;
+        background: rgb(186 230 253);
+    }
+    .agenda-row-rule.is-passed { background: rgb(252 165 165); }
+    .agenda-row-rule.is-warn   { background: rgb(252 211 77); }
+    .agenda-row-rule.is-info   { background: rgb(125 211 252); }
+
+    .agenda-row-main { min-width: 0; }
+    .agenda-row-title {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .92rem;
+        font-weight: 500;
+        color: rgb(15 23 42);
+        line-height: 1.3;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        transition: color .12s ease;
+    }
+    .agenda-row-meta {
+        display: inline-flex; align-items: center; gap: .5rem;
+        margin-top: .15rem;
+        font-size: .75rem;
+        color: rgb(100 116 139);
+        max-width: 100%;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .agenda-row-meta .truncate {
+        max-width: 26rem;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .agenda-row-tag {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .7rem;
+        font-weight: 500;
+        padding: .1rem .45rem;
+        border-radius: .3rem;
+    }
+    .tag-complaint  { background: rgb(254 243 199); color: rgb(180 83 9); }
+    .tag-compliance { background: rgb(209 250 229); color: rgb(5 150 105); }
+    .tag-custom     { background: rgb(241 245 249); color: rgb(71 85 105); }
+
+    .agenda-row-date {
+        font-family: 'Inter', sans-serif;
+        font-size: .72rem;
+        color: rgb(148 163 184);
+        font-feature-settings: "tnum";
+        letter-spacing: .04em;
+    }
+</style>

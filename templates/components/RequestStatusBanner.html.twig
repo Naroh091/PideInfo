@@ -2,104 +2,97 @@
 {# Pending portal notifications (agent reported, auto-accept is off) #}
 {% if request.hasPendingPortalNotifications %}
     {% set pending = request.pendingPortalNotifications %}
-    <div class="alert-banner alert-banner-amber mb-6">
-        <div class="alert-banner-stripe"></div>
-        <div class="flex flex-col sm:flex-row items-start gap-4 p-5">
-            <div class="alert-banner-icon bg-amber-100 text-amber-600">
-                <i data-lucide="bell-ring" class="w-5 h-5"></i>
+    <aside class="dossier-notice is-amber mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="bell-ring" class="w-4 h-4"></i>
             </div>
-            <div class="flex-1">
-                <h3 class="font-semibold text-slate-800">
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Notificaciones por aceptar
+                    <span class="meta">· {{ pending|length }} pendiente{{ pending|length != 1 ? 's' : '' }}</span>
+                </div>
+                <h3 class="dossier-notice-headline">
                     {{ pending|length }} notificación{{ pending|length != 1 ? 'es' : '' }} pendiente{{ pending|length != 1 ? 's' : '' }} de aceptar
                 </h3>
-                <p class="text-sm text-slate-500 mt-1">
-                    Activa <strong class="text-slate-700">«Aceptar notificaciones electrónicas»</strong> en el agente, o accede manualmente al portal.
-                </p>
-                <ul class="mt-3 space-y-1.5">
+                <div class="dossier-notice-prose">
+                    <p>Activa <strong>«Aceptar notificaciones electrónicas»</strong> en el agente, o accede manualmente al portal.</p>
+                </div>
+                <ul class="dossier-notice-list">
                     {% for n in pending %}
-                        <li class="flex items-start gap-2 text-sm text-slate-600">
-                            <i data-lucide="{{ n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-400"></i>
-                            <span>
+                        <li>
+                            <i data-lucide="{{ n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500"></i>
+                            <span class="flex-1 min-w-0">
                                 <strong>{{ n.tipo }}</strong>
                                 {% if n.concepto %} — {{ n.concepto }}{% endif %}
-                                <span class="text-slate-400">({{ n.fechaEmision }})</span>
+                                <span class="text-slate-400 text-xs">({{ n.fechaEmision }})</span>
                                 {% if n.fechaCaducidad %}
-                                    <span class="text-red-500 font-medium">· caduca {{ n.fechaCaducidad }}</span>
+                                    <span class="text-red-600 font-medium text-xs">· caduca {{ n.fechaCaducidad }}</span>
                                 {% endif %}
                             </span>
                         </li>
                     {% endfor %}
                 </ul>
                 {% if pending[0].reportedAt is defined %}
-                    <p class="text-xs text-slate-400 mt-3">
+                    <p class="text-xs text-slate-400 mt-3" style="font-family: 'JetBrains Mono', monospace;">
                         Última actualización: {{ pending[0].reportedAt|date('d/m/Y H:i') }}
                     </p>
                 {% endif %}
             </div>
         </div>
-    </div>
+    </aside>
 {% endif %}
 
 {# Granted pending reception #}
 {% if request.status == 'granted' %}
-    <div class="alert-banner alert-banner-emerald mb-6" data-granted-banner>
-        <div class="alert-banner-stripe"></div>
-        <div class="flex flex-col sm:flex-row items-start gap-4 p-5">
-            <div class="alert-banner-icon bg-emerald-100 text-emerald-600">
-                <i data-lucide="package" class="w-5 h-5"></i>
+    <aside class="dossier-notice is-emerald mb-6" data-granted-banner>
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="package" class="w-4 h-4"></i>
             </div>
-            <div class="flex-1">
-                <h3 class="font-semibold text-slate-800 text-lg" style="font-family: 'DM Serif Display', serif">Solicitud concedida</h3>
-                <p class="text-sm text-slate-500 mt-1">
-                    La administración ha concedido tu solicitud. ¿Has recibido ya la información?
-                </p>
-                <div class="flex flex-wrap gap-3 mt-4">
-                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="inline">
-                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
-                        <input type="hidden" name="statusType" value="status">
-                        <input type="hidden" name="newStatus" value="granted">
-                        <button type="submit" class="btn btn-secondary btn-sm">
-                            <i data-lucide="clock" class="w-4 h-4 mr-1.5"></i>
-                            Aún no
-                        </button>
-                    </form>
-                    <form action="{{ path('app_solicitudes_change_status', {id: request.id}) }}" method="post" class="inline">
-                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
-                        <input type="hidden" name="statusType" value="status">
-                        <input type="hidden" name="newStatus" value="granted_completed">
-                        <input type="hidden" name="notes" value="Información recibida correctamente">
-                        <button type="submit" class="btn btn-success btn-sm">
-                            <i data-lucide="check" class="w-4 h-4 mr-1.5"></i>
-                            Información recibida
-                        </button>
-                    </form>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Resolución favorable
+                    <span class="meta">· pendiente de recepción</span>
+                </div>
+                <h3 class="dossier-notice-headline">Solicitud concedida</h3>
+                <div class="dossier-notice-prose">
+                    <p>La administración ha concedido tu solicitud y está pendiente de que recibas la información.</p>
                 </div>
             </div>
         </div>
-    </div>
+    </aside>
 {% endif %}
 
-{# Redirection notice #}
-{% if request.wasRedirected %}
-    <div class="alert-banner alert-banner-blue mb-6">
-        <div class="alert-banner-stripe"></div>
-        <div class="flex items-start gap-4 p-5">
-            <div class="alert-banner-icon bg-sky-100 text-sky-600">
-                <i data-lucide="arrow-right-circle" class="w-5 h-5"></i>
+{# Redirection notice — only when the most recent timeline event is the redirection itself #}
+{% set lastHistory = request.statusHistory|first %}
+{% set redirectionIsLatest = lastHistory and 'trasladada' in (lastHistory.notes|default('')|lower) %}
+{% if request.wasRedirected and redirectionIsLatest %}
+    <aside class="dossier-notice is-sky mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
             </div>
-            <div class="flex-1">
-                <p class="text-sm text-slate-700">
-                    Solicitud trasladada de <strong>{{ request.originalPublicBody.name }}</strong>
-                    a <strong>{{ request.publicBody.name }}</strong>
-                    {% if request.redirectedAt %}el {{ request.redirectedAt|date('d/m/Y') }}{% endif %}
-                    <span class="text-slate-400">(art. 19.1 Ley 19/2013)</span>
-                </p>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Traslado de competencia
+                    <span class="meta">· art. 19.1 Ley 19/2013</span>
+                </div>
+                <div class="dossier-notice-prose">
+                    <p>
+                        Solicitud trasladada de <strong>{{ request.originalPublicBody.name }}</strong>
+                        a <strong>{{ request.publicBody.name }}</strong>{% if request.redirectedAt %} el {{ request.redirectedAt|date('d/m/Y') }}{% endif %}.
+                    </p>
+                </div>
             </div>
         </div>
-    </div>
+    </aside>
 {% endif %}
 
-{# Deadline expired — silence administrativo (skip if a complaint already exists) #}
+{# Deadline expired — silencio administrativo (skip if a complaint already exists) #}
 {% if request.isDeadlinePassed and not request.isDeadlineSuspended and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
     {% set silencePositive = this.isSilencePositive %}
@@ -107,19 +100,28 @@
     {% set acName = this.autonomousCommunityName %}
     {% set pendingReminder = this.pendingReminder %}
     {% set complaintFormUrl = this.complaintFormUrl %}
-    <div class="alert-banner {{ silencePositive ? 'alert-banner-emerald' : 'alert-banner-amber' }} mb-6">
-        <div class="alert-banner-stripe"></div>
-        <div class="flex flex-col sm:flex-row items-start gap-4 p-5">
-            <div class="alert-banner-icon {{ silencePositive ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600' }}">
-                <i data-lucide="{{ silencePositive ? 'check-circle-2' : 'clock-alert' }}" class="w-5 h-5"></i>
+    <aside class="dossier-notice {{ silencePositive ? 'is-emerald' : 'is-amber' }} mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="{{ silencePositive ? 'check-circle-2' : 'clock-alert' }}" class="w-4 h-4"></i>
             </div>
-            <div class="flex-1 min-w-0">
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    {% if silencePositive %}
+                        Silencio positivo
+                        <span class="meta">· acceso automático</span>
+                    {% else %}
+                        Plazo vencido
+                        <span class="meta">· procede reclamación</span>
+                    {% endif %}
+                </div>
                 {% if silencePositive %}
-                    <h3 class="font-semibold text-slate-800 text-lg" style="font-family: 'DM Serif Display', serif">
+                    <h3 class="dossier-notice-headline">
                         Ha vencido el plazo de respuesta.
                         {% if acName %}En {{ acName }} esto te concede el acceso automáticamente.{% else %}Según la ley aplicable, esto te concede el acceso automáticamente.{% endif %}
                     </h3>
-                    <div class="text-sm text-slate-600 mt-2 space-y-2">
+                    <div class="dossier-notice-prose">
                         <p>
                             Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano competente, por lo que puede ser razonable dar unos días de margen antes de dar por vencido el plazo.
                         </p>
@@ -128,67 +130,103 @@
                         </p>
                     </div>
                 {% else %}
-                    <h3 class="font-semibold text-slate-800 text-lg" style="font-family: 'DM Serif Display', serif">
+                    <h3 class="dossier-notice-headline">
                         Ha vencido el plazo de respuesta. Ahora puedes reclamar a {{ council }}.
                     </h3>
-                    <p class="text-sm text-slate-600 mt-2">
-                        Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano que debe resolver, así que no es mala idea dar unos días de margen antes de presentar la reclamación.
-                    </p>
-                {% endif %}
-
-                {% if pendingReminder %}
-                    <div class="mt-3 inline-flex items-center gap-2 text-xs text-slate-500 bg-white/60 border border-slate-200 rounded-full px-3 py-1">
-                        <i data-lucide="bell" class="w-3.5 h-3.5"></i>
-                        Tienes un recordatorio programado para el <strong class="text-slate-700">{{ pendingReminder.remindAt|date('d/m/Y') }}</strong>
+                    <div class="dossier-notice-prose">
+                        <p>
+                            Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano que debe resolver, así que no es mala idea dar unos días de margen antes de presentar la reclamación.
+                        </p>
                     </div>
                 {% endif %}
 
-                <div class="flex flex-wrap gap-3 mt-4">
-                    <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent btn-sm">
-                        <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
-                        Generar reclamación a {{ council|u.truncate(40, '…') }}
-                    </a>
-                    {% if complaintFormUrl %}
-                    <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-                        <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
-                        Iniciar reclamación
-                    </a>
-                    {% endif %}
-                    {% if not pendingReminder %}
-                    <form action="{{ path('app_solicitudes_create_reminder', {id: request.id}) }}" method="post" class="inline">
-                        <input type="hidden" name="_token" value="{{ csrf_token('reminder-' ~ request.id) }}">
-                        <input type="hidden" name="days" value="5">
-                        <button type="submit" class="btn btn-secondary btn-sm">
-                            <i data-lucide="bell-plus" class="w-4 h-4 mr-1.5"></i>
-                            Recordarme en 5 días
-                        </button>
-                    </form>
-                    {% endif %}
+                {% if pendingReminder %}
+                    <span class="dossier-notice-meta-pill">
+                        <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+                        Recordatorio programado para el <strong>{{ pendingReminder.remindAt|date('d/m/Y') }}</strong>
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+        <div class="dossier-notice-footer">
+            <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent btn-sm">
+                <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
+                Generar reclamación a {{ council|u.truncate(40, '…') }}
+            </a>
+            {% if complaintFormUrl %}
+                <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
+                    Iniciar reclamación
+                </a>
+            {% endif %}
+        </div>
+    </aside>
+{% endif %}
+
+{# Solicitud denegada — invita a reclamar (skip if a complaint already exists) #}
+{% if request.status == 'denied' and request.complaint is null %}
+    {% set council = this.transparencyCouncilName %}
+    {% set complaintFormUrl = this.complaintFormUrl %}
+    <aside class="dossier-notice is-red mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="x-circle" class="w-4 h-4"></i>
+            </div>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Solicitud denegada
+                    <span class="meta">· procede reclamación</span>
+                </div>
+                <h3 class="dossier-notice-headline">
+                    La administración ha denegado tu solicitud. Ahora puedes reclamar a {{ council }}.
+                </h3>
+                <div class="dossier-notice-prose">
+                    <p>
+                        Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                    </p>
                 </div>
             </div>
         </div>
-    </div>
+        <div class="dossier-notice-footer">
+            <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-danger btn-sm">
+                <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
+                Generar reclamación a {{ council|u.truncate(40, '…') }}
+            </a>
+            {% if complaintFormUrl %}
+                <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
+                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
+                    Iniciar reclamación
+                </a>
+            {% endif %}
+        </div>
+    </aside>
 {% endif %}
 
 {# Third party allegations suspension #}
 {% if request.isDeadlineSuspended %}
-    <div class="alert-banner alert-banner-amber mb-6">
-        <div class="alert-banner-stripe"></div>
-        <div class="flex items-start gap-4 p-5">
-            <div class="alert-banner-icon bg-amber-100 text-amber-600">
-                <i data-lucide="pause-circle" class="w-5 h-5"></i>
+    <aside class="dossier-notice is-amber mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="pause-circle" class="w-4 h-4"></i>
             </div>
-            <div class="flex-1">
-                <p class="font-medium text-slate-800">Plazo suspendido</p>
-                <p class="text-sm text-slate-500 mt-1">
-                    Suspendido por afectación a derechos de terceros.
-                    {% if request.thirdPartyAllegationsDeadlineAt %}
-                        Alegaciones hasta el <strong class="text-slate-700">{{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}</strong>.
-                    {% endif %}
-                    Quedan <strong class="text-slate-700">{{ request.suspendedDaysRemaining }} días hábiles</strong> cuando se reanude.
-                </p>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Plazo suspendido
+                    <span class="meta">· trámite de audiencia</span>
+                </div>
+                <h3 class="dossier-notice-headline">Plazo suspendido por afectación a terceros</h3>
+                <div class="dossier-notice-prose">
+                    <p>
+                        {% if request.thirdPartyAllegationsDeadlineAt %}
+                            Alegaciones hasta el <strong>{{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}</strong>.
+                        {% endif %}
+                        Quedan <strong>{{ request.suspendedDaysRemaining }} días hábiles</strong> cuando se reanude.
+                    </p>
+                </div>
             </div>
         </div>
-    </div>
+    </aside>
 {% endif %}
 </div>

@@ -123,7 +123,7 @@ class DebugDocumentAnalysisCommand extends Command
 
     private function buildDebugPrompt(): string
     {
-        return $this->promptStore->compile('pideinfo/document/debug-analyze-cot');
+        return $this->promptStore->compile('pideinfo-document-debug-analyze-cot');
     }
 
     /**

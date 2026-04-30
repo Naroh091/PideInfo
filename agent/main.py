@@ -48,6 +48,11 @@ def _make_pideinfo_client(settings: Settings, prefs: AgentPreferences) -> PideIn
     )
 
 
+def _force_headed(settings: Settings, prefs: "AgentPreferences | None" = None) -> bool:
+    """Whether to force a visible browser window for all auth flows."""
+    return bool(settings.headless_disabled or (prefs and prefs.headless_disabled))
+
+
 async def do_auth(settings: Settings) -> dict[str, str]:
     """Authenticate and return cookies."""
     session = SessionManager(
@@ -55,6 +60,7 @@ async def do_auth(settings: Settings) -> dict[str, str]:
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
         firefox_profile_dir=settings.firefox_profile_dir,
+        force_headed=_force_headed(settings),
     )
     notify_auth_required()
     cookies = await session.get_valid_session()
@@ -64,12 +70,15 @@ async def do_auth(settings: Settings) -> dict[str, str]:
 
 async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPreferences | None" = None) -> None:
     """Run a single sync cycle."""
+    force_headed = _force_headed(settings, prefs)
+
     # Initialize components
     session = SessionManager(
         portal_url=settings.portal_url,
         cookies_file=settings.cookies_file,
         auth_timeout=settings.auth_timeout_seconds,
         firefox_profile_dir=settings.firefox_profile_dir,
+        force_headed=force_headed,
     )
     downloads = DownloadManager(settings.downloads_dir)
     state = load_state(settings.state_file)
@@ -195,16 +204,23 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         # Save Portal de Transparencia state before moving on to CTBG
         save_state(state, settings.state_file)
 
-        # --- Sync CTBG notifications ---
+        # --- Sync CTBG notifications + full reclamación expediente ---
         if not prefs or prefs.sync_ctbg:
-            await _sync_consejo(settings, pideinfo, state, dry_run)
+            await _sync_consejo(settings, pideinfo, state, dry_run, force_headed=force_headed)
+            save_state(state, settings.state_file)
+            ctbg_exp_synced = await _sync_consejo_expedientes(
+                settings, pideinfo, state, dry_run, force_headed=force_headed
+            )
+            synced_count += ctbg_exp_synced
+            save_state(state, settings.state_file)
         else:
             console.print("\n[dim]CTBG desactivado en preferencias — omitiendo[/]")
 
         # --- Sync DEHú notifications ---
-        headless = not prefs.headless_disabled if prefs else True
+        headless = not force_headed
         if not prefs or prefs.sync_dehu:
             await _sync_dehu(settings, pideinfo, state, dry_run, headless=headless)
+            save_state(state, settings.state_file)
         else:
             console.print("\n[dim]DEHú desactivado en preferencias — omitiendo[/]")
 
@@ -212,11 +228,12 @@ async def do_sync(settings: Settings, dry_run: bool = False, prefs: "AgentPrefer
         redsara_synced = 0
         if not prefs or prefs.sync_redsara:
             redsara_synced = await _sync_redsara(settings, pideinfo, downloads, state, dry_run, headless=headless)
+            save_state(state, settings.state_file)
         else:
             console.print("\n[dim]Red SARA desactivado en preferencias — omitiendo[/]")
         synced_count += redsara_synced
 
-        # Save final state (includes CTBG + DEHú + Red SARA)
+        # Mark sync complete (state already persisted after each portal above)
         state.mark_sync_complete()
         save_state(state, settings.state_file)
 
@@ -368,6 +385,7 @@ async def _sync_consejo(
     pideinfo: PideInfoClient,
     state: SyncState,
     dry_run: bool,
+    force_headed: bool = False,
 ) -> None:
     """Sync pending notifications from CTBG sede electrónica."""
     from collections import defaultdict
@@ -381,6 +399,7 @@ async def _sync_consejo(
         auth_timeout=settings.auth_timeout_seconds,
         private_path="/enotifications.9",
         firefox_profile_dir=settings.firefox_profile_dir,
+        force_headed=force_headed,
     )
 
     try:
@@ -392,7 +411,7 @@ async def _sync_consejo(
     scraper = ConsejoScraper(ctbg_session)
     try:
         notificaciones = await scraper.get_notificaciones()
-        pending = [n for n in notificaciones if n.estado == "Pendiente"]
+        pending = [n for n in notificaciones if n.is_pending]
 
         if pending:
             console.print(
@@ -409,7 +428,7 @@ async def _sync_consejo(
 
         if dry_run:
             for n in pending:
-                console.print(f"  [dim]• {n.registro} — {n.expediente} ({n.tipo})[/]")
+                console.print(f"  [dim]• pendiente: {n.registro} — {n.expediente} ({n.tipo})[/]")
             return
 
         # Clear expediente refs previously reported but no longer pending
@@ -422,10 +441,6 @@ async def _sync_consejo(
             except Exception as e:
                 console.print(f"[red]CTBG: error limpiando pendientes de {exp_ref}: {e}[/]")
 
-        if not currently_pending:
-            console.print("[green]CTBG: no hay notificaciones pendientes[/]")
-            return
-
         # Report currently-pending notifications grouped by expediente
         for exp_ref, notifs in currently_pending.items():
             try:
@@ -434,8 +449,114 @@ async def _sync_consejo(
             except Exception as e:
                 console.print(f"[red]CTBG: error reportando pendientes de {exp_ref}: {e}[/]")
 
+        if not currently_pending:
+            console.print("[green]CTBG: no hay notificaciones pendientes[/]")
+
+        # NOTE: actual document downloads now happen in _sync_consejo_expedientes
+        # via the expediente detail page (stable CSV-based dedup, real Wicket
+        # navigation). The notification inbox cannot be downloaded from
+        # directly with httpx because every row link is `href="#"` (Wicket Ajax).
+
     finally:
         await scraper.close()
+
+
+async def _sync_consejo_expedientes(
+    settings: Settings,
+    pideinfo: PideInfoClient,
+    state: SyncState,
+    dry_run: bool,
+    force_headed: bool = False,
+) -> int:
+    """Crawl the full reclamación file (every phase) of every CTBG expediente.
+
+    Complementary to ``_sync_consejo`` (which only watches the notification
+    inbox). Driven by Playwright because the expediente detail is a Wicket SPA
+    that mutates server-side state on each phase click.
+
+    Returns the number of documents that the backend reported as newly stored
+    (``created``). Pre-existing duplicates rejected by hash dedup are not
+    counted, matching the semantics of the AGE expediente sync.
+    """
+    from portals.consejo_expediente import ConsejoExpedienteScraper
+
+    ctbg_base = settings.portal_ctbg_base
+    console.print(
+        f"\n[bold]CTBG expedientes: crawl completo de la reclamación ({ctbg_base})...[/]"
+    )
+
+    downloads = DownloadManager(settings.downloads_dir)
+    synced = 0
+
+    try:
+        async with ConsejoExpedienteScraper(
+            portal_url=ctbg_base,
+            firefox_profile_dir=settings.firefox_profile_dir,
+            force_headed=force_headed,
+        ) as scraper:
+            try:
+                expedientes = await scraper.list_expedientes(
+                    full_crawl=settings.ctbg_full_crawl
+                )
+            except SessionExpiredError as e:
+                console.print(f"[yellow]CTBG expedientes: {e}[/]")
+                return 0
+
+            console.print(
+                f"[dim]CTBG: {len(expedientes)} expediente(s) en alcance "
+                f"({'crawl completo' if settings.ctbg_full_crawl else 'solo abiertos'})[/]"
+            )
+
+            for exp in expedientes:
+                try:
+                    docs = await scraper.iter_documents(exp)
+                except SessionExpiredError:
+                    console.print(
+                        "[yellow]CTBG expedientes: sesión expirada, abortando crawl[/]"
+                    )
+                    break
+                except Exception as e:
+                    console.print(
+                        f"[red]CTBG: error leyendo expediente {exp.numero}: {e}[/]"
+                    )
+                    continue
+
+                new_docs = [d for d in docs if d.csv and d.csv not in state.ctbg_synced_csvs]
+                if not new_docs:
+                    continue
+
+                console.print(
+                    f"[bold]CTBG {exp.numero}: {len(new_docs)} documento(s) nuevo(s) "
+                    f"({len(docs)} en total)[/]"
+                )
+
+                if dry_run:
+                    for d in new_docs:
+                        console.print(
+                            f"  [dim]• [{d.phase}] {d.title} (CSV: {d.csv})[/]"
+                        )
+                    continue
+
+                for d in new_docs:
+                    safe_csv = d.csv or f"unknown-{abs(hash(d.title)) & 0xFFFFFF:06x}"
+                    dest = downloads.downloads_dir / f"ctbg_{exp.numero.replace('/', '-')}_{safe_csv}.pdf"
+                    try:
+                        console.print(f"[dim]CTBG descargando [{d.phase}] {d.title}...[/]")
+                        await scraper.download(d, dest)
+                        result = await pideinfo.sync_consejo_expediente_document(d, dest, exp)
+                        state.ctbg_synced_csvs.add(d.csv)
+                        synced += int(result.get("created", 0) or 0)
+                        downloads.cleanup_file(dest)
+                    except Exception as e:
+                        console.print(
+                            f"[red]CTBG: error descargando {d.title}: {e}[/]"
+                        )
+                # Persist after each expediente — survives a crash mid-crawl.
+                save_state(state, settings.state_file)
+    except Exception as e:
+        console.print(f"[red]CTBG expedientes: error inesperado: {e}[/]")
+
+    return synced
 
 
 async def _sync_dehu(
@@ -463,6 +584,12 @@ async def _sync_dehu(
         await dehu_session.get_valid_session()
     except Exception as e:
         console.print(f"[yellow]DEHú: no se pudo autenticar: {e}[/]")
+        return
+
+    if not dehu_session.jwt_token:
+        console.print(
+            "[yellow]DEHú: omitiendo (no se capturó el Bearer JWT del frontend Angular)[/]"
+        )
         return
 
     scraper = DehuScraper(dehu_session)
@@ -539,6 +666,12 @@ async def _sync_redsara(
         await redsara_session.get_valid_session()
     except Exception as e:
         console.print(f"[yellow]Red SARA: no se pudo autenticar: {e}[/]")
+        return 0
+
+    if not redsara_session.jwt_token:
+        console.print(
+            "[yellow]Red SARA: omitiendo (no se capturó el Bearer JWT del frontend Angular)[/]"
+        )
         return 0
 
     scraper = RedSaraRecScraper(redsara_session)
@@ -931,7 +1064,8 @@ def main() -> None:
     if args.auth_only:
         asyncio.run(do_auth(settings))
     elif args.once or args.dry_run:
-        asyncio.run(do_sync(settings, dry_run=args.dry_run))
+        prefs = load_preferences(settings.preferences_file)
+        asyncio.run(do_sync(settings, dry_run=args.dry_run, prefs=prefs))
     elif args.daemon:
         asyncio.run(do_daemon(settings))
     else:

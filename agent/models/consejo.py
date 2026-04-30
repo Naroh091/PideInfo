@@ -13,7 +13,12 @@ class ConsejoNotificacion:
     expediente: str     # e.g. "666/2026"
     estado: str         # "Pendiente", "Leída", "Notificada"
     fecha_accion: str   # e.g. "30/03/2026 13:02" or "" if pending
+    detail_url: str = ""  # absolute URL to the notification detail page (when a row link exists)
 
     @property
     def es_comunicacion(self) -> bool:
         return "comunicaci" in self.tipo.lower()
+
+    @property
+    def is_pending(self) -> bool:
+        return self.estado.strip().lower() == "pendiente"

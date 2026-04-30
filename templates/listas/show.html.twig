@@ -2,210 +2,485 @@
 
 {% block title %}{{ list.name }} - PideInfo{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        /* ── Lista detail ── */
+        .lista-card-show {
+            position: relative;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow:
+                0 1px 2px rgba(15, 23, 42, .04),
+                0 12px 32px -20px rgba(15, 23, 42, .12);
+            margin-bottom: 1.5rem;
+        }
+        .lista-card-show::before {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0; left: 0;
+            width: 3px;
+            background: var(--lista-color, rgb(148 163 184));
+            z-index: 1;
+        }
+
+        .lista-card-show-strip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: .7rem 1.25rem .7rem 1.5rem;
+            border-bottom: 1px solid rgb(226 232 240);
+            background: #f8fafc;
+        }
+        .lista-card-show-strip-label {
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            font-weight: 500;
+            color: rgb(148 163 184);
+        }
+        .lista-card-show-strip-label .icon {
+            color: var(--lista-color, rgb(100 116 139));
+        }
+        .lista-card-show-strip-meta {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            color: rgb(148 163 184);
+            display: inline-flex;
+            align-items: center;
+            gap: .65rem;
+        }
+        .lista-card-show-strip-meta .visibility {
+            display: inline-flex; align-items: center; gap: .3rem;
+            font-weight: 500;
+            color: rgb(71 85 105);
+        }
+        .lista-card-show-strip-meta .visibility .dot {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: currentColor;
+        }
+        .lista-card-show-strip-meta .visibility.is-shared { color: var(--color-primary-700); }
+
+        .lista-card-show-body {
+            padding: 1.25rem 1.5rem 1.4rem 1.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .lista-card-show-name {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            font-size: clamp(1.6rem, 3vw, 2.1rem);
+            line-height: 1.1;
+            letter-spacing: -.01em;
+            color: rgb(15 23 42);
+            margin-bottom: .25rem;
+        }
+        .lista-card-show-desc {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .95rem;
+            color: rgb(71 85 105);
+            line-height: 1.55;
+            max-width: 42rem;
+            margin-top: .5rem;
+        }
+        .lista-card-show-actions {
+            display: flex;
+            gap: .5rem;
+            flex-shrink: 0;
+        }
+
+        /* ── Add request inline panel ── */
+        .add-panel {
+            position: relative;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            padding: .85rem 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: .75rem;
+        }
+        .add-panel-icon {
+            color: var(--color-primary-600);
+            flex-shrink: 0;
+        }
+        .add-panel-input {
+            flex: 1;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .95rem;
+            color: rgb(15 23 42);
+        }
+        .add-panel-input::placeholder { color: rgb(148 163 184); }
+        .add-panel-results {
+            position: absolute;
+            top: calc(100% + .35rem);
+            left: 0; right: 0;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            box-shadow: 0 12px 28px -10px rgba(15, 23, 42, .18);
+            padding: .35rem;
+            z-index: 30;
+            max-height: 22rem;
+            overflow-y: auto;
+        }
+        .add-panel-result {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .85rem;
+            padding: .55rem .65rem;
+            border-radius: 4px;
+            transition: background .12s ease;
+        }
+        .add-panel-result:hover { background: rgb(248 250 252); }
+        .add-panel-result-main { flex: 1; min-width: 0; }
+        .add-panel-result-title {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            color: rgb(15 23 42);
+            font-weight: 500;
+            line-height: 1.3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .add-panel-result-meta {
+            font-size: .75rem;
+            color: rgb(148 163 184);
+            margin-top: .15rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .add-panel-empty {
+            padding: 1.25rem;
+            text-align: center;
+            font-size: .85rem;
+            color: rgb(148 163 184);
+        }
+        .add-panel-success {
+            margin-top: .65rem;
+            padding: .5rem .75rem;
+            background: rgb(236 253 245);
+            border: 1px solid #a7f3d0;
+            color: #047857;
+            border-radius: 4px;
+            font-size: .85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+        }
+
+        /* ── Items list ── */
+        .lista-items {
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .lista-item {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 1rem;
+            align-items: center;
+            padding: .85rem 1.25rem;
+            border-bottom: 1px solid rgb(241 245 249);
+            transition: background .12s ease;
+        }
+        .lista-item:last-child { border-bottom: none; }
+        .lista-item:hover { background: rgb(248 250 252); }
+        .lista-item:hover .lista-item-remove { opacity: 1; }
+        .lista-item-main { min-width: 0; }
+        .lista-item-title {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .95rem;
+            font-weight: 500;
+            color: rgb(15 23 42);
+            text-decoration: none;
+            line-height: 1.3;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: color .12s ease;
+        }
+        .lista-item-title:hover { color: var(--color-primary-700); }
+        .lista-item-meta {
+            margin-top: .25rem;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            color: rgb(100 116 139);
+        }
+        .lista-item-meta .organism {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 24rem;
+        }
+        .lista-item-meta .ext-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            color: var(--color-primary-700);
+        }
+        .lista-item-meta .sep { color: rgb(203 213 225); }
+        .lista-item-meta .status {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            font-size: .72rem;
+            padding: .05rem .5rem;
+            border-radius: 999px;
+            background: rgb(241 245 249);
+            color: rgb(71 85 105);
+            font-weight: 500;
+        }
+        .lista-item-meta .status .pulse {
+            width: 5px; height: 5px; border-radius: 50%;
+            background: currentColor;
+        }
+        .lista-item-meta .status.is-emerald { background: rgb(236 253 245); color: #047857; }
+        .lista-item-meta .status.is-red     { background: rgb(254 242 242); color: rgb(185 28 28); }
+        .lista-item-meta .status.is-amber   { background: var(--color-accent-50); color: var(--color-accent-700); }
+        .lista-item-meta .status.is-sky     { background: var(--color-primary-50); color: var(--color-primary-700); }
+        .lista-item-remove {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px;
+            border-radius: 4px;
+            background: transparent;
+            border: 0;
+            color: rgb(148 163 184);
+            cursor: pointer;
+            opacity: .35;
+            transition: opacity .12s ease, background .12s ease, color .12s ease;
+        }
+        .lista-item-remove:hover {
+            background: rgb(254 242 242);
+            color: rgb(185 28 28);
+        }
+
+        /* ── Empty state ── */
+        .lista-empty {
+            background: white;
+            border: 1px dashed rgb(203 213 225);
+            border-radius: 6px;
+            padding: 3rem 1.5rem;
+            text-align: center;
+        }
+        .lista-empty-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic;
+            font-size: 1.4rem;
+            color: rgb(30 41 59);
+            margin-bottom: .35rem;
+        }
+        .lista-empty-sub {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            color: rgb(100 116 139);
+            max-width: 28rem;
+            margin: 0 auto 1.5rem;
+        }
+
+        .lista-footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            margin-top: 1rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            color: rgb(100 116 139);
+            transition: color .12s ease;
+        }
+        .lista-footer-link:hover { color: var(--color-primary-700); }
+    </style>
+{% endblock %}
+
 {% block content %}
 {# Breadcrumb #}
-<nav class="flex items-center gap-2 text-sm mb-6">
-    <a href="{{ path('app_listas_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
-        Listas
-    </a>
-    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-    <span class="text-slate-800 font-medium truncate max-w-xs">{{ list.name|u.truncate(30) }}</span>
+<nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+    <a href="{{ path('app_listas_index') }}" class="hover:text-slate-800 transition-colors">LISTAS</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-slate-800 font-medium truncate max-w-[14rem]">{{ list.name|u.truncate(30) }}</span>
 </nav>
 
-{# Header #}
-<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
-    <div class="min-w-0 flex items-start gap-3">
-        <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-             style="background-color: {{ list.color ? list.color ~ '20' : '#f1f5f9' }}">
-            <i data-lucide="{{ list.icon ?: 'list' }}"
-               class="w-6 h-6"
-               style="color: {{ list.color ?: '#64748b' }}"></i>
+{# List header card #}
+{% set listColor = list.color ?: '#94a3b8' %}
+<section class="lista-card-show" style="--lista-color: {{ listColor }}">
+    <header class="lista-card-show-strip">
+        <div class="lista-card-show-strip-label">
+            <span class="icon">
+                <i data-lucide="{{ list.icon ?: 'list' }}" class="w-4 h-4"></i>
+            </span>
+            Carpeta de organización
         </div>
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">{{ list.name }}</h1>
-            <div class="flex items-center gap-3 mt-1">
-                <span class="badge {{ list.visibility == 'shared' ? 'badge-info' : 'badge-secondary' }}">
-                    {{ list.visibilityLabel }}
-                </span>
-                <span class="text-sm text-slate-500">
-                    {{ list.itemCount }} solicitud{{ list.itemCount != 1 ? 'es' : '' }}
-                </span>
-            </div>
+        <div class="lista-card-show-strip-meta">
+            <span>{{ list.itemCount }} solicitud{{ list.itemCount != 1 ? 'es' : '' }}</span>
+            <span class="text-slate-300">·</span>
+            <span class="visibility {{ list.visibility == 'shared' ? 'is-shared' : '' }}">
+                <span class="dot"></span>
+                {{ list.visibilityLabel|lower }}
+            </span>
+        </div>
+    </header>
+    <div class="lista-card-show-body">
+        <div class="min-w-0">
+            <h1 class="lista-card-show-name">{{ list.name }}</h1>
             {% if list.description %}
-                <p class="text-slate-500 mt-2">{{ list.description }}</p>
+                <p class="lista-card-show-desc">{{ list.description }}</p>
             {% endif %}
         </div>
+        {% if is_granted('edit', list) %}
+            <div class="lista-card-show-actions">
+                <a href="{{ path('app_listas_edit', {id: list.id}) }}" class="btn btn-secondary btn-sm">
+                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                    Editar
+                </a>
+                <form action="{{ path('app_listas_delete', {id: list.id}) }}"
+                      method="post"
+                      class="inline"
+                      onsubmit="return confirm('¿Eliminar esta lista? Las solicitudes no se eliminarán.');">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete-list-' ~ list.id) }}">
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        Eliminar
+                    </button>
+                </form>
+            </div>
+        {% endif %}
     </div>
-    {% if is_granted('edit', list) %}
-        <div class="flex items-center gap-2 flex-shrink-0">
-            <a href="{{ path('app_listas_edit', {id: list.id}) }}" class="btn btn-secondary">
-                <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
-                Editar
-            </a>
-            <form action="{{ path('app_listas_delete', {id: list.id}) }}"
-                  method="post"
-                  class="inline"
-                  onsubmit="return confirm('¿Eliminar esta lista? Las solicitudes no se eliminarán.');">
-                <input type="hidden" name="_token" value="{{ csrf_token('delete-list-' ~ list.id) }}">
-                <button type="submit" class="btn btn-danger">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
-                    Eliminar
-                </button>
-            </form>
-        </div>
-    {% endif %}
-</div>
+</section>
 
 {% if is_granted('edit', list) %}
-{# Add requests to list #}
-<div class="card mb-6" style="overflow: visible" x-data="addRequestToList()">
-    <div class="card-header">
-        <div class="flex items-center gap-2">
-            <i data-lucide="plus-circle" class="w-5 h-5 text-primary-500"></i>
-            <h2 class="font-semibold text-slate-800">Añadir solicitudes</h2>
-        </div>
-    </div>
-    <div class="card-body">
-        <div class="relative">
-            <div class="flex items-center gap-2">
-                <div class="relative flex-1">
-                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                    <input type="text"
-                           x-model="query"
-                           @input.debounce.300ms="search()"
-                           @focus="if (results.length) showResults = true"
-                           placeholder="Buscar solicitudes por título, organismo..."
-                           class="input input-icon-left text-sm">
+{# Add request to list — slim inline bar #}
+<div class="add-panel" x-data="addRequestToList()">
+    <i data-lucide="search" class="w-4 h-4 add-panel-icon"></i>
+    <input type="text"
+           x-model="query"
+           @input.debounce.300ms="search()"
+           @focus="if (results.length) showResults = true"
+           class="add-panel-input"
+           placeholder="Añadir solicitudes a esta lista — busca por título u organismo">
+
+    <div x-show="showResults && results.length > 0"
+         @click.away="showResults = false"
+         x-transition
+         class="add-panel-results"
+         style="display: none;">
+        <template x-for="req in results" :key="req.id">
+            <div class="add-panel-result">
+                <div class="add-panel-result-main">
+                    <p class="add-panel-result-title" x-text="req.title"></p>
+                    <p class="add-panel-result-meta">
+                        <span x-text="req.publicBody.name"></span>
+                        <span class="text-slate-300"> · </span>
+                        <span x-text="req.statusLabel"></span>
+                    </p>
                 </div>
-            </div>
-
-            <div x-show="showResults && results.length > 0"
-                 @click.away="showResults = false"
-                 x-transition
-                 class="absolute left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 max-h-64 overflow-y-auto"
-                 style="display: none;">
-                <template x-for="req in results" :key="req.id">
-                    <div class="px-3 py-2 hover:bg-slate-50 flex items-center justify-between gap-3">
-                        <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-slate-800 truncate" x-text="req.title"></p>
-                            <div class="flex items-center gap-2 mt-0.5">
-                                <span class="text-xs text-slate-500" x-text="req.publicBody.name"></span>
-                                <span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600" x-text="req.statusLabel"></span>
-                            </div>
-                        </div>
-                        <button @click="addToList(req)"
-                                class="btn btn-primary btn-sm flex-shrink-0"
-                                :disabled="adding === req.id">
-                            <template x-if="adding !== req.id">
-                                <span class="flex items-center gap-1">
-                                    <i data-lucide="plus" class="w-3 h-3"></i>
-                                    Añadir
-                                </span>
-                            </template>
-                            <template x-if="adding === req.id">
-                                <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i>
-                            </template>
-                        </button>
-                    </div>
-                </template>
-            </div>
-
-            <div x-show="showResults && results.length === 0 && query.length >= 2 && !searching"
-                 class="absolute left-0 right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 py-4 z-10 text-center"
-                 style="display: none;">
-                <p class="text-sm text-slate-500">No se encontraron solicitudes</p>
-            </div>
-        </div>
-
-        <template x-if="successMessage">
-            <div class="mt-3 p-2 bg-green-50 text-green-700 text-sm rounded-lg flex items-center gap-2"
-                 x-transition>
-                <i data-lucide="check-circle" class="w-4 h-4"></i>
-                <span x-text="successMessage"></span>
+                <button @click="addToList(req)"
+                        class="btn btn-primary btn-sm flex-shrink-0"
+                        :disabled="adding === req.id">
+                    <template x-if="adding !== req.id">
+                        <span class="flex items-center gap-1">
+                            <i data-lucide="plus" class="w-3 h-3"></i>
+                            Añadir
+                        </span>
+                    </template>
+                    <template x-if="adding === req.id">
+                        <i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i>
+                    </template>
+                </button>
             </div>
         </template>
     </div>
+
+    <div x-show="showResults && results.length === 0 && query.length >= 2 && !searching"
+         @click.away="showResults = false"
+         class="add-panel-results add-panel-empty"
+         style="display: none;">
+        Sin resultados para «<span x-text="query"></span>»
+    </div>
+
+    <template x-if="successMessage">
+        <div class="add-panel-success" x-transition>
+            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+            <span x-text="successMessage"></span>
+        </div>
+    </template>
 </div>
 {% endif %}
 
 {# List items #}
 {% if list.items|length > 0 %}
-    <div class="space-y-3">
+    {% set statusTone = {
+        'granted': 'is-emerald', 'granted_completed': 'is-emerald',
+        'denied': 'is-red',
+        'delayed': 'is-amber',
+        'processing': 'is-sky', 'sent': 'is-sky',
+        'pending': ''
+    } %}
+    <div class="lista-items">
         {% for item in list.items %}
             {% set ar = item.accessRequest %}
-            <div class="card hover:shadow-sm transition-shadow" data-request-id="{{ ar.id }}">
-                <div class="card-body py-4">
-                    <div class="flex items-center justify-between gap-4">
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-start gap-3">
-                                <div class="flex-1 min-w-0">
-                                    <a href="{{ path('app_solicitudes_show', {id: ar.id}) }}"
-                                       class="font-medium text-slate-800 hover:text-primary-600 transition-colors">
-                                        {{ ar.title }}
-                                    </a>
-                                    <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500">
-                                        <span class="flex items-center gap-1">
-                                            <i data-lucide="building" class="w-3 h-3"></i>
-                                            {{ ar.publicBody.name }}
-                                        </span>
-                                        {% if ar.externalId %}
-                                            <span class="flex items-center gap-1 text-primary-600">
-                                                <i data-lucide="hash" class="w-3 h-3"></i>
-                                                {{ ar.externalId }}
-                                            </span>
-                                        {% endif %}
-                                        <span class="badge {{ {
-                                            'sent': 'status-sent',
-                                            'processing': 'status-processing',
-                                            'granted': 'status-granted',
-                                            'granted_completed': 'status-granted-completed',
-                                            'denied': 'status-denied',
-                                            'delayed': 'status-delayed',
-                                            'pending': 'status-pending'
-                                        }[ar.status]|default('badge-secondary') }}">
-                                            {{ ar.statusLabel }}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        {% if is_granted('edit', list) %}
-                            <button type="button"
-                                    class="btn btn-ghost btn-sm text-slate-400 hover:text-red-600 flex-shrink-0"
-                                    title="Quitar de la lista"
-                                    onclick="removeFromList('{{ ar.id }}', this)">
-                                <i data-lucide="x" class="w-4 h-4"></i>
-                            </button>
+            <div class="lista-item" data-request-id="{{ ar.id }}">
+                <div class="lista-item-main">
+                    <a href="{{ path('app_solicitudes_show', {id: ar.id}) }}" class="lista-item-title">{{ ar.title }}</a>
+                    <div class="lista-item-meta">
+                        <span class="organism" title="{{ ar.publicBody.name }}">{{ ar.publicBody.name }}</span>
+                        {% if ar.externalId %}
+                            <span class="sep">·</span>
+                            <span class="ext-id">#{{ ar.externalId }}</span>
                         {% endif %}
+                        <span class="sep">·</span>
+                        <span class="status {{ statusTone[ar.status] ?? '' }}">
+                            <span class="pulse"></span>
+                            {{ ar.statusLabel }}
+                        </span>
                     </div>
                 </div>
+                {% if is_granted('edit', list) %}
+                    <button type="button"
+                            class="lista-item-remove"
+                            title="Quitar de la lista"
+                            onclick="removeFromList('{{ ar.id }}', this)">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                {% endif %}
             </div>
         {% endfor %}
     </div>
 
-    <div class="mt-6">
-        <a href="{{ path('app_solicitudes_index', {list: list.id}) }}" class="btn btn-secondary">
-            <i data-lucide="filter" class="w-4 h-4 mr-2"></i>
-            Ver en solicitudes
-        </a>
-    </div>
+    <a href="{{ path('app_solicitudes_index', {list: list.id}) }}" class="lista-footer-link">
+        <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+        Ver en solicitudes con filtros
+    </a>
 {% else %}
-    <div class="card">
-        <div class="card-body">
-            <div class="text-center py-12">
-                <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4">
-                    <i data-lucide="inbox" class="w-8 h-8 text-slate-400"></i>
-                </div>
-                <h3 class="text-lg font-semibold text-slate-800 mb-2">Lista vacía</h3>
-                <p class="text-slate-500 mb-6 max-w-sm mx-auto">
-                    Añade solicitudes a esta lista desde la página de detalle de cada solicitud.
-                </p>
-                <a href="{{ path('app_solicitudes_index') }}" class="btn btn-primary">
-                    <i data-lucide="folder-open" class="w-4 h-4 mr-2"></i>
-                    Ir a solicitudes
-                </a>
-            </div>
-        </div>
+    <div class="lista-empty">
+        <h2 class="lista-empty-title">Carpeta vacía</h2>
+        <p class="lista-empty-sub">
+            Añade solicitudes a esta carpeta desde la búsqueda de arriba o desde la página de detalle de cada solicitud.
+        </p>
+        <a href="{{ path('app_solicitudes_index') }}" class="btn btn-secondary btn-sm">
+            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+            Ir a solicitudes
+        </a>
     </div>
 {% endif %}
 
@@ -233,12 +508,12 @@ function addRequestToList() {
                 });
                 if (resp.ok) {
                     const data = await resp.json();
-                    // Filter out requests already in the list
                     const existingIds = new Set(
                         [...document.querySelectorAll('[data-request-id]')].map(el => el.dataset.requestId)
                     );
                     this.results = data.requests.filter(r => !existingIds.has(r.id));
                     this.showResults = true;
+                    this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
                 }
             } catch (e) {
                 console.error('Error searching:', e);
@@ -264,9 +539,8 @@ function addRequestToList() {
 
                 if (resp.ok) {
                     this.results = this.results.filter(r => r.id !== req.id);
-                    this.successMessage = '"' + req.title + '" añadida a la lista';
+                    this.successMessage = '«' + req.title + '» añadida a la lista';
                     setTimeout(() => { this.successMessage = ''; }, 3000);
-                    // Reload to show the new item
                     setTimeout(() => { window.location.reload(); }, 1000);
                 } else {
                     const data = await resp.json();
@@ -295,7 +569,7 @@ async function removeFromList(requestId, btn) {
             })
         });
         if (resp.ok) {
-            btn.closest('.card').remove();
+            btn.closest('.lista-item').remove();
         } else {
             const data = await resp.json();
             alert(data.error || 'Error al quitar la solicitud');

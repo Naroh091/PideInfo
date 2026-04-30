@@ -77,6 +77,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $agentTokensInvalidatedAt = null;
 
+    /**
+     * AI-generated 1-2 paragraph summary of the user's activity over the last 24 h.
+     * Persisted so the home dashboard renders instantly from cache; regenerated
+     * asynchronously by `App\MessageHandler\WarmActivitySummaryHandler` when the
+     * fingerprint of the recent notifications changes.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $activitySummaryHtml = null;
+
+    /** sha1 of the ordered notification UUIDs the cached summary was built from. */
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $activitySummaryFingerprint = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $activitySummaryUpdatedAt = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -286,6 +302,39 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return null !== $this->agentTokenIssuedAt
             && (null === $this->agentTokensInvalidatedAt || $this->agentTokensInvalidatedAt < $this->agentTokenIssuedAt);
+    }
+
+    public function getActivitySummaryHtml(): ?string
+    {
+        return $this->activitySummaryHtml;
+    }
+
+    public function setActivitySummaryHtml(?string $activitySummaryHtml): static
+    {
+        $this->activitySummaryHtml = $activitySummaryHtml;
+        return $this;
+    }
+
+    public function getActivitySummaryFingerprint(): ?string
+    {
+        return $this->activitySummaryFingerprint;
+    }
+
+    public function setActivitySummaryFingerprint(?string $activitySummaryFingerprint): static
+    {
+        $this->activitySummaryFingerprint = $activitySummaryFingerprint;
+        return $this;
+    }
+
+    public function getActivitySummaryUpdatedAt(): ?\DateTimeImmutable
+    {
+        return $this->activitySummaryUpdatedAt;
+    }
+
+    public function setActivitySummaryUpdatedAt(?\DateTimeImmutable $activitySummaryUpdatedAt): static
+    {
+        $this->activitySummaryUpdatedAt = $activitySummaryUpdatedAt;
+        return $this;
     }
 
     public function __toString(): string

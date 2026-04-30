@@ -163,7 +163,7 @@
         {# ── Full listing ── #}
         <section>
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <h2 class="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <h2 class="text-xs font-semibold text-slate-500">
                     {% if search %}Resultados para &laquo;{{ search }}&raquo; ({{ total }}){% else %}Todas las administraciones ({{ total }}){% endif %}
                 </h2>
                 <form method="GET" action="{{ path('app_resoluciones_reclamados') }}" class="relative sm:w-72 flex gap-2">

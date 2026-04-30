@@ -165,6 +165,7 @@ Settings are loaded from environment variables and/or a `.env` file via `pydanti
 | `AUTH_TIMEOUT_SECONDS` | `120` | Browser auth timeout |
 | `SYNC_INTERVAL_MINUTES` | `30` | Daemon mode sync interval |
 | `DATA_DIR` | `~/.pideinfo-agent` | Directory for cookies, state, preferences, downloads |
+| `HEADLESS_DISABLED` | `false` | If `true`, forces a visible browser window for **all** auth flows (Portal de Transparencia, CTBG, DEHú, Red SARA). Useful for debugging. The same can be toggled at runtime via the tray menu (`headless_disabled` in `preferences.json`); the effective value is the OR of both sources. |
 
 ## Portal authentication
 
@@ -178,6 +179,8 @@ Before launching Firefox, the agent checks whether `firefox-profile/prefs.js` ex
 - **All subsequent runs** (`prefs.js` present): Firefox runs **headless** — no window, no interaction. The certificate is auto-selected from the saved profile. The user sees only a log line.
 
 This applies to all three portals. They share the same `firefox-profile/` directory, so one first-run covers all of them.
+
+Headless mode can be disabled globally via the `HEADLESS_DISABLED` env var or the `headless_disabled` preference (tray toggle). When disabled, the browser window is visible for every auth flow even after the profile is initialised — handy for debugging certificate or Cl@ve issues.
 
 ### Portal de Transparencia
 
@@ -277,10 +280,13 @@ A single sync cycle (`do_sync`) performs:
 4. **Sync expediente documents** — for each expediente, fetch its document list, download new ones, send as a batch to PideInfo. `SOLICITUD` documents are sorted first so the batch handler can create the `AccessRequest` with correct metadata.
 5. **Sync notification documents** — download and send each new notification's document. If a notification was `PENDIENTE` and is now downloaded, the agent marks it as accepted.
 6. **Report pending notifications** — inform PideInfo about `PENDIENTE` notifications without downloading them (so PideInfo can show a banner). Sends an empty list to clear notifications that have been resolved.
-7. **Sync CTBG notifications** — authenticate against the CTBG sede electrónica (separate session), scrape the notification list from `/enotifications.9`, report any `Pendiente` notifications to PideInfo (source: `consejo_ctbg`). Non-fatal if auth fails. First page only (Wicket AJAX pagination not supported).
+7. **Sync CTBG notifications (pending only)** — authenticate against the CTBG sede electrónica (separate session), scrape the notification list from `/enotifications.9`, and report any `Pendiente` notifications to PideInfo (source: `consejo_ctbg`) so the user gets a "tienes una notificación pendiente que comparecer" banner on the matching access request. The agent does **not** download the notification document from this view: each row only carries a Wicket-Ajax `href="#"` anchor, so the actual document is fetched in step 8 via the expediente detail page where stable Wicket navigation + a CSV identifier let us download safely. Non-fatal if auth fails. First page only (Wicket AJAX pagination not supported).
+8. **Sync CTBG expediente files** — for each complaint expediente in `/expedientes.6`, walk every phase (`ENTRADA`, `ALEGACIONES`, `<fecha> Reclamante recibe contestación`, `TRÁMITE DE AUDIENCIA`, `<fecha> Desistimiento`, `RESOLUCIÓN`, …), collect every document card and download anything whose CSV (Código Seguro de Verificación) is not already in `SyncState.ctbg_synced_csvs`. Driven by Playwright (`agent/portals/consejo_expediente.py`) because the detail page is a Wicket SPA whose state lives server-side (clicking a phase re-renders, click `goback` to return). By default it stops after the first all-closed batch in the list (the most-recent-first listing means open expedientes are at the top); set `CTBG_FULL_CRAWL=true` for an exhaustive walk. Non-fatal if auth or any single expediente fails — state is saved after each expediente.
 8. **Sync DEHú notifications** — check JWT expiry locally; re-auth headlessly if expired; call `GET /api/v1/notifications` with Bearer JWT; report pending notifications to PideInfo (source: `dehu_redsara`). Non-fatal if auth fails.
 9. **Sync Red SARA registries** — check JWT expiry locally; re-auth headlessly if expired; search registries via `POST /registry/searchRegistry` with pagination; filter by subject keywords related to FOIA requests; download the justificante PDF for each matching registry; send to PideInfo (source: `redsara_rec`). Creates a new `AccessRequest` on the backend if none exists. First sync fetches past 7 days; subsequent syncs fetch since last sync. Non-fatal if auth fails.
-10. **Save state** — mark synced documents in `~/.pideinfo-agent/sync_state.json`
+
+> Note (CTBG step 8): the agent only sends documents from the **user's own private** CTBG expediente. Even though the resolution carries a public number (e.g. `R CTBG 2026-0383`) that matches an entry imported by `LoadCTBGResolutionsCommand` into the `Resolution` table, the agent **does not** link the downloaded copy to that public entity — the agent's PDF contains personal data and must stay scoped to the user's `Document` collection.
+10. **Save state** — `sync_state.json` is flushed to disk after each portal completes (Portal AGE, CTBG, DEHú, Red SARA), so a crash mid-sync only loses progress for the in-flight portal. The webhook is called per item as the portal is being scraped, so PideInfo is up-to-date in real time regardless.
 
 ### Deduplication
 
@@ -367,6 +373,35 @@ When using legacy auth, the payload includes `"userId": "<uuid>"`. With JWT auth
 The `expedienteRef` matches `AccessRequestComplaint.externalId` in PideInfo. The backend's `findByExternalId` method also searches complaint external IDs.
 
 Each stored notification is enriched server-side with a `reportedAt` timestamp (ISO 8601) and the `source` field (`transparencia_age` or `consejo_ctbg`). The UI renders Portal de Transparencia and Consejo de Transparencia notifications in separate, visually distinct sections.
+
+### CTBG expediente document
+
+```json
+{
+    "source": "consejo_ctbg",
+    "expedienteRef": "590/2026",
+    "documents": [
+        {
+            "filename": "R CTBG 2026-0204 [Resolución expte. 501-2026].pdf",
+            "contentType": "application/pdf",
+            "content": "<base64>",
+            "contentHash": "<sha256>",
+            "portalDate": "27/02/2026"
+        }
+    ],
+    "metadata": {
+        "complaint_phase": "RESOLUCIÓN",
+        "csv": "3PAGQH4WW4CQLPTJDN2FC9MZD",
+        "documentTitle": "R CTBG 2026-0204 [Resolución expte. 501-2026]",
+        "expedienteEstado": "Resolución Cumplida",
+        "expedienteTitulo": "Reclamaciones de ámbito estatal",
+        "fechaApertura": "27/02/2026",
+        "fechaCierre": ""
+    }
+}
+```
+
+When the webhook receives a payload with `source: "consejo_ctbg"` and `metadata.complaint_phase` is present, `AgentWebhookProcessor::mapCtbgPhaseToType()` pre-assigns `Document.type` from a deterministic title-pattern map (`R CTBG …` → `ComplaintResolution`, `Trámite de audiencia` → `Audiencia`, `Recibo` → `ComplaintReceipt`, `Comunicación de inicio` → `ComplaintProcessingStart`, `Alegaciones` → `Alegaciones`, default → `Complaint`). The document is also marked `processed = true` so the AI pipeline (`ProcessDocumentHandler`) skips it — without that, AI reclassification could move the document out of the complaint section. Trade-off: no `extractedText` / `aiMetadata` is populated for these documents; the deterministic type is enough to render them in `_documents_list.html.twig`'s "Documentos de reclamación" block.
 
 ### DEHú pending notifications report
 

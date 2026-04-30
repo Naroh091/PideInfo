@@ -29,7 +29,8 @@ final class TracingMiddleware implements MiddlewareInterface
             return $stack->next()->handle($envelope, $stack);
         }
 
-        $messageClass = $envelope->getMessage()::class;
+        $message = $envelope->getMessage();
+        $messageClass = $message::class;
         $shortName = substr($messageClass, strrpos($messageClass, '\\') + 1);
 
         $attrs = [
@@ -54,10 +55,27 @@ final class TracingMiddleware implements MiddlewareInterface
             $attrs[AttributeKeys::LANGFUSE_USER_ID] = $userStamp->userId;
         }
 
+        // The trace input is the message payload itself — gives instant context
+        // ("which user / request was this job about?") in the Langfuse Trace UI
+        // without having to drill into individual generation observations.
+        $traceInput = $this->serializeMessage($message);
+
         return $this->tracer->traceRoot(
             name: $shortName,
             attributes: $attrs,
             fn: fn () => $stack->next()->handle($envelope, $stack),
+            traceInput: $traceInput,
         );
+    }
+
+    private function serializeMessage(object $message): string
+    {
+        try {
+            // get_object_vars only captures public/visible state, which is what we
+            // want — no internal services or readonly handler dependencies.
+            return json_encode(get_object_vars($message), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        } catch (\Throwable) {
+            return '';
+        }
     }
 }

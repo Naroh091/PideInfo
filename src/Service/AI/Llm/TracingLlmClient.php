@@ -55,6 +55,21 @@ final class TracingLlmClient extends LlmClient
     }
 
     /**
+     * @return \Generator<int, string, void, ChatResult>
+     */
+    public function chatStream(ChatRequest $req): \Generator
+    {
+        return yield from $this->tracer->generationStream(
+            name: 'llm.chat.stream' . ($req->label !== null ? ' ' . $req->label : ''),
+            attributes: $this->buildRequestAttributes($req),
+            gen: $this->inner->chatStream($req),
+            captureOutput: function (ChatResult $result, SpanInterface $span): void {
+                $this->applyResultAttributes($span, $result);
+            },
+        );
+    }
+
+    /**
      * Reimplements LlmClient::chatJson so every retry attempt becomes a sibling
      * generation span instead of being hidden behind a single chat() call.
      *

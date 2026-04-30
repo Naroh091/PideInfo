@@ -74,14 +74,16 @@ The complaint is triggered when the access request is in status `denied`, `delay
 
 **AI-assisted filing.** The user clicks "Generar reclamación" on the request detail page. The `ComplaintGenerator` service:
 1. Checks eligibility via `canGenerateComplaint()` — request must be denied or delayed
-2. Runs a `SuccessAnalyzer` to estimate success probability. The result is cached in `AccessRequest.metadata['success_analysis']` keyed by a fingerprint of the request status + attached document IDs, so subsequent calls reuse it until the request changes.
+2. Runs a `SuccessAnalyzer` to estimate success probability. Returns a `SuccessAnalysis` DTO (`percentage`, `summary`, `strengths`, `weaknesses` — last three are HTML restricted to `<b>`, `<i>`, `<br>`; total payload capped at 2000 chars and sanitized server-side). The result is cached in `AccessRequest.metadata['success_analysis']` keyed by a fingerprint of `SCHEMA_VERSION + status + attached document IDs`, so subsequent calls reuse it until either the schema bumps or the request changes. The analyze endpoint (`POST /reclamacion/analisis?force=1`) honours `force` to bypass the cache.
 3. Retrieves similar favorable resolutions via vector search against the CTBG resolution database
 4. Retrieves relevant interpretive criteria from the CTBG criteria database
 5. Loads the extracted text of every attached document via `DocumentContentsCollector` (truncated per document) and includes it in the prompt as a primary "DOCUMENTOS DEL EXPEDIENTE" section. The `SuccessAnalyzer` consumes the same documents.
 6. Builds a detailed legal prompt with the request context, timeline, expediente documents, and retrieved references
-7. Calls Google Gemini to generate an HTML-formatted complaint
+7. Calls the configured LLM (Google Gemini, or an OpenAI-compatible model when `USE_CUSTOM_MODEL=true`) to generate an HTML-formatted complaint
 8. Supports multi-turn conversation — the user can request revisions
 9. The final draft can be saved as a `Document` (type: `complaint`) and downloaded as PDF or Word
+
+**Streaming UI.** The interactive view (`templates/complaint/interactive.html.twig`) consumes the SSE endpoint `POST /solicitudes/{id}/reclamacion/generar/stream` (`app_complaint_create_stream`), which streams `text/event-stream` chunks emitted by `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()`. The stream uses three event types: `chunk` (delta text, appended to a live preview), `done` (final `ComplaintDraft` payload — HTML, citations, success analysis), and `error`. Streaming requires `USE_CUSTOM_MODEL=true`; the underlying `LlmClient::chatStream()` only supports the OpenAI-compatible backend. The legacy non-streaming endpoint (`POST /solicitudes/{id}/reclamacion/generar`, `app_complaint_create`) remains for non-UI callers.
 
 **Automatic detection.** When a document classified as `DocumentType::Complaint` is uploaded, the system automatically creates the complaint entity and records a timeline entry.
 

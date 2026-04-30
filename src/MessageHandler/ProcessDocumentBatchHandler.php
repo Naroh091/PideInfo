@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\Complaint\SuccessAnalysisWarmer;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -32,6 +33,7 @@ final class ProcessDocumentBatchHandler
         private readonly AccessRequestManager $accessRequestManager,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
+        private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
     ) {
     }
 
@@ -140,6 +142,12 @@ final class ProcessDocumentBatchHandler
                 'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
                 'title' => $accessRequest?->getTitle(),
             ]);
+
+            // Pre-warm the informe preliminar if the batch left the request in a
+            // complaintable state.
+            if ($accessRequest) {
+                $this->successAnalysisWarmer->maybeWarm($accessRequest);
+            }
 
         } catch (\Exception $e) {
             $this->logger->error('Error processing document batch', [

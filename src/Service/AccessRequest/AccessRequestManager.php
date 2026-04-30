@@ -10,6 +10,7 @@ use App\Entity\Document;
 use App\Entity\PublicBody;
 use App\Entity\StatusHistory;
 use App\Entity\User;
+use App\Service\Complaint\SuccessAnalysisWarmer;
 use Doctrine\ORM\EntityManagerInterface;
 
 class AccessRequestManager
@@ -17,6 +18,7 @@ class AccessRequestManager
     public function __construct(
         private EntityManagerInterface $em,
         private DeadlineCalculator $deadlineCalculator,
+        private SuccessAnalysisWarmer $successAnalysisWarmer,
     ) {
     }
 
@@ -558,6 +560,10 @@ class AccessRequestManager
         $request->addStatusHistory($history);
 
         $this->em->flush();
+
+        // Pre-warm the success analysis if the request just became "complaintable",
+        // so the workspace renders the informe preliminar instantly.
+        $this->successAnalysisWarmer->maybeWarm($request);
 
         return true;
     }

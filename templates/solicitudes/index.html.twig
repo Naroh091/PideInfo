@@ -7,239 +7,510 @@
     <meta name="turbo-visit-control" content="reload">
     <link rel="stylesheet" href="https://cdn.datatables.net/2.0.3/css/dataTables.dataTables.min.css">
     <style>
-        /* =============================================
-           DataTables 2.x — Minimal modern overrides
-           ============================================= */
+        /* ─────────────────────────────────────────────────────────────
+           PAGE-SCOPED STYLES — investigative casebook
+           Respect the existing palette: primary (sky), accent (amber),
+           slate as neutrals. No new colors.
+           ───────────────────────────────────────────────────────────── */
 
-        .dt-container {
-            font-family: inherit;
-            font-size: 0.875rem;
-            color: rgb(51 65 85);
+        .casebook-eyebrow {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            font-weight: 600;
+            color: var(--color-primary-600, #0284c7);
         }
 
-        /* Hide DT's own controls — we use our own filters */
-        .dt-container .dt-search,
-        .dt-container .dt-length,
-        div.dt-length {
-            display: none !important;
-        }
-
-        /* Length menu (if visible in bottom bar) */
-        .dt-container .dt-length {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: rgb(100 116 139);
-            font-size: 0.75rem;
-        }
-        .dt-container .dt-length label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin: 0;
+        .casebook-title {
+            font-family: 'DM Serif Display', Georgia, serif;
             font-weight: 400;
+            line-height: 1.05;
+            letter-spacing: -0.015em;
+            color: rgb(15 23 42);
         }
-        .dt-container .dt-length select.dt-input {
-            padding: 0.375rem 2rem 0.375rem 0.625rem;
-            border-radius: 0.625rem;
-            border: 1px solid rgb(226 232 240);
-            background-color: white;
-            color: rgb(51 65 85);
-            font-size: 0.8125rem;
+
+        .micro-label {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            font-weight: 600;
+            color: rgb(100 116 139);
+        }
+
+        /* ── The metric ribbon ── */
+        /* Responsive grid: 3 cols on small, 5 on md, 9 on large.
+           Chips share width equally; never overflow horizontally. */
+        .metric-rail {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: .4rem;
+            padding: .25rem 0 .75rem;
+        }
+        @media (min-width: 640px) {
+            .metric-rail { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        }
+        @media (min-width: 1024px) {
+            .metric-rail { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: .5rem; }
+        }
+
+        .metric-chip {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: .1rem;
+            min-width: 0;
+            padding: .65rem .75rem;
+            border-radius: .7rem;
+            background: white;
+            border: 1px solid rgb(241 245 249);
+            transition: transform .18s cubic-bezier(.25,.8,.25,1),
+                        box-shadow .18s ease,
+                        border-color .18s ease;
+            text-decoration: none;
+            opacity: 0;
+            animation: chipIn .35s ease forwards;
+        }
+        .metric-chip:hover {
+            border-color: rgb(186 230 253);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px -10px rgba(2,132,199,.25);
+        }
+        .metric-chip.is-active {
+            border-color: rgb(2 132 199);
+            background: linear-gradient(180deg, white 0%, rgb(240 249 255) 100%);
+            box-shadow: 0 0 0 3px rgba(2,132,199,.10);
+        }
+        .metric-chip-num {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.2rem;
+            line-height: 1;
+            font-weight: 400;
+            letter-spacing: -.025em;
+            color: rgb(15 23 42);
+            font-feature-settings: "tnum";
+        }
+        @media (min-width: 640px) {
+            .metric-chip-num { font-size: 1.35rem; }
+        }
+        .metric-chip.is-zero .metric-chip-num { color: rgb(203 213 225); }
+        .metric-chip-label {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .72rem;
             font-weight: 500;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-            background-position: right 0.5rem center;
-            background-repeat: no-repeat;
-        }
-        .dt-container .dt-length select.dt-input:focus {
-            outline: none;
-            border-color: rgb(14 165 233);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.08);
-        }
-
-        /* Bottom bar: info + pagination + length */
-        .dt-container .dt-layout-row:last-child {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: center;
-            gap: 0.75rem;
-            margin: 0;
-            padding: 1.25rem 0 0.25rem;
-        }
-        .dt-container .dt-layout-cell {
-            padding: 0;
-        }
-
-        /* ---- Info text ---- */
-        .dt-container .dt-info {
-            color: rgb(148 163 184);
-            font-size: 0.75rem;
-            letter-spacing: 0.01em;
-        }
-
-        /* ---- Pagination ---- */
-        .dt-container .dt-paging {
-            display: flex;
-            align-items: center;
-            gap: 0.125rem;
-        }
-        .dt-container .dt-paging .dt-paging-button {
+            color: rgb(100 116 139);
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            min-width: 2.25rem;
-            height: 2.25rem;
-            padding: 0 0.5rem;
-            border-radius: 0.625rem;
-            font-size: 0.8125rem;
-            font-weight: 500;
-            color: rgb(100 116 139);
-            background-color: transparent;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.2s cubic-bezier(.4,0,.2,1);
+            gap: .25rem;
+            min-width: 0;
+            max-width: 100%;
         }
-        .dt-container .dt-paging .dt-paging-button:hover:not(.disabled):not(.current) {
-            background-color: rgb(241 245 249);
-            border-color: rgb(226 232 240);
+        .metric-chip-label-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .metric-chip-dot {
+            display: inline-block;
+            width: .35rem; height: .35rem;
+            border-radius: 999px;
+            flex-shrink: 0;
+        }
+        .metric-chip.is-active .metric-chip-label { color: rgb(7 89 133); }
+
+        @keyframes chipIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Per-status accent dots */
+        .dot-all       { background: rgb(15 23 42); }
+        .dot-sent      { background: rgb(148 163 184); }
+        .dot-processing{ background: rgb(2 132 199); }
+        .dot-granted   { background: rgb(16 185 129); }
+        .dot-completed { background: rgb(5 150 105); }
+        .dot-denied    { background: rgb(220 38 38); }
+        .dot-delayed   { background: rgb(245 158 11); }
+        .dot-pending   { background: rgb(100 116 139); }
+        .dot-appealed  { background: rgb(217 119 6); }
+
+        /* ── Toolbar ── */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .5rem;
+            margin-top: 1rem;
+        }
+        .toolbar-search {
+            position: relative;
+            flex: 1 1 18rem;
+            min-width: 14rem;
+        }
+        .toolbar-search input {
+            width: 100%;
+            height: 2.5rem;
+            padding: 0 2.25rem 0 2.5rem;
+            border-radius: .65rem;
+            border: 1px solid rgb(226 232 240);
+            background: white;
+            font-size: .9rem;
+            color: rgb(15 23 42);
+            transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .toolbar-search input:focus {
+            outline: none;
+            border-color: rgb(14 165 233);
+            box-shadow: 0 0 0 3px rgba(14,165,233,.10);
+        }
+        .toolbar-search-icon {
+            position: absolute;
+            left: .8rem; top: 50%;
+            transform: translateY(-50%);
+            color: rgb(148 163 184);
+            pointer-events: none;
+        }
+        .toolbar-search-loading {
+            position: absolute;
+            right: .8rem; top: 50%;
+            transform: translateY(-50%);
+            color: rgb(148 163 184);
+        }
+
+        .toolbar-divider {
+            width: 1px; height: 1.5rem;
+            background: rgb(226 232 240);
+            margin: 0 .25rem;
+        }
+
+        /* ── Active filter chips bar ── */
+        .filter-chips {
+            display: flex; flex-wrap: wrap;
+            gap: .4rem;
+            padding-top: .8rem;
+        }
+        .filter-chip {
+            display: inline-flex; align-items: center;
+            gap: .4rem;
+            padding: .3rem .6rem .3rem .7rem;
+            background: rgb(240 249 255);
+            border: 1px solid rgb(186 230 253);
+            border-radius: 999px;
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem;
+            font-weight: 500;
+            color: rgb(7 89 133);
+            text-decoration: none;
+            transition: background .15s ease, border-color .15s ease;
+        }
+        .filter-chip:hover {
+            background: rgb(224 242 254);
+            border-color: rgb(125 211 252);
+        }
+        .filter-chip-key {
+            font-weight: 600;
+            font-size: .75rem;
+            color: rgb(2 132 199);
+        }
+        .filter-chip-x {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1rem; height: 1rem;
+            border-radius: 999px;
+            background: rgba(2,132,199,.14);
+            color: rgb(2 132 199);
+        }
+        .filter-clear-all {
+            display: inline-flex; align-items: center;
+            gap: .3rem;
+            padding: .3rem .65rem;
+            border-radius: 999px;
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem;
+            font-weight: 600;
+            color: rgb(100 116 139);
+            border: 1px dashed rgb(203 213 225);
+            text-decoration: none;
+            transition: color .15s ease, border-color .15s ease;
+        }
+        .filter-clear-all:hover {
+            color: rgb(220 38 38);
+            border-color: rgb(252 165 165);
+            border-style: solid;
+        }
+
+        /* ── Body grid: lists rail + table ── */
+        .casebook-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1.25rem;
+            margin-top: 1.5rem;
+            align-items: start;
+        }
+        @media (min-width: 1024px) {
+            .casebook-grid {
+                grid-template-columns: 16rem minmax(0, 1fr);
+                gap: 1.5rem;
+            }
+        }
+
+        /* ── Lists rail ── */
+        .lists-rail {
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        .lists-rail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: .85rem 1rem;
+            border-bottom: 1px solid rgb(241 245 249);
+            background: rgb(248 250 252);
+        }
+        .lists-rail-body {
+            padding: .35rem .35rem .65rem;
+            max-height: 30rem;
+            overflow-y: auto;
+        }
+        .list-item {
+            display: flex;
+            align-items: center;
+            gap: .65rem;
+            padding: .55rem .75rem;
+            border-radius: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            color: rgb(51 65 85);
+            text-decoration: none;
+            transition: background .12s ease, color .12s ease, transform .12s ease;
+            position: relative;
+        }
+        .list-item:hover {
+            background: rgb(248 250 252);
+            color: rgb(15 23 42);
+        }
+        .list-item.is-active {
+            background: rgb(240 249 255);
+            color: rgb(7 89 133);
+            font-weight: 600;
+        }
+        .list-item.is-active::before {
+            content: "";
+            position: absolute;
+            left: -.35rem; top: 25%; bottom: 25%;
+            width: 3px;
+            border-radius: 2px;
+            background: rgb(2 132 199);
+        }
+        .list-item-dot {
+            width: .55rem; height: .55rem;
+            border-radius: 999px;
+            background: rgb(148 163 184);
+            box-shadow: 0 0 0 1px rgba(0,0,0,.04);
+            transition: transform .12s ease;
+            flex-shrink: 0;
+        }
+        .list-item:hover .list-item-dot {
+            transform: scale(1.2);
+        }
+        .list-item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .list-item-count {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem;
+            font-weight: 600;
+            color: rgb(148 163 184);
+            font-feature-settings: "tnum";
+        }
+        .list-item.is-active .list-item-count { color: rgb(7 89 133); }
+        .list-item-add {
+            margin: .35rem 0 0;
+            display: flex; align-items: center; gap: .55rem;
+            padding: .55rem .75rem;
+            border-radius: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            color: rgb(2 132 199);
+            border: 1px dashed rgb(186 230 253);
+            text-decoration: none;
+            transition: background .12s ease, border-color .12s ease;
+        }
+        .list-item-add:hover {
+            background: rgb(240 249 255);
+            border-color: rgb(125 211 252);
+            border-style: solid;
+        }
+        .lists-empty {
+            padding: 1.25rem .75rem;
+            text-align: center;
+            color: rgb(148 163 184);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem;
+            line-height: 1.45;
+        }
+
+        /* ── Table card ── */
+        .table-card {
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 1rem;
+            padding: .25rem 1rem 1rem;
+            min-width: 0;
+        }
+
+        /* ─────────────────────────────────────────────────────────────
+           DataTables 2.x — refined overrides keyed to the new design
+           ───────────────────────────────────────────────────────────── */
+        .dt-container {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .875rem;
             color: rgb(51 65 85);
         }
+        .dt-container .dt-search,
+        .dt-container .dt-length,
+        div.dt-length { display: none !important; }
+
+        .dt-container .dt-layout-row:last-child {
+            display: flex; flex-wrap: wrap;
+            justify-content: space-between; align-items: center;
+            gap: .75rem;
+            margin: 0;
+            padding: 1.25rem .25rem .25rem;
+        }
+        .dt-container .dt-layout-cell { padding: 0; }
+
+        .dt-container .dt-info {
+            color: rgb(148 163 184);
+            font-size: .72rem;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: .04em;
+        }
+
+        .dt-container .dt-paging {
+            display: flex; align-items: center; gap: .15rem;
+        }
+        .dt-container .dt-paging .dt-paging-button {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 2.1rem; height: 2.1rem;
+            padding: 0 .55rem;
+            border-radius: .55rem;
+            font-size: .8rem;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            color: rgb(100 116 139);
+            background: transparent;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all .15s cubic-bezier(.4,0,.2,1);
+        }
+        .dt-container .dt-paging .dt-paging-button:hover:not(.disabled):not(.current) {
+            background: rgb(241 245 249);
+            color: rgb(15 23 42);
+        }
         .dt-container .dt-paging .dt-paging-button.current {
-            background: linear-gradient(135deg, rgb(14 165 233), rgb(2 132 199));
+            background: rgb(15 23 42);
             color: white;
             border-color: transparent;
-            box-shadow: 0 1px 3px rgba(14, 165, 233, 0.3);
         }
         .dt-container .dt-paging .dt-paging-button.disabled {
             color: rgb(203 213 225);
-            cursor: default;
-            pointer-events: none;
+            cursor: default; pointer-events: none;
         }
 
-        /* ---- Table ---- */
         .dt-container table.dataTable {
             width: 100% !important;
             border-collapse: separate;
-            border-spacing: 0 0.25rem;
+            border-spacing: 0 .15rem;
         }
 
-        /* Headers */
+        /* Headers — newsroom labels */
         .dt-container table.dataTable thead th {
-            padding: 0.625rem 1rem;
+            padding: .85rem 1rem .55rem;
             text-align: left;
-            font-weight: 500;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: rgb(148 163 184);
-            background-color: transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 600;
+            font-size: .78rem;
+            color: rgb(100 116 139);
+            background: transparent;
             border: none;
             white-space: nowrap;
             position: relative;
+            border-bottom: 1px solid rgb(241 245 249);
         }
         .dt-container table.dataTable thead th.dt-orderable-asc,
-        .dt-container table.dataTable thead th.dt-orderable-desc {
-            cursor: pointer;
-        }
+        .dt-container table.dataTable thead th.dt-orderable-desc { cursor: pointer; }
         .dt-container table.dataTable thead th.dt-orderable-asc:hover,
-        .dt-container table.dataTable thead th.dt-orderable-desc:hover {
-            color: rgb(71 85 105);
-        }
-        /* Active sort indicator */
+        .dt-container table.dataTable thead th.dt-orderable-desc:hover { color: rgb(51 65 85); }
         .dt-container table.dataTable thead th.dt-ordering-asc,
-        .dt-container table.dataTable thead th.dt-ordering-desc {
-            color: rgb(14 165 233);
-        }
+        .dt-container table.dataTable thead th.dt-ordering-desc { color: rgb(2 132 199); }
+        .dt-container table.dataTable thead th .dt-column-order { display: none; }
 
-        /* Hide default sort icons, we rely on color */
-        .dt-container table.dataTable thead th .dt-column-order {
-            display: none;
-        }
-
-        /* Rows */
+        /* Rows — list-style, no chunky cards */
         .dt-container table.dataTable tbody td {
-            padding: 0.875rem 1rem;
+            padding: .9rem 1rem;
             border: none;
             vertical-align: middle;
-            background-color: rgb(248 250 252);
-            transition: background-color 0.15s ease;
+            background: white;
+            transition: background .12s ease;
+            border-bottom: 1px solid rgb(241 245 249);
         }
-        .dt-container table.dataTable tbody tr td:first-child {
-            border-radius: 0.75rem 0 0 0.75rem;
-        }
-        .dt-container table.dataTable tbody tr td:last-child {
-            border-radius: 0 0.75rem 0.75rem 0;
-        }
-        .dt-container table.dataTable tbody tr {
-            cursor: pointer;
-        }
+        .dt-container table.dataTable tbody tr:last-child td { border-bottom: 0; }
+        .dt-container table.dataTable tbody tr { cursor: pointer; }
         .dt-container table.dataTable tbody tr:hover td {
-            background-color: rgb(240 249 255);
+            background: rgb(248 250 252);
         }
-        .dt-container table.dataTable tbody tr:active td {
-            background-color: rgb(224 242 254);
+        .dt-container table.dataTable tbody tr:active td { background: rgb(240 249 255); }
+        .dt-container table.dataTable tbody td:first-child {
+            border-left: 3px solid transparent;
+            padding-left: calc(1rem - 3px);
+            transition: border-color .12s ease, background .12s ease;
+        }
+        .dt-container table.dataTable tbody tr:hover td:first-child {
+            border-left-color: rgb(2 132 199);
         }
 
         /* Empty state */
         .dt-container .dt-empty,
         .dt-container .dataTables_empty {
             text-align: center;
-            padding: 3rem 1rem;
+            padding: 4rem 1rem;
             color: rgb(148 163 184);
-            font-size: 0.875rem;
+            font-size: .9rem;
+            font-family: 'DM Sans', sans-serif;
         }
 
-        /* Processing indicator */
         .dt-container .dt-processing {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            padding: 0.75rem 1.5rem;
+            padding: .75rem 1.25rem;
             background: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+            border-radius: .65rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,.08);
             z-index: 10;
+            font-family: 'Inter', sans-serif;
             font-weight: 500;
-            font-size: 0.8125rem;
+            font-size: .8rem;
             color: rgb(71 85 105);
+            letter-spacing: .04em;
         }
 
-        /* ---- Mobile responsive ---- */
         @media (max-width: 640px) {
             .dt-container .dt-layout-row:last-child {
                 flex-direction: column;
                 align-items: center;
-                gap: 0.5rem;
-            }
-            .dt-container .dt-paging {
-                justify-content: center;
-            }
-            .dt-container .dt-info {
-                text-align: center;
+                gap: .5rem;
             }
         }
 
-        /* ---- Nuke all default DataTables styling ---- */
+        /* Nuke default DT chrome */
         table.dataTable thead th,
         table.dataTable thead td,
-        table.dataTable.no-footer {
-            border-bottom: none !important;
-        }
+        table.dataTable.no-footer { border-bottom: none !important; }
         table.dataTable.stripe tbody tr.odd,
         table.dataTable.stripe tbody tr.even,
         table.dataTable.display tbody tr.odd,
-        table.dataTable.display tbody tr.even {
-            background-color: transparent !important;
-        }
+        table.dataTable.display tbody tr.even { background: transparent !important; }
         table.dataTable.hover tbody tr:hover,
-        table.dataTable.display tbody tr:hover {
-            background-color: transparent !important;
-        }
+        table.dataTable.display tbody tr:hover { background: transparent !important; }
         table.dataTable.order-column tbody tr>.sorting_1,
         table.dataTable.order-column tbody tr>.sorting_2,
         table.dataTable.order-column tbody tr>.sorting_3,
@@ -247,101 +518,199 @@
         table.dataTable.display tbody tr>.sorting_2,
         table.dataTable.display tbody tr>.sorting_3,
         table.dataTable.display tbody tr.odd>.sorting_1,
-        table.dataTable.display tbody tr.even>.sorting_1 {
-            background-color: transparent !important;
-        }
+        table.dataTable.display tbody tr.even>.sorting_1 { background: transparent !important; }
     </style>
 {% endblock %}
 
 {% block content %}
-{# Page Header #}
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-    <div>
-        <h1 class="repo-title text-3xl text-slate-800">Mis solicitudes</h1>
-        <p class="text-slate-500 mt-1">Gestiona tus solicitudes de acceso a información</p>
+
+{# ─────────────────── PAGE HEADER ─────────────────── #}
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
+    <div class="min-w-0">
+        <h1 class="casebook-title text-3xl sm:text-[2.4rem]">Mis solicitudes</h1>
+        <p class="text-slate-500 mt-1 text-sm">
+            {% if totalCount == 0 %}
+                Aún no has registrado ninguna solicitud. Empieza por aquí.
+            {% else %}
+                {{ totalCount }} solicitud{{ totalCount == 1 ? '' : 'es' }} bajo seguimiento
+                {% if currentList %}
+                    en <span class="font-medium text-slate-700">{{ currentList.name }}</span>
+                {% endif %}
+            {% endif %}
+        </p>
     </div>
     <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
         <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
-        Añadir solicitud
+        Nueva solicitud
     </a>
 </div>
 
-{# Filters #}
-<form id="filter-form" method="get" class="mb-6">
-    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        {# Search #}
-        <div class="relative flex-1 min-w-[200px]">
-            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-            <input type="text" id="search-input" name="q" value="{{ search }}"
-                   placeholder="Buscar solicitudes..."
-                   class="w-full h-9 pl-9 pr-9 rounded-lg bg-white border border-slate-200 text-sm text-slate-800 placeholder-slate-400 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                   autocomplete="off">
-            <div id="search-loading" class="hidden absolute right-3 top-1/2 -translate-y-1/2">
-                <i data-lucide="loader-2" class="w-3.5 h-3.5 text-slate-400 animate-spin"></i>
-            </div>
-        </div>
+{# ─────────────────── METRIC RAIL ─────────────────── #}
+{% set metricBase = {} %}
+{% if search %}{% set metricBase = metricBase|merge({q: search}) %}{% endif %}
+{% if listId %}{% set metricBase = metricBase|merge({list: listId}) %}{% endif %}
 
-        {# Divider #}
-        <div class="hidden sm:block w-px h-6 bg-slate-200"></div>
+{% set metrics = [
+    {key: '',                  label: 'Todas',         dot: 'dot-all',        count: totalCount},
+    {key: 'sent',              label: 'Enviadas',      dot: 'dot-sent',       count: statusCounts.sent|default(0)},
+    {key: 'processing',        label: 'En trámite',    dot: 'dot-processing', count: statusCounts.processing|default(0)},
+    {key: 'granted',           label: 'Concedidas',    dot: 'dot-granted',    count: statusCounts.granted|default(0)},
+    {key: 'granted_completed', label: 'Completadas',   dot: 'dot-completed',  count: statusCounts.granted_completed|default(0)},
+    {key: 'denied',            label: 'Denegadas',     dot: 'dot-denied',     count: statusCounts.denied|default(0)},
+    {key: 'delayed',           label: 'Silencio',      dot: 'dot-delayed',    count: statusCounts.delayed|default(0)},
+    {key: 'pending',           label: 'Pendientes',    dot: 'dot-pending',    count: statusCounts.pending|default(0)},
+    {key: 'reclaimed',         label: 'Reclamadas',    dot: 'dot-appealed',   count: appealedCount},
+] %}
 
-        {# Status dropdown #}
-        <div class="relative">
-            <i data-lucide="filter" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-            <select name="status"
-                    class="h-9 pl-8 pr-8 rounded-lg bg-white border border-slate-200 text-sm text-slate-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 cursor-pointer appearance-none"
-                    style="background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 0.5rem center;"
-                    onchange="this.form.submit()">
-                <option value="">Todos los estados</option>
-                <option value="sent" {{ status == 'sent' ? 'selected' }}>Enviadas</option>
-                <option value="processing" {{ status == 'processing' ? 'selected' }}>En trámite</option>
-                <option value="granted" {{ status == 'granted' ? 'selected' }}>Concedidas (pendiente de recepción)</option>
-                <option value="granted_completed" {{ status == 'granted_completed' ? 'selected' }}>Concedidas y completadas</option>
-                <option value="denied" {{ status == 'denied' ? 'selected' }}>Denegadas</option>
-                <option value="delayed" {{ status == 'delayed' ? 'selected' }}>Silencio administrativo</option>
-                <option value="pending" {{ status == 'pending' ? 'selected' }}>Pendientes</option>
-                <option value="reclaimed" {{ status == 'reclaimed' ? 'selected' }}>Reclamadas</option>
-            </select>
-        </div>
+<div class="metric-rail">
+    {% for i, m in metrics %}
+        {% set isActive = (status|default('') == m.key) %}
+        {% set href = path('app_solicitudes_index', metricBase|merge(m.key ? {status: m.key} : {})) %}
+        <a href="{{ href }}"
+           class="metric-chip {{ isActive ? 'is-active' : '' }} {{ m.count == 0 ? 'is-zero' : '' }}"
+           style="animation-delay: {{ (i * 35) }}ms">
+            <span class="metric-chip-num">{{ m.count }}</span>
+            <span class="metric-chip-label">
+                <span class="metric-chip-dot {{ m.dot }}"></span>
+                <span class="metric-chip-label-text">{{ m.label }}</span>
+            </span>
+        </a>
+    {% endfor %}
+</div>
 
-        {# List filter #}
-        {% if lists is defined and lists|length > 0 %}
-            <div class="relative">
-                <i data-lucide="list" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"></i>
-                <select name="list"
-                        class="h-9 pl-8 pr-8 rounded-lg bg-white border border-slate-200 text-sm text-slate-700 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 cursor-pointer appearance-none"
-                        style="background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 0.5rem center;"
-                        onchange="this.form.submit()">
-                    <option value="">Todas las listas</option>
-                    {% for list in lists %}
-                        <option value="{{ list.id }}" {{ listId is same as(list.id ~ '') ? 'selected' }}>{{ list.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        {% endif %}
+{# ─────────────────── TOOLBAR ─────────────────── #}
+<form id="filter-form" method="get" class="toolbar">
+    {# preserve current filters in hidden inputs so search submits cleanly #}
+    {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+    {% if listId %}<input type="hidden" name="list" value="{{ listId }}">{% endif %}
 
-        {# Clear #}
-        {% if status or search or listId %}
-            <a href="{{ path('app_solicitudes_index') }}"
-               class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium text-slate-500 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all duration-200"
-               title="Limpiar filtros">
-                <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                <span class="hidden sm:inline">Limpiar</span>
-            </a>
-        {% endif %}
-    </div>
+    <label class="toolbar-search">
+        <i data-lucide="search" class="w-4 h-4 toolbar-search-icon"></i>
+        <input type="text" id="search-input" name="q" value="{{ search }}"
+               placeholder="Buscar por título, organismo, descripción o nº de registro…"
+               autocomplete="off">
+        <span id="search-loading" class="hidden toolbar-search-loading">
+            <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+        </span>
+    </label>
 </form>
 
-{# DataTable #}
-<div class="card overflow-hidden">
-    <div class="px-5 py-4" data-turbo="false">
-        <div id="solicitudes-table">
-            <div class="text-center py-12 text-slate-400">
-                <i data-lucide="loader-2" class="w-6 h-6 mx-auto mb-2 animate-spin"></i>
-                <p class="text-sm">Cargando solicitudes...</p>
+{# ─────────────────── ACTIVE FILTER CHIPS ─────────────────── #}
+{% if status or search or listId %}
+    {% set baseRemove = {} %}
+    {% if search and not (search) %}{% endif %}{# noop #}
+
+    <div class="filter-chips">
+        {% if status %}
+            {% set urlNoStatus = {} %}
+            {% if search %}{% set urlNoStatus = urlNoStatus|merge({q: search}) %}{% endif %}
+            {% if listId %}{% set urlNoStatus = urlNoStatus|merge({list: listId}) %}{% endif %}
+            <a href="{{ path('app_solicitudes_index', urlNoStatus) }}" class="filter-chip" title="Quitar este filtro">
+                <span class="filter-chip-key">Estado</span>
+                <span>
+                    {% set statusLabels = {
+                        'sent':'Enviadas','processing':'En trámite','granted':'Concedidas','granted_completed':'Completadas',
+                        'denied':'Denegadas','delayed':'Silencio','pending':'Pendientes','reclaimed':'Reclamadas'
+                    } %}
+                    {{ statusLabels[status]|default(status) }}
+                </span>
+                <span class="filter-chip-x"><i data-lucide="x" class="w-2.5 h-2.5"></i></span>
+            </a>
+        {% endif %}
+        {% if listId and currentList %}
+            {% set urlNoList = {} %}
+            {% if search %}{% set urlNoList = urlNoList|merge({q: search}) %}{% endif %}
+            {% if status %}{% set urlNoList = urlNoList|merge({status: status}) %}{% endif %}
+            <a href="{{ path('app_solicitudes_index', urlNoList) }}" class="filter-chip" title="Quitar lista">
+                <span class="filter-chip-key">Lista</span>
+                <span>{{ currentList.name }}</span>
+                <span class="filter-chip-x"><i data-lucide="x" class="w-2.5 h-2.5"></i></span>
+            </a>
+        {% endif %}
+        {% if search %}
+            {% set urlNoSearch = {} %}
+            {% if status %}{% set urlNoSearch = urlNoSearch|merge({status: status}) %}{% endif %}
+            {% if listId %}{% set urlNoSearch = urlNoSearch|merge({list: listId}) %}{% endif %}
+            <a href="{{ path('app_solicitudes_index', urlNoSearch) }}" class="filter-chip" title="Quitar búsqueda">
+                <span class="filter-chip-key">Buscar</span>
+                <span>«{{ search|u.truncate(40) }}»</span>
+                <span class="filter-chip-x"><i data-lucide="x" class="w-2.5 h-2.5"></i></span>
+            </a>
+        {% endif %}
+        <a href="{{ path('app_solicitudes_index') }}" class="filter-clear-all">
+            <i data-lucide="x" class="w-3 h-3"></i>
+            Limpiar filtros
+        </a>
+    </div>
+{% endif %}
+
+{# ─────────────────── BODY GRID: lists rail + table ─────────────────── #}
+<div class="casebook-grid">
+
+    {# ── Lists rail ── #}
+    <aside class="lists-rail">
+        <div class="lists-rail-header">
+            <span class="micro-label inline-flex items-center gap-1.5">
+                <i data-lucide="bookmark" class="w-3 h-3"></i>
+                Mis listas
+            </span>
+            {% if lists|length > 0 %}
+                <a href="{{ path('app_listas_index') }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors" title="Gestionar listas">
+                    <i data-lucide="settings-2" class="w-3.5 h-3.5"></i>
+                </a>
+            {% endif %}
+        </div>
+        <div class="lists-rail-body">
+            {# "All" pseudo-list #}
+            {% set urlAll = {} %}
+            {% if status %}{% set urlAll = urlAll|merge({status: status}) %}{% endif %}
+            {% if search %}{% set urlAll = urlAll|merge({q: search}) %}{% endif %}
+            <a href="{{ path('app_solicitudes_index', urlAll) }}" class="list-item {{ not listId ? 'is-active' : '' }}">
+                <span class="list-item-dot" style="background: rgb(15 23 42);"></span>
+                <span class="list-item-name">Todas las solicitudes</span>
+                <span class="list-item-count">{{ totalCount }}</span>
+            </a>
+
+            {% if lists|length > 0 %}
+                {% for list in lists %}
+                    {% set urlForList = {list: list.id} %}
+                    {% if status %}{% set urlForList = urlForList|merge({status: status}) %}{% endif %}
+                    {% if search %}{% set urlForList = urlForList|merge({q: search}) %}{% endif %}
+                    {% set isActive = listId is same as(list.id ~ '') %}
+                    <a href="{{ path('app_solicitudes_index', urlForList) }}"
+                       class="list-item {{ isActive ? 'is-active' : '' }}"
+                       title="{{ list.description|default(list.name) }}">
+                        <span class="list-item-dot" {% if list.color %}style="background: {{ list.color }};"{% endif %}></span>
+                        <span class="list-item-name">{{ list.name }}</span>
+                        <span class="list-item-count">{{ list.items|length }}</span>
+                    </a>
+                {% endfor %}
+            {% else %}
+                <div class="lists-empty">
+                    Aún no tienes listas. Agrúpalas por tema o investigación para no perderte.
+                </div>
+            {% endif %}
+
+            <a href="{{ path('app_listas_new') }}" class="list-item-add">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                Nueva lista
+            </a>
+        </div>
+    </aside>
+
+    {# ── Main table ── #}
+    <section class="table-card">
+        <div data-turbo="false">
+            <div id="solicitudes-table">
+                <div class="text-center py-16 text-slate-400">
+                    <i data-lucide="loader-2" class="w-6 h-6 mx-auto mb-3 animate-spin"></i>
+                    <p class="text-sm">Cargando solicitudes…</p>
+                </div>
             </div>
         </div>
-    </div>
+    </section>
 </div>
+
 {% endblock %}
 
 {% block javascripts %}
@@ -352,15 +721,15 @@
     <script>
         $(function() {
             var spanishLanguage = {
-                "processing": "Cargando...",
+                "processing": "Cargando…",
                 "lengthMenu": "Mostrar _MENU_",
-                "zeroRecords": "No se encontraron solicitudes",
+                "zeroRecords": "Ninguna solicitud coincide con los filtros aplicados",
                 "emptyTable": "No hay solicitudes disponibles",
                 "info": "_START_–_END_ de _TOTAL_",
                 "infoEmpty": "Sin solicitudes",
                 "infoFiltered": "(de _MAX_)",
                 "search": "",
-                "searchPlaceholder": "Buscar...",
+                "searchPlaceholder": "Buscar…",
                 "paginate": {
                     "first": "«",
                     "last": "»",

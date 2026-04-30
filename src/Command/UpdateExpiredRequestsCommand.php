@@ -5,6 +5,8 @@ namespace App\Command;
 use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Repository\AccessRequestRepository;
+use App\Service\Complaint\SuccessAnalysisWarmer;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -22,6 +24,8 @@ class UpdateExpiredRequestsCommand extends Command
     public function __construct(
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly EntityManagerInterface $entityManager,
+        private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
+        private readonly UserNotificationManager $notificationManager,
     ) {
         parent::__construct();
     }
@@ -70,6 +74,9 @@ class UpdateExpiredRequestsCommand extends Command
 
         if (!$dryRun) {
             $this->entityManager->flush();
+            foreach ($expiredRequests as $request) {
+                $this->successAnalysisWarmer->maybeWarm($request);
+            }
         }
 
         $io->newLine();
@@ -109,6 +116,7 @@ class UpdateExpiredRequestsCommand extends Command
     private function updateToDelayed(AccessRequest $request): void
     {
         $previousStatus = $request->getStatus();
+        $notes = 'Estado actualizado automáticamente por vencimiento del plazo de respuesta (silencio administrativo negativo).';
 
         $request->setStatus(AccessRequest::STATUS_DELAYED);
 
@@ -117,8 +125,21 @@ class UpdateExpiredRequestsCommand extends Command
         $statusHistory->setFromStatus($previousStatus);
         $statusHistory->setToStatus(AccessRequest::STATUS_DELAYED);
         $statusHistory->setStatusType(StatusHistory::TYPE_STATUS);
-        $statusHistory->setNotes('Estado actualizado automáticamente por vencimiento del plazo de respuesta (silencio administrativo negativo).');
+        $statusHistory->setNotes($notes);
 
         $this->entityManager->persist($statusHistory);
+
+        // Surface the silencio administrativo to the user (campana, RecentNotifications,
+        // AI activity summary). Mirrors UpdateExpiredRequestsHandler::__invoke().
+        $owner = $request->getUser();
+        if ($owner !== null) {
+            $this->notificationManager->notifyStatusChanged(
+                $owner,
+                $request,
+                $previousStatus,
+                AccessRequest::STATUS_DELAYED,
+                $notes,
+            );
+        }
     }
 }

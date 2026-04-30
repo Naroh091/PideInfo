@@ -31,6 +31,7 @@ async def authenticate(
     timeout_seconds: int = 120,
     target_path: str = "/privada/expedientes",
     firefox_profile_dir: Path | None = None,
+    force_headed: bool = False,
 ) -> dict[str, str]:
     """
     Open a headed Firefox browser with a persistent profile, navigate to the
@@ -55,9 +56,16 @@ async def authenticate(
         firefox_profile_dir is not None
         and (firefox_profile_dir / "prefs.js").exists()
     )
+    headless = profile_ready and not force_headed
+    cert_ready = (
+        firefox_profile_dir is not None
+        and (firefox_profile_dir / ".pideinfo-cert-ready").exists()
+    )
 
-    if profile_ready:
+    if headless:
         console.print("[dim]Autenticando Cl@ve en segundo plano...[/]")
+    elif profile_ready:
+        console.print("[bold yellow]Abriendo navegador (modo headless desactivado)...[/]")
     else:
         console.print("[bold yellow]Abriendo navegador para autenticación Cl@ve...[/]")
         console.print("[dim]Primera vez: elige tu certificado. A partir de ahora será silencioso.[/]")
@@ -71,10 +79,17 @@ async def authenticate(
         "browser.sessionstore.resume_from_crash": False,
         "browser.startup.page": 0,
     }
+    # Auto-pick the cert in two cases:
+    #   - headless run (no UI to show a picker)
+    #   - the user has already picked once in this profile (cert_ready marker
+    #     is dropped after first successful auth) — saves them from re-picking
+    #     per origin on every new portal.
+    if headless or cert_ready:
+        firefox_user_prefs["security.default_personal_cert"] = "Select Automatically"
 
     async with async_playwright() as p:
         launch_kwargs: dict[str, Any] = dict(
-            headless=profile_ready,
+            headless=headless,
             firefox_user_prefs=firefox_user_prefs,
             locale="es-ES",
             # Spanish government portals use CAs (FNMT, etc.) not always in
@@ -131,6 +146,8 @@ async def authenticate(
             console.print("[bold green]Autenticación completada[/]")
 
             cookies = await context.cookies(portal_url)
+            if firefox_profile_dir is not None:
+                (firefox_profile_dir / ".pideinfo-cert-ready").touch()
             return _cookies_to_dict(cookies)
 
         except Exception as e:

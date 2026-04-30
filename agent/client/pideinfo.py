@@ -9,6 +9,7 @@ import httpx
 from rich.console import Console
 
 from models.consejo import ConsejoNotificacion
+from models.consejo_expediente import DocumentoCTBGExpediente, ExpedienteCTBG
 from models.dehu import DehuNotificacion
 from models.portal import DocumentoExpediente, Expediente, Notificacion
 from models.redsara import RedSaraRegistro
@@ -268,6 +269,127 @@ class PideInfoClient:
             + (f" → AR {ar_id[:8]}…" if found and ar_id else " (sin expediente en PideInfo)")
             + "[/]"
         )
+        return result
+
+    async def sync_consejo_notification(
+        self,
+        notif: "ConsejoNotificacion",
+        document_path: Path,
+    ) -> dict:
+        """Send a downloaded CTBG notification document to PideInfo."""
+        content = document_path.read_bytes()
+        content_hash = hashlib.sha256(content).hexdigest()
+        content_b64 = base64.b64encode(content).decode("ascii")
+
+        suffix = document_path.suffix or ".pdf"
+        filename = f"{notif.tipo} - {notif.registro}{suffix}"
+
+        payload = {
+            "source": "consejo_ctbg",
+            "expedienteRef": notif.expediente,
+            "documents": [
+                {
+                    "filename": filename,
+                    "contentType": self._guess_mime(document_path),
+                    "content": content_b64,
+                    "contentHash": content_hash,
+                    "portalDate": notif.fecha_envio,
+                }
+            ],
+            "metadata": {
+                "notificationId": notif.registro,
+                "notificationType": notif.tipo,
+                "notificationState": notif.estado,
+                "fechaEmision": notif.fecha_envio,
+                "fechaAccion": notif.fecha_accion,
+                "esComunicacion": notif.es_comunicacion,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=60) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        if result.get("created", 0) > 0:
+            console.print(f"[green]Sincronizado: {filename} → PideInfo[/]")
+        for skipped in result.get("skipped", []):
+            console.print(f"[yellow]Saltado: {skipped['filename']} ({skipped['reason']})[/]")
+        return result
+
+    async def sync_consejo_expediente_document(
+        self,
+        doc: DocumentoCTBGExpediente,
+        path: Path,
+        expediente: ExpedienteCTBG,
+    ) -> dict:
+        """Send a CTBG expediente document (any phase) to PideInfo.
+
+        ``expedienteRef`` is the complaint number (e.g. ``"590/2026"``); the
+        backend's ``findByExternalId`` matches it against
+        ``AccessRequestComplaint.externalId``.
+
+        ``metadata.complaint_phase`` lets the backend pre-assign a complaint
+        ``DocumentType`` deterministically so the doc lands in the
+        "Documentos de reclamación" section before the AI re-classifies it.
+        """
+        content = path.read_bytes()
+        content_hash = hashlib.sha256(content).hexdigest()
+        content_b64 = base64.b64encode(content).decode("ascii")
+
+        suffix = path.suffix or ".pdf"
+        # Avoid path separators in titles (e.g. "Resolución expte. 501/2026").
+        safe_title = doc.title.replace("/", "-")
+        filename = f"{safe_title}{suffix}"
+
+        payload = {
+            "source": "consejo_ctbg",
+            "expedienteRef": doc.expediente_ref,
+            "documents": [
+                {
+                    "filename": filename,
+                    "contentType": self._guess_mime(path),
+                    "content": content_b64,
+                    "contentHash": content_hash,
+                    "portalDate": expediente.fecha_apertura,
+                }
+            ],
+            "metadata": {
+                "complaint_phase": doc.phase,
+                "csv": doc.csv,
+                "documentTitle": doc.title,
+                "expedienteEstado": expediente.estado,
+                "expedienteTitulo": expediente.titulo,
+                "fechaApertura": expediente.fecha_apertura,
+                "fechaCierre": expediente.fecha_cierre,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        if result.get("created", 0) > 0:
+            console.print(f"[green]CTBG: {filename} → PideInfo[/]")
+        for skipped in result.get("skipped", []):
+            console.print(
+                f"[dim]CTBG saltado: {skipped['filename']} ({skipped['reason']})[/]"
+            )
         return result
 
     async def report_consejo_pending_notifications(

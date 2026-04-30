@@ -1,19 +1,24 @@
 <div data-href="{{ path('app_solicitudes_show', {id: row.id}) }}">
+    {# Title #}
     <span class="font-medium text-slate-800">{{ row.title }}</span>
-    {% if row.externalId or (row.complaint and row.complaint.externalId) %}
-        <div class="flex items-center gap-3 mt-0.5 text-xs">
-            {% if row.externalId %}
-                <span class="flex items-center gap-1 text-primary-600">
-                    <i data-lucide="hash" class="w-3 h-3"></i>
-                    {{ row.externalId }}
-                </span>
-            {% endif %}
-            {% if row.complaint and row.complaint.externalId %}
-                <span class="flex items-center gap-1 text-amber-600">
-                    <i data-lucide="scale" class="w-3 h-3"></i>
-                    Recl: {{ row.complaint.externalId }}
-                </span>
-            {% endif %}
+
+    {# Organism #}
+    <div class="flex items-center gap-1 mt-0.5 text-xs text-slate-500">
+        <i data-lucide="building-2" class="w-3 h-3 flex-shrink-0"></i>
+        <span class="truncate">{{ row.publicBody.name }}</span>
+    </div>
+
+    {# IDs — one per line #}
+    {% if row.externalId %}
+        <div class="flex items-center gap-1 mt-0.5 text-xs text-primary-600">
+            <i data-lucide="hash" class="w-3 h-3 flex-shrink-0"></i>
+            <span>{{ row.externalId }}</span>
+        </div>
+    {% endif %}
+    {% if row.complaint and row.complaint.externalId %}
+        <div class="flex items-center gap-1 mt-0.5 text-xs text-amber-600">
+            <i data-lucide="scale" class="w-3 h-3 flex-shrink-0"></i>
+            <span>Recl: {{ row.complaint.externalId }}</span>
         </div>
     {% endif %}
 </div>

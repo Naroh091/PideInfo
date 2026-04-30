@@ -11,6 +11,7 @@ use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AccessRequest\AccessRequestManager;
+use App\Service\Document\DocumentIngestionFilter;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -68,6 +69,15 @@ class DocumentController extends AbstractController
             return new JsonResponse(['error' => 'Tipo de archivo no permitido'], Response::HTTP_BAD_REQUEST);
         }
 
+        // Drop tiny images (signature logos, icons, tracking pixels) before they
+        // even reach the AI pipeline.
+        if (DocumentIngestionFilter::isTinyImage($file->getMimeType(), (int) $file->getSize())) {
+            return new JsonResponse([
+                'skipped' => true,
+                'error' => 'Imagen demasiado pequeña para procesar (probablemente un logo o icono).',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
         // Detect if this is a ZIP file
         $isZipFile = in_array($file->getMimeType(), ['application/zip', 'application/x-zip-compressed']);
 
@@ -82,6 +92,29 @@ class DocumentController extends AbstractController
         }
 
         try {
+            // Reject duplicate uploads (same user, same content). Other ingestion
+            // paths (agent webhook, inbound email) already dedupe by contentHash;
+            // this closes the manual-upload gap.
+            $contentHash = hash_file('sha256', $file->getPathname());
+            $existing = $this->documentRepository->findOneBy([
+                'uploadedBy' => $user,
+                'contentHash' => $contentHash,
+            ]);
+            if ($existing !== null) {
+                $existingRequest = $existing->getAccessRequest();
+                return new JsonResponse([
+                    'duplicate' => true,
+                    'error' => 'Este archivo ya existe en tus documentos.',
+                    'existing' => [
+                        'id' => (string) $existing->getId(),
+                        'name' => $existing->getOriginalFilename(),
+                        'createdAt' => $existing->getCreatedAt()?->format('d/m/Y H:i'),
+                        'accessRequestId' => $existingRequest?->getId() ? (string) $existingRequest->getId() : null,
+                        'downloadUrl' => $this->generateUrl('app_document_download', ['id' => $existing->getId()]),
+                    ],
+                ], Response::HTTP_CONFLICT);
+            }
+
             // Create document entity
             $document = new Document();
             $document->setUploadedBy($user);
@@ -89,6 +122,7 @@ class DocumentController extends AbstractController
             $document->setOriginalFilename($file->getClientOriginalName());
             $document->setMimeType($file->getMimeType() ?? 'application/octet-stream');
             $document->setFileSize($file->getSize());
+            $document->setContentHash($contentHash);
 
             // ZIP files are stored as "Other" type and marked as processed (no AI analysis)
             if ($isZipFile) {

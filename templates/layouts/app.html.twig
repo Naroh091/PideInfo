@@ -20,7 +20,7 @@
                     <a href="{{ path('app_dashboard') }}"
                        class="nav-link {{ app.request.attributes.get('_route') == 'app_dashboard' ? 'active' : '' }}">
                         <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
-                        <span>Panel principal</span>
+                        <span>Inicio</span>
                     </a>
                     <a href="{{ path('app_solicitudes_index') }}"
                        class="nav-link {{ 'solicitud' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
@@ -46,65 +46,24 @@
             </div>
 
             {# User menu #}
-            <div class="flex items-center gap-4">
-                {# Notification bell #}
-                {{ component('NotificationBell') }}
+            <div class="flex items-center gap-3">
+                {# Command palette entry — desktop only. No mobile equivalent: ⌘K
+                   has no analogue on touch and the small icon-button took space
+                   without adding much value. #}
+                <button type="button"
+                        x-data
+                        @click="$dispatch('open-command-palette')"
+                        class="cmdk-entry hidden md:inline-flex"
+                        title="Buscar (⌘K / Ctrl+K)">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                    <span class="cmdk-entry-text">Buscar…</span>
+                    <span class="cmdk-entry-kbd">
+                        <kbd>⌘</kbd><kbd>K</kbd>
+                    </span>
+                </button>
 
-                {# User dropdown #}
-                <div class="relative" x-data="{ open: false }">
-                    <button @click="open = !open"
-                            class="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
-                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white">
-                            <i data-lucide="user" class="w-4 h-4"></i>
-                        </div>
-                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
-                    </button>
-
-                    <div x-show="open"
-                         @click.away="open = false"
-                         x-transition:enter="transition ease-out duration-100"
-                         x-transition:enter-start="transform opacity-0 scale-95"
-                         x-transition:enter-end="transform opacity-100 scale-100"
-                         x-transition:leave="transition ease-in duration-75"
-                         x-transition:leave-start="transform opacity-100 scale-100"
-                         x-transition:leave-end="transform opacity-0 scale-95"
-                         class="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50"
-                         style="display: none;">
-                        <div class="px-4 py-2 border-b border-slate-100">
-                            <p class="text-sm font-medium text-slate-900">{{ app.user.fullName }}</p>
-                            <p class="text-xs text-slate-500">{{ app.user.email }}</p>
-                        </div>
-                        {% if is_granted('ROLE_ADMIN') %}
-                        <a href="{{ path('admin') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                            <i data-lucide="settings" class="w-4 h-4"></i>
-                            Administración
-                        </a>
-                        {% endif %}
-                        <button type="button"
-                                @click="open = false; $dispatch('open-agent-token-modal')"
-                                class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
-                            <i data-lucide="link" class="w-4 h-4"></i>
-                            Conectar agente
-                        </button>
-                        <button type="button"
-                                @click="open = false; $dispatch('open-mcp-info-modal')"
-                                class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 w-full text-left">
-                            <i data-lucide="cpu" class="w-4 h-4"></i>
-                            Servidor MCP
-                            <span class="ml-auto inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 text-[10px] font-medium uppercase tracking-wide">IA</span>
-                        </button>
-                        <a href="{{ path('app_connected_apps') }}"
-                           class="flex items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                            <i data-lucide="plug" class="w-4 h-4"></i>
-                            Aplicaciones conectadas
-                        </a>
-                        <div class="border-t border-slate-100 my-1"></div>
-                        <a href="{{ path('app_logout') }}" class="flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-                            <i data-lucide="log-out" class="w-4 h-4"></i>
-                            Cerrar sesión
-                        </a>
-                    </div>
-                </div>
+                {# User menu (avatar + red dot for unread notifications + dropdown) #}
+                {{ component('UserMenu') }}
 
                 {# Mobile menu button #}
                 <button class="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100"
@@ -183,6 +142,54 @@
 
 {% include '_partials/agent_token_modal.html.twig' %}
 {% include '_partials/mcp_info_modal.html.twig' %}
+{% include '_partials/command_palette.html.twig' %}
+
+<style>
+    /* Command-palette entry button in the topbar — desktop only.
+       Note: we deliberately don't declare `display` here so Tailwind's
+       `hidden` utility (mobile) and `md:inline-flex` (desktop) keep working;
+       declaring `display: inline-flex` unconditionally would override the
+       utility because of CSS source-order specificity. */
+    .cmdk-entry {
+        align-items: center;
+        gap: .55rem;
+        height: 2.25rem;
+        padding: 0 .55rem 0 .75rem;
+        background: white;
+        border: 1px solid rgb(226 232 240);
+        border-radius: .55rem;
+        cursor: pointer;
+        min-width: 14rem;
+        transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .cmdk-entry:hover {
+        border-color: rgb(186 230 253);
+        box-shadow: 0 0 0 3px rgba(2,132,199,.08);
+    }
+    .cmdk-entry-text {
+        flex: 1;
+        text-align: left;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .85rem;
+        color: rgb(148 163 184);
+    }
+    .cmdk-entry-kbd {
+        display: inline-flex;
+        gap: .15rem;
+    }
+    .cmdk-entry-kbd kbd {
+        font-family: 'Inter', sans-serif;
+        font-size: .65rem;
+        font-weight: 600;
+        color: rgb(100 116 139);
+        background: rgb(248 250 252);
+        border: 1px solid rgb(226 232 240);
+        border-radius: .25rem;
+        padding: .05rem .3rem;
+        min-width: 1.2rem;
+        text-align: center;
+    }
+</style>
 
 {# Alpine.js for interactivity #}
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>

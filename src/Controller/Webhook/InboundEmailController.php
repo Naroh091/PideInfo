@@ -150,6 +150,18 @@ class InboundEmailController extends AbstractController
                 continue;
             }
 
+            // Tiny images (< 10 KB) are virtually always email-signature logos
+            // or social-media icons — drop them before the AI pipeline picks
+            // them up and creates orphan documents.
+            if (\App\Service\Document\DocumentIngestionFilter::isTinyImage($contentType, strlen($content))) {
+                $this->logger->info('Inbound email: skipping tiny image attachment', [
+                    'filename' => $filename,
+                    'contentType' => $contentType,
+                    'size' => strlen($content),
+                ]);
+                continue;
+            }
+
             $attachmentDocument = $this->createDocumentFromContent(
                 user: $user,
                 content: $content,

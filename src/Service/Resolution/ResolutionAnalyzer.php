@@ -245,7 +245,7 @@ final class ResolutionAnalyzer
             ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"formatted_text\": \"HTML formateado aquí\"}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
             : '';
 
-        return $this->promptStore->compile('pideinfo/resolution/format-text-system', [
+        return $this->promptStore->compile('pideinfo-resolution-format-text-system', [
             'custom_suffix' => $customSuffix,
         ]);
     }
@@ -394,7 +394,7 @@ final class ResolutionAnalyzer
      */
     public function batchFormatText(array $cleanedTexts): array
     {
-        $prompt = $this->promptStore->compile('pideinfo/resolution/format-text-batch');
+        $prompt = $this->promptStore->compile('pideinfo-resolution-format-text-batch');
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildFormatTextSchema());
@@ -411,7 +411,7 @@ final class ResolutionAnalyzer
      */
     public function batchExtractAnalysis(array $cleanedTexts): array
     {
-        $prompt = $this->promptStore->compile('pideinfo/resolution/extract-analysis-batch', [
+        $prompt = $this->promptStore->compile('pideinfo-resolution-extract-analysis-batch', [
             'base_prompt' => $this->buildExtractAnalysisPrompt(),
         ]);
 
@@ -645,7 +645,7 @@ FOOTER;
 
     public function buildExtractAnalysisPrompt(bool $skipResolutionDate = false, string $customSuffix = ''): string
     {
-        return $this->promptStore->compile('pideinfo/resolution/extract-analysis', [
+        return $this->promptStore->compile('pideinfo-resolution-extract-analysis', [
             'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
             'limits_block' => self::renderEnumBlock(Resolution::getLimitLabels()),
             'causes_block' => self::renderEnumBlock(Resolution::getInadmissionCauseLabels()),
@@ -770,7 +770,7 @@ FOOTER;
 
     public function buildNonCompleteAnalysisPrompt(string $customSuffix = ''): string
     {
-        return $this->promptStore->compile('pideinfo/resolution/extract-noncomplete', [
+        return $this->promptStore->compile('pideinfo-resolution-extract-noncomplete', [
             'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
             'limits_block' => self::renderEnumBlock(Resolution::getLimitLabels()),
             'causes_block' => self::renderEnumBlock(Resolution::getInadmissionCauseLabels()),
