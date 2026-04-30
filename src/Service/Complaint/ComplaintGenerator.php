@@ -21,6 +21,7 @@ use App\Service\AI\ResolutionRetriever;
 use App\Service\TransparencyCouncilResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
+use OpenTelemetry\API\Trace\SpanInterface;
 
 final class ComplaintGenerator
 {
@@ -52,6 +53,41 @@ final class ComplaintGenerator
     }
 
     /**
+     * Trace-level INPUT shown in Langfuse: the user-facing inputs that produced the
+     * draft (request facts, directions, chat history, attached documents). Distinct
+     * from the per-generation observation input, which is the actual prompt sent to
+     * the LLM.
+     *
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    private function buildTraceInput(AccessRequest $accessRequest, array $conversationHistory, ?string $userDirections, array $documentContents): string
+    {
+        $payload = [
+            'access_request' => [
+                'id' => (string) $accessRequest->getId(),
+                'title' => $accessRequest->getTitle(),
+                'description' => $accessRequest->getDescription(),
+                'status' => $accessRequest->getStatus(),
+                'public_body' => $accessRequest->getPublicBody()?->getName(),
+                'applicable_law' => $accessRequest->getApplicableLaw()?->getName(),
+                'resolution_notes' => $accessRequest->getResolutionNotes(),
+            ],
+            'user_directions' => $userDirections,
+            'conversation_history' => array_map(
+                static fn (ChatMessage $m) => ['role' => $m->role, 'content' => $m->content],
+                $conversationHistory,
+            ),
+            'documents' => array_map(
+                static fn (array $d) => ['name' => $d['name'] ?? null, 'type' => $d['type'] ?? null],
+                $documentContents,
+            ),
+        ];
+
+        return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+    }
+
+    /**
      * @param ChatMessage[] $conversationHistory
      */
     /**
@@ -64,6 +100,98 @@ final class ComplaintGenerator
             name: 'complaint.generate',
             attributes: $this->rootAttributes($accessRequest, 'reclamacion'),
             fn: fn () => $this->doGenerate($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * Streaming variant of generate(): yields each HTML delta as it arrives from the
+     * model. The Generator's return value (Generator::getReturn()) is the final
+     * ComplaintDraft with the sanitized full content and citation extraction.
+     *
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    public function generateStream(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): \Generator
+    {
+        return yield from $this->tracer->traceRootStream(
+            name: 'complaint.generate.stream',
+            attributes: $this->rootAttributes($accessRequest, 'reclamacion'),
+            gen: $this->doGenerateStream($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    private function doGenerateStream(AccessRequest $accessRequest, array $conversationHistory, ?string $userDirections, array $documentContents): \Generator
+    {
+        if (!$this->canGenerateComplaint($accessRequest)) {
+            throw new \InvalidArgumentException(
+                'Cannot generate complaint for this request. Status must be denied or delayed.'
+            );
+        }
+
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
+
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+
+        $contextQuery = $this->buildContextQuery($accessRequest);
+        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
+        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+
+        $hasResponseDocument = $this->hasResponseDocument($accessRequest);
+
+        $prompt = $this->buildPrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $documentContents,
+            $hasResponseDocument
+        );
+
+        if ($userDirections) {
+            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        $stream = $this->llmClient->chatStream(new ChatRequest(
+            systemPrompt: $prompt,
+            messages: $conversationHistory,
+            size: ModelSize::Big,
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+            label: 'complaint.generate',
+        ));
+
+        foreach ($stream as $delta) {
+            yield $delta;
+        }
+
+        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+
+        $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
+        $citedCriteria = $this->extractCitedCriteria($content, $criteria);
+
+        return new ComplaintDraft(
+            content: $content,
+            transparencyCouncil: $transparencyCouncil,
+            applicableLaw: $applicableLawName,
+            citedResolutions: $citedResolutions,
+            citedCriteria: $citedCriteria,
+            successAnalysis: $successAnalysis,
         );
     }
 
@@ -310,7 +438,7 @@ SILENCE;
 
         $documentsBlock = $this->formatDocumentContents($documentContents);
 
-        return $this->promptStore->compile('pideinfo/complaint/generate-complaint', [
+        return $this->promptStore->compile('pideinfo-complaint-generate-complaint', [
             'transparency_council' => $transparencyCouncil,
             'request_title' => (string) $accessRequest->getTitle(),
             'request_description' => (string) $accessRequest->getDescription(),
@@ -342,6 +470,99 @@ SILENCE;
             name: 'complaint.alegation_response',
             attributes: $this->rootAttributes($accessRequest, 'alegaciones'),
             fn: fn () => $this->doGenerateAlegationResponse($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * Streaming variant of generateAlegationResponse(): yields HTML deltas as they
+     * arrive; the Generator's return value is the final ComplaintDraft.
+     *
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    public function generateAlegationResponseStream(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): \Generator
+    {
+        return yield from $this->tracer->traceRootStream(
+            name: 'complaint.alegation_response.stream',
+            attributes: $this->rootAttributes($accessRequest, 'alegaciones'),
+            gen: $this->doGenerateAlegationResponseStream($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    private function doGenerateAlegationResponseStream(AccessRequest $accessRequest, array $conversationHistory, ?string $userDirections, array $documentContents): \Generator
+    {
+        if (!$this->canGenerateAlegationResponse($accessRequest)) {
+            throw new \InvalidArgumentException(
+                'Cannot generate alegation response. Complaint status must be reclaimed.'
+            );
+        }
+
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
+
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+
+        $contextQuery = $this->buildContextQuery($accessRequest);
+        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
+        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+
+        $alegacionesContent = $this->getAlegacionesContent($accessRequest);
+        $alegationPoints = $this->getAlegationPoints($accessRequest);
+
+        $prompt = $this->buildAlegationResponsePrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $alegacionesContent,
+            $alegationPoints,
+            $documentContents
+        );
+
+        if ($userDirections) {
+            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        $stream = $this->llmClient->chatStream(new ChatRequest(
+            systemPrompt: $prompt,
+            messages: $conversationHistory,
+            size: ModelSize::Big,
+            temperature: 0.3,
+            maxOutputTokens: 8192,
+            label: 'complaint.alegation_response',
+        ));
+
+        foreach ($stream as $delta) {
+            yield $delta;
+        }
+
+        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+
+        $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
+        $citedCriteria = $this->extractCitedCriteria($content, $criteria);
+
+        return new ComplaintDraft(
+            content: $content,
+            transparencyCouncil: $transparencyCouncil,
+            applicableLaw: $applicableLawName,
+            citedResolutions: $citedResolutions,
+            citedCriteria: $citedCriteria,
+            successAnalysis: $successAnalysis,
         );
     }
 
@@ -494,7 +715,7 @@ SILENCE;
             }
         }
 
-        return $this->promptStore->compile('pideinfo/complaint/generate-alegation-response', [
+        return $this->promptStore->compile('pideinfo-complaint-generate-alegation-response', [
             'transparency_council' => $transparencyCouncil,
             'public_body_name' => $accessRequest->getPublicBody()?->getName() ?? '',
             'request_title' => (string) $accessRequest->getTitle(),

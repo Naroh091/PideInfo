@@ -9,358 +9,969 @@
     {{ parent() }}
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
     <style>
-        trix-editor {
-            min-height: 500px;
-            border: 0;
-            padding: 1.5rem 2rem;
+        :root {
+            --doc-bg: #ffffff;
+            --doc-edge: #e2e8f0;
+            --ink: #0f172a;
+            --ink-soft: #334155;
+            --ink-mute: #64748b;
+            --rule: #e2e8f0;
+            --gold: #0284c7; /* primary-600 — accent for the ribbon */
+        }
+
+        /* ── Workspace shell ─────────────────────────────────────────── */
+        /* align-items:start so each column owns its own height; the brief
+           card no longer stretches to match the document panel. */
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
+        @media (min-width: 1024px) {
+            .workspace {
+                grid-template-columns: minmax(0, 1fr) 22rem;
+                gap: 2rem;
+            }
+        }
+
+        /* ── The document panel ──────────────────────────────────────── */
+        .doc {
+            position: relative;
+            background: var(--doc-bg);
+            border: 1px solid var(--doc-edge);
+            border-radius: 6px;
+            box-shadow:
+                0 1px 2px rgba(15,23,42,.04),
+                0 12px 32px -20px rgba(15,23,42,.12);
+            overflow: hidden;
+        }
+        .doc::before {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0; left: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--gold) 0%, #075985 100%);
+        }
+
+        .doc-strip {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.7rem 1.25rem 0.7rem 1.5rem;
+            border-bottom: 1px solid var(--rule);
+            background: #f8fafc;
+        }
+        .doc-strip-label {
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            font-weight: 600;
+            color: var(--ink-mute);
+        }
+        .status-dot {
+            width: .55rem; height: .55rem; border-radius: 999px;
+            background: #cbd5e1;
+            box-shadow: 0 0 0 3px rgba(203,213,225,.25);
+            transition: background .25s ease, box-shadow .25s ease;
+        }
+        .status-dot.is-prep    { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.18); animation: pulseDot 1.2s ease-in-out infinite; }
+        .status-dot.is-write   { background: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.18); animation: pulseDot 1.2s ease-in-out infinite; }
+        .status-dot.is-ready   { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.20); }
+        .status-dot.is-edited  { background: #0284c7; box-shadow: 0 0 0 3px rgba(2,132,199,.18); }
+
+        @keyframes pulseDot {
+            0%,100% { opacity: 1; }
+            50%     { opacity: .55; }
+        }
+
+        /* The body that holds either the streaming HTML or the trix-editor.
+           Both share these typographic rules so the swap is invisible. */
+        .doc-body {
+            position: relative;
+            padding: clamp(1.5rem, 3vw, 2.75rem) clamp(1.25rem, 4vw, 3.25rem);
+            min-height: 18rem;
+        }
+
+        .doc-prose, trix-editor {
+            font-family: 'DM Sans', sans-serif;
             font-size: 0.95rem;
-            line-height: 1.6;
-            color: #1e293b;
+            line-height: 1.7;
+            color: var(--ink);
+            text-align: justify;
+            hyphens: auto;
         }
-        trix-editor h1 {
+        .doc-prose h1, trix-editor h1 {
+            font-family: 'DM Serif Display', serif;
+            font-weight: 400;
             font-size: 1.05rem;
-            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.02em;
-            color: #0f172a;
-            margin-top: 1.5em;
-            margin-bottom: 0.75em;
+            letter-spacing: .04em;
+            color: var(--ink);
+            margin: 1.6em 0 .65em;
+            padding-bottom: .4em;
+            border-bottom: 1px solid var(--rule);
+            text-align: left;
         }
-        trix-editor h1:first-child { margin-top: 0; }
-        trix-editor p { margin-bottom: 0.9em; text-align: justify; }
-        trix-editor blockquote {
-            border-left: 3px solid #cbd5e1;
+        .doc-prose h1:first-child, trix-editor h1:first-child { margin-top: 0; }
+        .doc-prose h2, trix-editor h2 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            margin: 1.2em 0 .45em;
+            text-align: left;
+        }
+        .doc-prose p, trix-editor p { margin-bottom: 0.95em; }
+        .doc-prose blockquote, trix-editor blockquote {
+            border-left: 3px solid var(--gold);
             padding-left: 1em;
-            color: #475569;
+            color: var(--ink-soft);
+            font-style: italic;
             margin: 1em 0;
         }
-        trix-toolbar {
-            padding: 0.5rem 1rem;
-            background: #f8fafc;
-            border-bottom: 1px solid #e2e8f0;
+        .doc-prose ul, .doc-prose ol, trix-editor ul, trix-editor ol {
+            padding-left: 1.5em;
+            margin-bottom: 0.95em;
         }
+        .doc-prose strong, trix-editor strong { font-weight: 600; color: var(--ink); }
+
+        trix-editor {
+            border: 0;
+            padding: 0;
+            min-height: 24rem;
+            outline: none;
+        }
+        trix-toolbar {
+            background: transparent;
+            padding: .35rem 0 .9rem 0;
+            border-bottom: 1px solid var(--rule);
+            margin-bottom: 1rem;
+        }
+        trix-toolbar .trix-button {
+            border-color: transparent;
+            color: var(--ink-soft);
+        }
+        trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
+
+        /* Typewriter cursor on the streaming preview */
+        .typewriter::after {
+            content: "▌";
+            display: inline-block;
+            margin-left: 1px;
+            color: var(--ink);
+            opacity: .85;
+            animation: blink 1s steps(2) infinite;
+            font-weight: 100;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* Empty / preparing placeholder inside doc-body */
+        .doc-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: .75rem;
+            padding: 1.5rem 0;
+            color: var(--ink-mute);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            line-height: 1.55;
+        }
+        .doc-empty .doc-empty-headline {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.15rem;
+            color: var(--ink);
+        }
+
+        /* ── The composer dock at the bottom of the document ────────── */
+        .composer {
+            position: relative;
+            border-top: 1px solid var(--rule);
+            background: #f8fafc;
+            padding: .9rem 1.25rem 1.1rem 1.5rem;
+        }
+        .composer-bar {
+            display: flex;
+            align-items: flex-end;
+            gap: .65rem;
+        }
+        .composer textarea {
+            flex: 1;
+            resize: none;
+            min-height: 2.6rem;
+            max-height: 8rem;
+            padding: .65rem .85rem;
+            border-radius: .55rem;
+            border: 1px solid var(--rule);
+            background: white;
+            color: var(--ink);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem;
+            line-height: 1.45;
+            outline: none;
+            transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+        }
+        .composer textarea:focus {
+            border-color: var(--gold);
+            box-shadow: 0 0 0 3px rgba(2,132,199,.12);
+        }
+        .composer-send {
+            flex-shrink: 0;
+            width: 2.6rem; height: 2.6rem;
+            border-radius: .55rem;
+            background: var(--ink);
+            color: white;
+            display: inline-flex;
+            align-items: center; justify-content: center;
+            transition: background .15s ease, transform .15s ease;
+        }
+        .composer-send:hover:not(:disabled) { background: #000; transform: translateY(-1px); }
+        .composer-send:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        .composer-meta {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: .75rem;
+            margin-top: .55rem;
+            font-size: .7rem;
+            color: var(--ink-mute);
+            font-family: 'Inter', sans-serif;
+            letter-spacing: .03em;
+        }
+        .skip-cta {
+            display: inline-flex; align-items: center; gap: .3rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            text-decoration: underline;
+            text-decoration-color: var(--gold);
+            text-underline-offset: 3px;
+            transition: color .15s ease;
+        }
+        .skip-cta:hover { color: var(--ink); }
+
+        .composer-history {
+            margin-bottom: .8rem;
+            max-height: 12rem;
+            overflow-y: auto;
+            padding: .25rem .15rem;
+            display: flex;
+            flex-direction: column;
+            gap: .5rem;
+        }
+        .msg {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            line-height: 1.45;
+            display: flex;
+            gap: .55rem;
+            align-items: flex-start;
+        }
+        .msg-user { justify-content: flex-end; }
+        .msg .bubble {
+            padding: .45rem .7rem;
+            border-radius: .5rem;
+            max-width: 85%;
+        }
+        .msg-model .bubble {
+            background: white;
+            border: 1px solid var(--rule);
+            color: var(--ink-soft);
+        }
+        .msg-user .bubble {
+            background: var(--ink);
+            color: white;
+        }
+        .msg-system .bubble {
+            background: #fff5f5;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+        .msg-avatar {
+            flex-shrink: 0;
+            width: 1.5rem; height: 1.5rem;
+            border-radius: 999px;
+            background: #e0f2fe;
+            color: var(--gold);
+            display: inline-flex; align-items: center; justify-content: center;
+            margin-top: 1px;
+        }
+
+        .typing-dots {
+            display: inline-flex; gap: .25rem;
+        }
+        .typing-dots span {
+            width: .35rem; height: .35rem; border-radius: 999px;
+            background: var(--ink-mute);
+            animation: typingBounce 1.1s ease-in-out infinite;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: .15s; }
+        .typing-dots span:nth-child(3) { animation-delay: .3s; }
+        @keyframes typingBounce {
+            0%,80%,100% { transform: translateY(0); opacity: .4; }
+            40%         { transform: translateY(-3px); opacity: 1; }
+        }
+
+        /* ── Right column: the case brief ───────────────────────────── */
+        /* No sticky — let it scroll naturally so it doesn't drag the document
+           column's effective height in tall layouts. */
+        .brief {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1.25rem 1.25rem 1.4rem;
+        }
+        .panel-label {
+            display: flex; align-items: center; gap: .5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            font-weight: 600;
+            color: var(--ink-mute);
+            margin-bottom: .9rem;
+        }
+        .panel-label::after {
+            content: ""; flex: 1; height: 1px; background: #e2e8f0;
+        }
+
+        /* The headline percentage */
+        .verdict {
+            display: flex;
+            align-items: baseline;
+            gap: .5rem;
+            font-family: 'DM Serif Display', serif;
+            color: var(--ink);
+            line-height: 1;
+            margin-top: .25rem;
+        }
+        .verdict-num {
+            font-size: 4.25rem;
+            font-weight: 400;
+            letter-spacing: -.04em;
+            font-feature-settings: "tnum";
+        }
+        .verdict-frac {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            color: var(--ink-mute);
+            font-weight: 500;
+            transform: translateY(-.2rem);
+        }
+        .verdict-label {
+            margin-top: .35rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            color: var(--ink-soft);
+        }
+        .verdict-zone {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+            font-size: .8rem;
+            margin-left: .25rem;
+        }
+        .zone-low      { background: #fee2e2; color: #b91c1c; }
+        .zone-mid-low  { background: #fef3c7; color: #b45309; }
+        .zone-mid      { background: #fef9c3; color: #854d0e; }
+        .zone-mid-high { background: #d1fae5; color: #065f46; }
+        .zone-high     { background: #dcfce7; color: #166534; }
+
+        /* The horizontal verdict gauge */
+        .gauge {
+            margin-top: 1rem;
+            height: 1.05rem;
+            position: relative;
+        }
+        .gauge-track {
+            position: absolute;
+            top: 50%;
+            left: 0; right: 0;
+            transform: translateY(-50%);
+            height: 6px;
+            border-radius: 3px;
+            background: linear-gradient(90deg,
+                #fecaca 0%,
+                #fed7aa 30%,
+                #fde68a 50%,
+                #bbf7d0 75%,
+                #86efac 100%);
+            opacity: .55;
+        }
+        .gauge-ticks {
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 100%;
+            display: flex; justify-content: space-between;
+            pointer-events: none;
+        }
+        .gauge-ticks span {
+            width: 1px; height: 50%;
+            background: rgba(15,23,42,.18);
+            align-self: center;
+        }
+        .gauge-marker {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 2px;
+            background: var(--ink);
+            transition: left .9s cubic-bezier(.25,.8,.25,1);
+        }
+        .gauge-marker::before {
+            content: "";
+            position: absolute;
+            top: -3px; left: 50%;
+            transform: translateX(-50%);
+            width: 8px; height: 8px;
+            background: var(--ink);
+            border-radius: 999px;
+            border: 2px solid white;
+        }
+        .gauge-scale {
+            display: flex; justify-content: space-between;
+            margin-top: .5rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .62rem;
+            color: var(--ink-mute);
+            letter-spacing: .08em;
+        }
+
+        .brief-section {
+            margin-top: 1.4rem;
+            padding-top: 1.2rem;
+            border-top: 1px solid #f1f5f9;
+        }
+        .brief-section-title {
+            display: flex; align-items: center; gap: .45rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            font-weight: 600;
+            margin-bottom: .55rem;
+        }
+        .brief-section-title.is-pos { color: #047857; }
+        .brief-section-title.is-neg { color: #b91c1c; }
+        .brief-section-title .mark {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1rem; height: 1rem; border-radius: 999px;
+            font-size: .65rem;
+        }
+        .is-pos .mark { background: #dcfce7; color: #047857; }
+        .is-neg .mark { background: #fee2e2; color: #b91c1c; }
+
+        .brief-html {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .87rem;
+            line-height: 1.55;
+            color: var(--ink-soft);
+        }
+        .brief-html b { color: var(--ink); font-weight: 600; }
+        .brief-html i { color: var(--ink); font-style: italic; }
+        .brief-html ul { margin: 0; padding-left: 1.05rem; }
+        .brief-html li { margin-bottom: .25rem; }
+        .brief-summary {
+            font-family: 'DM Serif Display', serif;
+            font-style: italic;
+            font-size: 1rem;
+            line-height: 1.5;
+            color: var(--ink);
+        }
+        .brief-summary b { font-style: normal; font-weight: 700; }
+
+        /* Empty state of the brief while analysis is loading or absent */
+        .brief-skel-num {
+            display: inline-block;
+            width: 5rem; height: 4rem;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        .brief-skel-bar {
+            margin-top: 1rem;
+            height: 8px; border-radius: 4px;
+            background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        .brief-skel-line {
+            height: .7rem; border-radius: 3px; margin-top: .55rem;
+            background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.4s infinite;
+        }
+        @keyframes shimmer {
+            0%   { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* File / data list */
+        .file-row {
+            display: flex; gap: .55rem; align-items: flex-start;
+            padding: .5rem .15rem;
+            font-size: .82rem;
+            font-family: 'DM Sans', sans-serif;
+            color: var(--ink-soft);
+            border-bottom: 1px dashed #f1f5f9;
+        }
+        .file-row:last-child { border-bottom: 0; }
+        .file-row input[type="checkbox"] { margin-top: .25rem; }
+        .file-row .file-name { color: var(--ink); font-weight: 500; }
+        .file-row .file-meta { font-size: .7rem; color: var(--ink-mute); margin-top: .1rem; }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 5rem 1fr;
+            gap: .6rem;
+            padding: .35rem 0;
+            font-size: .82rem;
+            font-family: 'DM Sans', sans-serif;
+            border-bottom: 1px dashed #f1f5f9;
+            align-items: baseline;
+        }
+        .field-row:last-child { border-bottom: 0; }
+        .field-row dt {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem;
+            color: var(--ink-mute);
+            font-weight: 600;
+        }
+        .field-row dd { color: var(--ink); }
+
+        /* Alegation points (only in alegation mode) */
+        .alegation-stack {
+            display: flex; flex-direction: column; gap: .55rem;
+        }
+        .alegation-pt {
+            display: flex; gap: .65rem;
+            padding: .65rem .8rem;
+            background: rgba(254,242,242,.5);
+            border-left: 2px solid #ef4444;
+            border-radius: 3px;
+            font-size: .82rem;
+            color: var(--ink-soft);
+            font-family: 'DM Sans', sans-serif;
+            line-height: 1.45;
+        }
+        .alegation-pt .num {
+            flex-shrink: 0;
+            width: 1.3rem; height: 1.3rem;
+            border-radius: 999px;
+            background: #fee2e2; color: #991b1b;
+            font-size: .7rem; font-weight: 700;
+            display: inline-flex; align-items: center; justify-content: center;
+        }
+
+        /* The page header */
+        .page-head {
+            display: flex; flex-wrap: wrap; align-items: end;
+            justify-content: space-between; gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .page-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: clamp(1.6rem, 3vw, 2.1rem);
+            line-height: 1.15;
+            color: var(--ink);
+        }
+        .page-meta {
+            display: flex; flex-wrap: wrap; align-items: center;
+            gap: .5rem .75rem;
+            margin-top: .55rem;
+            font-size: .82rem;
+            color: var(--ink-mute);
+            font-family: 'DM Sans', sans-serif;
+        }
+        .page-meta .pill {
+            display: inline-flex; align-items: center; gap: .35rem;
+            padding: .15rem .55rem;
+            border-radius: 999px;
+            font-size: .7rem;
+            font-weight: 600;
+            letter-spacing: .04em;
+        }
+        .pill-denied  { background: #fee2e2; color: #991b1b; }
+        .pill-delayed { background: #fef3c7; color: #92400e; }
+        .pill-other   { background: #e2e8f0; color: #475569; }
+
+        .ghost-link {
+            display: inline-flex; align-items: center; gap: .35rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            color: var(--ink-mute);
+            transition: color .15s ease;
+        }
+        .ghost-link:hover { color: var(--ink); }
+
+        .doc-action {
+            display: inline-flex; align-items: center; gap: .4rem;
+            padding: .4rem .7rem;
+            background: var(--ink);
+            color: white;
+            border-radius: 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            font-weight: 500;
+            transition: background .15s ease, transform .15s ease;
+        }
+        .doc-action:hover:not(:disabled) { background: #000; }
+        .doc-action:disabled { opacity: .5; cursor: not-allowed; }
+        .doc-action.is-secondary {
+            background: transparent;
+            color: var(--ink-soft);
+            border: 1px solid var(--rule);
+        }
+        .doc-action.is-secondary:hover { background: #f1f5f9; }
+
+        /* Disclosure (collapsible blocks) */
+        details.disclose summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex; align-items: center; gap: .4rem;
+        }
+        details.disclose summary::-webkit-details-marker { display: none; }
+        details.disclose summary .chev {
+            transition: transform .2s ease;
+            color: var(--ink-mute);
+        }
+        details.disclose[open] summary .chev { transform: rotate(90deg); }
     </style>
 {% endblock %}
 
 {% block content %}
-{# Breadcrumb #}
-<nav class="flex items-center gap-2 text-sm mb-6">
-    <a href="{{ path('app_solicitudes_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
-        Solicitudes
-    </a>
-    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="text-slate-500 hover:text-primary-600 transition-colors truncate max-w-xs">
-        {{ request.title|u.truncate(30) }}
-    </a>
-    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-    <span class="text-slate-800 font-medium">{{ pageTitle }}</span>
-</nav>
+<div x-data="interactiveGenerator()" class="max-w-7xl mx-auto">
 
-{# Header #}
-<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
-    <div class="min-w-0">
-        <h1 class="text-2xl font-bold text-slate-800">{{ pageTitle }}</h1>
-        <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
-            <span class="flex items-center gap-1">
-                <i data-lucide="building" class="w-4 h-4"></i>
-                {{ request.publicBody.name }}
-            </span>
-            <span class="badge {{ request.status == 'denied' ? 'status-denied' : 'status-delayed' }}">
-                {{ request.statusLabel }}
-            </span>
-        </div>
-    </div>
-    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary flex-shrink-0">
-        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
-        Volver
-    </a>
-</div>
+    {# ── Page header ───────────────────────────────────────────── #}
+    <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+        <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+        <span class="text-slate-300">/</span>
+        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors truncate max-w-[14rem]">
+            {{ request.title|u.truncate(28) }}
+        </a>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-800 font-medium">{{ pageTitle|upper }}</span>
+    </nav>
 
-<div class="grid lg:grid-cols-3 gap-6" x-data="interactiveGenerator()">
-    <div class="lg:col-span-2 space-y-6">
-        {# Alegaciones Card #}
-        {% if isAlegationResponse and alegacionesDoc and alegacionesDoc.aiMetadata.alegationPoints is defined and alegacionesDoc.aiMetadata.alegationPoints %}
-            <div class="card border-l-4 border-red-400">
-                <div class="card-header">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center">
-                                <i data-lucide="shield-alert" class="w-5 h-5 text-red-600"></i>
-                            </div>
-                            <h2 class="font-semibold text-slate-800">Alegaciones de la Administración</h2>
-                        </div>
-                        <a href="{{ path('app_document_download', {id: alegacionesDoc.id}) }}" class="btn btn-secondary btn-sm">
-                            <i data-lucide="download" class="w-4 h-4 mr-1"></i>
-                            Descargar archivo
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <ol class="space-y-3">
-                        {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
-                            <li class="flex items-start gap-3">
-                                <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                <span class="text-slate-700 text-sm">{{ point }}</span>
-                            </li>
-                        {% endfor %}
-                    </ol>
-                </div>
-            </div>
-        {% endif %}
-
-        {# Probability Analysis Card #}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                        <i data-lucide="bar-chart-2" class="w-5 h-5 text-amber-600"></i>
-                    </div>
-                    <h2 class="font-semibold text-slate-800">Análisis de probabilidad de éxito</h2>
-                </div>
-            </div>
-            <div class="card-body">
-                <template x-if="analysisLoading">
-                    <div class="flex items-center justify-center py-6">
-                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                        <span class="ml-3 text-sm text-slate-600">Analizando probabilidad de éxito...</span>
-                    </div>
-                </template>
-
-                <template x-if="analysis && !analysisLoading">
-                    <div>
-                        <div class="flex items-baseline gap-3 mb-3">
-                            <span class="text-4xl font-bold" :class="getProbabilityClass(analysis.probability)" x-text="analysis.probability + '%'"></span>
-                            <span class="text-sm font-medium text-slate-500" x-text="getProbabilityLabel(analysis.probability)"></span>
-                        </div>
-                        <div class="w-full bg-slate-200 rounded-full h-2.5 mb-4">
-                            <div class="h-2.5 rounded-full transition-all duration-500"
-                                 :class="getProbabilityBarClass(analysis.probability)"
-                                 :style="'width: ' + analysis.probability + '%'"></div>
-                        </div>
-                        <p class="text-sm text-slate-600 leading-relaxed" x-text="analysis.reasoning"></p>
-                    </div>
-                </template>
-
-                <template x-if="!analysis && !analysisLoading">
-                    <p class="text-sm text-slate-500 text-center py-2">El análisis se ejecutará automáticamente.</p>
-                </template>
+    <header class="page-head">
+        <div class="min-w-0">
+            <h1 class="page-title">{{ pageTitle }}</h1>
+            <div class="page-meta">
+                <span class="inline-flex items-center gap-1.5"><i data-lucide="building-2" class="w-3.5 h-3.5"></i>{{ request.publicBody.name }}</span>
+                <span class="text-slate-300">·</span>
+                <span class="inline-flex items-center gap-1.5"><i data-lucide="scale" class="w-3.5 h-3.5"></i>{{ request.applicableLaw.name }}</span>
+                <span class="text-slate-300">·</span>
+                <span class="pill {{ request.status == 'denied' ? 'pill-denied' : (request.status == 'delayed' ? 'pill-delayed' : 'pill-other') }}">
+                    {{ request.statusLabel }}
+                </span>
             </div>
         </div>
+        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="ghost-link flex-shrink-0">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            Volver al expediente
+        </a>
+    </header>
 
-        {# Chat Card #}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl {{ isAlegationResponse ? 'bg-red-100' : 'bg-primary-100' }} flex items-center justify-center">
-                        <i data-lucide="{{ isAlegationResponse ? 'shield-alert' : 'message-square' }}" class="w-5 h-5 {{ isAlegationResponse ? 'text-red-600' : 'text-primary-600' }}"></i>
-                    </div>
-                    <h2 class="font-semibold text-slate-800">Asistente de redacción</h2>
+    <div class="workspace">
+
+        {# ─────────────────── DOCUMENT PANEL ─────────────────── #}
+        <article class="doc">
+            <div class="doc-strip">
+                <span class="doc-strip-label">
+                    <span class="status-dot"
+                          :class="{
+                              'is-prep'   : loading && !streamingHtml,
+                              'is-write'  : loading && streamingHtml,
+                              'is-ready'  : !loading && editorReady && !documentEdited,
+                              'is-edited' : !loading && editorReady && documentEdited,
+                          }"></span>
+                    <span x-text="docStatusLabel()"></span>
+                </span>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        x-show="editorReady"
+                        x-cloak
+                        @click="downloadPdf()"
+                        :disabled="downloadingPdf"
+                        class="doc-action">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                        <span x-text="downloadingPdf ? 'Generando…' : 'Descargar PDF'"></span>
+                    </button>
                 </div>
             </div>
-            <div class="card-body">
-                {# Message list #}
-                <div class="space-y-3 mb-4 max-h-96 overflow-y-auto scroll-smooth px-1" id="chatMessages">
-                    <template x-for="(msg, index) in messages" :key="index">
-                        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start gap-2'">
+
+            <div class="doc-body">
+                {# Empty state — neither streaming nor editor #}
+                <div x-show="!loading && !editorReady && !streamingHtml" x-cloak class="doc-empty">
+                    <p class="doc-empty-headline">
+                        {% if isAlegationResponse %}
+                            Listo para redactar la respuesta a las alegaciones.
+                        {% else %}
+                            Listo para redactar la reclamación.
+                        {% endif %}
+                    </p>
+                    <p>
+                        Escribe abajo qué quieres enfatizar o pulsa <b>generar sin indicaciones</b> para empezar con los argumentos por defecto.
+                    </p>
+                </div>
+
+                {# Streaming preview — same typography as Trix #}
+                <div x-show="loading && streamingHtml"
+                     x-cloak
+                     x-ref="streamingPreview"
+                     class="doc-prose typewriter"
+                     x-html="streamingHtml"></div>
+
+                {# Preparing state #}
+                <div x-show="loading && !streamingHtml" x-cloak class="doc-empty">
+                    <p class="doc-empty-headline">Preparando el contexto…</p>
+                    <p>Recuperando precedentes, criterios y documentos del expediente.</p>
+                </div>
+
+                {# Trix editor — shown only when ready, but always present in DOM #}
+                <div x-show="editorReady" x-cloak>
+                    <input id="complaint-html-input" type="hidden" value="">
+                    <trix-editor input="complaint-html-input"
+                                 @trix-change="documentEdited = true"></trix-editor>
+                </div>
+            </div>
+
+            {# ── Composer dock (chat lives here, not in a separate card) ── #}
+            <div class="composer">
+                {# Expanded history when toggled #}
+                <div x-show="showHistory && messages.length > 0" x-cloak class="composer-history" x-ref="historyEl">
+                    <template x-for="(msg, idx) in messages" :key="idx">
+                        <div :class="msg.role === 'user' ? 'msg msg-user' : (msg.type === 'system' ? 'msg msg-system' : 'msg msg-model')">
                             <template x-if="msg.role !== 'user'">
-                                <div class="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0 mt-1">
-                                    <i data-lucide="bot" class="w-4 h-4 text-primary-600"></i>
-                                </div>
+                                <span class="msg-avatar">
+                                    <i data-lucide="bot" class="w-3 h-3"></i>
+                                </span>
                             </template>
-                            <div :class="msg.role === 'user'
-                                ? 'bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-2.5 max-w-[75%] shadow-sm'
-                                : 'bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2.5 max-w-[75%]'">
-                                <p class="text-sm leading-relaxed whitespace-pre-line" x-text="msg.content"></p>
-                            </div>
+                            <span class="bubble" x-text="msg.content"></span>
                         </div>
                     </template>
-
-                    {# Loading indicator #}
-                    <div x-show="loading" class="flex justify-start gap-2">
-                        <div class="w-7 h-7 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0 mt-1">
-                            <i data-lucide="bot" class="w-4 h-4 text-primary-600 animate-pulse"></i>
-                        </div>
-                        <div class="bg-slate-50 border border-slate-200 rounded-2xl rounded-bl-sm px-4 py-2.5">
-                            <div class="flex items-center gap-2">
-                                <span class="flex gap-1">
-                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0ms"></span>
-                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 150ms"></span>
-                                    <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 300ms"></span>
-                                </span>
-                                <span class="text-sm text-slate-500">Generando documento...</span>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
-                {# Input area #}
-                <div x-show="!editorReady || !loading" class="border-t border-slate-100 pt-4">
-                    <div class="relative flex items-end gap-2">
-                        <div class="flex-1 relative">
-                            <textarea x-model="userInput"
-                                      @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
-                                      :disabled="loading"
-                                      placeholder="Escribe indicaciones para la redacción..."
-                                      rows="1"
-                                      x-ref="chatInput"
-                                      @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 120) + 'px'"
-                                      class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 pr-12 text-sm text-slate-800 placeholder-slate-400 focus:border-primary-400 focus:bg-white focus:ring-2 focus:ring-primary-100 focus:outline-none resize-none transition-all"
-                                      style="min-height: 44px;"></textarea>
-                        </div>
-                        <button @click="sendMessage()"
-                                :disabled="loading || (!userInput.trim() && messages.length <= 1)"
-                                class="flex-shrink-0 w-10 h-10 rounded-xl bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white flex items-center justify-center transition-colors">
-                            <i data-lucide="send" class="w-4 h-4"></i>
+                {# Generating indicator #}
+                <div x-show="loading" x-cloak class="msg msg-model" style="margin-bottom:.6rem;">
+                    <span class="msg-avatar"><i data-lucide="bot" class="w-3 h-3"></i></span>
+                    <span class="bubble inline-flex items-center gap-2">
+                        <span class="typing-dots"><span></span><span></span><span></span></span>
+                        <span x-text="streamingHtml ? 'Redactando documento…' : 'Preparando contexto…'"></span>
+                    </span>
+                </div>
+
+                {# Composer (input + send) #}
+                <div x-show="!loading" x-cloak>
+                    <div class="composer-bar">
+                        <textarea x-model="userInput"
+                                  x-ref="chatInput"
+                                  @keydown.enter.prevent="if (!$event.shiftKey) sendMessage()"
+                                  @input="$el.style.height = 'auto'; $el.style.height = Math.min($el.scrollHeight, 128) + 'px'"
+                                  :placeholder="editorReady
+                                      ? 'Pide ajustes: «más conciso», «cita resolución X»…'
+                                      : 'Escribe indicaciones para la redacción (opcional)…'"
+                                  rows="1"></textarea>
+                        <button type="button"
+                                class="composer-send"
+                                :disabled="!userInput.trim() && messages.filter(m => m.role === 'user').length === 0 && editorReady"
+                                @click="sendMessage()">
+                            <i data-lucide="arrow-up" class="w-4 h-4"></i>
                         </button>
                     </div>
-                    <div class="flex items-center justify-between mt-2 px-1">
-                        <p class="text-xs text-slate-400">
-                            Shift+Enter para nueva línea
-                        </p>
-                        <button @click="skip()"
-                                :disabled="loading"
-                                x-show="messages.length <= 1"
-                                class="text-xs text-primary-600 hover:text-primary-700 font-medium whitespace-nowrap flex items-center gap-1 transition-colors">
-                            <i data-lucide="sparkles" class="w-3 h-3"></i>
+                    <div class="composer-meta">
+                        <div class="flex items-center gap-3">
+                            <span class="opacity-70">Shift + Enter para nueva línea</span>
+                            <button type="button"
+                                    x-show="messages.length > 1 || editorReady"
+                                    @click="toggleHistory()"
+                                    class="ghost-link">
+                                <i data-lucide="messages-square" class="w-3.5 h-3.5"></i>
+                                <span x-text="(showHistory ? 'Ocultar' : 'Ver') + ' conversación · ' + visibleMessageCount()"></span>
+                            </button>
+                        </div>
+                        <button type="button"
+                                x-show="!editorReady"
+                                @click="skip()"
+                                class="skip-cta">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
                             Generar sin indicaciones
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </article>
 
-        {# Editor Card #}
-        <div class="card" x-show="editorReady" x-cloak>
-            <div class="card-header">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
-                            <i data-lucide="file-pen" class="w-5 h-5 text-primary-600"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">Editor de documento</h2>
-                            <p class="text-xs text-slate-500">Edita el contenido directamente. Los cambios se reflejarán en el PDF.</p>
-                        </div>
-                    </div>
-                    <button @click="downloadPdf()"
-                            :disabled="downloadingPdf"
-                            class="btn btn-accent btn-sm">
-                        <i data-lucide="download" class="w-4 h-4 mr-1"></i>
-                        <span x-text="downloadingPdf ? 'Generando...' : 'Descargar PDF'"></span>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="border-t border-slate-100">
-                    <input id="complaint-html-input" type="hidden" value="">
-                    <trix-editor input="complaint-html-input"></trix-editor>
-                </div>
-            </div>
-        </div>
+        {# ─────────────────── CASE BRIEF SIDEBAR ─────────────────── #}
+        <aside class="brief">
 
-        {# Loading state (before any interaction) #}
-        <div class="card" x-show="loading && !editorReady && messages.length <= 1">
-            <div class="card-body">
-                <div class="flex flex-col items-center justify-center py-12">
-                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
-                    <p class="text-slate-600 font-medium">Generando documento...</p>
-                    <p class="text-sm text-slate-500 mt-2">Esto puede tardar unos segundos</p>
+            {# ── Case strength panel ── #}
+            <section class="panel">
+                <div class="panel-label">
+                    <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
+                    Informe preliminar
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <div class="lg:col-span-1 space-y-6">
-        {# Request Summary Card #}
-        <div class="card">
-            <div class="card-header">
-                <h2 class="font-semibold text-slate-800">Datos de la solicitud</h2>
-            </div>
-            <div class="card-body space-y-4">
-                <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Título</h4>
-                    <p class="text-slate-800">{{ request.title }}</p>
-                </div>
-                <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Organismo</h4>
-                    <p class="text-slate-800">{{ request.publicBody.name }}</p>
-                </div>
-                <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Ley aplicable</h4>
-                    <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
-                </div>
-                <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envío</h4>
-                    <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
-                </div>
-                {% if request.resolutionNotes %}
-                <div>
-                    <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Motivo de denegación</h4>
-                    <p class="text-slate-800">{{ request.resolutionNotes }}</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        {# Documents Card #}
-        {% if availableDocuments|length > 0 %}
-        <div class="card">
-            <div class="card-header">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                        <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i>
-                    </div>
+                {# Loading skeleton #}
+                <template x-if="analysisLoading && !analysis">
                     <div>
-                        <h2 class="font-semibold text-slate-800">Documentos del expediente</h2>
-                        <p class="text-xs text-slate-500">Selecciona los documentos a incluir como contexto</p>
+                        <div class="brief-skel-num"></div>
+                        <div class="brief-skel-bar"></div>
+                        <div class="brief-skel-line" style="width:90%"></div>
+                        <div class="brief-skel-line" style="width:75%"></div>
                     </div>
-                </div>
-            </div>
-            <div class="card-body space-y-2">
-                {% for doc in availableDocuments %}
-                <label class="flex items-start gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
-                    <input type="checkbox"
-                           value="{{ doc.id }}"
-                           x-model="selectedDocIds"
-                           {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}
-                           class="mt-0.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500">
-                    <div class="min-w-0">
-                        <p class="text-sm font-medium text-slate-700 truncate">{{ doc.originalFilename }}</p>
-                        <p class="text-xs text-slate-500">{{ doc.typeLabel }} &middot; {{ doc.fileSizeFormatted }}</p>
-                    </div>
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
+                </template>
 
-        {# Info Card #}
-        <div class="card bg-slate-50">
-            <div class="card-body">
-                <h3 class="font-medium text-slate-800 mb-2 flex items-center gap-2">
-                    <i data-lucide="info" class="w-4 h-4 text-primary-600"></i>
-                    Cómo funciona
-                </h3>
-                <ul class="text-sm text-slate-600 space-y-2">
-                    <li class="flex items-start gap-2">
-                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">1</span>
-                        <span>Escribe indicaciones o genera directamente.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">2</span>
-                        <span>Edita el documento en el editor visual.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">3</span>
-                        <span>Pide cambios por chat si lo prefieres.</span>
-                    </li>
-                    <li class="flex items-start gap-2">
-                        <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center mt-0.5">4</span>
-                        <span>Descarga el PDF cuando estés conforme.</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
+                {# Analysis loaded #}
+                <template x-if="analysis">
+                    <div>
+                        <div class="verdict">
+                            <span class="verdict-num" x-text="displayPercentage"></span>
+                            <span class="verdict-frac">/100</span>
+                        </div>
+                        <div class="verdict-label">
+                            Probabilidad de estimación
+                            <span class="verdict-zone" :class="zoneClass(analysis.percentage)" x-text="zoneLabel(analysis.percentage)"></span>
+                        </div>
+
+                        <div class="gauge">
+                            <div class="gauge-track"></div>
+                            <div class="gauge-ticks">
+                                <span></span><span></span><span></span><span></span><span></span>
+                            </div>
+                            <div class="gauge-marker" :style="`left: ${analysis.percentage}%`"></div>
+                        </div>
+                        <div class="gauge-scale">
+                            <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+                        </div>
+
+                        {# Summary #}
+                        <div class="brief-section" x-show="analysis.summary">
+                            <p class="brief-summary brief-html" x-html="analysis.summary"></p>
+                        </div>
+
+                        {# Strengths #}
+                        <div class="brief-section" x-show="analysis.strengths">
+                            <h3 class="brief-section-title is-pos">
+                                <span class="mark"><i data-lucide="check" class="w-2.5 h-2.5"></i></span>
+                                A favor
+                            </h3>
+                            <div class="brief-html" x-html="analysis.strengths"></div>
+                        </div>
+
+                        {# Weaknesses #}
+                        <div class="brief-section" x-show="analysis.weaknesses">
+                            <h3 class="brief-section-title is-neg">
+                                <span class="mark"><i data-lucide="alert-triangle" class="w-2.5 h-2.5"></i></span>
+                                En contra
+                            </h3>
+                            <div class="brief-html" x-html="analysis.weaknesses"></div>
+                        </div>
+
+                        <button type="button"
+                                @click="runAnalysis(true)"
+                                :disabled="analysisLoading"
+                                class="ghost-link mt-4">
+                            <i data-lucide="refresh-cw" class="w-3 h-3" :class="{'animate-spin': analysisLoading}"></i>
+                            Recalcular informe
+                        </button>
+                    </div>
+                </template>
+
+                {# Error / no analysis #}
+                <template x-if="!analysis && !analysisLoading">
+                    <div class="brief-html" style="color:var(--ink-mute);">
+                        No se pudo generar el informe.
+                        <button type="button" @click="runAnalysis(true)" class="ghost-link mt-2">
+                            <i data-lucide="refresh-cw" class="w-3 h-3"></i> Reintentar
+                        </button>
+                    </div>
+                </template>
+            </section>
+
+            {# ── Alegation points (only in alegation mode) ── #}
+            {% if isAlegationResponse and alegacionesDoc and alegacionesDoc.aiMetadata.alegationPoints is defined and alegacionesDoc.aiMetadata.alegationPoints %}
+                <section class="panel">
+                    <div class="panel-label">
+                        <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+                        Alegaciones de la administración
+                    </div>
+                    <div class="alegation-stack">
+                        {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
+                            <div class="alegation-pt">
+                                <span class="num">{{ loop.index }}</span>
+                                <span>{{ point }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    <a href="{{ path('app_document_download', {id: alegacionesDoc.id}) }}" class="ghost-link mt-3">
+                        <i data-lucide="download" class="w-3 h-3"></i>
+                        Descargar alegaciones originales
+                    </a>
+                </section>
+            {% endif %}
+
+            {# ── Expediente (request facts) — collapsible ── #}
+            <section class="panel">
+                <details class="disclose" open>
+                    <summary class="panel-label" style="margin-bottom:.65rem;">
+                        <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                        Expediente
+                        <i data-lucide="chevron-right" class="w-3.5 h-3.5 chev ml-auto"></i>
+                    </summary>
+                    <dl class="mt-2">
+                        <div class="field-row">
+                            <dt>Asunto</dt>
+                            <dd>{{ request.title }}</dd>
+                        </div>
+                        <div class="field-row">
+                            <dt>Enviada</dt>
+                            <dd>{{ request.sentAt|date('d/m/Y') }}</dd>
+                        </div>
+                        {% if request.resolutionNotes %}
+                            <div class="field-row">
+                                <dt>Motivo</dt>
+                                <dd>{{ request.resolutionNotes }}</dd>
+                            </div>
+                        {% endif %}
+                    </dl>
+                </details>
+            </section>
+
+            {# ── Documents picker ── #}
+            {% if availableDocuments|length > 0 %}
+                <section class="panel">
+                    <details class="disclose" open>
+                        <summary class="panel-label" style="margin-bottom:.65rem;">
+                            <i data-lucide="files" class="w-3.5 h-3.5"></i>
+                            Documentos como contexto
+                            <i data-lucide="chevron-right" class="w-3.5 h-3.5 chev ml-auto"></i>
+                        </summary>
+                        <p class="text-xs mb-2" style="color:var(--ink-mute);font-family:'DM Sans',sans-serif;">
+                            Los documentos marcados se enviarán al modelo como evidencia primaria.
+                        </p>
+                        {% for doc in availableDocuments %}
+                            <label class="file-row cursor-pointer">
+                                <input type="checkbox"
+                                       value="{{ doc.id }}"
+                                       x-model="selectedDocIds"
+                                       {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}
+                                       class="rounded border-slate-300">
+                                <div class="min-w-0">
+                                    <p class="file-name truncate">{{ doc.originalFilename }}</p>
+                                    <p class="file-meta">{{ doc.typeLabel }} · {{ doc.fileSizeFormatted }}</p>
+                                </div>
+                            </label>
+                        {% endfor %}
+                    </details>
+                </section>
+            {% endif %}
+        </aside>
     </div>
 </div>
 
@@ -374,78 +985,126 @@ function interactiveGenerator() {
         loading: false,
         editorReady: false,
         editorInstance: null,
+        documentEdited: false,
         downloadingPdf: false,
         analysis: null,
         analysisLoading: false,
+        streamingHtml: '',
+        showHistory: false,
+        displayPercentage: 0,
         selectedDocIds: [{% for doc in availableDocuments %}{% if doc.type.value in ['response', 'alegaciones'] %}'{{ doc.id }}',{% endif %}{% endfor %}],
 
         init() {
-            const initialMessage = this.mode === 'alegation_response'
-                ? '¿Tienes alguna indicación específica para la respuesta a las alegaciones? Por ejemplo: puntos que quieras enfatizar, argumentos adicionales, o tono de la respuesta.'
-                : '¿Tienes alguna indicación específica para la reclamación? Por ejemplo: argumentos que quieras enfatizar, información adicional, o estilo de redacción.';
+            const greeting = this.mode === 'alegation_response'
+                ? 'Indica qué quieres enfatizar de la respuesta a las alegaciones, o pulsa “generar sin indicaciones”.'
+                : 'Indica argumentos a enfatizar, tono o información adicional, o pulsa “generar sin indicaciones”.';
 
-            this.messages.push({
-                role: 'model',
-                content: initialMessage,
-                type: 'message'
-            });
-
+            this.messages.push({ role: 'model', content: greeting, type: 'message' });
             this.runAnalysis();
+
+            if (window.lucide) window.lucide.createIcons();
         },
 
+        // ── Document state label ────────────────────────────────────
+        docStatusLabel() {
+            if (this.loading && !this.streamingHtml) return 'Preparando';
+            if (this.loading && this.streamingHtml)  return 'Redactando';
+            if (this.editorReady && this.documentEdited) return 'Borrador modificado';
+            if (this.editorReady)                     return 'Borrador listo';
+            return 'Borrador en blanco';
+        },
+
+        // ── Verdict zone classification ─────────────────────────────
+        zoneClass(p) {
+            if (p < 30) return 'zone-low';
+            if (p < 50) return 'zone-mid-low';
+            if (p < 65) return 'zone-mid';
+            if (p < 80) return 'zone-mid-high';
+            return 'zone-high';
+        },
+        zoneLabel(p) {
+            if (p < 30) return 'Muy baja';
+            if (p < 50) return 'Baja';
+            if (p < 65) return 'Media';
+            if (p < 80) return 'Alta';
+            return 'Muy alta';
+        },
+
+        // ── Number count-up animation when analysis arrives ─────────
+        animatePercentage(target) {
+            const start = this.displayPercentage;
+            const delta = target - start;
+            if (delta === 0) return;
+            const duration = 900;
+            const t0 = performance.now();
+            const tick = (now) => {
+                const t = Math.min(1, (now - t0) / duration);
+                const eased = 1 - Math.pow(1 - t, 3);
+                this.displayPercentage = Math.round(start + delta * eased);
+                if (t < 1) requestAnimationFrame(tick);
+                else this.displayPercentage = target;
+            };
+            requestAnimationFrame(tick);
+        },
+
+        // ── Trix wiring ─────────────────────────────────────────────
         initEditor(html) {
             const trixEditor = document.querySelector('trix-editor');
             if (!trixEditor) return;
-
             const apply = () => {
                 trixEditor.editor.loadHTML(html || '');
                 this.editorInstance = trixEditor;
                 this.editorReady = true;
+                this.documentEdited = false;
             };
+            if (trixEditor.editor) apply();
+            else trixEditor.addEventListener('trix-initialize', apply, { once: true });
+        },
 
-            if (trixEditor.editor) {
-                apply();
-            } else {
-                trixEditor.addEventListener('trix-initialize', apply, { once: true });
+        // ── Conversation helpers ────────────────────────────────────
+        visibleMessageCount() {
+            const n = this.messages.filter(m => m.type !== 'system' || m.role === 'user').length;
+            return n + (n === 1 ? ' mensaje' : ' mensajes');
+        },
+        toggleHistory() {
+            this.showHistory = !this.showHistory;
+            if (this.showHistory) {
+                this.$nextTick(() => {
+                    const el = this.$refs.historyEl;
+                    if (el) el.scrollTop = el.scrollHeight;
+                    if (window.lucide) window.lucide.createIcons();
+                });
             }
         },
 
+        // ── Send / generate ─────────────────────────────────────────
         async sendMessage() {
-            const input = this.userInput.trim();
             if (this.loading) return;
-
+            const input = this.userInput.trim();
             if (input) {
-                this.messages.push({
-                    role: 'user',
-                    content: input,
-                    type: 'message'
-                });
+                this.messages.push({ role: 'user', content: input, type: 'message' });
                 this.userInput = '';
             }
-
-            this.scrollChat();
             await this.generateDocument(input || null);
         },
-
         async skip() {
+            if (this.loading) return;
             await this.generateDocument(null);
         },
 
         async generateDocument(userDirections) {
             this.loading = true;
+            this.streamingHtml = '';
+            this.showHistory = false;
 
             const history = this.messages
                 .filter((msg, i) => i > 0)
-                .map(msg => ({
-                    role: msg.role,
-                    content: msg.content,
-                    type: msg.type
-                }));
+                .map(msg => ({ role: msg.role, content: msg.content, type: msg.type }));
 
             try {
-                const response = await fetch('{{ path('app_complaint_create', {id: request.id}) }}', {
+                const response = await fetch('{{ path('app_complaint_create_stream', {id: request.id}) }}', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
                     body: JSON.stringify({
                         mode: this.mode,
                         conversationHistory: history,
@@ -454,65 +1113,103 @@ function interactiveGenerator() {
                     })
                 });
 
-                const data = await response.json();
-
-                if (data.success) {
-                    if (typeof gtag === 'function') {
-                        gtag('event', this.mode === 'alegation_response' ? 'generate_alegation' : 'generate_complaint');
-                    }
-
-                    if (data.successAnalysis) {
-                        this.analysis = data.successAnalysis;
-                    }
-
-                    this.messages.push({
-                        role: 'model',
-                        content: 'Documento generado. Puedes editarlo abajo o pedirme cambios por chat.',
-                        type: 'message'
-                    });
-
-                    this.$nextTick(() => {
-                        this.initEditor(data.html);
-                        if (window.lucide) window.lucide.createIcons();
-                    });
-                } else {
-                    this.messages.push({
-                        role: 'model',
-                        content: 'Error: ' + data.error,
-                        type: 'system'
-                    });
+                if (!response.ok) {
+                    let errMsg = 'Error al generar el documento.';
+                    try { const j = await response.json(); errMsg = j.error || errMsg; } catch (_) {}
+                    this.messages.push({ role: 'model', content: 'Error: ' + errMsg, type: 'system' });
+                    this.showHistory = true;
+                    return;
                 }
-            } catch (e) {
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalPayload = null;
+                let errorMsg = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+
+                    let sep;
+                    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+                        const rawEvent = buffer.slice(0, sep);
+                        buffer = buffer.slice(sep + 2);
+                        const dataLine = rawEvent.split('\n').find(l => l.startsWith('data: '));
+                        if (!dataLine) continue;
+                        let payload;
+                        try { payload = JSON.parse(dataLine.slice(6)); } catch (_) { continue; }
+
+                        if (payload.type === 'chunk') {
+                            this.streamingHtml += payload.text;
+                            this.$nextTick(() => {
+                                const pv = this.$refs.streamingPreview;
+                                if (pv) pv.scrollTop = pv.scrollHeight;
+                            });
+                        } else if (payload.type === 'done') {
+                            finalPayload = payload;
+                        } else if (payload.type === 'error') {
+                            errorMsg = payload.error;
+                        }
+                    }
+                }
+
+                if (errorMsg) {
+                    this.messages.push({ role: 'model', content: 'Error: ' + errorMsg, type: 'system' });
+                    this.showHistory = true;
+                    return;
+                }
+                if (!finalPayload) {
+                    this.messages.push({ role: 'model', content: 'La generación terminó sin entregar el documento.', type: 'system' });
+                    this.showHistory = true;
+                    return;
+                }
+
+                if (typeof gtag === 'function') {
+                    gtag('event', this.mode === 'alegation_response' ? 'generate_alegation' : 'generate_complaint');
+                }
+
+                if (finalPayload.successAnalysis) {
+                    this.analysis = finalPayload.successAnalysis;
+                    this.animatePercentage(this.analysis.percentage || 0);
+                }
+
                 this.messages.push({
                     role: 'model',
-                    content: 'Error de conexión. Inténtalo de nuevo.',
-                    type: 'system'
+                    content: 'Borrador listo. Edítalo abajo o pídeme cambios.',
+                    type: 'message'
                 });
+
+                this.streamingHtml = '';
+                this.$nextTick(() => {
+                    this.initEditor(finalPayload.html);
+                    if (window.lucide) window.lucide.createIcons();
+                });
+            } catch (e) {
+                this.messages.push({ role: 'model', content: 'Error de conexión. Inténtalo de nuevo.', type: 'system' });
+                this.showHistory = true;
             } finally {
                 this.loading = false;
-                this.scrollChat();
             }
         },
 
+        // ── PDF download ────────────────────────────────────────────
         async downloadPdf() {
             if (!this.editorInstance) return;
             this.downloadingPdf = true;
-
             const html = document.getElementById('complaint-html-input').value;
-
             try {
                 const response = await fetch('{{ path('app_complaint_download_pdf', {id: request.id}) }}', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ html })
                 });
-
                 if (!response.ok) {
                     const err = await response.json();
                     alert(err.error || 'Error al generar PDF');
                     return;
                 }
-
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -529,56 +1226,28 @@ function interactiveGenerator() {
             }
         },
 
-        async runAnalysis() {
+        // ── Probability analysis ────────────────────────────────────
+        async runAnalysis(force = false) {
             this.analysisLoading = true;
-
             try {
-                const response = await fetch('{{ path('app_complaint_analyze', {id: request.id}) }}', {
+                const url = '{{ path('app_complaint_analyze', {id: request.id}) }}'
+                    + (force ? '?force=1' : '');
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
-
                 const data = await response.json();
                 if (data.success) {
                     this.analysis = data.analysis;
+                    this.animatePercentage(this.analysis.percentage || 0);
                 }
             } catch (e) {
-                // Silently fail
+                // silently fall through to error template
             } finally {
                 this.analysisLoading = false;
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
             }
         },
-
-        scrollChat() {
-            this.$nextTick(() => {
-                const el = document.getElementById('chatMessages');
-                if (el) el.scrollTop = el.scrollHeight;
-            });
-        },
-
-        getProbabilityClass(probability) {
-            if (probability >= 80) return 'text-green-600';
-            if (probability >= 60) return 'text-lime-600';
-            if (probability >= 40) return 'text-yellow-600';
-            if (probability >= 20) return 'text-orange-600';
-            return 'text-red-600';
-        },
-
-        getProbabilityBarClass(probability) {
-            if (probability >= 80) return 'bg-green-500';
-            if (probability >= 60) return 'bg-lime-500';
-            if (probability >= 40) return 'bg-yellow-500';
-            if (probability >= 20) return 'bg-orange-500';
-            return 'bg-red-500';
-        },
-
-        getProbabilityLabel(probability) {
-            if (probability >= 80) return 'Muy alta';
-            if (probability >= 60) return 'Alta';
-            if (probability >= 40) return 'Media';
-            if (probability >= 20) return 'Baja';
-            return 'Muy baja';
-        }
     };
 }
 </script>

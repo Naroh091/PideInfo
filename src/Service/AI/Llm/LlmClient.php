@@ -34,6 +34,25 @@ class LlmClient
     }
 
     /**
+     * Streaming variant of chat(): yields each text delta as it arrives. The Generator's
+     * return value (Generator::getReturn()) carries the final ChatResult with full
+     * content, tokens and finish reason.
+     *
+     * Only supported on the OpenAI-compatible custom backend (USE_CUSTOM_MODEL=true);
+     * raises RuntimeException when Gemini is active.
+     *
+     * @return \Generator<int, string, void, ChatResult>
+     */
+    public function chatStream(ChatRequest $req): \Generator
+    {
+        if (!$this->useCustom) {
+            throw new \RuntimeException('chatStream() is only supported with USE_CUSTOM_MODEL=true (OpenAI-compatible backend).');
+        }
+
+        return yield from $this->customClient->streamCall($req);
+    }
+
+    /**
      * Chat call expecting a JSON response. Strips markdown fences, decodes JSON,
      * optionally validates required keys, and retries on parse / key-validation failures.
      *

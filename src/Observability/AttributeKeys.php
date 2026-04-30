@@ -23,6 +23,8 @@ final class AttributeKeys
     public const GEN_AI_USAGE_OUTPUT_TOKENS = 'gen_ai.usage.output_tokens';
 
     public const LANGFUSE_TRACE_NAME = 'langfuse.trace.name';
+    public const LANGFUSE_TRACE_INPUT = 'langfuse.trace.input';
+    public const LANGFUSE_TRACE_OUTPUT = 'langfuse.trace.output';
     public const LANGFUSE_USER_ID = 'langfuse.user.id';
     public const LANGFUSE_SESSION_ID = 'langfuse.session.id';
     public const LANGFUSE_TAGS = 'langfuse.trace.tags';

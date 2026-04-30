@@ -55,6 +55,10 @@ class AccessRequestController extends AbstractController
         $lists = $this->accessRequestListRepository->findVisibleToUser($this->getUser());
         $currentList = $listId ? $this->accessRequestListRepository->find($listId) : null;
 
+        $statusCounts = $this->accessRequestRepository->getStatusCounts($this->getUser());
+        $appealedCount = $this->accessRequestRepository->countAppealed($this->getUser());
+        $totalCount = array_sum($statusCounts);
+
         return $this->render('solicitudes/index.html.twig', [
             'datatable' => $table,
             'status' => $status,
@@ -62,6 +66,9 @@ class AccessRequestController extends AbstractController
             'lists' => $lists,
             'currentList' => $currentList,
             'listId' => $listId,
+            'statusCounts' => $statusCounts,
+            'appealedCount' => $appealedCount,
+            'totalCount' => $totalCount,
         ]);
     }
 

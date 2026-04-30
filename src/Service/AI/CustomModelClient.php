@@ -48,6 +48,33 @@ final class CustomModelClient
      */
     public function call(ChatRequest $req): ChatResult
     {
+        ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
+
+        return $this->dispatch($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+    }
+
+    /**
+     * Streaming variant of call(): yields each text delta as it arrives. The Generator's
+     * return value (Generator::getReturn()) is the final ChatResult with full content,
+     * tokens and finish reason.
+     *
+     * Retries are only attempted before the first chunk has been yielded; once any
+     * delta has reached the consumer we propagate failures rather than re-emit tokens.
+     *
+     * @return \Generator<int, string, void, ChatResult>
+     */
+    public function streamCall(ChatRequest $req): \Generator
+    {
+        ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
+
+        return yield from $this->dispatchStream($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+    }
+
+    /**
+     * @return array{messages: array<int, array<string, mixed>>, responseFormat: array<string, mixed>|null}
+     */
+    private function buildDispatchInput(ChatRequest $req): array
+    {
         $messages = [];
 
         if ($req->systemPrompt !== '') {
@@ -85,7 +112,7 @@ final class CustomModelClient
             $responseFormat = ['type' => 'json_object'];
         }
 
-        return $this->dispatch($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+        return ['messages' => $messages, 'responseFormat' => $responseFormat];
     }
 
     /**
@@ -222,6 +249,110 @@ final class CustomModelClient
         }
 
         throw $lastError ?? new \RuntimeException(sprintf('Custom model call failed after %d attempts.', $maxRetries + 1));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $messages
+     * @param array<string, mixed>|null $responseFormat
+     * @return \Generator<int, string, void, ChatResult>
+     */
+    private function dispatchStream(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): \Generator
+    {
+        $params = [
+            'model' => $this->model,
+            'messages' => $messages,
+            'temperature' => $temperature,
+            'max_tokens' => $maxTokens,
+            'stream' => true,
+            'stream_options' => ['include_usage' => true],
+        ];
+
+        if ($responseFormat !== null) {
+            $params['response_format'] = $responseFormat;
+        }
+
+        $lastError = null;
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            if ($attempt > 0) {
+                $this->logger->warning(sprintf('Retrying custom model stream call (attempt %d/%d)', $attempt + 1, $maxRetries + 1));
+                usleep(500_000 * $attempt);
+            }
+
+            $content = '';
+            $promptTokens = null;
+            $completionTokens = null;
+            $modelId = null;
+            $finishReason = null;
+            $yielded = false;
+
+            try {
+                $stream = $this->getClient()->chat()->createStreamed($params);
+                foreach ($stream as $chunk) {
+                    $delta = $chunk->choices[0]->delta->content ?? null;
+                    if (is_string($delta) && $delta !== '') {
+                        $content .= $delta;
+                        $yielded = true;
+                        yield $delta;
+                    }
+
+                    $finishReason = $chunk->choices[0]->finishReason ?? $finishReason;
+                    $modelId = $chunk->model ?? $modelId;
+
+                    if ($chunk->usage !== null) {
+                        $promptTokens = $chunk->usage->promptTokens ?? $promptTokens;
+                        $completionTokens = $chunk->usage->completionTokens ?? $completionTokens;
+                    }
+                }
+            } catch (OpenAI\Exceptions\UnserializableResponse $e) {
+                $this->logger->warning('Custom model stream returned unparseable chunk', [
+                    'attempt' => $attempt + 1,
+                    'partial_content_length' => strlen($content),
+                    'message' => $e->getMessage(),
+                ]);
+                $lastError = new \RuntimeException(sprintf(
+                    'Custom model stream parse error (partial_len=%d): %s',
+                    strlen($content),
+                    $e->getMessage()
+                ), 0, $e);
+                if ($yielded) {
+                    throw $lastError;
+                }
+                continue;
+            } catch (OpenAI\Exceptions\RateLimitException $e) {
+                $lastError = new \RuntimeException('Custom model rate limit: ' . $e->getMessage(), 0, $e);
+                if ($yielded) {
+                    throw $lastError;
+                }
+                continue;
+            } catch (OpenAI\Exceptions\TransporterException $e) {
+                $lastError = new \RuntimeException('Custom model transport error: ' . $e->getMessage(), 0, $e);
+                if ($yielded) {
+                    throw $lastError;
+                }
+                continue;
+            } catch (OpenAI\Exceptions\ErrorException $e) {
+                $lastError = new \RuntimeException('Custom model API error: ' . $e->getMessage(), 0, $e);
+                if ($yielded) {
+                    throw $lastError;
+                }
+                if ($e->getCode() >= 500 || $e->getCode() === 0) {
+                    continue;
+                }
+                throw $lastError;
+            }
+
+            if (strlen(trim($content)) < 5) {
+                $lastError = new \RuntimeException('Empty response from custom model.');
+                if ($yielded) {
+                    throw $lastError;
+                }
+                continue;
+            }
+
+            return new ChatResult($content, $promptTokens, $completionTokens, $modelId, $finishReason);
+        }
+
+        throw $lastError ?? new \RuntimeException(sprintf('Custom model stream call failed after %d attempts.', $maxRetries + 1));
     }
 
     private function getClient(): OpenAIClient

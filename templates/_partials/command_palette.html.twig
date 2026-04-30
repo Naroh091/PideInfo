@@ -1,0 +1,482 @@
+{# Command palette — global modal triggered by ⌘K / Ctrl+K / "/" #}
+<div x-data="commandPalette()"
+     x-init="init()"
+     @keydown.window.meta.k.prevent="open()"
+     @keydown.window.ctrl.k.prevent="open()"
+     @keydown.window.slash.prevent="onSlashKey($event)"
+     @open-command-palette.window="open()"
+     @keydown.escape.window="isOpen && close()">
+
+    <template x-teleport="body">
+        <div x-show="isOpen"
+             x-cloak
+             class="cmdk-backdrop"
+             @click="close()"
+             x-transition:enter="transition ease-out duration-150"
+             x-transition:enter-start="opacity-0"
+             x-transition:enter-end="opacity-100"
+             x-transition:leave="transition ease-in duration-100"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0">
+
+            <div class="cmdk-shell"
+                 @click.stop
+                 x-transition:enter="transition ease-out duration-150"
+                 x-transition:enter-start="opacity-0 -translate-y-3 scale-[.985]"
+                 x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave="transition ease-in duration-100"
+                 x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                 x-transition:leave-end="opacity-0 -translate-y-2 scale-[.985]">
+
+                {# Input row #}
+                <div class="cmdk-input-row">
+                    <i data-lucide="search" class="cmdk-input-icon w-4 h-4"></i>
+                    <input type="text"
+                           x-model="query"
+                           x-ref="input"
+                           @input.debounce.180ms="search()"
+                           @keydown.arrow-down.prevent="moveCursor(1)"
+                           @keydown.arrow-up.prevent="moveCursor(-1)"
+                           @keydown.enter.prevent="activate()"
+                           placeholder="Buscar solicitudes, ir a una sección…"
+                           autocomplete="off"
+                           spellcheck="false"
+                           class="cmdk-input">
+                    <span x-show="loading" x-cloak class="cmdk-loading">
+                        <i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i>
+                    </span>
+                    <kbd class="cmdk-esc">ESC</kbd>
+                </div>
+
+                {# Body #}
+                <div class="cmdk-body" x-ref="body">
+                    {# Actions section #}
+                    <template x-if="filteredActions.length > 0">
+                        <div class="cmdk-section">
+                            <div class="cmdk-section-label">Acciones</div>
+                            <template x-for="(item, idx) in filteredActions" :key="'action-' + idx">
+                                <a :href="item.href"
+                                   @click.prevent="goToAction(item)"
+                                   @mouseenter="cursor = idx"
+                                   class="cmdk-row"
+                                   :class="cursor === idx ? 'is-active' : ''">
+                                    <span class="cmdk-row-icon" :class="item.tone || 'tone-primary'">
+                                        <i :data-lucide="item.icon" class="w-3.5 h-3.5"></i>
+                                    </span>
+                                    <span class="cmdk-row-main">
+                                        <span class="cmdk-row-title" x-text="item.title"></span>
+                                        <span class="cmdk-row-sub" x-text="item.subtitle" x-show="item.subtitle"></span>
+                                    </span>
+                                    <span class="cmdk-row-kbd" x-show="item.shortcut" x-text="item.shortcut"></span>
+                                </a>
+                            </template>
+                        </div>
+                    </template>
+
+                    {# Results section #}
+                    <template x-if="results.length > 0">
+                        <div class="cmdk-section">
+                            <div class="cmdk-section-label">
+                                Solicitudes
+                                <span class="cmdk-count" x-text="results.length"></span>
+                            </div>
+                            <template x-for="(r, idx) in results" :key="'r-' + r.id">
+                                <a :href="'{{ path('app_solicitudes_show', {id: '_ID_'}) }}'.replace('_ID_', r.id)"
+                                   @click.prevent="goToResult(r)"
+                                   @mouseenter="cursor = filteredActions.length + idx"
+                                   class="cmdk-row"
+                                   :class="cursor === (filteredActions.length + idx) ? 'is-active' : ''">
+                                    <span class="cmdk-row-icon tone-slate">
+                                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    </span>
+                                    <span class="cmdk-row-main">
+                                        <span class="cmdk-row-title" x-html="highlight(r.title)"></span>
+                                        <span class="cmdk-row-sub">
+                                            <span x-text="r.publicBody?.name || ''"></span>
+                                            <template x-if="r.externalId">
+                                                <span class="cmdk-row-id">· <span x-text="r.externalId"></span></span>
+                                            </template>
+                                        </span>
+                                    </span>
+                                    <span class="cmdk-row-status" :class="statusClass(r.status)" x-text="r.statusLabel || r.status"></span>
+                                </a>
+                            </template>
+                        </div>
+                    </template>
+
+                    {# Empty / no-results / hint #}
+                    <template x-if="!loading && query.length >= 2 && results.length === 0 && filteredActions.length === 0">
+                        <div class="cmdk-empty">
+                            <i data-lucide="search-x" class="w-5 h-5 mb-2 text-slate-300"></i>
+                            Nada coincide con «<span x-text="query"></span>».
+                        </div>
+                    </template>
+                    <template x-if="query.length === 0 && filteredActions.length === 0">
+                        <div class="cmdk-empty">
+                            Empieza a escribir para buscar solicitudes.
+                        </div>
+                    </template>
+                </div>
+
+                {# Footer #}
+                <div class="cmdk-footer">
+                    <span class="cmdk-foot-grp">
+                        <kbd class="cmdk-mini">↑</kbd><kbd class="cmdk-mini">↓</kbd>
+                        <span>navegar</span>
+                    </span>
+                    <span class="cmdk-foot-grp">
+                        <kbd class="cmdk-mini">↵</kbd>
+                        <span>abrir</span>
+                    </span>
+                    <span class="cmdk-foot-grp">
+                        <kbd class="cmdk-mini">⌘ K</kbd>
+                        <span>abrir / cerrar</span>
+                    </span>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+
+<style>
+    .cmdk-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(15, 23, 42, .42);
+        backdrop-filter: blur(6px);
+        z-index: 100;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: clamp(3rem, 12vh, 8rem);
+        padding-left: 1rem; padding-right: 1rem;
+    }
+    .cmdk-shell {
+        width: 100%;
+        max-width: 38rem;
+        background: white;
+        border-radius: .85rem;
+        border: 1px solid rgb(226 232 240);
+        box-shadow:
+            0 25px 50px -12px rgba(2, 132, 199, .15),
+            0 8px 24px rgba(15, 23, 42, .12);
+        overflow: hidden;
+        font-family: 'DM Sans', sans-serif;
+    }
+
+    .cmdk-input-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        padding: .85rem 1rem;
+        border-bottom: 1px solid rgb(241 245 249);
+    }
+    .cmdk-input-icon { color: rgb(148 163 184); flex-shrink: 0; }
+    .cmdk-input {
+        flex: 1;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        font-family: 'DM Sans', sans-serif;
+        font-size: 1rem;
+        color: rgb(15 23 42);
+    }
+    .cmdk-input::placeholder { color: rgb(148 163 184); }
+    .cmdk-loading { color: rgb(148 163 184); display: inline-flex; }
+    .cmdk-esc {
+        font-family: 'Inter', sans-serif;
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .12em;
+        color: rgb(148 163 184);
+        background: rgb(248 250 252);
+        border: 1px solid rgb(226 232 240);
+        padding: .15rem .4rem;
+        border-radius: .3rem;
+    }
+
+    .cmdk-body {
+        max-height: 26rem;
+        overflow-y: auto;
+        padding: .35rem .35rem .55rem;
+    }
+    .cmdk-section + .cmdk-section { margin-top: .15rem; }
+    .cmdk-section-label {
+        display: flex; align-items: center; gap: .4rem;
+        padding: .65rem .8rem .35rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .78rem;
+        font-weight: 600;
+        color: rgb(148 163 184);
+    }
+    .cmdk-count {
+        font-feature-settings: "tnum";
+        font-weight: 600;
+        font-size: .68rem;
+        color: rgb(100 116 139);
+        background: rgb(241 245 249);
+        padding: 0 .35rem;
+        border-radius: .25rem;
+        letter-spacing: .04em;
+    }
+
+    .cmdk-row {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        padding: .55rem .8rem;
+        border-radius: .55rem;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background .12s ease;
+        margin: 0 .15rem;
+    }
+    .cmdk-row.is-active {
+        background: rgb(240 249 255);
+    }
+    .cmdk-row.is-active::before {
+        content: "";
+        position: absolute;
+        left: -.15rem; top: 22%; bottom: 22%;
+        width: 3px;
+        border-radius: 2px;
+        background: rgb(2 132 199);
+    }
+    .cmdk-row-icon {
+        flex-shrink: 0;
+        width: 1.65rem; height: 1.65rem;
+        border-radius: .4rem;
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .tone-primary { background: rgb(224 242 254); color: rgb(2 132 199); }
+    .tone-amber   { background: rgb(254 243 199); color: rgb(180 83 9); }
+    .tone-slate   { background: rgb(241 245 249); color: rgb(71 85 105); }
+    .tone-emerald { background: rgb(209 250 229); color: rgb(5 150 105); }
+
+    .cmdk-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .05rem; }
+    .cmdk-row-title {
+        font-size: .9rem;
+        color: rgb(15 23 42);
+        font-weight: 500;
+        line-height: 1.3;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cmdk-row-title mark {
+        background: rgb(254 240 138);
+        color: rgb(15 23 42);
+        padding: 0 1px;
+        border-radius: 2px;
+    }
+    .cmdk-row-sub {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .73rem;
+        color: rgb(100 116 139);
+        line-height: 1.2;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cmdk-row-id { color: rgb(2 132 199); font-feature-settings: "tnum"; }
+    .cmdk-row-status {
+        flex-shrink: 0;
+        font-family: 'Inter', sans-serif;
+        font-size: .62rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        padding: .15rem .45rem;
+        border-radius: 999px;
+        background: rgb(241 245 249);
+        color: rgb(71 85 105);
+    }
+    .status-cmdk-sent       { background: rgb(241 245 249); color: rgb(71 85 105); }
+    .status-cmdk-processing { background: rgb(224 242 254); color: rgb(2 132 199); }
+    .status-cmdk-granted    { background: rgb(209 250 229); color: rgb(5 150 105); }
+    .status-cmdk-completed  { background: rgb(187 247 208); color: rgb(22 101 52); }
+    .status-cmdk-denied     { background: rgb(254 226 226); color: rgb(185 28 28); }
+    .status-cmdk-delayed    { background: rgb(254 243 199); color: rgb(180 83 9); }
+
+    .cmdk-row-kbd {
+        flex-shrink: 0;
+        font-family: 'Inter', sans-serif;
+        font-size: .62rem;
+        font-weight: 600;
+        letter-spacing: .08em;
+        color: rgb(148 163 184);
+        background: rgb(248 250 252);
+        border: 1px solid rgb(226 232 240);
+        padding: .1rem .35rem;
+        border-radius: .3rem;
+    }
+
+    .cmdk-empty {
+        padding: 2.5rem 1rem;
+        text-align: center;
+        color: rgb(148 163 184);
+        font-size: .85rem;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+
+    .cmdk-footer {
+        display: flex; align-items: center; gap: 1rem;
+        padding: .6rem 1rem;
+        border-top: 1px solid rgb(241 245 249);
+        background: rgb(248 250 252);
+        font-family: 'Inter', sans-serif;
+        font-size: .68rem;
+        color: rgb(100 116 139);
+        letter-spacing: .03em;
+    }
+    .cmdk-foot-grp { display: inline-flex; align-items: center; gap: .35rem; }
+    .cmdk-mini {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        font-size: .62rem;
+        background: white;
+        border: 1px solid rgb(226 232 240);
+        padding: .1rem .35rem;
+        border-radius: .25rem;
+        color: rgb(71 85 105);
+    }
+</style>
+
+<script>
+function commandPalette() {
+    const ACTIONS = [
+        { title: 'Nueva solicitud',         subtitle: 'Registrar una solicitud de información', icon: 'plus',          tone: 'tone-primary', href: '{{ path('app_solicitudes_new') }}' },
+        { title: 'Ir a Mis solicitudes',    subtitle: 'Listado completo y filtros',             icon: 'folder-open',   tone: 'tone-slate',   href: '{{ path('app_solicitudes_index') }}' },
+        { title: 'Ir a Listas',             subtitle: 'Carpetas personalizadas',                icon: 'list',          tone: 'tone-slate',   href: '{{ path('app_listas_index') }}' },
+        { title: 'Ir a Resoluciones',       subtitle: 'Repositorio de resoluciones del CTBG',   icon: 'scale',         tone: 'tone-amber',   href: '{{ path('app_resoluciones_index') }}' },
+        { title: 'Ir a Guías',              subtitle: 'Documentación y tutoriales',             icon: 'book-open',     tone: 'tone-slate',   href: '{{ path('app_guias_index') }}' },
+        { title: 'Notificaciones',          subtitle: 'Bandeja de actividad',                   icon: 'bell',          tone: 'tone-slate',   href: '{{ path('app_notificaciones_index') }}' },
+        { title: 'Conectar agente',         subtitle: 'Token para el agente de portal',         icon: 'link',          tone: 'tone-primary', href: '#', event: 'open-agent-token-modal' },
+        { title: 'Servidor MCP',            subtitle: 'Conexión MCP para asistentes IA',        icon: 'cpu',           tone: 'tone-primary', href: '#', event: 'open-mcp-info-modal' },
+    ];
+    return {
+        isOpen: false,
+        query: '',
+        loading: false,
+        results: [],
+        cursor: 0,
+        searchSeq: 0,
+        actions: ACTIONS,
+
+        init() {
+            this.cursor = 0;
+        },
+
+        get filteredActions() {
+            const q = this.query.trim().toLowerCase();
+            if (!q) return this.actions;
+            return this.actions.filter(a =>
+                a.title.toLowerCase().includes(q)
+                || (a.subtitle || '').toLowerCase().includes(q)
+            );
+        },
+
+        open() {
+            this.isOpen = true;
+            this.cursor = 0;
+            this.$nextTick(() => {
+                this.$refs.input.focus();
+                if (window.lucide) window.lucide.createIcons();
+            });
+        },
+        close() {
+            this.isOpen = false;
+            this.query = '';
+            this.results = [];
+            this.cursor = 0;
+        },
+        onSlashKey(e) {
+            // Open with "/" only when not typing in another input/textarea
+            const t = e.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+            e.preventDefault();
+            this.open();
+        },
+
+        async search() {
+            this.cursor = 0;
+            const q = this.query.trim();
+            if (q.length < 2) {
+                this.results = [];
+                this.loading = false;
+                return;
+            }
+            const seq = ++this.searchSeq;
+            this.loading = true;
+            try {
+                const res = await fetch('{{ path('app_solicitudes_search_json') }}?q=' + encodeURIComponent(q), {
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!res.ok) throw new Error('search failed');
+                const data = await res.json();
+                if (seq !== this.searchSeq) return; // stale
+                this.results = (data.requests || []).slice(0, 8);
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            } catch (e) {
+                if (seq === this.searchSeq) this.results = [];
+            } finally {
+                if (seq === this.searchSeq) this.loading = false;
+            }
+        },
+
+        moveCursor(delta) {
+            const total = this.filteredActions.length + this.results.length;
+            if (total === 0) return;
+            this.cursor = (this.cursor + delta + total) % total;
+            this.$nextTick(() => {
+                const el = this.$refs.body.querySelector('.cmdk-row.is-active');
+                if (el) el.scrollIntoView({ block: 'nearest' });
+            });
+        },
+
+        activate() {
+            const total = this.filteredActions.length + this.results.length;
+            if (total === 0) return;
+            const idx = this.cursor;
+            if (idx < this.filteredActions.length) {
+                this.goToAction(this.filteredActions[idx]);
+            } else {
+                this.goToResult(this.results[idx - this.filteredActions.length]);
+            }
+        },
+
+        goToAction(item) {
+            if (item.event) {
+                this.close();
+                this.$nextTick(() => window.dispatchEvent(new CustomEvent(item.event)));
+                return;
+            }
+            window.location.href = item.href;
+        },
+        goToResult(r) {
+            window.location.href = '{{ path('app_solicitudes_show', {id: '__ID__'}) }}'.replace('__ID__', r.id);
+        },
+
+        statusClass(status) {
+            const map = {
+                sent: 'status-cmdk-sent',
+                processing: 'status-cmdk-processing',
+                granted: 'status-cmdk-granted',
+                granted_completed: 'status-cmdk-completed',
+                denied: 'status-cmdk-denied',
+                delayed: 'status-cmdk-delayed',
+                pending: 'status-cmdk-sent',
+            };
+            return map[status] || 'status-cmdk-sent';
+        },
+
+        highlight(text) {
+            if (!text) return '';
+            const q = this.query.trim();
+            const escaped = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            if (!q) return escaped(text);
+            const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+            return escaped(text).replace(re, '<mark>$1</mark>');
+        },
+    };
+}
+</script>

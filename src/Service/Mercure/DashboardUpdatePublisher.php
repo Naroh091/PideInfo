@@ -60,6 +60,16 @@ final class DashboardUpdatePublisher
     }
 
     /**
+     * Publish an update when the AI-generated activity summary has been re-cached.
+     */
+    public function publishActivitySummaryUpdated(User $user): void
+    {
+        $this->publishUserUpdate($user, 'activity_summary_updated', [
+            'timestamp' => (new \DateTimeImmutable())->format('c'),
+        ]);
+    }
+
+    /**
      * Publish a general dashboard refresh for a user.
      */
     public function publishDashboardRefresh(User $user): void

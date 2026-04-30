@@ -31,6 +31,24 @@ class UserNotificationRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * Notifications created on or after `$since`, ordered chronologically (ASC) so
+     * a summarizer can read them in the same order they happened.
+     *
+     * @return UserNotification[]
+     */
+    public function findSinceByUser(User $user, \DateTimeImmutable $since): array
+    {
+        return $this->createQueryBuilder('n')
+            ->andWhere('n.user = :user')
+            ->andWhere('n.createdAt >= :since')
+            ->setParameter('user', $user)
+            ->setParameter('since', $since)
+            ->orderBy('n.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function countUnreadByUser(User $user): int
     {
         return (int) $this->createQueryBuilder('n')

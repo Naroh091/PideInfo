@@ -2,123 +2,1111 @@
 
 {% block title %}{{ request.title }} - PideInfo{% endblock %}
 
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        /* ─────────────────────────────────────────────────────────────
+           PAGE-SCOPED — "El Expediente" editorial dossier
+           Strictly respects the palette: primary (sky), accent (amber),
+           slate as neutrals, contextual emerald/red/blue/violet/purple
+           already used elsewhere. No new colors introduced.
+           ───────────────────────────────────────────────────────────── */
+
+        /* ── Masthead ── */
+        .dossier-masthead {
+            position: relative;
+            margin: 0 0 2.5rem;
+            padding: 2.25rem 1.75rem 1.75rem;
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid rgb(226 232 240);
+            border-radius: .85rem;
+            overflow: hidden;
+            isolation: isolate;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+        }
+        .dossier-masthead::before {
+            content: "";
+            position: absolute; inset: 0; z-index: -1;
+            background-image:
+                radial-gradient(circle at 12% 80%, rgba(14, 165, 233, .07) 0%, transparent 55%),
+                radial-gradient(circle at 92% 18%, rgba(245, 158, 11, .055) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        /* hairline grid texture — paper feel */
+        .dossier-masthead::after {
+            content: "";
+            position: absolute; inset: 0; z-index: -1;
+            background-image:
+                linear-gradient(rgba(15, 23, 42, .025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 23, 42, .025) 1px, transparent 1px);
+            background-size: 28px 28px;
+            mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+            -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
+            opacity: .8;
+            pointer-events: none;
+        }
+
+        .dossier-eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: .8rem;
+            font-weight: 600;
+            color: var(--color-primary-700, #0369a1);
+            display: inline-flex;
+            align-items: center;
+            gap: .55rem;
+        }
+        .dossier-eyebrow .label {
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-size: .7rem;
+            font-weight: 700;
+        }
+        .dossier-eyebrow .sep {
+            width: 4px; height: 4px; border-radius: 50%;
+            background: var(--color-accent-500);
+            display: inline-block;
+        }
+
+        .dossier-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            line-height: 1.04;
+            letter-spacing: -0.018em;
+            color: rgb(15 23 42);
+            font-size: clamp(1.85rem, 3.5vw, 2.85rem);
+            margin-top: .5rem;
+        }
+
+        /* Metadata strip under title (hairline-separated) */
+        .dossier-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0;
+            margin-top: 1.1rem;
+            border-top: 1px solid rgb(226 232 240);
+            border-bottom: 1px solid rgb(226 232 240);
+            padding: .5rem 0;
+            position: relative;
+        }
+        /* faux double-rule */
+        .dossier-meta::before {
+            content: "";
+            position: absolute;
+            top: 3px; left: 0; right: 0; height: 1px;
+            background: rgb(241 245 249);
+        }
+        .dossier-meta::after {
+            content: "";
+            position: absolute;
+            bottom: 3px; left: 0; right: 0; height: 1px;
+            background: rgb(241 245 249);
+        }
+        .dossier-meta-cell {
+            display: flex;
+            flex-direction: column;
+            padding: .15rem 1rem;
+            border-right: 1px solid rgb(226 232 240);
+            min-width: 0;
+        }
+        .dossier-meta-cell:first-child { padding-left: 0; }
+        .dossier-meta-cell:last-child { border-right: none; }
+        .dossier-meta-key {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem;
+            font-weight: 600;
+            letter-spacing: 0;
+            color: rgb(148 163 184);
+            margin-bottom: .15rem;
+        }
+        .dossier-meta-value {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            color: rgb(30 41 59);
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            min-width: 0;
+        }
+        .dossier-meta-value .truncate-inline {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 18rem;
+        }
+
+        /* Status badge inside the metadata strip */
+        .dossier-status {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem;
+            font-weight: 600;
+            letter-spacing: .04em;
+            padding: .25rem .6rem .25rem .55rem;
+            border-radius: 999px;
+            border: 1px solid;
+            white-space: nowrap;
+        }
+        .dossier-status .pulse {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+        }
+        .dossier-status.is-emerald { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+        .dossier-status.is-red     { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
+        .dossier-status.is-amber   { color: var(--color-accent-700); background: var(--color-accent-50); border-color: var(--color-accent-200); }
+        .dossier-status.is-sky     { color: var(--color-primary-700); background: var(--color-primary-50); border-color: var(--color-primary-200); }
+        .dossier-status.is-slate   { color: rgb(71 85 105); background: rgb(248 250 252); border-color: rgb(226 232 240); }
+
+        /* Edit pill */
+        .dossier-edit {
+            display: inline-flex;
+            align-items: center;
+            gap: .4rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .82rem;
+            font-weight: 500;
+            color: rgb(71 85 105);
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+            padding: .35rem .85rem;
+            transition: all .15s ease;
+        }
+        .dossier-edit:hover {
+            border-color: var(--color-primary-400);
+            color: var(--color-primary-700);
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, .08);
+        }
+
+        /* Viewing-as-other-user notice (compact) */
+        .dossier-viewing-as {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .82rem;
+            font-weight: 500;
+            padding: .35rem .75rem;
+            border-radius: 999px;
+            margin-top: .85rem;
+        }
+        .dossier-viewing-as.is-admin {
+            background: var(--color-accent-50);
+            color: var(--color-accent-800);
+            border: 1px solid var(--color-accent-200);
+        }
+        .dossier-viewing-as.is-org {
+            background: var(--color-primary-50);
+            color: var(--color-primary-800);
+            border: 1px solid var(--color-primary-200);
+        }
+        .dossier-viewing-as strong {
+            text-transform: none;
+            letter-spacing: 0;
+            margin-left: .15rem;
+        }
+
+        /* ── Chapter labels ── */
+        .chapter-label {
+            display: flex;
+            align-items: baseline;
+            gap: .9rem;
+            margin: 0 0 1rem .25rem;
+        }
+        .chapter-num {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic;
+            font-size: 1.15rem;
+            color: var(--color-primary-600);
+            letter-spacing: 0;
+        }
+        .chapter-rule {
+            flex: 1;
+            height: 1px;
+            background:
+                linear-gradient(90deg, rgb(226 232 240), transparent);
+            position: relative;
+            top: -.4rem;
+        }
+        .chapter-name {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.05rem;
+            font-weight: 400;
+            color: rgb(30 41 59);
+            letter-spacing: -.005em;
+        }
+        .chapter-aside {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem;
+            color: rgb(148 163 184);
+        }
+
+        /* ── Description block ── */
+        .dossier-description {
+            position: relative;
+            padding: .25rem 0 .5rem 1.4rem;
+            border-left: 2px solid var(--color-primary-200);
+        }
+        .dossier-description::before {
+            content: "“";
+            position: absolute;
+            left: -.45rem; top: -1.6rem;
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 4.5rem;
+            line-height: 1;
+            color: var(--color-primary-300);
+            opacity: .55;
+            pointer-events: none;
+        }
+        .dossier-description .prose {
+            font-family: 'DM Sans', sans-serif;
+            color: rgb(51 65 85);
+            font-size: .95rem;
+            line-height: 1.65;
+        }
+
+        /* ── Definition list (Ley aplicable / Fecha) ── */
+        .dossier-deflist {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+            margin-top: 1.5rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid rgb(241 245 249);
+        }
+        @media (min-width: 640px) {
+            .dossier-deflist { grid-template-columns: 1fr 1fr; gap: 2rem; }
+        }
+        .dossier-defterm {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            font-weight: 600;
+            color: rgb(148 163 184);
+            margin-bottom: .35rem;
+        }
+        .dossier-defvalue {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            font-weight: 500;
+            color: rgb(51 65 85);
+            line-height: 1.4;
+        }
+
+        /* ── Compact reference / complaint chips ── */
+        .ref-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            font-weight: 500;
+            color: var(--color-primary-700);
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .35rem;
+            padding: .28rem .55rem;
+            transition: border-color .15s, color .15s, background .15s;
+            cursor: pointer;
+        }
+        .ref-chip:hover { border-color: var(--color-primary-400); color: var(--color-primary-800); }
+        .ref-chip.is-complaint { color: var(--color-accent-700); }
+        .ref-chip.is-complaint:hover { border-color: var(--color-accent-400); color: var(--color-accent-800); }
+
+        /* ── Entrance animation ── */
+        @keyframes dossier-rise {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .rise { animation: dossier-rise .55s ease-out both; }
+        .rise-1 { animation-delay: 0s; }
+        .rise-2 { animation-delay: .08s; }
+        .rise-3 { animation-delay: .16s; }
+        .rise-4 { animation-delay: .24s; }
+        .rise-5 { animation-delay: .32s; }
+        .rise-6 { animation-delay: .4s; }
+        @media (prefers-reduced-motion: reduce) {
+            .rise { animation: none; }
+        }
+
+        /* ── Dossier Notice (status banner) — light tinted with grain ── */
+        .dossier-notice {
+            position: relative;
+            background: transparent;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .65rem;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        .dossier-notice + .dossier-notice { margin-top: .8rem; }
+        /* contextual stripe */
+        .dossier-notice::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 3px;
+            background: rgb(148 163 184);
+            z-index: 1;
+        }
+        /* Radial glow + hairline grid, layered over the tonal background */
+        .dossier-notice::after {
+            content: "";
+            position: absolute; inset: 0; z-index: 0;
+            background-image:
+                radial-gradient(ellipse 80% 60% at top right, rgba(148, 163, 184, .08), transparent 70%),
+                linear-gradient(rgba(15, 23, 42, .025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(15, 23, 42, .025) 1px, transparent 1px);
+            background-size: auto, 22px 22px, 22px 22px;
+            mask-image: radial-gradient(ellipse at top right, #000 0%, transparent 60%);
+            -webkit-mask-image: radial-gradient(ellipse at top right, #000 0%, transparent 60%);
+            pointer-events: none;
+        }
+
+        .dossier-notice-body {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 1.25rem .9rem 1.4rem;
+            position: relative;
+            z-index: 1;
+        }
+        .dossier-notice-icon {
+            width: 38px; height: 38px;
+            border-radius: .55rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            border: 1px solid;
+        }
+        .dossier-notice-content { flex: 1; min-width: 0; }
+        .dossier-notice-eyebrow {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            margin-bottom: .45rem;
+        }
+        .dossier-notice-eyebrow .dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+        }
+        .dossier-notice-eyebrow .meta {
+            color: rgb(148 163 184);
+            font-weight: 400;
+        }
+        .dossier-notice-headline {
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 600;
+            font-size: 1.05rem;
+            line-height: 1.35;
+            color: rgb(15 23 42);
+            letter-spacing: -.005em;
+            margin-bottom: .45rem;
+        }
+        .dossier-notice-prose {
+            color: rgb(71 85 105);
+            font-size: .92rem;
+            line-height: 1.6;
+        }
+        .dossier-notice-prose p + p { margin-top: .65rem; }
+        .dossier-notice-prose strong { color: rgb(30 41 59); font-weight: 600; }
+        .dossier-notice-prose em { color: rgb(51 65 85); }
+
+        .dossier-notice-meta-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: .45rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem;
+            color: rgb(71 85 105);
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+            padding: .3rem .75rem;
+            margin-top: .85rem;
+        }
+        .dossier-notice-meta-pill strong { color: rgb(30 41 59); font-weight: 600; }
+
+        .dossier-notice-footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .55rem;
+            padding: .75rem 1.25rem .85rem 1.4rem;
+            border-top: 1px solid rgb(241 245 249);
+            position: relative;
+            z-index: 1;
+        }
+        .dossier-notice.is-amber   .dossier-notice-footer { border-top-color: var(--color-accent-200); }
+        .dossier-notice.is-emerald .dossier-notice-footer { border-top-color: #a7f3d0; }
+        .dossier-notice.is-red     .dossier-notice-footer { border-top-color: rgb(254 202 202); }
+        .dossier-notice.is-sky     .dossier-notice-footer { border-top-color: var(--color-primary-200); }
+
+        .dossier-notice-list {
+            margin-top: .25rem;
+        }
+        .dossier-notice-list li {
+            display: flex; align-items: flex-start;
+            gap: .55rem;
+            padding: .35rem 0;
+            font-size: .9rem;
+            color: rgb(51 65 85);
+            border-bottom: 1px dashed rgb(241 245 249);
+        }
+        .dossier-notice-list li:last-child { border-bottom: 0; }
+        .dossier-notice-list .pip {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .7rem;
+            color: rgb(148 163 184);
+            min-width: 1.6rem;
+            padding-top: .12rem;
+        }
+
+        /* Tonal variants — soft tinted bg + tonal grain, no shadow */
+        .dossier-notice.is-amber {
+            background: color-mix(in srgb, var(--color-accent-50) 70%, transparent);
+            border-color: var(--color-accent-200);
+        }
+        .dossier-notice.is-amber::before { background: var(--color-accent-500); }
+        .dossier-notice.is-amber::after {
+            background-image:
+                radial-gradient(ellipse 80% 60% at top right, rgba(245, 158, 11, .14), transparent 70%),
+                linear-gradient(rgba(180, 83, 9, .05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(180, 83, 9, .05) 1px, transparent 1px);
+            background-size: auto, 22px 22px, 22px 22px;
+        }
+        .dossier-notice.is-amber .dossier-notice-eyebrow { color: var(--color-accent-700); }
+        .dossier-notice.is-amber .dossier-notice-icon    { color: var(--color-accent-700); border-color: var(--color-accent-200); background: transparent; }
+
+        .dossier-notice.is-emerald {
+            background: color-mix(in srgb, #ecfdf5 65%, transparent);
+            border-color: #a7f3d0;
+        }
+        .dossier-notice.is-emerald::before { background: #10b981; }
+        .dossier-notice.is-emerald::after {
+            background-image:
+                radial-gradient(ellipse 80% 60% at top right, rgba(16, 185, 129, .14), transparent 70%),
+                linear-gradient(rgba(6, 95, 70, .05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 95, 70, .05) 1px, transparent 1px);
+            background-size: auto, 22px 22px, 22px 22px;
+        }
+        .dossier-notice.is-emerald .dossier-notice-eyebrow { color: #047857; }
+        .dossier-notice.is-emerald .dossier-notice-icon    { color: #047857; border-color: #a7f3d0; background: transparent; }
+
+        .dossier-notice.is-red {
+            background: color-mix(in srgb, rgb(254 242 242) 65%, transparent);
+            border-color: rgb(254 202 202);
+        }
+        .dossier-notice.is-red::before { background: rgb(220 38 38); }
+        .dossier-notice.is-red::after {
+            background-image:
+                radial-gradient(ellipse 80% 60% at top right, rgba(220, 38, 38, .13), transparent 70%),
+                linear-gradient(rgba(127, 29, 29, .05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(127, 29, 29, .05) 1px, transparent 1px);
+            background-size: auto, 22px 22px, 22px 22px;
+        }
+        .dossier-notice.is-red .dossier-notice-eyebrow { color: rgb(185 28 28); }
+        .dossier-notice.is-red .dossier-notice-icon    { color: rgb(185 28 28); border-color: rgb(254 202 202); background: transparent; }
+
+        .dossier-notice.is-sky {
+            background: color-mix(in srgb, var(--color-primary-50) 60%, transparent);
+            border-color: var(--color-primary-200);
+        }
+        .dossier-notice.is-sky::before { background: var(--color-primary-500); }
+        .dossier-notice.is-sky::after {
+            background-image:
+                radial-gradient(ellipse 80% 60% at top right, rgba(14, 165, 233, .13), transparent 70%),
+                linear-gradient(rgba(3, 105, 161, .05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(3, 105, 161, .05) 1px, transparent 1px);
+            background-size: auto, 22px 22px, 22px 22px;
+        }
+        .dossier-notice.is-sky .dossier-notice-eyebrow { color: var(--color-primary-700); }
+        .dossier-notice.is-sky .dossier-notice-icon    { color: var(--color-primary-700); border-color: var(--color-primary-200); background: transparent; }
+
+        @media (max-width: 640px) {
+            .dossier-notice-body { flex-direction: column; gap: .65rem; }
+            .dossier-notice-headline { font-size: 1.15rem; }
+        }
+
+        /* ── Sidebar marginalia (discreet, card-less) ── */
+        .dossier-aside {
+            font-family: 'DM Sans', sans-serif;
+            color: rgb(71 85 105);
+            padding: .25rem 0 0 .25rem;
+        }
+        /* Direct-child selector so the spacing applies even when a Live
+           Component wrapper (<div data-action="...">) sits between
+           consecutive .aside-block elements. */
+        .dossier-aside > * + * {
+            margin-top: 3rem;
+            padding-top: 2.25rem;
+            border-top: 1px solid rgb(241 245 249);
+        }
+        .aside-heading {
+            display: flex;
+            align-items: baseline;
+            gap: .65rem;
+            margin-bottom: .85rem;
+        }
+        .aside-heading-name {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic;
+            font-size: 1rem;
+            font-weight: 400;
+            color: rgb(30 41 59);
+            letter-spacing: -.005em;
+        }
+        .aside-heading-rule {
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgb(226 232 240), transparent);
+            position: relative;
+            top: -.35rem;
+        }
+
+        .aside-row {
+            display: flex;
+            flex-direction: column;
+            gap: .15rem;
+            padding: .2rem 0;
+        }
+        .aside-row + .aside-row {
+            margin-top: .55rem;
+        }
+        .aside-key {
+            font-size: .72rem;
+            font-weight: 500;
+            color: rgb(148 163 184);
+        }
+        .aside-value {
+            font-size: .92rem;
+            font-weight: 500;
+            color: rgb(51 65 85);
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+        .aside-value .meta {
+            font-size: .78rem;
+            color: rgb(148 163 184);
+            font-weight: 400;
+        }
+        .aside-tag {
+            display: inline-flex;
+            align-items: center;
+            font-size: .72rem;
+            font-weight: 500;
+            padding: .05rem .5rem;
+            border-radius: 999px;
+        }
+        .aside-tag.is-resolved { background: rgb(236 253 245); color: rgb(5 150 105); }
+        .aside-tag.is-passed   { background: rgb(254 242 242); color: rgb(185 28 28); }
+        .aside-tag.is-warn     { background: var(--color-accent-50); color: var(--color-accent-700); }
+        .aside-tag.is-info     { background: var(--color-primary-50); color: var(--color-primary-700); }
+        .aside-tag.is-suspended {
+            background: var(--color-accent-50);
+            color: var(--color-accent-700);
+            font-style: italic;
+        }
+        .aside-note {
+            font-size: .78rem;
+            color: rgb(148 163 184);
+            margin-top: .25rem;
+            line-height: 1.45;
+        }
+
+        .aside-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem;
+            color: rgb(71 85 105);
+            background: transparent;
+            border: 0;
+            padding: .35rem 0;
+            cursor: pointer;
+            text-decoration: none;
+            transition: color .12s ease, transform .12s ease;
+        }
+        .aside-link i {
+            color: rgb(148 163 184);
+            transition: color .12s ease;
+        }
+        .aside-link:hover {
+            color: var(--color-primary-700);
+        }
+        .aside-link:hover i {
+            color: var(--color-primary-600);
+        }
+        .aside-link.is-danger {
+            color: rgb(127 29 29);
+            opacity: .68;
+        }
+        .aside-link.is-danger i { color: rgb(185 28 28); opacity: .68; }
+        .aside-link.is-danger:hover { color: rgb(185 28 28); opacity: 1; }
+        .aside-link.is-danger:hover i { color: rgb(185 28 28); opacity: 1; }
+        .aside-action-form { margin: 0; padding: 0; }
+
+        .aside-mail {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .75rem;
+            color: rgb(71 85 105);
+            background: transparent;
+            border: none;
+            padding: 0;
+            text-align: left;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            cursor: pointer;
+            transition: color .12s ease;
+            word-break: break-all;
+        }
+        .aside-mail:hover { color: var(--color-primary-700); }
+        .aside-mail i { opacity: .55; }
+
+        /* ── Documents card — borrows the /reclamacion .doc aesthetic ── */
+        .doc-card {
+            position: relative;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            box-shadow:
+                0 1px 2px rgba(15, 23, 42, .04),
+                0 12px 32px -20px rgba(15, 23, 42, .12);
+            overflow: hidden;
+        }
+        .doc-card::before {
+            content: "";
+            position: absolute;
+            top: 0; bottom: 0; left: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--color-accent-500) 0%, #075985 100%);
+            z-index: 1;
+        }
+        .doc-card-body {
+            padding: 1rem 1.25rem 1.1rem;
+        }
+        .chapter-aside .pending-dot {
+            display: inline-block;
+            width: .45rem; height: .45rem; border-radius: 999px;
+            background: var(--color-accent-500);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, .18);
+            animation: pulseDot 1.2s ease-in-out infinite;
+            margin-right: .25rem;
+            vertical-align: 1px;
+        }
+        @keyframes pulseDot {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: .55; }
+        }
+
+        /* Legacy class kept as a thin alias so any leftover markup still flows */
+        .docs-block {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .docs-dropzone {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: .85rem 1.1rem;
+            border-radius: .55rem;
+            background: color-mix(in srgb, var(--color-primary-50) 50%, transparent);
+            cursor: pointer;
+            transition: background .15s ease, transform .15s ease;
+            margin-bottom: 1rem;
+            border: 1px dashed transparent;
+        }
+        .docs-dropzone:hover {
+            background: color-mix(in srgb, var(--color-primary-50) 90%, transparent);
+        }
+        .docs-dropzone.dragover {
+            border-color: var(--color-primary-300);
+            background: var(--color-primary-50);
+            transform: translateY(-1px);
+        }
+        .docs-dropzone-icon {
+            width: 32px; height: 32px;
+            border-radius: .45rem;
+            background: white;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: var(--color-primary-600);
+            flex-shrink: 0;
+            box-shadow: inset 0 0 0 1px rgba(2, 132, 199, .12);
+        }
+        .docs-dropzone-text { flex: 1; min-width: 0; }
+        .docs-dropzone-headline {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            font-weight: 500;
+            color: rgb(30 41 59);
+            line-height: 1.25;
+        }
+        .docs-dropzone-sub {
+            font-size: .78rem;
+            color: rgb(148 163 184);
+            margin-top: .15rem;
+        }
+        .docs-dropzone-cta {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            font-weight: 600;
+            color: var(--color-primary-700);
+            padding: .4rem .85rem;
+            border-radius: .5rem;
+            border: 1px solid var(--color-primary-200);
+            background: white;
+            transition: background .12s ease;
+        }
+        .docs-dropzone-cta:hover { background: var(--color-primary-50); }
+
+        .docs-list {
+            display: flex;
+            flex-direction: column;
+        }
+        .docs-row {
+            display: grid;
+            grid-template-columns: 18px minmax(0, 1fr) auto;
+            gap: .7rem;
+            align-items: flex-start;
+            padding: .65rem .35rem;
+            transition: background .12s ease;
+            border-bottom: 1px solid rgb(241 245 249);
+            border-radius: .35rem;
+        }
+        .docs-row:last-child { border-bottom: none; }
+        .docs-row:hover { background: rgb(248 250 252); }
+        .docs-row:hover .docs-actions { opacity: 1; }
+
+        .docs-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            color: rgb(148 163 184);
+            margin-top: .25rem;
+        }
+
+        .docs-main { min-width: 0; }
+        .docs-name {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            font-weight: 500;
+            color: rgb(30 41 59);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.3;
+        }
+        .docs-meta {
+            margin-top: .2rem;
+            font-size: .75rem;
+            color: rgb(148 163 184);
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            flex-wrap: wrap;
+        }
+        .docs-meta .sep { color: rgb(203 213 225); }
+        .docs-status {
+            display: inline-flex; align-items: center;
+            font-size: .7rem;
+            font-weight: 500;
+            padding: .05rem .5rem;
+            border-radius: 999px;
+        }
+        .docs-status.is-done    { color: rgb(5 150 105); background: rgb(236 253 245); }
+        .docs-status.is-pending { color: var(--color-accent-700); background: var(--color-accent-50); }
+        .docs-summary {
+            font-family: 'DM Sans', sans-serif;
+            margin-top: .4rem;
+            font-size: .82rem;
+            color: rgb(100 116 139);
+            line-height: 1.45;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            border-left: 2px solid rgb(226 232 240);
+            padding-left: .65rem;
+        }
+
+        .docs-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: .15rem;
+            opacity: .35;
+            transition: opacity .12s ease;
+            margin-top: .1rem;
+        }
+        .docs-actions a, .docs-actions button {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px;
+            border-radius: .35rem;
+            color: rgb(148 163 184);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: background .12s ease, color .12s ease;
+        }
+        .docs-actions a:hover, .docs-actions button:hover {
+            color: var(--color-primary-700);
+            background: rgb(241 245 249);
+        }
+
+        .docs-group-label {
+            display: flex;
+            align-items: baseline;
+            gap: .65rem;
+            margin: 1.1rem 0 .35rem;
+        }
+        .docs-group-label-name {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic;
+            font-size: .95rem;
+            color: var(--color-accent-700);
+        }
+        .docs-group-label-rule {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--color-accent-200), transparent);
+            position: relative;
+            top: -.3rem;
+        }
+
+        .docs-empty {
+            padding: 1.5rem 1rem;
+            text-align: center;
+            color: rgb(148 163 184);
+            font-size: .9rem;
+        }
+        .docs-empty em {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic;
+            color: rgb(100 116 139);
+            font-size: 1rem;
+            display: block;
+            margin-bottom: .25rem;
+        }
+
+        .docs-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: .75rem;
+            border-top: 1px solid rgb(241 245 249);
+        }
+        .docs-footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem;
+            color: rgb(100 116 139);
+            transition: color .12s ease;
+            background: none;
+            border: 0;
+            padding: 0;
+            cursor: pointer;
+        }
+        .docs-footer-link:hover { color: var(--color-primary-700); }
+        .docs-footer-link i { color: rgb(148 163 184); transition: color .12s ease; }
+        .docs-footer-link:hover i { color: var(--color-primary-600); }
+    </style>
+{% endblock %}
+
 {% block content %}
-{# Breadcrumb #}
-<nav class="flex items-center gap-2 text-sm mb-6">
-    <a href="{{ path('app_solicitudes_index') }}" class="text-slate-500 hover:text-primary-600 transition-colors">
-        Solicitudes
+{# ── Breadcrumb ── #}
+<div class="flex items-center justify-between gap-3 mb-3 rise rise-1">
+    <nav class="flex items-center gap-2 text-xs text-slate-500 min-w-0" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+        <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-800 font-medium truncate max-w-[24rem]">{{ request.title|u.truncate(50) }}</span>
+    </nav>
+    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="dossier-edit flex-shrink-0">
+        <i data-lucide="pencil" class="w-3 h-3"></i>
+        Editar
     </a>
-    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
-    <span class="text-slate-800 font-medium truncate max-w-xs">{{ request.title|u.truncate(30) }}</span>
-</nav>
+</div>
 
-{% if is_granted('ROLE_ADMIN') and request.user != app.user %}
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-        <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600 flex-shrink-0"></i>
-        <p class="text-sm text-amber-800">
-            Estás viendo la solicitud de <strong>{{ request.user.fullName }}</strong> ({{ request.user.email }}).
-        </p>
-    </div>
-{% elseif request.user != app.user %}
-    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-        <i data-lucide="building-2" class="w-5 h-5 text-blue-600 flex-shrink-0"></i>
-        <p class="text-sm text-blue-800">
-            Solicitud de <strong>{{ request.user.fullName }}</strong>, miembro de tu organización.
-        </p>
-    </div>
-{% endif %}
+{#
+   Effective-status helper:
+   While there is an active complaint (status = reclaimed) the displayed status
+   is forced to "Reclamada" (sky tone). Once the complaint has been resolved
+   (estimada / desestimada / archivada) we revert to the underlying
+   request.status.
+#}
+{% set complaintStatus = request.complaint ? request.complaint.status : null %}
+{% set effectiveStatusKey = (complaintStatus == 'reclaimed') ? 'reclaimed' : request.status %}
+{% set effectiveStatusLabel = (complaintStatus == 'reclaimed') ? 'Reclamada' : request.statusLabel %}
+{% set statusTone = {
+    'granted': 'is-emerald',
+    'granted_completed': 'is-emerald',
+    'denied': 'is-red',
+    'delayed': 'is-amber',
+    'processing': 'is-sky',
+    'sent': 'is-sky',
+    'pending': 'is-slate',
+    'reclaimed': 'is-amber'
+} %}
+{% set statusIcon = {
+    'granted': 'check-circle',
+    'granted_completed': 'package-check',
+    'denied': 'x-circle',
+    'delayed': 'clock',
+    'processing': 'loader',
+    'sent': 'send',
+    'pending': 'inbox',
+    'reclaimed': 'scale'
+} %}
 
-{# Header #}
-<div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-8">
-    <div class="min-w-0">
-        <h1 class="repo-title text-2xl sm:text-3xl text-slate-800">{{ request.title }}</h1>
-        <div class="flex flex-wrap items-center gap-3 mt-2 text-sm text-slate-500">
-            <span class="flex items-center gap-1">
-                <i data-lucide="building" class="w-4 h-4"></i>
-                {{ request.publicBody.name }}
+{# ── Masthead (dossier header) ── #}
+<header class="dossier-masthead rise rise-2">
+    {# Title #}
+    <h1 class="dossier-title">{{ request.title }}</h1>
+
+    {# Viewing-as-other-user notice (compact pill, kept here for context) #}
+    {% if is_granted('ROLE_ADMIN') and request.user != app.user %}
+        <div class="dossier-viewing-as is-admin">
+            <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+            Vista admin · <strong>{{ request.user.fullName }}</strong>
+            <span class="opacity-60">· {{ request.user.email }}</span>
+        </div>
+    {% elseif request.user != app.user %}
+        <div class="dossier-viewing-as is-org">
+            <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
+            Compartida por <strong>{{ request.user.fullName }}</strong>
+        </div>
+    {% endif %}
+
+    {# Metadata strip #}
+    <div class="dossier-meta">
+        <div class="dossier-meta-cell">
+            <span class="dossier-meta-key">Administración</span>
+            <span class="dossier-meta-value">
+                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span class="truncate-inline" title="{{ request.publicBody.name }}">{{ request.publicBody.name }}</span>
             </span>
-            {% if request.externalId %}
-                <div class="relative inline-flex items-center" x-data="{ showAltRefs: false }">
-                    <button type="button"
-                            class="flex items-center gap-1 text-primary-600 hover:text-primary-800 cursor-pointer transition-colors"
+        </div>
+        <div class="dossier-meta-cell">
+            <span class="dossier-meta-key">Presentada</span>
+            <span class="dossier-meta-value" style="font-family: 'JetBrains Mono', monospace; font-size: .85rem;">
+                {{ request.sentAt|date('d/m/Y') }}
+            </span>
+        </div>
+        <div class="dossier-meta-cell">
+            <span class="dossier-meta-key">Estado</span>
+            <span class="dossier-meta-value">
+                <span class="dossier-status {{ statusTone[effectiveStatusKey] ?? 'is-slate' }}">
+                    <span class="pulse"></span>
+                    <i data-lucide="{{ statusIcon[effectiveStatusKey] ?? 'circle' }}" class="w-3 h-3"></i>
+                    {{ effectiveStatusLabel }}
+                </span>
+            </span>
+        </div>
+        {% if request.externalId %}
+            <div class="dossier-meta-cell" x-data="{ showAltRefs: false }">
+                <span class="dossier-meta-key">Solicitud</span>
+                <span class="dossier-meta-value relative">
+                    <button type="button" class="ref-chip"
                             onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
                             title="Copiar nº expediente">
-                        <i data-lucide="hash" class="w-4 h-4"></i>
-                        <span>{{ request.externalId }}</span>
+                        <i data-lucide="hash" class="w-3 h-3"></i>
+                        {{ request.externalId }}
                         <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
                     </button>
                     {% if request.alternativeReferences|length > 0 %}
                         <button type="button"
                                 @click="showAltRefs = !showAltRefs"
-                                class="ml-0.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                class="text-slate-400 hover:text-slate-600 transition-colors"
                                 title="Ver referencias alternativas">
                             <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="showAltRefs && 'rotate-180'"></i>
                         </button>
                         <div x-show="showAltRefs"
                              x-transition
                              @click.away="showAltRefs = false"
-                             class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 min-w-[200px]">
+                             class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 min-w-[220px]"
+                             style="display: none;">
                             <p class="px-3 py-1.5 text-xs text-slate-400 font-medium">Referencias alternativas</p>
                             {% for ref in request.alternativeReferences %}
                                 <button type="button"
-                                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-mono"
                                         onclick="navigator.clipboard.writeText('{{ ref|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
                                         title="Copiar referencia">
                                     <i data-lucide="hash" class="w-3.5 h-3.5 text-slate-400"></i>
-                                    <span>{{ ref }}</span>
+                                    <span class="text-xs">{{ ref }}</span>
                                     <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden ml-auto"></i>
                                 </button>
                             {% endfor %}
                         </div>
                     {% endif %}
-                </div>
-            {% endif %}
-            {% if request.complaint and request.complaint.externalId %}
-                <button type="button"
-                        class="flex items-center gap-1 text-amber-600 hover:text-amber-800 cursor-pointer transition-colors"
-                        onclick="navigator.clipboard.writeText('{{ request.complaint.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
-                        title="Copiar nº expediente reclamación">
-                    <i data-lucide="scale" class="w-4 h-4"></i>
-                    <span>Recl: {{ request.complaint.externalId }}</span>
-                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
-                </button>
-            {% endif %}
-        </div>
+                </span>
+            </div>
+        {% endif %}
+        {% if request.complaint and request.complaint.externalId %}
+            <div class="dossier-meta-cell">
+                <span class="dossier-meta-key">Reclamación</span>
+                <span class="dossier-meta-value">
+                    <button type="button" class="ref-chip is-complaint"
+                            onclick="navigator.clipboard.writeText('{{ request.complaint.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                            title="Copiar nº expediente reclamación">
+                        <i data-lucide="scale" class="w-3 h-3"></i>
+                        {{ request.complaint.externalId }}
+                        <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                    </button>
+                </span>
+            </div>
+        {% endif %}
     </div>
-    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="btn btn-secondary flex-shrink-0">
-        <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
-        Editar
-    </a>
+</header>
+
+<div class="rise rise-3">
+    {{ component('RequestStatusBanner', {request: request}) }}
 </div>
 
-{{ component('RequestStatusBanner', {request: request}) }}
+{# Section counter — Roman numerals adapt to which sections are visible. #}
+{% set romans = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'] %}
+{% set s = 0 %}
 
-<div class="grid lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2 space-y-6">
-        {# Main Info #}
-        <div class="dash-section">
-            <div class="dash-section-header">
-                <h2 class="dash-section-title">
-                    <i data-lucide="file-text" class="w-4 h-4 text-primary-500"></i>
-                    Información de la solicitud
-                </h2>
+<div class="grid lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 space-y-10 rise rise-4">
+        {# Chapter — Información #}
+        {% set s = s + 1 %}
+        <section>
+            <div class="chapter-label">
+                <span class="chapter-num">§ {{ romans[s] }}</span>
+                <span class="chapter-name">Información de la solicitud</span>
+                <span class="chapter-rule"></span>
             </div>
-            <div class="card-body">
-                <h3 class="text-sm font-medium text-slate-700 mb-2">Descripción</h3>
-                <div class="text-slate-600 prose prose-sm prose-slate max-w-none">{{ request.description|markdown_to_html }}</div>
-
-                <div class="border-t border-slate-100 mt-6 pt-6 grid sm:grid-cols-2 gap-6">
-                    <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Ley aplicable</h4>
-                        <p class="text-slate-800">{{ request.applicableLaw.name }}</p>
+            <div class="dash-section">
+                <div class="card-body" style="padding: 1.75rem 1.75rem 1.5rem;">
+                    <div class="dossier-description">
+                        <div class="prose prose-sm prose-slate max-w-none">{{ request.description|markdown_to_html }}</div>
                     </div>
-                    <div>
-                        <h4 class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Fecha de envío</h4>
-                        <p class="text-slate-800">{{ request.sentAt|date('d/m/Y') }}</p>
+
+                    <div class="dossier-deflist">
+                        <div>
+                            <p class="dossier-defterm">Ley aplicable</p>
+                            <p class="dossier-defvalue">{{ request.applicableLaw.name }}</p>
+                        </div>
+                        {% set meses = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
+                        <div>
+                            <p class="dossier-defterm">Fecha de envío</p>
+                            <p class="dossier-defvalue">{{ request.sentAt|date('j') }} de {{ meses[request.sentAt|date('n')] }} de {{ request.sentAt|date('Y') }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
         {# Organism name helper #}
         {% set organismName = request.applicableLaw.complaintOrganism
@@ -143,7 +1131,42 @@
         {% endfor %}
 
         {% set summaryBlocks = summaryBlocks|sort((a, b) => (a.documentDate ?? a.createdAt) <=> (b.documentDate ?? b.createdAt)) %}
+
+        {# Dedupe: when the AI has extracted identical body text from two
+           documents (same summary + keypoints), only keep the first chronological
+           occurrence. Avoids visually-noisy "two reclamaciones with the same
+           content" cases when there's a duplicate scan/upload of the same piece. #}
+        {% set seenBodies = [] %}
+        {% set dedupedBlocks = [] %}
+        {% for doc in summaryBlocks %}
+            {% set bodyParts = [doc.aiMetadata.summary|default('')|trim] %}
+            {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                {% for point in doc.aiMetadata.keyPoints %}
+                    {% set bodyParts = bodyParts|merge([point|trim]) %}
+                {% endfor %}
+            {% endif %}
+            {% set bodyKey = bodyParts|join('|') %}
+            {% if bodyKey == '|' or bodyKey == '' or bodyKey not in seenBodies %}
+                {% if bodyKey != '' and bodyKey != '|' %}
+                    {% set seenBodies = seenBodies|merge([bodyKey]) %}
+                {% endif %}
+                {% set dedupedBlocks = dedupedBlocks|merge([doc]) %}
+            {% endif %}
+        {% endfor %}
+        {% set summaryBlocks = dedupedBlocks %}
+
         {% set complaintCount = 0 %}
+
+        {% if summaryBlocks|length > 0 %}
+            {% set s = s + 1 %}
+            <section class="space-y-5">
+                <div class="chapter-label">
+                    <span class="chapter-num">§ {{ romans[s] }}</span>
+                    <span class="chapter-name">Actuaciones</span>
+                    <span class="chapter-rule"></span>
+                    <span class="chapter-aside">{{ summaryBlocks|length }} pieza{{ summaryBlocks|length != 1 ? 's' : '' }} en el expediente</span>
+                </div>
+        {% endif %}
 
         {% for doc in summaryBlocks %}
             {% set docDate = doc.documentDate ?? doc.createdAt %}
@@ -369,313 +1392,144 @@
                 </div>
             {% endif %}
         {% endfor %}
+        {% if summaryBlocks|length > 0 %}
+            </section>
+        {% endif %}
 
-        {# Documents #}
-        <div class="card"
-             data-controller="file-uploader"
-             data-file-uploader-url-value="{{ path('app_document_upload') }}"
-             data-file-uploader-access-request-id-value="{{ request.id }}"
-             data-file-uploader-documents-fragment-url-value="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
-            <div class="dash-section-header">
-                <div class="flex items-center justify-between w-full">
-                    <h2 class="dash-section-title">
-                        <i data-lucide="paperclip" class="w-4 h-4 text-primary-500"></i>
-                        Documentos
-                    </h2>
-                    {% if request.documents|length > 0 %}
-                        <a href="{{ path('app_document_download_all', {id: request.id}) }}"
-                           class="btn btn-secondary btn-sm">
-                            <i data-lucide="archive" class="w-4 h-4 mr-1"></i>
-                            Descargar todo
-                        </a>
+        {# Chapter — Documentos #}
+        {% set pendingDocs = 0 %}
+        {% for doc in request.documents %}
+            {% if not doc.processed %}{% set pendingDocs = pendingDocs + 1 %}{% endif %}
+        {% endfor %}
+        {% set s = s + 1 %}
+        <section>
+            <div class="chapter-label">
+                <span class="chapter-num">§ {{ romans[s] }}</span>
+                <span class="chapter-name">Documentos</span>
+                <span class="chapter-rule"></span>
+                <span class="chapter-aside">
+                    {% if pendingDocs > 0 %}
+                        <span class="pending-dot" aria-hidden="true"></span>
+                        {{ pendingDocs }} procesando ·
                     {% endif %}
-                </div>
+                    {{ request.documents|length }} adjunto{{ request.documents|length != 1 ? 's' : '' }}
+                </span>
             </div>
-            <div class="card-body">
+            <div class="doc-card"
+                 data-controller="file-uploader"
+                 data-file-uploader-url-value="{{ path('app_document_upload') }}"
+                 data-file-uploader-access-request-id-value="{{ request.id }}"
+                 data-file-uploader-documents-fragment-url-value="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
+                <div class="doc-card-body">
                 <div data-file-uploader-target="status"></div>
 
-                {# Dropzone Area #}
-                <div class="dropzone-area border-2 border-dashed border-slate-300 rounded-xl p-6 text-center mb-4 cursor-pointer transition-all hover:border-primary-400 hover:bg-primary-50/50"
-                     data-file-uploader-target="dropzone"
-                     data-action="dragover->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop click->file-uploader#clickToUpload">
-                    <div class="dropzone-content">
-                        <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center mx-auto mb-3">
-                            <i data-lucide="cloud-upload" class="w-6 h-6 text-primary-600"></i>
-                        </div>
-                        <p class="text-slate-700 font-medium mb-1">Arrastra archivos aquí</p>
-                        <p class="text-sm text-slate-500 mb-3">o haz clic para seleccionar</p>
-                        <span class="btn btn-primary btn-sm">
-                            <i data-lucide="folder-open" class="w-4 h-4 mr-2"></i>
-                            Seleccionar archivos
-                        </span>
-                        <input type="file" class="hidden" multiple
-                               accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.zip"
-                               data-file-uploader-target="input"
-                               data-action="change->file-uploader#selectFiles">
-                        <p class="text-xs text-slate-400 mt-3">PDF, Word, imágenes o ZIP (máx. 50MB)</p>
+                {# Dropzone — flush inline bar, no nested card #}
+                <label class="docs-dropzone"
+                       data-file-uploader-target="dropzone"
+                       data-action="dragover->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop click->file-uploader#clickToUpload">
+                    <span class="docs-dropzone-icon">
+                        <i data-lucide="cloud-upload" class="w-4 h-4"></i>
+                    </span>
+                    <div class="docs-dropzone-text">
+                        <p class="docs-dropzone-headline">Arrastra archivos aquí o haz clic para añadir</p>
+                        <p class="docs-dropzone-sub">PDF, Word, imágenes o ZIP · máximo 50&nbsp;MB</p>
                     </div>
-                </div>
+                    <span class="docs-dropzone-cta">
+                        <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                        Seleccionar
+                    </span>
+                    <input type="file" class="hidden" multiple
+                           accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.zip"
+                           data-file-uploader-target="input"
+                           data-action="change->file-uploader#selectFiles">
+                </label>
 
-                {# Document List #}
+                {# Document list (re-rendered after upload) #}
                 <div id="documents-list" data-documents-url="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
                     {% include 'solicitudes/_documents_list.html.twig' %}
                 </div>
 
-                <div data-file-uploader-target="preview" class="mt-4 space-y-2"></div>
+                <div data-file-uploader-target="preview" class="mt-3 space-y-2"></div>
 
-                <div class="mt-3 text-right">
+                {# Footer actions — discreet text-links #}
+                <div class="docs-footer">
+                    {% if request.documents|length > 0 %}
+                        <a href="{{ path('app_document_download_all', {id: request.id}) }}" class="docs-footer-link">
+                            <i data-lucide="archive" class="w-3.5 h-3.5"></i>
+                            Descargar todo (.zip)
+                        </a>
+                    {% else %}
+                        <span></span>
+                    {% endif %}
                     <button type="button"
-                            class="text-xs text-slate-400 hover:text-primary-600 cursor-pointer transition-colors inline-flex items-center gap-1"
+                            class="docs-footer-link"
                             onclick="document.getElementById('importOrphanModal').classList.remove('hidden')">
-                        <i data-lucide="link" class="w-3 h-3"></i>
+                        <i data-lucide="link" class="w-3.5 h-3.5"></i>
                         Importar documento sin asignar
                     </button>
                 </div>
-            </div>
-        </div>
-
-        <style>
-            .dropzone-area.dragover {
-                border-color: rgb(var(--color-primary-500)) !important;
-                background-color: rgb(var(--color-primary-50)) !important;
-            }
-            .dropzone-area.dragover .dropzone-content {
-                opacity: 0.7;
-            }
-        </style>
-
-        {{ component('RequestTimeline', {request: request}) }}
-    </div>
-
-    <div class="lg:col-span-1 space-y-6">
-        {{ component('RequestStatusSidebar', {request: request}) }}
-
-        {# Virtual email hint #}
-        {% if app.user.virtualEmail %}
-        <div class="p-4 rounded-xl bg-violet-50 border border-violet-100" data-controller="clipboard">
-            <div class="flex items-start gap-3">
-                <i data-lucide="mail" class="w-5 h-5 text-violet-500 flex-shrink-0 mt-0.5"></i>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-violet-800">Email virtual</p>
-                    <p class="text-xs text-violet-600 mt-1">Reenvía los correos de esta administración a:</p>
-                    <div class="flex items-center gap-2 mt-2">
-                        <code class="flex-1 text-xs bg-white/70 px-2 py-1.5 rounded text-violet-800 truncate"
-                              data-clipboard-target="source">{{ app.user.virtualEmail }}</code>
-                        <button type="button"
-                                class="text-violet-600 hover:text-violet-800 p-1 flex-shrink-0"
-                                data-action="click->clipboard#copy"
-                                data-clipboard-target="button"
-                                title="Copiar">
-                            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
-        </div>
-        {% endif %}
+        </section>
 
-        {# Custom Deadlines Card #}
-        <div class="dash-section">
-            <div class="dash-section-header">
-                <h2 class="dash-section-title">
-                    <i data-lucide="bell" class="w-4 h-4 text-slate-400"></i>
-                    Recordatorios
-                </h2>
-                <a href="{{ path('app_solicitudes_deadline_new', {id: request.id}) }}" class="btn btn-primary btn-sm">
-                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
-                    Nuevo
-                </a>
+        {# Chapter — Cronología #}
+        {% set s = s + 1 %}
+        <section>
+            <div class="chapter-label">
+                <span class="chapter-num">§ {{ romans[s] }}</span>
+                <span class="chapter-name">Cronología</span>
+                <span class="chapter-rule"></span>
+                <span class="chapter-aside">Historial completo del expediente</span>
             </div>
-            <div class="p-4">
-                {% if request.customDeadlines|length > 0 %}
-                    <div class="space-y-3">
-                        {% for deadline in request.customDeadlines %}
-                            <div class="p-3 rounded-lg bg-slate-50 {{ deadline.isPassed ? 'border-l-4 border-red-400' : '' }}">
-                                <div class="flex items-start justify-between gap-2">
-                                    <div class="flex-1 min-w-0">
-                                        <div class="flex items-center gap-2 mb-1">
-                                            <span class="font-medium text-slate-800 text-sm">{{ deadline.deadlineAt|date('d/m/Y') }}</span>
-                                            {% if deadline.notifyTime %}
-                                                <span class="text-xs text-slate-500">{{ deadline.notifyTime|date('H:i') }}</span>
-                                            {% endif %}
-                                            {% if deadline.isPassed %}
-                                                <span class="badge badge-danger text-xs">Vencido</span>
-                                            {% elseif deadline.daysUntil <= 3 %}
-                                                <span class="badge badge-warning text-xs">{{ deadline.daysUntil }} días</span>
-                                            {% else %}
-                                                <span class="badge badge-info text-xs">{{ deadline.daysUntil }} días</span>
-                                            {% endif %}
-                                        </div>
-                                        <p class="text-sm text-slate-600 line-clamp-2">{{ deadline.description }}</p>
-                                        <div class="flex items-center gap-2 mt-1">
-                                            {% if deadline.notifiedDayBeforeAt %}
-                                                <span class="text-xs text-green-600" title="Notificado día anterior: {{ deadline.notifiedDayBeforeAt|date('d/m/Y H:i') }}">
-                                                    <i data-lucide="mail-check" class="w-3 h-3 inline"></i> día anterior
-                                                </span>
-                                            {% endif %}
-                                            {% if deadline.notifiedAt %}
-                                                <span class="text-xs text-green-600" title="Notificado mismo día: {{ deadline.notifiedAt|date('d/m/Y H:i') }}">
-                                                    <i data-lucide="mail-check" class="w-3 h-3 inline"></i> mismo día
-                                                </span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                    <div class="flex items-center gap-1">
-                                        <a href="{{ path('app_solicitudes_deadline_edit', {id: request.id, deadlineId: deadline.id}) }}"
-                                           class="btn btn-ghost btn-sm p-1"
-                                           title="Editar">
-                                            <i data-lucide="pencil" class="w-4 h-4"></i>
-                                        </a>
-                                        <form action="{{ path('app_solicitudes_deadline_delete', {id: request.id, deadlineId: deadline.id}) }}"
-                                              method="post"
-                                              class="inline"
-                                              onsubmit="return confirm('¿Eliminar este recordatorio?');">
-                                            <input type="hidden" name="_token" value="{{ csrf_token('delete-deadline-' ~ deadline.id) }}">
-                                            <button type="submit" class="btn btn-ghost btn-sm p-1 text-red-600 hover:text-red-700" title="Eliminar">
-                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
+            {{ component('RequestTimeline', {request: request}) }}
+        </section>
+    </div>
+
+    <div class="lg:col-span-1 rise rise-5">
+        <aside class="dossier-aside">
+            {{ component('RequestStatusSidebar', {request: request}) }}
+
+            {% if app.user.virtualEmail %}
+                <div class="aside-block" data-controller="clipboard">
+                    <div class="aside-heading">
+                        <span class="aside-heading-name">Email virtual</span>
+                        <span class="aside-heading-rule"></span>
                     </div>
-                {% else %}
-                    <div class="text-center py-4">
-                        <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-                            <i data-lucide="bell-off" class="w-6 h-6 text-slate-400"></i>
-                        </div>
-                        <p class="text-sm text-slate-500">Sin recordatorios programados</p>
-                        <p class="text-xs text-slate-400 mt-1">Crea recordatorios para seguimientos informales</p>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+                    <p class="aside-note" style="margin-top: 0; margin-bottom: .35rem;">
+                        Reenvía aquí los correos de esta administración.
+                    </p>
+                    <button type="button"
+                            class="aside-mail"
+                            data-action="click->clipboard#copy"
+                            data-clipboard-target="button"
+                            title="Copiar email virtual">
+                        <i data-lucide="copy" class="w-3 h-3"></i>
+                        <span data-clipboard-target="source">{{ app.user.virtualEmail }}</span>
+                    </button>
+                </div>
+            {% endif %}
 
-        {# Lists Card #}
-        <div class="dash-section" style="overflow: visible" x-data="listsManager('{{ request.id }}')">
-            <div class="dash-section-header">
-                <h2 class="dash-section-title">
-                    <i data-lucide="list" class="w-4 h-4 text-slate-400"></i>
-                    Listas
-                </h2>
-            </div>
-            <div class="p-4">
-                <template x-if="loading">
-                    <div class="text-center py-4">
-                        <i data-lucide="loader-2" class="w-5 h-5 text-slate-400 animate-spin mx-auto"></i>
-                    </div>
-                </template>
-                <template x-if="!loading">
-                    <div>
-                        {# Current list memberships #}
-                        <template x-if="lists.filter(l => l.inList).length > 0">
-                            <div class="space-y-2 mb-3">
-                                <template x-for="list in lists.filter(l => l.inList)" :key="list.id">
-                                    <div class="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                                        <a :href="'/listas/' + list.id" class="flex items-center gap-2 min-w-0 text-sm font-medium text-slate-800 hover:text-primary-600 transition-colors">
-                                            <span class="w-3 h-3 rounded-full flex-shrink-0"
-                                                  :style="'background-color: ' + (list.color || '#94a3b8')"></span>
-                                            <span class="truncate" x-text="list.name"></span>
-                                        </a>
-                                        <template x-if="list.canEdit">
-                                            <button @click="toggleList(list)"
-                                                    class="text-slate-400 hover:text-red-600 p-1 transition-colors"
-                                                    title="Quitar de la lista"
-                                                    :disabled="toggling">
-                                                <i data-lucide="x" class="w-3 h-3"></i>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </template>
-                            </div>
-                        </template>
-
-                        {# Add to list dropdown #}
-                        <div class="relative">
-                            <button @click="dropdownOpen = !dropdownOpen"
-                                    class="btn btn-secondary btn-sm w-full">
-                                <i data-lucide="plus" class="w-3 h-3 mr-1"></i>
-                                Añadir a lista
-                            </button>
-                            <div x-show="dropdownOpen"
-                                 @click.away="dropdownOpen = false"
-                                 x-transition
-                                 class="absolute left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-10 max-h-48 overflow-y-auto"
-                                 style="display: none;">
-                                <template x-for="list in lists.filter(l => !l.inList && l.canEdit)" :key="list.id">
-                                    <button @click="toggleList(list)"
-                                            class="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                                            :disabled="toggling">
-                                        <span class="w-3 h-3 rounded-full flex-shrink-0"
-                                              :style="'background-color: ' + (list.color || '#94a3b8')"></span>
-                                        <span x-text="list.name" class="truncate"></span>
-                                    </button>
-                                </template>
-                                <template x-if="lists.filter(l => !l.inList && l.canEdit).length === 0">
-                                    <p class="px-3 py-2 text-xs text-slate-500">No hay más listas disponibles</p>
-                                </template>
-                                <div class="border-t border-slate-100 mt-1 pt-1">
-                                    <a href="{{ path('app_listas_new') }}"
-                                       class="block px-3 py-2 text-sm text-primary-600 hover:bg-primary-50 flex items-center gap-2">
-                                        <i data-lucide="plus" class="w-3 h-3"></i>
-                                        Crear nueva lista
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </div>
-        </div>
-
-        {# Actions Card #}
-        <div class="dash-section">
-            <div class="dash-section-header">
-                <h2 class="dash-section-title">
-                    <i data-lucide="zap" class="w-4 h-4 text-slate-400"></i>
-                    Acciones
-                </h2>
-            </div>
-            <div class="p-4 space-y-3">
-                {% set canComplain = (request.status in ['denied', 'delayed']) or (request.isDeadlinePassed and request.status not in ['granted', 'granted_completed']) %}
-                {% if canComplain and not request.complaint %}
-                    <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent w-full">
-                        <i data-lucide="alert-triangle" class="w-4 h-4 mr-2"></i>
-                        Generar reclamación
-                    </a>
-                    {% if request.applicableLaw.complaintOrganism %}
-                        <p class="text-xs text-slate-500 text-center mt-1">
-                            Ante {{ request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name }}
-                        </p>
-                    {% endif %}
-                {% endif %}
-
-                {% if request.complaint and request.complaint.status == 'reclaimed' %}
-                    <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-primary w-full">
-                        <i data-lucide="shield-alert" class="w-4 h-4 mr-2"></i>
-                        Generar respuesta a alegaciones
-                    </a>
-                {% endif %}
-
-                <a href="#" class="btn btn-secondary w-full">
-                    <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+            <div class="aside-block">
+                <div class="aside-heading">
+                    <span class="aside-heading-name">Acciones</span>
+                    <span class="aside-heading-rule"></span>
+                </div>
+                <a href="#" class="aside-link">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
                     Exportar historial
                 </a>
-
-                <hr class="my-4 border-slate-200">
-
                 <form action="{{ path('app_solicitudes_delete', {id: request.id}) }}"
                       method="post"
+                      class="aside-action-form"
                       onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.');">
                     <input type="hidden" name="_token" value="{{ csrf_token('delete-request-' ~ request.id) }}">
-                    <button type="submit" class="btn btn-danger w-full">
-                        <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                    <button type="submit" class="aside-link is-danger">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         Eliminar solicitud
                     </button>
                 </form>
             </div>
-        </div>
+        </aside>
     </div>
 </div>
 
@@ -757,8 +1611,8 @@ document.addEventListener('DOMContentLoaded', function() {
         docList.innerHTML = docs.map(function(doc) {
             return '<div class="p-4 rounded-xl border border-slate-200 hover:border-primary-400 hover:bg-primary-50/50 transition-all">'
                 + '<div class="flex items-start gap-3">'
-                + '<div class="w-10 h-10 rounded-lg ' + (doc.isPdf ? 'bg-red-100' : 'bg-slate-200') + ' flex items-center justify-center flex-shrink-0">'
-                + '<i data-lucide="' + (doc.isPdf ? 'file-text' : 'file') + '" class="w-5 h-5 ' + (doc.isPdf ? 'text-red-600' : 'text-slate-600') + '"></i>'
+                + '<div class="w-8 h-8 flex items-center justify-center flex-shrink-0 text-slate-400">'
+                + '<i data-lucide="' + (doc.isPdf ? 'file-text' : 'file') + '" class="w-[18px] h-[18px]"></i>'
                 + '</div>'
                 + '<div class="flex-1 min-w-0">'
                 + '<p class="font-medium text-slate-800 truncate">' + doc.name + '</p>'
@@ -844,69 +1698,5 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 
-// Lists manager Alpine.js component
-function listsManager(requestId) {
-    return {
-        lists: [],
-        loading: true,
-        dropdownOpen: false,
-        toggling: false,
-
-        init() {
-            this.loadLists();
-        },
-
-        async loadLists() {
-            try {
-                const resp = await fetch('/listas/para-solicitud/' + requestId, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                });
-                if (resp.ok) {
-                    const data = await resp.json();
-                    this.lists = data.lists;
-                }
-            } catch (e) {
-                console.error('Error loading lists:', e);
-            } finally {
-                this.loading = false;
-                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
-            }
-        },
-
-        async toggleList(list) {
-            this.toggling = true;
-            const url = list.inList
-                ? '/listas/' + list.id + '/solicitudes/quitar'
-                : '/listas/' + list.id + '/solicitudes/agregar';
-
-            try {
-                const resp = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: JSON.stringify({
-                        requestId: requestId,
-                        _token: list.csrfToken
-                    })
-                });
-
-                if (resp.ok) {
-                    list.inList = !list.inList;
-                    this.dropdownOpen = false;
-                    this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
-                } else {
-                    const data = await resp.json();
-                    alert(data.error || 'Error');
-                }
-            } catch (e) {
-                alert('Error de conexión');
-            } finally {
-                this.toggling = false;
-            }
-        }
-    };
-}
 </script>
 {% endblock %}

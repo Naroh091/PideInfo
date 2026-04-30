@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from urllib.parse import urljoin
+
 from bs4 import BeautifulSoup
 import httpx
 from rich.console import Console
@@ -90,6 +93,8 @@ class ConsejoScraper:
 
             fecha_accion = tds[5].get_text(strip=True)
 
+            detail_url = self._extract_detail_url(tr)
+
             notificaciones.append(ConsejoNotificacion(
                 registro=registro,
                 fecha_envio=fecha_envio,
@@ -97,9 +102,84 @@ class ConsejoScraper:
                 expediente=expediente,
                 estado=estado,
                 fecha_accion=fecha_accion,
+                detail_url=detail_url,
             ))
 
         return notificaciones
+
+    def _extract_detail_url(self, tr) -> str:
+        """Pick the most likely 'open notification detail' link in the row.
+
+        The Wicket portal renders an <a> in one of the cells. We prefer a link
+        whose text or class hints at access/detail; otherwise we take the first
+        anchor found in the row. URLs are made absolute against ``portal_url``.
+        """
+        anchors = tr.find_all("a", href=True)
+        if not anchors:
+            return ""
+
+        prefer_keywords = ("acceder", "ver", "detalle", "notificaci", "comunicaci")
+        chosen = None
+        for a in anchors:
+            text = a.get_text(strip=True).lower()
+            classes = " ".join(a.get("class") or []).lower()
+            if any(k in text for k in prefer_keywords) or any(k in classes for k in prefer_keywords):
+                chosen = a
+                break
+        chosen = chosen or anchors[0]
+        href = chosen.get("href") or ""
+        return urljoin(self.portal_url + "/", href) if href else ""
+
+    async def download_notificacion(self, notif: ConsejoNotificacion, dest: Path) -> Path:
+        """Deprecated: cannot fetch the actual notification document via httpx.
+
+        Each row in `/enotifications.9` only carries a Wicket-Ajax `href="#"`
+        anchor; following it with httpx lands on the sede home and matching
+        keywords like "documento" returns false positives such as the
+        "Validación de documentos" form. Use ``ConsejoExpedienteScraper`` to
+        download per-expediente documents (Playwright + stable CSV dedup).
+        """
+        if not notif.detail_url:
+            raise RuntimeError(f"CTBG: notificación {notif.registro} no expone link de detalle")
+
+        client = await self._get_client()
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        detail_resp = await client.get(notif.detail_url)
+        self.session_manager.check_response_for_expiry(detail_resp)
+        detail_resp.raise_for_status()
+
+        download_url = self._find_document_link(detail_resp.text, base=str(detail_resp.url))
+        if not download_url:
+            raise RuntimeError(
+                f"CTBG: no se encontró enlace de descarga en el detalle de {notif.registro}"
+            )
+
+        async with client.stream("GET", download_url) as response:
+            self.session_manager.check_response_for_expiry(response)
+            if response.status_code >= 400:
+                body = (await response.aread()).decode("utf-8", errors="replace")[:500]
+                raise httpx.HTTPStatusError(
+                    f"{response.status_code} {response.reason_phrase} for {download_url}: {body}",
+                    request=response.request,
+                    response=response,
+                )
+            with open(dest, "wb") as f:
+                async for chunk in response.aiter_bytes(chunk_size=8192):
+                    f.write(chunk)
+
+        console.print(f"[dim]CTBG descargado: {dest.name} ({dest.stat().st_size} bytes)[/]")
+        return dest
+
+    def _find_document_link(self, html: str, base: str) -> str:
+        """Locate the document download URL inside a notification detail page."""
+        soup = BeautifulSoup(html, "html.parser")
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            text = a.get_text(strip=True).lower()
+            if href.lower().endswith(".pdf") or "descarg" in text or "documento" in text:
+                return urljoin(base, href)
+        return ""
 
     async def close(self) -> None:
         if self._client and not self._client.is_closed:

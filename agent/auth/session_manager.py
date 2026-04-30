@@ -30,12 +30,14 @@ class SessionManager:
         auth_timeout: int = 120,
         private_path: str = "/privada/expedientes",
         firefox_profile_dir: "Path | None" = None,
+        force_headed: bool = False,
     ):
         self.portal_url = portal_url
         self.cookies_file = cookies_file
         self.auth_timeout = auth_timeout
         self.private_path = private_path
         self.firefox_profile_dir = firefox_profile_dir
+        self.force_headed = force_headed
         self._cookies: dict[str, str] = {}
 
     @property
@@ -145,6 +147,7 @@ class SessionManager:
             self.auth_timeout,
             target_path=self.private_path,
             firefox_profile_dir=self.firefox_profile_dir,
+            force_headed=self.force_headed,
         )
         self.save_cookies(cookies)
         return cookies

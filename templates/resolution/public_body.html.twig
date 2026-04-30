@@ -296,13 +296,13 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             {% if publicBody.address %}
             <div>
-                <span class="text-xs text-slate-400 uppercase tracking-wider">Dirección</span>
+                <span class="text-xs text-slate-400">Dirección</span>
                 <p class="text-slate-600 mt-0.5">{{ publicBody.address }}</p>
             </div>
             {% endif %}
             {% if publicBody.registryCode %}
             <div>
-                <span class="text-xs text-slate-400 uppercase tracking-wider">Código de registro</span>
+                <span class="text-xs text-slate-400">Código de registro</span>
                 <p class="text-slate-600 mt-0.5 font-mono">{{ publicBody.registryCode }}</p>
             </div>
             {% endif %}
@@ -322,7 +322,7 @@
                     <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
                         {# Search #}
                         <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Buscar</label>
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Buscar</label>
                             <div class="relative">
                                 <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
                                 <input type="text" name="search" value="{{ filters.search }}"
@@ -333,7 +333,7 @@
 
                         {# Organism #}
                         <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Organismo</label>
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Organismo</label>
                             <select name="organism"
                                     data-controller="tom-select"
                                     data-tom-select-placeholder-value="Todos">
@@ -350,7 +350,7 @@
 
                         {# Outcome #}
                         <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Resultado</label>
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Resultado</label>
                             <select name="outcome"
                                     data-controller="tom-select"
                                     data-tom-select-placeholder-value="Todos">
@@ -369,7 +369,7 @@
 
                         {# Keyword #}
                         <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Palabra clave</label>
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Palabra clave</label>
                             <select name="keyword"
                                     data-controller="tom-select"
                                     data-tom-select-placeholder-value="Todas"
@@ -383,7 +383,7 @@
 
                         {# Dates #}
                         <div class="p-4">
-                            <label class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">Fecha</label>
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Fecha</label>
                             <div class="space-y-2">
                                 <input type="date" name="dateFrom" value="{{ filters.dateFrom }}"
                                        class="input text-sm">

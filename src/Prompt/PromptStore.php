@@ -3,6 +3,7 @@
 namespace App\Prompt;
 
 use Psr\Log\LoggerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 /**
  * Resolves prompt templates by name. Prefers Langfuse-managed copies (so prompts
@@ -25,6 +26,8 @@ final class PromptStore
         private readonly BundledPromptLoader $bundled,
         private readonly LangfuseAdminClient $langfuseClient,
         private readonly LoggerInterface $logger,
+        #[Autowire(env: 'default::LANGFUSE_PROMPT_LABEL')]
+        private readonly ?string $promptLabel = null,
     ) {
     }
 
@@ -48,8 +51,10 @@ final class PromptStore
             return $this->cache[$name] = null;
         }
 
+        $label = $this->promptLabel !== null && $this->promptLabel !== '' ? $this->promptLabel : 'production';
+
         try {
-            $data = $this->langfuseClient->fetchPrompt($name);
+            $data = $this->langfuseClient->fetchPrompt($name, $label);
         } catch (\Throwable $e) {
             $this->logger->warning('Langfuse prompt fetch failed; using bundled fallback', [
                 'prompt' => $name,

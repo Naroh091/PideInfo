@@ -48,6 +48,8 @@ framework:
             Symfony\Component\Notifier\Message\SmsMessage: mail
             App\Message\ProcessDocumentMessage: analysis
             App\Message\ProcessDocumentBatchMessage: analysis
+            App\Message\WarmSuccessAnalysisMessage: analysis
+            App\Message\WarmActivitySummaryMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async
             App\Message\UpdateExpiredRequestsMessage: async

@@ -1,0 +1,169 @@
+{% set visible = this.isVisible %}
+{% set html = this.cachedHtml %}
+{% set stale = this.isStale %}
+{% set ago = this.cachedAgo %}
+
+<div {{ attributes.defaults({
+    'data-action': 'notification_created@window->live#$render activity_summary_updated@window->live#$render',
+}) }}{% if stale %} data-poll="delay(8000)|$render"{% endif %}>
+    {% if visible %}
+        <section class="activity-summary {{ stale ? 'is-stale' : '' }}"
+                 style="animation: fade-slide-up 0.5s ease-out both">
+            <header class="activity-summary-head">
+                <div class="activity-summary-eyebrow-wrap">
+                    <span class="activity-summary-eyebrow">
+                        <i data-lucide="sparkles" class="w-3 h-3"></i>
+                        Resumen · últimas 24 h
+                    </span>
+                    {% if stale %}
+                        <span class="activity-summary-pulse" title="Generando resumen actualizado…">
+                            <span class="activity-summary-pulse-dot"></span>
+                            actualizando
+                        </span>
+                    {% endif %}
+                </div>
+                {% if ago %}
+                    <span class="activity-summary-meta" title="{{ this.cachedAt|date('d/m/Y H:i') }}">
+                        Generado {{ ago }}
+                    </span>
+                {% endif %}
+            </header>
+
+            {% if html %}
+                <div class="activity-summary-body">
+                    {{ html|raw }}
+                </div>
+            {% else %}
+                <div class="activity-summary-body activity-summary-loading">
+                    <span class="activity-summary-loading-bar"></span>
+                    <span class="activity-summary-loading-bar w-3/4"></span>
+                    <span class="activity-summary-loading-bar w-2/3"></span>
+                </div>
+            {% endif %}
+        </section>
+    {% endif %}
+</div>
+
+<style>
+    .activity-summary {
+        position: relative;
+        background: linear-gradient(180deg, white 0%, rgb(240 249 255) 140%);
+        border: 1px solid rgb(186 230 253);
+        border-radius: 1rem;
+        padding: 1.1rem 1.4rem 1.25rem;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+
+    .activity-summary-head {
+        display: flex; align-items: baseline; justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: .65rem;
+    }
+    .activity-summary-eyebrow-wrap {
+        display: inline-flex; align-items: center; gap: .55rem;
+    }
+    .activity-summary-eyebrow {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .85rem;
+        font-weight: 600;
+        color: rgb(2 132 199);
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    .activity-summary-meta {
+        font-family: 'Inter', sans-serif;
+        font-size: .65rem;
+        color: rgb(100 116 139);
+        font-feature-settings: "tnum";
+        letter-spacing: .04em;
+    }
+    .activity-summary-pulse {
+        display: inline-flex; align-items: center; gap: .35rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .75rem;
+        font-weight: 500;
+        color: rgb(180 83 9);
+    }
+    .activity-summary-pulse-dot {
+        width: .4rem; height: .4rem;
+        border-radius: 999px;
+        background: rgb(245 158 11);
+        animation: activitySummaryPulse 1.2s ease-in-out infinite;
+    }
+    @keyframes activitySummaryPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%      { opacity: .35; transform: scale(.85); }
+    }
+
+    .activity-summary-body {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .95rem;
+        line-height: 1.6;
+        color: rgb(51 65 85);
+    }
+    .activity-summary-body b {
+        font-weight: 600;
+        color: rgb(15 23 42);
+    }
+    .activity-summary-body i {
+        font-style: italic;
+        color: rgb(71 85 105);
+    }
+
+    /* "Open in new tab" badge attached to each <b>solicitud</b> mention. */
+    .activity-summary-body .ref-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1rem;
+        height: 1rem;
+        margin-left: .15rem;
+        margin-right: .1rem;
+        border-radius: .25rem;
+        background: rgb(224 242 254);
+        color: rgb(2 132 199);
+        font-size: .7rem;
+        font-weight: 700;
+        line-height: 1;
+        text-decoration: none;
+        vertical-align: 1px;
+        transition: background .12s ease, color .12s ease, transform .12s ease;
+    }
+    .activity-summary-body .ref-badge:hover {
+        background: rgb(186 230 253);
+        color: rgb(7 89 133);
+        transform: translateY(-1px);
+    }
+
+    /* Fallback footer for references whose label didn't match any <b> in the text. */
+    .activity-summary-body .ref-fallback {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: .15rem;
+        margin-left: .25rem;
+        padding-left: .5rem;
+        border-left: 1px solid rgb(186 230 253);
+    }
+
+    /* Subtle loading skeleton when there's no cache yet but we know there's activity. */
+    .activity-summary-loading {
+        display: flex; flex-direction: column; gap: .55rem;
+        font-family: 'DM Sans', sans-serif;
+    }
+    .activity-summary-loading-bar {
+        display: block;
+        height: .9rem;
+        border-radius: 4px;
+        background: linear-gradient(90deg, rgb(224 242 254) 0%, rgb(186 230 253) 50%, rgb(224 242 254) 100%);
+        background-size: 200% 100%;
+        animation: activitySummaryShimmer 1.5s ease-in-out infinite;
+    }
+    .activity-summary-loading-bar.w-3\/4 { width: 75%; }
+    .activity-summary-loading-bar.w-2\/3 { width: 66%; }
+    @keyframes activitySummaryShimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>

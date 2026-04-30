@@ -9,9 +9,18 @@
     <div class="p-5">
         {% if request.statusHistory|length > 0 %}
             <div class="space-y-4">
+                {# Deduplicate consecutive/duplicate entries with identical notes text —
+                   common when an event is recorded twice (e.g., document re-processed). #}
+                {% set seenNotes = [] %}
                 {% for history in request.statusHistory %}
-                    {# --- Determine event title, icon, and color from context --- #}
                     {% set notes = history.notes|default('') %}
+                    {% set noteKey = notes|trim %}
+                    {% if noteKey != '' and noteKey in seenNotes %}
+                        {# already shown — skip #}
+                    {% else %}
+                        {% if noteKey != '' %}
+                            {% set seenNotes = seenNotes|merge([noteKey]) %}
+                        {% endif %}
                     {% set notesLower = notes|lower %}
                     {% set sType = history.statusType %}
                     {% set to = history.toStatus %}
@@ -185,6 +194,7 @@
                             {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         {% else %}

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +9,11 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+    @field_validator("data_dir", mode="after")
+    @classmethod
+    def _expand_data_dir(cls, v: Path) -> Path:
+        return v.expanduser()
 
     # Portal
     portal_url: str = "https://transparencia.sede.gob.es"
@@ -23,6 +29,11 @@ class Settings(BaseSettings):
     sync_interval_minutes: int = 30
     data_dir: Path = Path.home() / ".pideinfo-agent"
     debug: bool = False
+    headless_disabled: bool = False
+    # When True, the CTBG expediente crawl walks every expediente in the list
+    # (including long-closed ones); otherwise it stops at the first all-closed
+    # batch. The list is sorted with most-recent activity first.
+    ctbg_full_crawl: bool = False
 
     @property
     def portal_ctbg_base(self) -> str:

@@ -29,6 +29,33 @@ button, [role="button"] {
   --color-accent-900: #78350f;
 }
 
+/* Mirror the palette on :root so unused tokens aren't tree-shaken
+   away by Tailwind's @theme tree-shaking and remain available for
+   var() references in raw CSS. */
+:root {
+  --color-primary-50: #f0f9ff;
+  --color-primary-100: #e0f2fe;
+  --color-primary-200: #bae6fd;
+  --color-primary-300: #7dd3fc;
+  --color-primary-400: #38bdf8;
+  --color-primary-500: #0ea5e9;
+  --color-primary-600: #0284c7;
+  --color-primary-700: #0369a1;
+  --color-primary-800: #075985;
+  --color-primary-900: #0c4a6e;
+
+  --color-accent-50: #fffbeb;
+  --color-accent-100: #fef3c7;
+  --color-accent-200: #fde68a;
+  --color-accent-300: #fcd34d;
+  --color-accent-400: #fbbf24;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+  --color-accent-700: #b45309;
+  --color-accent-800: #92400e;
+  --color-accent-900: #78350f;
+}
+
 /* Base styles */
 body {
   @apply bg-gradient-to-br from-slate-50 to-primary-50 min-h-screen;
@@ -166,7 +193,7 @@ body {
 }
 
 .stat-tile-label {
-  @apply text-xs font-medium text-slate-400 uppercase tracking-wider mt-1;
+  @apply text-xs font-medium text-slate-400 mt-1;
 }
 
 .stat-tile-sub {
@@ -496,7 +523,7 @@ body {
 }
 
 .home-portals-flow-pill {
-  @apply inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium uppercase tracking-wider;
+  @apply inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium;
   background: rgba(16, 185, 129, 0.08);
   color: #047857;
   border: 1px solid rgba(16, 185, 129, 0.18);
@@ -682,44 +709,162 @@ body {
 }
 
 /* Button styles */
+/* ─────────────────────────────────────────────────────────────
+   Buttons — quiet pills
+   White surface + 1px hairline border + tonal text.
+   Hover: tinted background, deeper border, soft tonal halo.
+   No gradients, no inset highlights, no chunky drop-shadows —
+   shares the same DNA as `.dossier-edit` so action elements feel
+   restrained and consistent across the app.
+   ───────────────────────────────────────────────────────────── */
 .btn {
-  @apply inline-flex items-center justify-center px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 cursor-pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .85rem;
+  font-weight: 500;
+  line-height: 1.15;
+  padding: .4rem .9rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: white;
+  color: rgb(71 85 105);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    background .15s ease,
+    border-color .15s ease,
+    color .15s ease,
+    box-shadow .15s ease;
+}
+.btn:focus { outline: none; }
+.btn:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+.btn:disabled,
+.btn[aria-disabled="true"] {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
+/* Neutralize legacy mr-/ml- on icons inside buttons — flex gap handles spacing */
+.btn > i,
+.btn > svg {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Primary (sky) — the default action call */
 .btn-primary {
-  @apply bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500 shadow-sm shadow-primary-500/25;
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+  background: white;
 }
-
-.btn-secondary {
-  @apply bg-slate-100 text-slate-700 hover:bg-slate-200 focus:ring-slate-500;
+.btn-primary:hover:not(:disabled) {
+  border-color: var(--color-primary-400);
+  color: var(--color-primary-800);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .08);
 }
+.btn-primary:focus-visible { outline-color: var(--color-primary-500); }
 
+/* Accent (amber) — secondary emphasis (download, special CTAs) */
 .btn-accent {
-  @apply bg-accent-500 text-white hover:bg-accent-600 focus:ring-accent-500 shadow-sm shadow-accent-500/25;
+  color: var(--color-accent-700);
+  border-color: var(--color-accent-200);
+  background: white;
 }
-
-.btn-outline {
-  @apply border-2 border-primary-500 text-primary-600 hover:bg-primary-50 focus:ring-primary-500;
+.btn-accent:hover:not(:disabled) {
+  border-color: var(--color-accent-400);
+  color: var(--color-accent-800);
+  background: var(--color-accent-50);
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, .08);
 }
+.btn-accent:focus-visible { outline-color: var(--color-accent-500); }
 
-.btn-ghost {
-  @apply text-slate-600 hover:bg-slate-100 focus:ring-slate-500;
-}
-
+/* Danger (red) — destructive actions */
 .btn-danger {
-  @apply bg-red-500 text-white hover:bg-red-600 focus:ring-red-500;
+  color: rgb(185 28 28);
+  border-color: rgb(254 202 202);
+  background: white;
 }
+.btn-danger:hover:not(:disabled) {
+  border-color: rgb(248 113 113);
+  color: rgb(127 29 29);
+  background: rgb(254 242 242);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .08);
+}
+.btn-danger:focus-visible { outline-color: rgb(220 38 38); }
 
+/* Success (emerald) — confirmations, positive completions */
 .btn-success {
-  @apply bg-emerald-500 text-white hover:bg-emerald-600 focus:ring-emerald-500;
+  color: rgb(4 120 87);
+  border-color: rgb(167 243 208);
+  background: white;
 }
+.btn-success:hover:not(:disabled) {
+  border-color: rgb(52 211 153);
+  color: rgb(6 95 70);
+  background: rgb(236 253 245);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, .08);
+}
+.btn-success:focus-visible { outline-color: rgb(5 150 105); }
 
-.btn-sm {
-  @apply px-3 py-1.5 text-xs;
+/* Secondary — neutral surface, no tonal accent */
+.btn-secondary {
+  color: rgb(71 85 105);
+  border-color: rgb(226 232 240);
+  background: white;
 }
+.btn-secondary:hover:not(:disabled) {
+  border-color: rgb(203 213 225);
+  color: rgb(15 23 42);
+  background: rgb(248 250 252);
+}
+.btn-secondary:focus-visible { outline-color: var(--color-primary-500); }
+
+/* Outline — kept as an alias of primary for backward compatibility */
+.btn-outline {
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-300);
+  background: white;
+}
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--color-primary-500);
+  color: var(--color-primary-800);
+  background: var(--color-primary-50);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, .08);
+}
+.btn-outline:focus-visible { outline-color: var(--color-primary-500); }
+
+/* Ghost — borderless, hover surfaces */
+.btn-ghost {
+  background: transparent;
+  color: rgb(71 85 105);
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: rgb(241 245 249);
+  color: rgb(15 23 42);
+}
+.btn-ghost:focus-visible { outline-color: rgb(100 116 139); }
+
+/* Sizes */
+.btn-sm {
+  font-size: .75rem;
+  padding: .25rem .65rem;
+  gap: .3rem;
+}
+.btn-ghost.btn-sm { padding: .25rem .5rem; }
 
 .btn-lg {
-  @apply px-6 py-3 text-base;
+  font-size: .92rem;
+  padding: .55rem 1.2rem;
+  gap: .5rem;
 }
 
 /* Input styles */
@@ -802,7 +947,7 @@ body {
 }
 
 .stat-card-label {
-  @apply text-xs font-semibold uppercase tracking-wider text-slate-400 mt-1;
+  @apply text-xs font-semibold text-slate-400 mt-1;
 }
 
 .stat-card-bar {
@@ -1252,7 +1397,7 @@ body {
 }
 
 .ts-dropdown .optgroup-header {
-  @apply text-slate-400 text-xs font-semibold uppercase tracking-wider;
+  @apply text-slate-400 text-xs font-semibold;
   cursor: default;
 }
 
@@ -1569,5 +1714,5 @@ body {
 }
 
 .profile-section-title {
-  @apply text-sm font-semibold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2;
+  @apply text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2;
 }

@@ -11,85 +11,71 @@
 
     {% macro document_item(doc) %}
         {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
-        <div class="p-4 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors" data-document-id="{{ doc.id }}">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-3 min-w-0">
-                    <div class="w-10 h-10 rounded-lg {{ isZip ? 'bg-purple-100' : (doc.isPdf ? 'bg-red-100' : (doc.isImage ? 'bg-blue-100' : 'bg-slate-200')) }} flex items-center justify-center flex-shrink-0">
-                        <i data-lucide="{{ isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) }}"
-                           class="w-5 h-5 {{ isZip ? 'text-purple-600' : (doc.isPdf ? 'text-red-600' : (doc.isImage ? 'text-blue-600' : 'text-slate-600')) }}"></i>
+        {% set iconName = isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) %}
+        <div class="docs-row" data-document-id="{{ doc.id }}">
+            <span class="docs-icon">
+                <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
+            </span>
+            <div class="docs-main">
+                <p class="docs-name" title="{{ doc.displayFilename }}">{{ doc.displayFilename }}</p>
+                {% if doc.documentDate or not doc.processed %}
+                    <div class="docs-meta">
+                        {% if doc.documentDate %}
+                            <span>{{ doc.documentDate|date('d/m/Y') }}</span>
+                        {% endif %}
+                        {% if not doc.processed %}
+                            {% if doc.documentDate %}<span class="sep">·</span>{% endif %}
+                            <span class="docs-status is-pending">Procesando</span>
+                        {% endif %}
                     </div>
-                    <div class="min-w-0">
-                        <p class="font-medium text-slate-800 truncate">{{ doc.displayFilename }}</p>
-                        <div class="flex flex-wrap items-center gap-x-2 text-sm text-slate-500">
-                            <span>{{ doc.fileSizeFormatted }}</span>
-                            {% if doc.documentDate %}
-                                <span class="text-slate-300">|</span>
-                                <span>{{ doc.documentDate|date('d/m/Y') }}</span>
-                            {% endif %}
-                            <span class="text-slate-300">|</span>
-                            <span class="badge {{ doc.processed ? 'badge-success' : 'badge-warning' }} text-xs">
-                                {{ doc.processed ? 'Procesado' : 'Pendiente' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-1 flex-shrink-0 ml-2">
-                    <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
-                       target="_blank"
-                       class="btn btn-ghost btn-sm"
-                       title="Abrir en nueva pestaña">
-                        <i data-lucide="external-link" class="w-4 h-4"></i>
-                    </a>
-                    <a href="{{ path('app_document_download', {id: doc.id}) }}"
-                       class="btn btn-ghost btn-sm"
-                       title="Descargar">
-                        <i data-lucide="download" class="w-4 h-4"></i>
-                    </a>
-                    {% if not isZip %}
-                        <button type="button"
-                                class="btn btn-ghost btn-sm"
-                                title="Reprocesar documento"
-                                onclick="reprocessDocument('{{ doc.id }}', this)">
-                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-                        </button>
-                    {% endif %}
-                </div>
+                {% endif %}
+                {% if doc.summary %}
+                    <p class="docs-summary">{{ doc.summary }}</p>
+                {% endif %}
             </div>
-            {% if doc.summary %}
-                <p class="text-xs text-slate-500 mt-2 ml-13 line-clamp-2">{{ doc.summary }}</p>
-            {% endif %}
+            <div class="docs-actions">
+                <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
+                   target="_blank"
+                   title="Abrir en nueva pestaña">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                </a>
+                <a href="{{ path('app_document_download', {id: doc.id}) }}"
+                   title="Descargar">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                </a>
+                {% if not isZip %}
+                    <button type="button"
+                            title="Reprocesar documento"
+                            onclick="reprocessDocument('{{ doc.id }}', this)">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                    </button>
+                {% endif %}
+            </div>
         </div>
     {% endmacro %}
 
-    {# Request documents #}
     {% if requestDocs|length > 0 %}
-        <div class="space-y-3">
+        <div class="docs-list">
             {% for doc in requestDocs %}
                 {{ _self.document_item(doc) }}
             {% endfor %}
         </div>
     {% endif %}
 
-    {# Complaint documents #}
     {% if complaintDocs|length > 0 %}
-        <div class="mt-6">
-            <div class="flex items-center gap-2 mb-3">
-                <i data-lucide="scale" class="w-4 h-4 text-amber-500"></i>
-                <h4 class="text-sm font-semibold text-slate-600">Documentos de reclamación</h4>
-            </div>
-            <div class="space-y-3">
-                {% for doc in complaintDocs %}
-                    {{ _self.document_item(doc) }}
-                {% endfor %}
-            </div>
+        <div class="docs-group-label">
+            <span class="docs-group-label-name">Documentos de reclamación</span>
+            <span class="docs-group-label-rule"></span>
+        </div>
+        <div class="docs-list">
+            {% for doc in complaintDocs %}
+                {{ _self.document_item(doc) }}
+            {% endfor %}
         </div>
     {% endif %}
 {% else %}
-    <div class="empty-state py-8">
-        <div class="empty-state-icon">
-            <i data-lucide="file" class="w-full h-full"></i>
-        </div>
-        <p class="empty-state-title">Sin documentos</p>
-        <p class="empty-state-description">No hay documentos adjuntos a esta solicitud</p>
+    <div class="docs-empty">
+        <em>Sin documentos en el expediente</em>
+        Sube el primero arrastrándolo arriba o pulsando «Seleccionar».
     </div>
 {% endif %}

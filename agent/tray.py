@@ -322,8 +322,9 @@ class TrayApp:
         loop_thread = threading.Thread(target=self._run_loop, daemon=True, name="asyncio-loop")
         loop_thread.start()
 
-        # Schedule periodic sync + update check
-        def _start_schedulers() -> None:
+        # Schedule periodic sync + update check on the asyncio loop thread —
+        # AsyncIOScheduler requires its constructor and start() to run there.
+        async def _start_schedulers() -> None:
             try:
                 from apscheduler.schedulers.asyncio import AsyncIOScheduler
                 scheduler = AsyncIOScheduler()
@@ -342,13 +343,12 @@ class TrayApp:
                     max_instances=1,
                 )
                 scheduler.start()
-                # Run both immediately on startup
-                self._submit(self._scheduled_sync())
-                self._submit(self._check_for_updates())
+                asyncio.create_task(self._scheduled_sync())
+                asyncio.create_task(self._check_for_updates())
             except Exception as e:
                 console.print(f"[dim]No se pudo iniciar los schedulers: {e}[/]")
 
-        threading.Thread(target=_start_schedulers, daemon=True, name="schedulers").start()
+        self._submit(_start_schedulers())
         console.print(
             f"[dim]Sincronización automática cada {self._sync_interval_minutes} minutos[/]"
         )

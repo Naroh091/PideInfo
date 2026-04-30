@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\Complaint\SuccessAnalysisWarmer;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -32,6 +33,7 @@ final class ProcessDocumentHandler
         private readonly AccessRequestManager $accessRequestManager,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
+        private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
     ) {
     }
 
@@ -113,6 +115,13 @@ final class ProcessDocumentHandler
                 'type' => $document->getType(),
                 'accessRequestId' => $accessRequest ? (string) $accessRequest->getId() : null,
             ]);
+
+            // The just-processed document may have flipped the request to denied/delayed
+            // (e.g. an uploaded denial PDF). Pre-warm the informe preliminar so the user
+            // doesn't wait when they click "Generar reclamación".
+            if ($accessRequest) {
+                $this->successAnalysisWarmer->maybeWarm($accessRequest);
+            }
 
         } catch (\Exception $e) {
             $this->logger->error('Error processing document', [

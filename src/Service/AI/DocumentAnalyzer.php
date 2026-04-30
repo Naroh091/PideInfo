@@ -128,12 +128,12 @@ final class DocumentAnalyzer
 
     private function buildMultiDocumentPrompt(int $documentCount): string
     {
-        return $this->promptStore->compile('pideinfo/document/analyze-multi', ['document_count' => $documentCount]);
+        return $this->promptStore->compile('pideinfo-document-analyze-multi', ['document_count' => $documentCount]);
     }
 
     private function buildPrompt(): string
     {
-        return $this->promptStore->compile('pideinfo/document/analyze-single');
+        return $this->promptStore->compile('pideinfo-document-analyze-single');
     }
 
     /**

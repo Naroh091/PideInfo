@@ -47,6 +47,9 @@ async def authenticate_redsara(
         "browser.sessionstore.resume_from_crash": False,
         "browser.startup.page": 0,
     }
+    cert_ready = (firefox_profile_dir / ".pideinfo-cert-ready").exists()
+    if headless or cert_ready:
+        firefox_user_prefs["security.default_personal_cert"] = "Select Automatically"
 
     captured_jwt: list[str] = []       # RS256 ROLE_API — for search/list API calls
     captured_download_jwt: list[str] = []  # HS256 ROLE_USER — for document downloads
@@ -129,6 +132,7 @@ async def authenticate_redsara(
                 )
 
             console.print("[bold green]Red SARA: autenticación completada[/]")
+            (firefox_profile_dir / ".pideinfo-cert-ready").touch()
             await asyncio.sleep(1.5)
 
             # Navigate to "mis registros" — this triggers Angular to call

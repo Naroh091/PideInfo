@@ -141,12 +141,20 @@ class TransparenciaAGEScraper:
 
     async def download_document(self, url: str, dest: Path) -> Path:
         """Download a document from the portal."""
+        import httpx
+
         client = await self._get_client()
         dest.parent.mkdir(parents=True, exist_ok=True)
 
         async with client.stream("GET", f"{self.portal_url}{url}") as response:
             self.session_manager.check_response_for_expiry(response)
-            response.raise_for_status()
+            if response.status_code >= 400:
+                body = (await response.aread()).decode("utf-8", errors="replace")[:500]
+                raise httpx.HTTPStatusError(
+                    f"{response.status_code} {response.reason_phrase} for {url}: {body}",
+                    request=response.request,
+                    response=response,
+                )
 
             with open(dest, "wb") as f:
                 async for chunk in response.aiter_bytes(chunk_size=8192):

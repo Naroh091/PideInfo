@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\DTO\ChatMessage;
 use App\Entity\AccessRequest;
 use App\Enum\DocumentType;
+use App\Service\AI\Llm\LlmClient;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Complaint\SuccessAnalyzer;
 use App\Service\Document\DocumentContentsCollector;
@@ -15,6 +16,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
@@ -29,6 +31,7 @@ class ComplaintController extends AbstractController
         private readonly WordGenerator $wordGenerator,
         private readonly FilesystemOperator $documentsStorage,
         private readonly DocumentContentsCollector $documentContentsCollector,
+        private readonly LlmClient $llmClient,
     ) {
     }
 
@@ -131,6 +134,110 @@ class ComplaintController extends AbstractController
         }
     }
 
+    /**
+     * SSE counterpart of create(): streams the model output back to the browser as
+     * `text/event-stream`, emitting one `chunk` event per delta and a final `done`
+     * event with the parsed ComplaintDraft. Errors are emitted as `error` events.
+     */
+    #[Route('/generar/stream', name: 'app_complaint_create_stream', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function createStream(Request $request, AccessRequest $accessRequest): Response
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $mode = $data['mode'] ?? 'complaint';
+        $userDirections = $data['userDirections'] ?? null;
+        $rawHistory = $data['conversationHistory'] ?? [];
+        $documentIds = $data['documentIds'] ?? [];
+
+        if ($mode === 'alegation_response') {
+            if (!$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
+                return new JsonResponse([
+                    'success' => false,
+                    'error' => 'Solo se pueden generar respuestas a alegaciones para solicitudes con reclamación en curso.',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        } else {
+            if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+                return new JsonResponse([
+                    'success' => false,
+                    'error' => 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.',
+                ], Response::HTTP_BAD_REQUEST);
+            }
+        }
+
+        $conversationHistory = array_map(
+            fn (array $msg) => ChatMessage::fromArray($msg),
+            $rawHistory
+        );
+        $documentContents = $this->gatherDocumentContents($accessRequest, $documentIds);
+
+        $supportsStreaming = $this->llmClient->isCustomEnabled();
+
+        $response = new StreamedResponse(function () use ($mode, $accessRequest, $conversationHistory, $userDirections, $documentContents, $supportsStreaming): void {
+            // Disable any active output buffering so chunks reach the proxy immediately,
+            // and disable PHP-level compression that would buffer the whole response.
+            while (\function_exists('ob_get_level') && ob_get_level() > 0) {
+                @ob_end_flush();
+            }
+            @ini_set('zlib.output_compression', '0');
+            @ini_set('output_buffering', '0');
+            @ini_set('implicit_flush', '1');
+            ignore_user_abort(true);
+
+            $flush = static function (): void {
+                if (\function_exists('ob_get_level') && ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                @flush();
+            };
+
+            $emit = static function (string $type, array $payload = []) use ($flush): void {
+                echo 'data: ' . json_encode(['type' => $type] + $payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                $flush();
+            };
+
+            // Send a comment-line ping immediately so reverse proxies (nginx, cloudflare)
+            // see bytes on the wire and don't time out before the first model token.
+            echo ": ping\n\n";
+            $flush();
+
+            try {
+                if ($supportsStreaming) {
+                    $stream = $mode === 'alegation_response'
+                        ? $this->complaintGenerator->generateAlegationResponseStream($accessRequest, $conversationHistory, $userDirections, $documentContents)
+                        : $this->complaintGenerator->generateStream($accessRequest, $conversationHistory, $userDirections, $documentContents);
+
+                    foreach ($stream as $delta) {
+                        $emit('chunk', ['text' => $delta]);
+                    }
+
+                    $draft = $stream->getReturn();
+                } else {
+                    // Fallback when no OpenAI-compatible backend is configured: run the
+                    // blocking generator and emit a single 'done' event so the UI keeps working.
+                    $draft = $mode === 'alegation_response'
+                        ? $this->complaintGenerator->generateAlegationResponse($accessRequest, $conversationHistory, $userDirections, $documentContents)
+                        : $this->complaintGenerator->generate($accessRequest, $conversationHistory, $userDirections, $documentContents);
+                }
+
+                $emit('done', [
+                    'html' => $draft->content,
+                    'draftData' => $draft->toArray(),
+                    'successAnalysis' => $draft->successAnalysis?->toArray(),
+                ]);
+            } catch (\Throwable $e) {
+                $emit('error', ['error' => 'Error al generar el documento: ' . $e->getMessage()]);
+            }
+        });
+
+        $response->headers->set('Content-Type', 'text/event-stream');
+        $response->headers->set('Cache-Control', 'no-cache, no-transform');
+        $response->headers->set('X-Accel-Buffering', 'no');
+        $response->headers->set('Connection', 'keep-alive');
+
+        return $response;
+    }
+
     #[Route('/guardar', name: 'app_complaint_save', methods: ['POST'])]
     #[IsGranted('view', 'accessRequest')]
     public function save(Request $request, AccessRequest $accessRequest): JsonResponse
@@ -170,7 +277,7 @@ class ComplaintController extends AbstractController
 
     #[Route('/analisis', name: 'app_complaint_analyze', methods: ['POST'])]
     #[IsGranted('view', 'accessRequest')]
-    public function analyze(AccessRequest $accessRequest): JsonResponse
+    public function analyze(Request $request, AccessRequest $accessRequest): JsonResponse
     {
         if (!$this->complaintGenerator->canGenerateComplaint($accessRequest) &&
             !$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
@@ -180,8 +287,10 @@ class ComplaintController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
+        $force = $request->query->getBoolean('force');
+
         try {
-            $analysis = $this->successAnalyzer->analyze($accessRequest);
+            $analysis = $this->successAnalyzer->analyzeCached($accessRequest, force: $force);
 
             return new JsonResponse([
                 'success' => true,

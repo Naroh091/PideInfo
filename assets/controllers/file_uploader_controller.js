@@ -81,6 +81,7 @@ export default class extends Controller {
     async uploadFiles(files) {
         // Reset for new batch
         this.uploadedDocuments = [];
+        this.duplicateUploads = [];
         const fileCount = files.length;
 
         console.log('uploadFiles called with', fileCount, 'files');
@@ -90,6 +91,10 @@ export default class extends Controller {
         }
 
         console.log('All uploads done, uploadedDocuments:', this.uploadedDocuments.length);
+
+        if (this.duplicateUploads.length > 0) {
+            this.showDuplicateModal(this.duplicateUploads);
+        }
 
         // After all uploads, ask if related (only if multiple files)
         if (this.uploadedDocuments.length > 1) {
@@ -147,6 +152,11 @@ export default class extends Controller {
                 if (!deferProcessing) {
                     this.startPollingForStatus();
                 }
+            } else if (response.status === 409 && result.duplicate) {
+                if (!this.duplicateUploads) this.duplicateUploads = [];
+                this.duplicateUploads.push({ uploaded: file.name, existing: result.existing });
+                const skippedShortName = file.name.length > 40 ? file.name.substring(0, 37) + '...' : file.name;
+                this.showStatus(`"${skippedShortName}" ya existe — omitido`, 'warning');
             } else {
                 this.showStatus(result.error || 'Error al subir el archivo', 'danger');
             }
@@ -154,6 +164,58 @@ export default class extends Controller {
             console.error('Upload error:', error);
             this.showStatus('Error de conexion al subir el archivo', 'danger');
         }
+    }
+
+    showDuplicateModal(duplicates) {
+        // Remove any prior duplicate modal
+        document.getElementById('duplicateUploadsModal')?.remove();
+
+        const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+            { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+        ));
+
+        const items = duplicates.map(({ uploaded, existing }) => {
+            const name = escapeHtml(existing?.name || uploaded);
+            const created = existing?.createdAt ? ` <span class="text-xs text-slate-400">(${escapeHtml(existing.createdAt)})</span>` : '';
+            const link = existing?.downloadUrl
+                ? `<a href="${escapeHtml(existing.downloadUrl)}" target="_blank" rel="noopener" class="text-primary-600 hover:underline text-sm">Ver original</a>`
+                : '';
+            return `
+                <li class="flex items-start justify-between gap-3 py-2 border-b border-slate-100 last:border-b-0">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-800 truncate" title="${escapeHtml(uploaded)}">${escapeHtml(uploaded)}</p>
+                        <p class="text-xs text-slate-500 truncate">Ya existe como "${name}"${created}</p>
+                    </div>
+                    ${link}
+                </li>
+            `;
+        }).join('');
+
+        const wrapper = document.createElement('div');
+        wrapper.id = 'duplicateUploadsModal';
+        wrapper.className = 'modal-backdrop';
+        wrapper.innerHTML = `
+            <div class="modal-content max-w-md">
+                <div class="modal-header">
+                    <h3 class="text-lg font-semibold text-slate-800">Archivos duplicados omitidos</h3>
+                </div>
+                <div class="modal-body">
+                    <p class="text-slate-600 mb-3">${duplicates.length === 1 ? 'Este archivo' : `${duplicates.length} archivos`} ya ${duplicates.length === 1 ? 'existía' : 'existían'} en tus documentos y se ${duplicates.length === 1 ? 'ha omitido' : 'han omitido'}:</p>
+                    <ul class="max-h-60 overflow-auto rounded-lg border border-slate-200 px-3 bg-slate-50">${items}</ul>
+                </div>
+                <div class="modal-footer flex justify-end gap-2">
+                    <button type="button" class="btn btn-primary" data-dismiss="duplicate">Entendido</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(wrapper);
+        wrapper.addEventListener('click', (e) => {
+            if (e.target === wrapper || e.target.dataset.dismiss === 'duplicate') {
+                wrapper.remove();
+            }
+        });
+
+        if (window.lucide) window.lucide.createIcons();
     }
 
     showRelatedModal() {

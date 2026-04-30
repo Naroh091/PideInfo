@@ -6,6 +6,7 @@ use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\User;
 use App\Entity\UserNotification;
+use App\Service\ActivitySummary\ActivitySummaryWarmer;
 use App\Service\Mercure\DashboardUpdatePublisher;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -16,6 +17,7 @@ final class UserNotificationManager
         private readonly EntityManagerInterface $entityManager,
         private readonly DashboardUpdatePublisher $publisher,
         private readonly LoggerInterface $logger,
+        private readonly ActivitySummaryWarmer $activitySummaryWarmer,
     ) {
     }
 
@@ -132,6 +134,10 @@ final class UserNotificationManager
                 'error' => $e->getMessage(),
             ]);
         }
+
+        // Schedule a regeneration of the AI activity summary if the new notification
+        // changes the 24 h fingerprint. The warmer debounces and the worker is idempotent.
+        $this->activitySummaryWarmer->maybeWarm($user);
 
         return $notification;
     }

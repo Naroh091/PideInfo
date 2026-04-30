@@ -56,6 +56,9 @@ async def authenticate_dehu(
         "browser.sessionstore.resume_from_crash": False,
         "browser.startup.page": 0,
     }
+    cert_ready = (firefox_profile_dir / ".pideinfo-cert-ready").exists()
+    if headless or cert_ready:
+        firefox_user_prefs["security.default_personal_cert"] = "Select Automatically"
 
     captured_jwt: list[str] = []
 
@@ -110,6 +113,7 @@ async def authenticate_dehu(
                 timeout=timeout_seconds * 1000,
             )
             console.print("[bold green]DEHú: autenticación completada[/]")
+            (firefox_profile_dir / ".pideinfo-cert-ready").touch()
 
             import asyncio
 

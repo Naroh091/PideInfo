@@ -5,6 +5,7 @@ namespace App\Service;
 use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
@@ -252,6 +253,16 @@ class AgentWebhookProcessor
             return ['id' => null, 'skipped' => ['filename' => $filename, 'reason' => 'decode_error']];
         }
 
+        // Tiny images (< 10 KB) are noise — signature logos, icons, etc.
+        if (\App\Service\Document\DocumentIngestionFilter::isTinyImage($contentType, strlen($content))) {
+            $this->logger->info('Agent: skipping tiny image', [
+                'filename' => $filename,
+                'contentType' => $contentType,
+                'size' => strlen($content),
+            ]);
+            return ['id' => null, 'skipped' => ['filename' => $filename, 'reason' => 'tiny_image']];
+        }
+
         if (!$contentHash) {
             $contentHash = hash('sha256', $content);
         }
@@ -278,6 +289,17 @@ class AgentWebhookProcessor
             ...$metadata,
         ];
 
+        // For CTBG expediente documents the agent labels the phase + title; map
+        // them to the right DocumentType so they land in the "Documentos de
+        // reclamación" section of the request detail before AI re-classifies.
+        $preassignedType = null;
+        if ($source === 'consejo_ctbg' && !empty($metadata['complaint_phase'])) {
+            $preassignedType = self::mapCtbgPhaseToType(
+                (string) $metadata['complaint_phase'],
+                (string) ($metadata['documentTitle'] ?? $filename),
+            );
+        }
+
         $document = $this->createDocument(
             user: $user,
             content: $content,
@@ -286,9 +308,41 @@ class AgentWebhookProcessor
             contentHash: $contentHash,
             sourceMetadata: $sourceMetadata,
             accessRequest: $accessRequest,
+            type: $preassignedType,
         );
 
         return ['id' => $document->getId(), 'skipped' => null];
+    }
+
+    /**
+     * Best-effort mapping of a CTBG card title (within a phase) to a complaint
+     * DocumentType. Falls back to ``Complaint`` so the document is always
+     * rendered in the "Documentos de reclamación" section.
+     */
+    private static function mapCtbgPhaseToType(string $phase, string $title): DocumentType
+    {
+        $t = mb_strtolower($title);
+        $p = mb_strtolower($phase);
+
+        if (str_starts_with($t, 'r ctbg')) {
+            return DocumentType::ComplaintResolution;
+        }
+        if (str_contains($t, 'comunicación de inicio') || str_contains($t, 'comunicacion de inicio')) {
+            return DocumentType::ComplaintProcessingStart;
+        }
+        if (str_starts_with($t, 'trámite de audiencia') || str_starts_with($t, 'tramite de audiencia') || str_contains($p, 'audiencia')) {
+            return DocumentType::Audiencia;
+        }
+        if (str_starts_with($t, 'recibo')) {
+            return DocumentType::ComplaintReceipt;
+        }
+        if (str_contains($t, 'alegaciones') || str_contains($p, 'alegaciones')) {
+            return DocumentType::Alegaciones;
+        }
+        if (str_contains($t, 'subsanación') || str_contains($t, 'subsanacion') || str_contains($p, 'subsanación') || str_contains($p, 'subsanacion')) {
+            return DocumentType::Subsanacion;
+        }
+        return DocumentType::Complaint;
     }
 
     private function createDocument(
@@ -299,6 +353,7 @@ class AgentWebhookProcessor
         string $contentHash,
         array $sourceMetadata,
         ?AccessRequest $accessRequest = null,
+        ?DocumentType $type = null,
     ): Document {
         $extension = pathinfo($originalFilename, PATHINFO_EXTENSION) ?: match ($mimeType) {
             'application/pdf' => 'pdf',
@@ -328,6 +383,16 @@ class AgentWebhookProcessor
         $document->setSourceType(Document::SOURCE_PORTAL);
         $document->setSourceMetadata($sourceMetadata);
         $document->setContentHash($contentHash);
+
+        if ($type !== null) {
+            $document->setType($type);
+            // The doc already has its definitive complaint-related type; mark
+            // it processed so the AI pipeline doesn't reclassify it under a
+            // non-complaint type (which would hide it from the reclamación
+            // section). AI may still enrich extractedText / aiMetadata via a
+            // future explicit reprocess.
+            $document->setProcessed(true);
+        }
 
         if ($accessRequest !== null) {
             $accessRequest->addDocument($document);
