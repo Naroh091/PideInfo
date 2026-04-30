@@ -28,8 +28,8 @@ PideInfo expone un servidor [Model Context Protocol](https://modelcontextprotoco
 | Token                | Vida útil   |
 |----------------------|-------------|
 | Authorization code   | 10 minutos  |
-| Access token (RS256) | 1 hora      |
-| Refresh token        | 30 días     |
+| Access token (RS256) | 30 días     |
+| Refresh token        | 120 días    |
 
 Sólo se aceptan los grants `authorization_code` (con PKCE S256 obligatorio para clientes públicos) y `refresh_token`.
 
