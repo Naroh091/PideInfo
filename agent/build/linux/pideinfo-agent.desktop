@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=PideInfo Agent
-Comment=Sincroniza el Portal de Transparencia con PideInfo
-Exec=pideinfo-agent --tray
-Icon=pideinfo-agent
-Type=Application
-Categories=Utility;Network;
-StartupNotify=false
