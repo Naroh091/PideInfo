@@ -348,15 +348,14 @@ class TrayApp:
                 pystray.MenuItem(f"Actualizar a v{ver}...", self._on_update)
             )
 
-        if self._debug_mode:
-            items += [
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(
-                    "Deshabilitar headless",
-                    self._on_toggle_headless_disabled,
-                    checked=lambda item: self._get_headless_disabled(),
-                ),
-            ]
+        items += [
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Deshabilitar headless",
+                self._on_toggle_headless_disabled,
+                checked=lambda item: self._get_headless_disabled(),
+            ),
+        ]
 
         items += [
             pystray.MenuItem(f"PideInfo Agent v{__version__}", None, enabled=False),
