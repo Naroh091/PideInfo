@@ -78,6 +78,8 @@ class TrayApp:
         debug_mode: bool = False,
         get_headless_disabled_fn: "Callable[[], bool] | None" = None,
         toggle_headless_disabled_fn: "Callable[[], None] | None" = None,
+        get_telemetry_enabled_fn: "Callable[[], bool] | None" = None,
+        toggle_telemetry_enabled_fn: "Callable[[], None] | None" = None,
         sync_interval_minutes: int = 30,
         drain_tasks_fn: "Callable[[], None] | None" = None,
     ) -> None:
@@ -95,6 +97,8 @@ class TrayApp:
         self._debug_mode = debug_mode
         self._get_headless_disabled = get_headless_disabled_fn or (lambda: False)
         self._toggle_headless_disabled = toggle_headless_disabled_fn or (lambda: None)
+        self._get_telemetry_enabled = get_telemetry_enabled_fn or (lambda: True)
+        self._toggle_telemetry_enabled = toggle_telemetry_enabled_fn or (lambda: None)
         self._sync_interval_minutes = sync_interval_minutes
         self._drain_tasks_fn = drain_tasks_fn
         self._draining_tasks = False
@@ -177,6 +181,10 @@ class TrayApp:
 
     def _on_toggle_headless_disabled(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._toggle_headless_disabled()
+        self._rebuild_menu()
+
+    def _on_toggle_telemetry_enabled(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        self._toggle_telemetry_enabled()
         self._rebuild_menu()
 
     def _on_check_pending_tasks(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
@@ -354,6 +362,11 @@ class TrayApp:
                 "Deshabilitar headless",
                 self._on_toggle_headless_disabled,
                 checked=lambda item: self._get_headless_disabled(),
+            ),
+            pystray.MenuItem(
+                "Enviar telemetría de errores",
+                self._on_toggle_telemetry_enabled,
+                checked=lambda item: self._get_telemetry_enabled(),
             ),
         ]
 

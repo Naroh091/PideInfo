@@ -43,6 +43,10 @@ class AgentPreferences:
     # Debug: launch browsers in headed mode (visible window)
     headless_disabled: bool = False
 
+    # Send anonymous error reports to Sentry. Off → only the local rotating
+    # log file in data_dir captures errors.
+    telemetry_enabled: bool = True
+
     @property
     def is_connected(self) -> bool:
         return bool(self.jwt_token)
@@ -73,6 +77,7 @@ def load_preferences(path: Path) -> AgentPreferences:
             sync_dehu=bool(data.get("sync_dehu", True)),
             sync_redsara=bool(data.get("sync_redsara", True)),
             headless_disabled=bool(data.get("headless_disabled", False)),
+            telemetry_enabled=bool(data.get("telemetry_enabled", True)),
         )
 
         # Migration: remove stale cert artifacts left by older versions of the agent
@@ -139,6 +144,7 @@ def save_preferences(prefs: AgentPreferences, path: Path) -> None:
                 "sync_dehu": prefs.sync_dehu,
                 "sync_redsara": prefs.sync_redsara,
                 "headless_disabled": prefs.headless_disabled,
+                "telemetry_enabled": prefs.telemetry_enabled,
             },
             indent=2,
         )

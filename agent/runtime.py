@@ -40,6 +40,22 @@ def get_playwright_browsers_dir() -> Path:
         return Path.home() / ".local" / "share" / "pideinfo-agent" / "playwright-browsers"
 
 
+def apply_baked_env() -> None:
+    """Apply build-time-baked env vars (Sentry DSN, environment, etc).
+
+    The CI build writes `agent/_baked_env.py` with a `BAKED_ENV: dict[str, str]`
+    constant; we `setdefault` each value so a real env var or `.env` entry
+    still wins for developers running from source.
+    """
+    try:
+        from _baked_env import BAKED_ENV  # type: ignore[import-not-found]
+    except ImportError:
+        return
+    for key, value in BAKED_ENV.items():
+        if value:
+            os.environ.setdefault(key, value)
+
+
 def setup_playwright_env() -> None:
     """Set PLAYWRIGHT_BROWSERS_PATH so Playwright stores/finds Firefox in a persistent location.
 

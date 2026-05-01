@@ -2,3 +2,4 @@
 *.cfg
 *.pyc
 .env
+_baked_env.py
