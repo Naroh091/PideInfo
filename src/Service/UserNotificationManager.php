@@ -66,6 +66,10 @@ final class UserNotificationManager
             ? sprintf('Documentación importada automáticamente: %s', $filenames[0])
             : sprintf('%d documentos importados automáticamente por el agente', $count);
 
+        // Skip the activity-summary warmer on purpose: at this point the new
+        // documents have no DocumentType yet (the AI analysis runs async).
+        // The per-document `notifyDocumentImported` fires once the analyzer
+        // sets the type and that re-warms the summary with accurate input.
         return $this->create(
             user: $user,
             type: UserNotification::TYPE_AGENT_DOCUMENT_DOWNLOADED,
@@ -75,6 +79,7 @@ final class UserNotificationManager
                 'filenames' => $filenames,
                 'count' => $count,
             ],
+            skipWarmer: true,
         );
     }
 
@@ -82,6 +87,9 @@ final class UserNotificationManager
     {
         $label = $notificationData['concepto'] ?? $notificationData['tipo'] ?? 'notificación';
 
+        // Same reasoning as `notifyAgentDocumentDownloaded`: the documents
+        // attached to the accepted notification still need AI analysis before
+        // the summary can describe them meaningfully.
         return $this->create(
             user: $user,
             type: UserNotification::TYPE_NOTIFICATION_ACCEPTED,
@@ -89,6 +97,7 @@ final class UserNotificationManager
             accessRequest: $accessRequest,
             alertLevel: 'warning',
             metadata: $notificationData,
+            skipWarmer: true,
         );
     }
 
@@ -103,6 +112,7 @@ final class UserNotificationManager
             accessRequest: $accessRequest,
             alertLevel: 'warning',
             metadata: $communicationData,
+            skipWarmer: true,
         );
     }
 
@@ -113,6 +123,7 @@ final class UserNotificationManager
         ?AccessRequest $accessRequest = null,
         string $alertLevel = 'info',
         array $metadata = [],
+        bool $skipWarmer = false,
     ): UserNotification {
         $notification = new UserNotification();
         $notification->setUser($user);
@@ -135,9 +146,14 @@ final class UserNotificationManager
             ]);
         }
 
-        // Schedule a regeneration of the AI activity summary if the new notification
-        // changes the 24 h fingerprint. The warmer debounces and the worker is idempotent.
-        $this->activitySummaryWarmer->maybeWarm($user);
+        // Schedule a regeneration of the AI activity summary if the new
+        // notification changes the 24 h fingerprint. Skipped for events that
+        // depend on later async work (document AI analysis), where the
+        // downstream `notifyDocumentImported` will warm the summary with
+        // accurate document types.
+        if (!$skipWarmer) {
+            $this->activitySummaryWarmer->maybeWarm($user);
+        }
 
         return $notification;
     }

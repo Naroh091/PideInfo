@@ -1,0 +1,138 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% set council = request.applicableLaw.complaintOrganism
+    ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
+    : 'el Consejo de Transparencia' %}
+
+{% block title %}Reclamar a {{ council }} - {{ request.title }} - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .choice-card {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: inherit;
+            transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+        }
+        .choice-card:hover {
+            border-color: #0284c7;
+            box-shadow: 0 8px 24px -16px rgba(15,23,42,.18);
+            transform: translateY(-1px);
+        }
+        .choice-card .choice-icon {
+            width: 2.75rem; height: 2.75rem;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .choice-card.choice-ai .choice-icon { background: #ecfeff; color: #0e7490; }
+        .choice-card.choice-manual .choice-icon { background: #fef3c7; color: #b45309; }
+        .choice-card.choice-external .choice-icon { background: #f1f5f9; color: #475569; }
+        .choice-card h3 {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 1rem;
+            margin-bottom: .35rem;
+        }
+        .choice-card p {
+            font-size: .9rem;
+            color: #475569;
+            line-height: 1.45;
+        }
+        .choice-card .choice-cta {
+            margin-top: auto;
+            padding-top: 1rem;
+            font-size: .85rem;
+            font-weight: 600;
+            color: #0284c7;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+        }
+        .choice-card.choice-manual .choice-cta { color: #b45309; }
+        .choice-card.choice-external .choice-cta { color: #475569; }
+        .draft-resume {
+            border: 1px solid #fde68a;
+            background: #fffbeb;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            display: flex;
+            gap: .75rem;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+    <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+    <span class="text-slate-300">/</span>
+    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors">{{ request.title|u.truncate(40, '…') }}</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-slate-800 font-medium">RECLAMAR</span>
+</nav>
+
+<div class="max-w-4xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-slate-800 mb-1">Reclamar a {{ council }}</h1>
+        <p class="text-slate-500">Elige cómo quieres preparar tu reclamación. PideInfo guarda el texto y, cuando esté listo, te ayudará a presentarlo.</p>
+    </div>
+
+    {% if existingDocument %}
+        {% set draftOrigin = existingDocument.aiMetadata.origin|default('ai') %}
+        {% set continueRoute = draftOrigin == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
+        <div class="draft-resume">
+            <div class="text-amber-600 mt-0.5"><i data-lucide="file-edit" class="w-5 h-5"></i></div>
+            <div class="flex-1">
+                <p class="font-medium text-slate-800">Tienes una reclamación en borrador</p>
+                <p class="text-sm text-slate-600 mt-1">
+                    Última edición: {{ existingDocument.createdAt|date('d/m/Y H:i') }}.
+                    Puedes continuar editándola o empezar de nuevo eligiendo otra opción.
+                </p>
+                <a href="{{ path(continueRoute, {id: request.id}) }}" class="btn btn-accent btn-sm mt-3 inline-flex">
+                    <i data-lucide="arrow-right" class="w-4 h-4 mr-1.5"></i>
+                    Continuar el borrador
+                </a>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="grid md:grid-cols-{{ complaintFormUrl ? 3 : 2 }} gap-4">
+        <a href="{{ path('app_complaint_assistant', {id: request.id, mode: 'complaint'}) }}" class="choice-card choice-ai">
+            <div class="choice-icon"><i data-lucide="sparkles" class="w-5 h-5"></i></div>
+            <h3>Generar con IA</h3>
+            <p>PideInfo redacta la reclamación basándose en tu expediente y la jurisprudencia del Consejo. Podrás revisarla y editarla antes de presentar.</p>
+            <span class="choice-cta">Generar borrador <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
+
+        <a href="{{ path('app_complaint_draft', {id: request.id}) }}" class="choice-card choice-manual">
+            <div class="choice-icon"><i data-lucide="pen-line" class="w-5 h-5"></i></div>
+            <h3>Ya tengo el texto</h3>
+            <p>Pega tu reclamación en un editor y la dejamos lista para presentar. Útil si la has redactado por tu cuenta o con otra herramienta.</p>
+            <span class="choice-cta">Pegar mi texto <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
+
+        {% if complaintFormUrl %}
+            <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="choice-card choice-external">
+                <div class="choice-icon"><i data-lucide="external-link" class="w-5 h-5"></i></div>
+                <h3>Hacerlo manualmente en la sede</h3>
+                <p>Abre la sede electrónica del Consejo en otra pestaña y presenta la reclamación tú mismo, sin pasar por PideInfo.</p>
+                <span class="choice-cta">Ir a la sede <i data-lucide="external-link" class="w-4 h-4"></i></span>
+            </a>
+        {% endif %}
+    </div>
+
+    <p class="text-xs text-slate-400 mt-6">
+        <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1"></i>
+        Más adelante, PideInfo podrá presentar la reclamación por ti en la sede electrónica usando tu certificado digital.
+    </p>
+</div>
+{% endblock %}
