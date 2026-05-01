@@ -1098,7 +1098,21 @@ def main() -> None:
         help="Mostrar versión y salir",
     )
 
-    args = parser.parse_args()
+    # macOS: PyInstaller's argv_emulation translates a clicked pideinfo:// URL
+    # into a bare argv element at cold launch. Promote it to --url.
+    raw_argv = sys.argv[1:]
+    promoted: list[str] = []
+    skip_next = False
+    for i, tok in enumerate(raw_argv):
+        if skip_next:
+            skip_next = False
+            promoted.append(tok)
+            continue
+        if tok.startswith("pideinfo://") and "--url" not in raw_argv[:i]:
+            promoted.extend(["--url", tok])
+        else:
+            promoted.append(tok)
+    args = parser.parse_args(promoted)
 
     if args.version:
         from version import __version__
@@ -1142,6 +1156,23 @@ def main() -> None:
         # Relayed our URL to the existing agent; nothing else to do.
         return
 
+    # macOS: Launch Services routes URL clicks for a running .app via Apple
+    # Events, not by spawning a new process — the Unix-socket relay never
+    # sees them. Install a kAEGetURL handler so the running tray dispatches.
+    if sys.platform == "darwin":
+        from protocol.macos_url_events import install as _install_mac_url_handler
+        _install_mac_url_handler(_on_relayed_url)
+
+    # Ensure Firefox is present (downloads on first run if missing). Must run
+    # before any task dispatch — both the relayed --url and pending-task drain
+    # below can launch headed browser flows.
+    from runtime import ensure_firefox
+    try:
+        ensure_firefox()
+    except Exception as e:
+        console.print(f"[red]No se pudo instalar el navegador: {e}[/]")
+        sys.exit(1)
+
     # We're primary. If we were invoked with --url, dispatch it now (before
     # spinning up daemon/tray) so the user sees an immediate response.
     if args.url:
@@ -1162,14 +1193,6 @@ def main() -> None:
 
     _drain_pending_tasks_safe()
     # ──────────────────────────────────────────────────────────────────────
-
-    # Ensure Firefox is present (downloads on first run if missing)
-    from runtime import ensure_firefox
-    try:
-        ensure_firefox()
-    except Exception as e:
-        console.print(f"[red]No se pudo instalar el navegador: {e}[/]")
-        sys.exit(1)
 
     if args.auth_only:
         asyncio.run(do_auth(settings))

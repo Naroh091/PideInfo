@@ -1,8 +1,8 @@
 """Register/unregister the pideinfo:// URL scheme with the OS.
 
 Linux:   ~/.local/share/applications/pideinfo-agent.desktop + xdg-mime default
-macOS:   Requires a .app bundle with CFBundleURLTypes; we only check, do not
-         install (out of scope for fase 2a).
+macOS:   Requires a .app bundle with CFBundleURLTypes (declared in the
+         PyInstaller spec). Registration shells out to `lsregister`.
 Windows: HKEY_CURRENT_USER\\Software\\Classes\\pideinfo + URL Protocol value.
 
 `is_registered()` is best-effort. `register()` returns (success: bool, message: str)
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -106,6 +107,70 @@ def _is_registered_windows() -> bool:
         return False
 
 
+# -- macOS -------------------------------------------------------------------
+
+_MACOS_BUNDLE_ID = "com.pideinfo.agent"
+_MACOS_LSREGISTER = (
+    "/System/Library/Frameworks/CoreServices.framework/Frameworks/"
+    "LaunchServices.framework/Support/lsregister"
+)
+_MACOS_LS_PLIST = (
+    Path.home()
+    / "Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+)
+
+
+def _macos_app_bundle() -> Path | None:
+    """Return path to the running .app bundle, or None if not running from one."""
+    if not getattr(sys, "frozen", False):
+        return None
+    exe = Path(sys.executable).resolve()
+    for parent in (exe, *exe.parents):
+        if parent.suffix == ".app":
+            return parent
+    return None
+
+
+def _register_macos() -> tuple[bool, str]:
+    bundle = _macos_app_bundle()
+    if bundle is None:
+        return False, (
+            "macOS requiere ejecutar desde el bundle .app. "
+            "Compila el bundle con `pyinstaller build/pideinfo-agent.spec` "
+            "y abre `PideInfo Agent.app`."
+        )
+    try:
+        subprocess.run(
+            [_MACOS_LSREGISTER, "-f", "-R", str(bundle)],
+            check=True, capture_output=True, text=True,
+        )
+    except FileNotFoundError:
+        return False, f"lsregister no encontrado en {_MACOS_LSREGISTER}."
+    except subprocess.CalledProcessError as e:
+        return False, f"lsregister falló: {e.stderr or e}"
+    return True, f"Handler registrado para {bundle.name}."
+
+
+def _is_registered_macos() -> bool:
+    if not _MACOS_LS_PLIST.exists():
+        return False
+    try:
+        with _MACOS_LS_PLIST.open("rb") as f:
+            data = plistlib.load(f)
+    except Exception:
+        return False
+    for handler in data.get("LSHandlers", []) or []:
+        if handler.get("LSHandlerURLScheme") != "pideinfo":
+            continue
+        role = (
+            handler.get("LSHandlerRoleAll")
+            or handler.get("LSHandlerRoleViewer")
+        )
+        if role == _MACOS_BUNDLE_ID:
+            return True
+    return False
+
+
 # -- Public ------------------------------------------------------------------
 
 def register() -> tuple[bool, str]:
@@ -115,7 +180,7 @@ def register() -> tuple[bool, str]:
     if sysname == "Windows":
         return _register_windows()
     if sysname == "Darwin":
-        return False, "macOS requiere bundle .app — no implementado en fase 2a."
+        return _register_macos()
     return False, f"Sistema no soportado: {sysname}"
 
 
@@ -125,4 +190,6 @@ def is_registered() -> bool:
         return _is_registered_linux()
     if sysname == "Windows":
         return _is_registered_windows()
+    if sysname == "Darwin":
+        return _is_registered_macos()
     return False
