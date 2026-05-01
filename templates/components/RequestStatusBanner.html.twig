@@ -148,17 +148,16 @@
                 {% endif %}
             </div>
         </div>
+        {% set draftDocument = this.complaintDraftDocument %}
         <div class="dossier-notice-footer">
-            <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-accent btn-sm">
-                <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
-                Generar reclamación a {{ council|u.truncate(40, '…') }}
+            <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-accent btn-sm">
+                <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
+                {% if draftDocument %}
+                    Continuar reclamación a {{ council|u.truncate(40, '…') }}
+                {% else %}
+                    Reclamar a {{ council|u.truncate(40, '…') }}
+                {% endif %}
             </a>
-            {% if complaintFormUrl %}
-                <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
-                    Iniciar reclamación
-                </a>
-            {% endif %}
         </div>
     </aside>
 {% endif %}
@@ -166,7 +165,6 @@
 {# Solicitud denegada — invita a reclamar (skip if a complaint already exists) #}
 {% if request.status == 'denied' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
-    {% set complaintFormUrl = this.complaintFormUrl %}
     <aside class="dossier-notice is-red mb-6">
         <div class="dossier-notice-body">
             <div class="dossier-notice-icon">
@@ -188,17 +186,16 @@
                 </div>
             </div>
         </div>
+        {% set draftDocument = this.complaintDraftDocument %}
         <div class="dossier-notice-footer">
-            <a href="{{ path('app_complaint_generate', {id: request.id, mode: 'complaint'}) }}" class="btn btn-danger btn-sm">
-                <i data-lucide="sparkles" class="w-4 h-4 mr-1.5"></i>
-                Generar reclamación a {{ council|u.truncate(40, '…') }}
+            <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-danger btn-sm">
+                <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
+                {% if draftDocument %}
+                    Continuar reclamación a {{ council|u.truncate(40, '…') }}
+                {% else %}
+                    Reclamar a {{ council|u.truncate(40, '…') }}
+                {% endif %}
             </a>
-            {% if complaintFormUrl %}
-                <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm">
-                    <i data-lucide="external-link" class="w-4 h-4 mr-1.5"></i>
-                    Iniciar reclamación
-                </a>
-            {% endif %}
         </div>
     </aside>
 {% endif %}

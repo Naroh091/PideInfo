@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import threading
 
+from protocol.registration import register as _register_handler, is_registered as _is_registered
 from storage.preferences import ACCEPT_NOTIFICATIONS_AVAILABLE
 from version import __version__
 from typing import Callable, Coroutine, Any
@@ -78,6 +79,7 @@ class TrayApp:
         get_headless_disabled_fn: "Callable[[], bool] | None" = None,
         toggle_headless_disabled_fn: "Callable[[], None] | None" = None,
         sync_interval_minutes: int = 30,
+        drain_tasks_fn: "Callable[[], None] | None" = None,
     ) -> None:
         self._sync_fn = sync_fn
         self._reset_fn = reset_fn
@@ -94,6 +96,8 @@ class TrayApp:
         self._get_headless_disabled = get_headless_disabled_fn or (lambda: False)
         self._toggle_headless_disabled = toggle_headless_disabled_fn or (lambda: None)
         self._sync_interval_minutes = sync_interval_minutes
+        self._drain_tasks_fn = drain_tasks_fn
+        self._draining_tasks = False
         self._loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
         self._icon: "pystray.Icon | None" = None
         self._syncing = False
@@ -111,11 +115,11 @@ class TrayApp:
     def _submit(self, coro: Coroutine[Any, Any, None]) -> None:
         asyncio.run_coroutine_threadsafe(coro, self._loop)
 
-    def _set_syncing(self, value: bool) -> None:
+    def _set_syncing(self, value: bool, label: str = "sincronizando…") -> None:
         self._syncing = value
         if self._icon:
             self._icon.icon = _make_icon(syncing=value)
-            self._icon.title = "PideInfo Agent — sincronizando…" if value else "PideInfo Agent"
+            self._icon.title = f"PideInfo Agent — {label}" if value else "PideInfo Agent"
 
     def _rebuild_menu(self) -> None:
         """Rebuild and update the tray menu (e.g. after connect/disconnect)."""
@@ -175,8 +179,39 @@ class TrayApp:
         self._toggle_headless_disabled()
         self._rebuild_menu()
 
+    def _on_check_pending_tasks(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
+        if self._drain_tasks_fn is None or self._draining_tasks:
+            return
+
+        async def _run() -> None:
+            self._draining_tasks = True
+            self._set_syncing(True, label="comprobando tareas…")
+            self._rebuild_menu()
+            try:
+                # drain_tasks_fn is a sync function (httpx.Client). Run it off the
+                # event loop to avoid blocking the asyncio thread.
+                await asyncio.to_thread(self._drain_tasks_fn)
+            except Exception as exc:
+                console.print(f"[red]Comprobar tareas pendientes: {exc}[/]")
+            finally:
+                self._draining_tasks = False
+                self._set_syncing(False)
+                self._rebuild_menu()
+
+        self._submit(_run())
+
     def _on_configure(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._configure_fn()
+
+    def _on_register_handler(self, _icon: "pystray.Icon", _item: "pystray.MenuItem") -> None:
+        ok, msg = _register_handler()
+        try:
+            from notifier.desktop import _notify
+            _notify("PideInfo Agent", msg)
+        except Exception:
+            console.print(msg)
+        if ok:
+            self._rebuild_menu()
 
     def _on_quit(self, icon: "pystray.Icon", item: "pystray.MenuItem") -> None:
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -227,6 +262,11 @@ class TrayApp:
             return pystray.Menu(
                 pystray.MenuItem("Conectar", self._on_connect),
                 pystray.MenuItem("Configurar...", self._on_configure),
+                pystray.MenuItem(
+                    lambda item: "Handler pideinfo:// registrado" if _is_registered() else "Registrar handler de pideinfo://",
+                    self._on_register_handler,
+                    enabled=lambda item: not _is_registered(),
+                ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(f"PideInfo Agent v{__version__}", None, enabled=False),
                 pystray.MenuItem("Cerrar", self._on_quit),
@@ -235,6 +275,16 @@ class TrayApp:
         # Connected: full menu
         items = [
             pystray.MenuItem("Sincronizar ahora", self._on_sync),
+        ]
+        if self._drain_tasks_fn is not None:
+            items.append(
+                pystray.MenuItem(
+                    lambda item: "Comprobando tareas pendientes…" if self._draining_tasks else "Comprobar tareas pendientes",
+                    self._on_check_pending_tasks,
+                    enabled=lambda item: not self._draining_tasks,
+                )
+            )
+        items += [
             pystray.MenuItem("Resetear", self._on_reset),
             pystray.Menu.SEPARATOR,
         ]
@@ -278,6 +328,11 @@ class TrayApp:
         items += [
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Configurar...", self._on_configure),
+            pystray.MenuItem(
+                lambda item: "Handler pideinfo:// registrado" if _is_registered() else "Registrar handler de pideinfo://",
+                self._on_register_handler,
+                enabled=lambda item: not _is_registered(),
+            ),
             pystray.MenuItem("Desconectar", self._on_disconnect),
             pystray.MenuItem(
                 f"Conectado como {email}" if email else "Conectado",
@@ -342,6 +397,24 @@ class TrayApp:
                     id="update-check",
                     max_instances=1,
                 )
+                if self._drain_tasks_fn is not None:
+                    async def _drain_async() -> None:
+                        self._draining_tasks = True
+                        self._set_syncing(True, label="comprobando tareas…")
+                        try:
+                            await asyncio.to_thread(self._drain_tasks_fn)
+                        except Exception as exc:
+                            console.print(f"[yellow]drain_tasks_job: {exc}[/]")
+                        finally:
+                            self._draining_tasks = False
+                            self._set_syncing(False)
+                    scheduler.add_job(
+                        _drain_async,
+                        "interval",
+                        seconds=60,
+                        id="drain_agent_tasks",
+                        max_instances=1,
+                    )
                 scheduler.start()
                 asyncio.create_task(self._scheduled_sync())
                 asyncio.create_task(self._check_for_updates())

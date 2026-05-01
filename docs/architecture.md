@@ -242,6 +242,17 @@ The agent lives in `agent/` as a standalone Python project. It handles authentic
 
 Key design: the agent is thin — it only downloads and forwards. PideInfo is the source of truth for document processing and request state.
 
+### Web → agent (presentación de reclamaciones, fase 2a)
+
+Además del flujo agent→web descrito arriba, existe un canal **inverso** para tareas iniciadas desde la web:
+
+- Cola persistente: tabla `agent_task` (entidad `AgentTask`, repositorio `AgentTaskRepository::claimAtomically`).
+- API JSON con JWT bajo `/api/agent/tasks` (`AgentTaskApiController`): `pending`, `get`, `claim`, `progress`, `complete`.
+- Wake-up vía esquema URL custom `pideinfo://<action>/<task_id>` registrado en el SO (`agent/protocol/registration.py`). Single-instance + relay vía socket Unix / named pipe (`agent/protocol/single_instance.py`).
+- Dispatcher por tipo en `agent/tasks/`. Hoy solo `present_complaint`: descarga el PDF y abre la sede del CTBG. Fase 2b sustituirá esa acción por automatización Playwright completa.
+
+Detalle del flujo en [docs/complaint-workflow.md § 1bis](complaint-workflow.md) y de la mecánica del agente en [docs/agent.md § Recepción de tareas](agent.md).
+
 ## Configuration and infrastructure
 
 - **Database**: PostgreSQL with pgvector extension for vector similarity search
