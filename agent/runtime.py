@@ -51,15 +51,32 @@ def setup_playwright_env() -> None:
 
 
 def _firefox_is_installed() -> bool:
-    """Check whether Firefox has already been downloaded to PLAYWRIGHT_BROWSERS_PATH."""
+    """Check whether Firefox has been fully downloaded to PLAYWRIGHT_BROWSERS_PATH.
+
+    Verifies the executable exists, not just the wrapper directory — an
+    interrupted download leaves `firefox-XXXX/` empty, which would fool a
+    glob-only check and cause `launch_persistent_context` to fail with
+    "Executable doesn't exist".
+    """
     browsers_path = os.environ.get("PLAYWRIGHT_BROWSERS_PATH")
     if not browsers_path:
         return False
     base = Path(browsers_path)
     if not base.exists():
         return False
-    # Playwright stores browsers as firefox-XXXX/ directories
-    return any(base.glob("firefox-*/"))
+    for ff_dir in base.glob("firefox-*"):
+        # Per-platform layout used by the Playwright bundle:
+        #   macOS:   firefox-XXXX/firefox/Nightly.app/Contents/MacOS/firefox
+        #   Linux:   firefox-XXXX/firefox/firefox
+        #   Windows: firefox-XXXX/firefox/firefox.exe
+        candidates = [
+            ff_dir / "firefox" / "Nightly.app" / "Contents" / "MacOS" / "firefox",
+            ff_dir / "firefox" / "firefox",
+            ff_dir / "firefox" / "firefox.exe",
+        ]
+        if any(c.exists() for c in candidates):
+            return True
+    return False
 
 
 def ensure_firefox() -> None:
