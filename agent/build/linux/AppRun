@@ -1,6 +1,0 @@
-#!/bin/sh
-# AppImage entry point for PideInfo Agent
-SELF=$(readlink -f "$0")
-HERE="${SELF%/*}"
-export PATH="${HERE}/usr/bin:${PATH}"
-exec "${HERE}/usr/bin/pideinfo-agent" --tray "$@"
