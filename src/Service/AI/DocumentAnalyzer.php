@@ -65,7 +65,37 @@ final class DocumentAnalyzer
             maxOutputTokens: 16384,
         ));
 
+        if ($document->getMimeType() === 'application/pdf'
+            && $this->looksLikeComplaintReceipt($content)) {
+            $data['documentType'] = 'acuse_recibo_reclamacion';
+        }
+
         return $this->normalizeDocumentAnalysis($data);
+    }
+
+    /**
+     * The CTBG sede stamps a fixed boilerplate on every "Acuse de recibo" it
+     * emits, both for the request itself and for complaints. The two phrases
+     * checked here only co-occur in CTBG complaint receipts, so when both
+     * appear we can deterministically classify the document as such — useful
+     * because the AI sometimes lands on the generic "acuse_recibo".
+     */
+    private function looksLikeComplaintReceipt(string $pdfBytes): bool
+    {
+        try {
+            $text = $this->pdfTextExtractor->extractFullTextFromContent($pdfBytes);
+        } catch (\Throwable) {
+            return false;
+        }
+        $hasIssuer = (bool) preg_match(
+            '/Consejo\s+de\s+Transparencia\s+y\s+Buen\s+Gobierno/iu',
+            $text,
+        );
+        $hasDisclaimer = (bool) preg_match(
+            '/Este\s+acuse\s+de\s+recibo\s+no\s+prejuzga\s+la\s+admisi[oó]n\s+definitiva\s+del\s+escrito/iu',
+            $text,
+        );
+        return $hasIssuer && $hasDisclaimer;
     }
 
     /**
@@ -405,7 +435,14 @@ final class DocumentAnalyzer
      */
     private function normalizeDocumentAnalysis(array $data): array
     {
-        $data['documentType'] = DocumentType::fromAiValue($data['documentType'] ?? 'otro');
+        $rawType = $data['documentType'] ?? 'otro';
+        $data['documentType'] = DocumentType::fromAiValue($rawType);
+
+        // Some AI labels classify the *outcome* of a resolution rather than its
+        // document type (inadmitida, parcialmente_concedida). Surface that as a
+        // separate hint so consumers can update AccessRequest.status — the
+        // documentType remains DocumentType::Response.
+        $data['accessRequestStatus'] = DocumentType::statusFromAiValue($rawType);
 
         if (($data['isRedirection'] ?? false) === true && $data['documentType'] === DocumentType::Other) {
             $data['documentType'] = DocumentType::Redirection;

@@ -4,8 +4,10 @@ namespace App\Repository;
 
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
+use App\Entity\Document;
 use App\Entity\User;
 use App\Entity\Organization;
+use App\Enum\DocumentType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -395,5 +397,24 @@ class AccessRequestRepository extends ServiceEntityRepository
         }
 
         return $qb;
+    }
+
+    /**
+     * Most recent Document of the given type linked to this AccessRequest.
+     * Useful when only one canonical document of that type is expected
+     * (e.g. the original Solicitud, the Response, the Notification).
+     */
+    public function findDocumentByType(AccessRequest $accessRequest, DocumentType $type): ?Document
+    {
+        $latest = null;
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() !== $type) {
+                continue;
+            }
+            if ($latest === null || $document->getCreatedAt() > $latest->getCreatedAt()) {
+                $latest = $document;
+            }
+        }
+        return $latest;
     }
 }

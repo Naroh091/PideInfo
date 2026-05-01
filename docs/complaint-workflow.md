@@ -70,9 +70,21 @@ When a complaint is filed, an `AccessRequestComplaint` entity is created with a 
 
 The complaint is triggered when the access request is in status `denied`, `delayed`, or has a passed deadline without being `granted`.
 
-**Manual filing.** The user changes the complaint status dropdown on the request detail page to "Reclamada". The system creates an `AccessRequestComplaint` entity, sets a 3-month resolution deadline, and records the transition in `StatusHistory`.
+**Entry point — single CTA.** From the request detail page (`templates/components/RequestStatusBanner.html.twig`), the citizen sees one button — "Reclamar a {{ council }}" — that routes to `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). If a draft `Document` of type `Complaint` already exists, the label switches to "Continuar reclamación" and the same chooser surfaces the in-progress draft on top.
 
-**AI-assisted filing.** The user clicks "Generar reclamación" on the request detail page. The `ComplaintGenerator` service:
+**Chooser screen** (`templates/complaint/start.html.twig`). Three convergent paths:
+
+1. **Generar con IA** → `app_complaint_assistant` (`/asistente`). Streaming AI editor described below.
+2. **Ya tengo el texto** → `app_complaint_draft` (`/redactar`). Lightweight Trix editor where the citizen pastes a complaint they wrote externally. Saves through the same `ComplaintGenerator::saveComplaint()` pipeline so the resulting `Document` is indistinguishable downstream — only `aiMetadata.origin === 'external'` marks the source.
+3. **Hacerlo manualmente en la sede** → external link to `ComplaintOrganism.complaintFormUrl`. The citizen presents directly on the council's e-office, bypassing PideInfo.
+
+The first two paths converge on a saved `Document(type=Complaint)` and a unified post-save panel in `templates/solicitudes/show.html.twig` that offers **"Iniciar presentación"** (opens the council e-office in a new tab + downloads the PDF), plus PDF/Word download and a link back to the editor of origin.
+
+`Document.aiMetadata.origin` is set to `'ai'` for assistant-generated complaints and `'external'` for pasted ones. This is the canonical marker for routing the "Continuar / Editar" link to the correct editor.
+
+**Manual status filing.** Independently of the editor flow, the user can change the complaint status dropdown on the request detail page to "Reclamada". The system creates an `AccessRequestComplaint` entity, sets a 3-month resolution deadline, and records the transition in `StatusHistory`.
+
+**AI-assisted editor.** From the chooser, "Generar con IA" lands on the interactive editor (`app_complaint_assistant`). The `ComplaintGenerator` service:
 1. Checks eligibility via `canGenerateComplaint()` — request must be denied or delayed
 2. Runs a `SuccessAnalyzer` to estimate success probability. Returns a `SuccessAnalysis` DTO (`percentage`, `summary`, `strengths`, `weaknesses` — last three are HTML restricted to `<b>`, `<i>`, `<br>`; total payload capped at 2000 chars and sanitized server-side). The result is cached in `AccessRequest.metadata['success_analysis']` keyed by a fingerprint of `SCHEMA_VERSION + status + attached document IDs`, so subsequent calls reuse it until either the schema bumps or the request changes. The analyze endpoint (`POST /reclamacion/analisis?force=1`) honours `force` to bypass the cache.
 3. Retrieves similar favorable resolutions via vector search against the CTBG resolution database
@@ -86,6 +98,21 @@ The complaint is triggered when the access request is in status `denied`, `delay
 **Streaming UI.** The interactive view (`templates/complaint/interactive.html.twig`) consumes the SSE endpoint `POST /solicitudes/{id}/reclamacion/generar/stream` (`app_complaint_create_stream`), which streams `text/event-stream` chunks emitted by `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()`. The stream uses three event types: `chunk` (delta text, appended to a live preview), `done` (final `ComplaintDraft` payload — HTML, citations, success analysis), and `error`. Streaming requires `USE_CUSTOM_MODEL=true`; the underlying `LlmClient::chatStream()` only supports the OpenAI-compatible backend. The legacy non-streaming endpoint (`POST /solicitudes/{id}/reclamacion/generar`, `app_complaint_create`) remains for non-UI callers.
 
 **Automatic detection.** When a document classified as `DocumentType::Complaint` is uploaded, the system automatically creates the complaint entity and records a timeline entry.
+
+### 1bis. Presentación vía agente (fase 2a)
+
+Una vez la reclamación está guardada como `Document(type=Complaint)`, dos puntos de la UI ofrecen la presentación vía agente:
+
+- En el detalle de la solicitud (`templates/solicitudes/show.html.twig`) — "Presentar con el agente" + "Iniciar manual".
+- En el propio editor (`templates/complaint/draft.html.twig` para texto pegado, `templates/complaint/interactive.html.twig` para borrador IA): tras pulsar **Guardar borrador** aparecen botones **Presentar (supervisado)** y **Presentar (auto)** sin necesidad de volver al expediente. El botón "Guardar borrador" del editor IA reutiliza el endpoint `app_complaint_save_draft` (mismo que el flujo de "Pegar mi texto").
+
+Flujo:
+
+1. El usuario elige modo **auto** o **supervisado**. La distinción se persiste en `AgentTask.mode`.
+2. `POST /solicitudes/{id}/reclamacion/presentar` (`app_complaint_present_via_agent`) **valida primero** que la solicitud está en estado reclamable (status ∈ {`delayed`, `inadmitted`, `denied`, `partially_granted`, `granted`, `granted_completed`}) y que existen los Documents necesarios (siempre `Request`; en branch=yes también `Response` y `Notification`). Si falta algo devuelve `409 Conflict` con `{error:'missing_documents'|'request_not_complainable', missing:[...]}`. Si todo está bien crea un `AgentTask(type='present_complaint')` con el payload extendido descrito en `docs/CTBG_RECLAMACIONES.md` (incluye `public_body_name`, `complaint_branch`, `complaint_reason`, `notification_date`, `complaint_body` y URLs absolutas a `/api/agent/documents/<id>/download` para los PDFs adjuntos).
+3. El agente periódicamente drena la cola (`drain_tasks_job` cada 60 s en `agent/main.py`), claims la tarea y la dispatcha a `tasks/present_complaint.py:handle()`.
+4. El handler descarga todos los PDFs vía JWT, lanza Firefox visible reutilizando el `firefox-profile` autenticado y conduce el wizard CTBG paso 1 → 4 (`CtbgComplaintFiller`). Marca la tarea `done` con `result.status='awaiting_signature'` y deja el navegador abierto en el paso 5 (Firmar).
+5. **Tanto auto como supervisado** se quedan en el paso 5 hoy: la firma electrónica (paso 5) y el acuse de recibo (paso 6) son trabajo pendiente. El usuario firma a mano vía noVNC (dev) o su navegador local (producción) y la solicitud pasa al CTBG.
 
 ### 2. Receipt confirmation
 

@@ -10,7 +10,7 @@ Extrae la siguiente información en formato JSON:
     "documentDate": "fecha del documento en formato YYYY-MM-DD",
     "applicableLaw": "SOLO la ley de transparencia principal (Ley 19/2013 o la autonómica equivalente)",
     "summary": "resumen breve del contenido (máximo 200 caracteres)",
-    "status": "estado que indica el documento (uno de: enviada, en_tramite, concedida, denegada, silencio, pendiente, null si no aplica)",
+    "status": "estado que indica el documento (uno de: enviada, en_tramite, concedida, concedida_completada, parcialmente_concedida, denegada, inadmitida, silencio, pendiente, null si no aplica)",
     "isExtension": "true si es una notificación de prórroga, false en caso contrario",
     "extensionDays": "número de días de prórroga (si aplica, null si no)",
     "newDeadlineDate": "nueva fecha límite si se menciona explícitamente en formato YYYY-MM-DD (null si no)",
@@ -97,7 +97,7 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, inadmitida, parcialmente_concedida, notificacion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, otro):
 
 Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
 
@@ -105,25 +105,25 @@ Usa "alegaciones" SOLO si el documento es un escrito de alegaciones de la ADMINI
 
 Usa "respuesta_alegaciones" si el documento es un escrito del CIUDADANO/INTERESADO respondiendo a las alegaciones de la Administración, o presentando sus propias alegaciones ante el organismo de transparencia (CTBG, etc.) durante el trámite de audiencia o alegaciones. El remitente es el interesado/reclamante, no la Administración.
 
-IMPORTANTE - Usa "resolucion" si el documento:
-- ESTIMA (concede/otorga) el acceso a la información solicitada
-- DESESTIMA (deniega/rechaza) el acceso a la información
-- ESTIMA PARCIALMENTE el acceso
-- INADMITE la solicitud
-- Contiene una sección "RESOLUCIÓN" con un fallo/decisión final sobre el acceso
-- Aunque el título sea "NOTIFICACIÓN", si contiene una resolución estimatoria o desestimatoria, es "resolucion"
+IMPORTANTE - Cuando el documento contiene una decisión sobre el acceso (concede / deniega / inadmite / parcial), usa el documentType específico según el sentido del fallo:
 
-Palabras clave que indican "resolucion":
-- "se estima", "estimar la solicitud", "estimación"
-- "se desestima", "desestimar", "desestimación"
-- "se concede acceso", "se deniega acceso"
-- "RESUELVO", "RESOLUCIÓN" (como sección de decisión)
+- **"resolucion"**: el órgano ESTIMA totalmente o DESESTIMA totalmente el acceso (denegación total).
+  Palabras clave: "se estima la solicitud", "estimar", "se desestima", "desestimar", "se deniega el acceso", "RESUELVO conceder/denegar".
 
-NO uses "resolucion" para:
+- **"inadmitida"**: el órgano INADMITE la solicitud a trámite (no entra a valorar el fondo).
+  Palabras clave: "se inadmite", "INADMITIR", "no admitir a trámite", "inadmisión", "inadmisible". Suele citar art. 18 de la Ley 19/2013 (causas de inadmisión).
+
+- **"parcialmente_concedida"**: el órgano ESTIMA PARCIALMENTE — concede acceso a parte de la información y deniega/limita el resto.
+  Palabras clave: "estima parcialmente", "estimación parcial", "se concede acceso a parte", "acceso parcial", "se accede a la información solicitada con las siguientes limitaciones".
+
+- **"notificacion"**: documento que NOTIFICA un acto administrativo (envío formal, fechas de comparecencia, código CSV) **pero NO contiene la resolución de fondo**. Si el cuerpo lleva la resolución estimatoria/desestimatoria/parcial/inadmisión adjunta o transcrita, usa el tipo correspondiente arriba. Solo cuando el documento es exclusivamente la portada de notificación (sin la decisión).
+
+NO uses "resolucion"/"inadmitida"/"parcialmente_concedida" para:
 - Meros acuses de recibo → usa "acuse_recibo"
 - Notificaciones de inicio de tramitación → usa "inicio_tramitacion"
 - Prórrogas del plazo → usa "prorroga"
 - Traslados a otro órgano → usa "traslado"
+- Notificaciones puras sin decisión → usa "notificacion"
 
 IMPORTANTE:
 - Responde SOLO con el JSON, sin texto adicional

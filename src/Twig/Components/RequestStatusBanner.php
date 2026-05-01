@@ -3,6 +3,7 @@
 namespace App\Twig\Components;
 
 use App\Entity\AccessRequest;
+use App\Entity\Document;
 use App\Entity\Reminder;
 use App\Repository\ReminderRepository;
 use App\Service\TransparencyCouncilResolver;
@@ -49,6 +50,11 @@ class RequestStatusBanner
     public function getApplicableLawName(): string
     {
         return $this->request->getApplicableLaw()->getName();
+    }
+
+    public function getComplaintDraftDocument(): ?Document
+    {
+        return $this->request->getComplaintDraftDocument();
     }
 
     public function getPendingReminder(): ?Reminder

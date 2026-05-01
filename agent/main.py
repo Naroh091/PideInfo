@@ -850,6 +850,28 @@ async def do_daemon(settings: Settings) -> None:
         name="Portal sync",
         max_instances=1,
     )
+
+    def _drain_tasks_job():
+        try:
+            from tasks import dispatch_existing
+            client = _make_pideinfo_client(settings, prefs)
+            for task in client.get_pending_tasks():
+                claimed = client.claim_task(task["id"])
+                if claimed is None:
+                    continue
+                dispatch_existing(claimed, client)
+        except Exception as e:
+            console.print(f"[yellow]drain_tasks_job: {e}[/]")
+
+    scheduler.add_job(
+        _drain_tasks_job,
+        "interval",
+        seconds=60,
+        id="drain_agent_tasks",
+        name="Drain agent task queue",
+        max_instances=1,
+        replace_existing=True,
+    )
     scheduler.start()
 
     # Run immediately on start
@@ -977,6 +999,40 @@ def _run_tray(settings: Settings) -> None:
         state = "deshabilitado (headed)" if prefs.headless_disabled else "habilitado"
         console.print(f"[yellow]Modo headless {state}[/]")
 
+    def drain_pending_tasks() -> None:
+        """Synchronously drain the agent task queue.
+
+        Identical to do_daemon's _drain_tasks_job. Wired into the tray so the
+        scheduler runs it every 60s AND the user can trigger it on demand from
+        the tray menu ("Comprobar tareas pendientes").
+        """
+        try:
+            from tasks import dispatch_existing
+            client = _make_pideinfo_client(settings, prefs)
+            tasks_list = client.get_pending_tasks()
+            if not tasks_list:
+                console.print("[dim]Tareas pendientes: ninguna[/]")
+                return
+            console.print(
+                f"[bold]Tareas pendientes: {len(tasks_list)} encontrada(s)[/]"
+            )
+            processed = 0
+            for task in tasks_list:
+                claimed = client.claim_task(task["id"])
+                if claimed is None:
+                    console.print(
+                        f"[dim]Tarea {task['id'][:8]} ya reclamada por otro agente[/]"
+                    )
+                    continue
+                console.print(
+                    f"[dim]→ Procesando {claimed['type']} {claimed['id'][:8]} (modo {claimed.get('mode') or '—'})[/]"
+                )
+                dispatch_existing(claimed, client)
+                processed += 1
+            console.print(f"[green]Tareas procesadas: {processed}[/]")
+        except Exception as e:
+            console.print(f"[yellow]drain_pending_tasks: {e}[/]")
+
     TrayApp(
         sync_fn=sync,
         reset_fn=reset,
@@ -993,6 +1049,7 @@ def _run_tray(settings: Settings) -> None:
         get_headless_disabled_fn=get_headless_disabled,
         toggle_headless_disabled_fn=toggle_headless_disabled,
         sync_interval_minutes=settings.sync_interval_minutes,
+        drain_tasks_fn=drain_pending_tasks,
     ).run()
 
 
@@ -1031,6 +1088,11 @@ def main() -> None:
         help="Ruta al fichero .env (default: .env)",
     )
     parser.add_argument(
+        "--url",
+        default=None,
+        help="URL pideinfo://... entregada por el handler del SO (single-instance).",
+    )
+    parser.add_argument(
         "--version",
         action="store_true",
         help="Mostrar versión y salir",
@@ -1052,6 +1114,54 @@ def main() -> None:
     console.print(f"[dim]Portal: {settings.portal_url}[/]")
     console.print(f"[dim]PideInfo: {settings.pideinfo_base_url}[/]")
     console.print(f"[dim]Datos: {settings.data_dir}[/]")
+
+    # ── Single-instance + pideinfo:// URL handoff ────────────────────────
+    # If another agent is already running and we were invoked with a URL,
+    # relay the URL to the running agent and exit. Otherwise, install the
+    # IPC listener so future relays reach us.
+    from protocol.single_instance import acquire_or_relay
+    from protocol.url_handler import handle as handle_pideinfo_url
+    from tasks import dispatch_action_id
+
+    _prefs_for_client = load_preferences(settings.preferences_file)
+
+    def _on_relayed_url(received_url: str) -> None:
+        # Runs in the IPC listener thread. Keep work synchronous.
+        try:
+            client = _make_pideinfo_client(settings, _prefs_for_client)
+        except Exception as e:
+            console.print(f"[red]No se pudo construir el cliente para tarea entrante: {e}[/]")
+            return
+        handle_pideinfo_url(
+            received_url,
+            lambda action, task_id: dispatch_action_id(action, task_id, client),
+        )
+
+    is_primary = acquire_or_relay(args.url, _on_relayed_url)
+    if not is_primary:
+        # Relayed our URL to the existing agent; nothing else to do.
+        return
+
+    # We're primary. If we were invoked with --url, dispatch it now (before
+    # spinning up daemon/tray) so the user sees an immediate response.
+    if args.url:
+        _on_relayed_url(args.url)
+
+    # Drain any tasks queued while the agent was down.
+    def _drain_pending_tasks_safe() -> None:
+        try:
+            from tasks import dispatch_existing
+            client = _make_pideinfo_client(settings, _prefs_for_client)
+            for task in client.get_pending_tasks():
+                claimed = client.claim_task(task["id"])
+                if claimed is None:
+                    continue
+                dispatch_existing(claimed, client)
+        except Exception as e:
+            console.print(f"[yellow]No se pudieron drenar tareas pendientes: {e}[/]")
+
+    _drain_pending_tasks_safe()
+    # ──────────────────────────────────────────────────────────────────────
 
     # Ensure Firefox is present (downloads on first run if missing)
     from runtime import ensure_firefox

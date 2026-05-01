@@ -255,8 +255,18 @@ final class ComplaintGenerator
         );
     }
 
-    public function saveComplaint(AccessRequest $accessRequest, ComplaintDraft $draft): Document
+    /**
+     * @param array<string, mixed> $extraMetadata Extra keys merged into aiMetadata. Use ['origin' => 'external']
+     *                                            for user-pasted complaints; defaults to 'ai' otherwise.
+     */
+    public function saveComplaint(AccessRequest $accessRequest, ComplaintDraft $draft, array $extraMetadata = []): Document
     {
+        // Reuse the existing HTML draft if the user is editing one. Each save
+        // used to create a new Document, leaving stale rows behind that
+        // confused both the reopen-editor lookup and the docs list.
+        $document = $accessRequest->getComplaintDraftDocument();
+        $isNew = $document === null;
+
         $filename = sprintf(
             'reclamacion_%s_%s.html',
             $accessRequest->getId()->toRfc4122(),
@@ -265,25 +275,42 @@ final class ComplaintGenerator
 
         $this->documentsStorage->write($filename, $draft->content);
 
-        $document = new Document();
-        $document->setOriginalFilename('Reclamación.html');
+        if ($isNew) {
+            $document = new Document();
+            $document->setOriginalFilename('Reclamación.html');
+            $document->setMimeType('text/html');
+            $document->setType(DocumentType::Complaint);
+            $document->setAccessRequest($accessRequest);
+            $document->setUploadedBy($accessRequest->getUser());
+            $document->setProcessed(true);
+        } else {
+            // Drop the previous file from storage so we don't leak orphan
+            // blobs every time the user hits "Guardar".
+            $previous = $document->getStoredFilename();
+            if ($previous && $this->documentsStorage->fileExists($previous)) {
+                try {
+                    $this->documentsStorage->delete($previous);
+                } catch (\Throwable) {
+                    // Non-fatal — the new file is already written.
+                }
+            }
+        }
+
         $document->setStoredFilename($filename);
-        $document->setMimeType('text/html');
         $document->setFileSize(strlen($draft->content));
-        $document->setType(DocumentType::Complaint);
-        $document->setAccessRequest($accessRequest);
-        $document->setUploadedBy($accessRequest->getUser());
-        $document->setProcessed(true);
-        $document->setAiMetadata([
+        $document->setAiMetadata(array_merge([
+            'origin' => 'ai',
             'transparencyCouncil' => $draft->transparencyCouncil,
             'applicableLaw' => $draft->applicableLaw,
             'citedResolutions' => array_map(fn($r) => $r->toArray(), $draft->citedResolutions),
             'citedCriteria' => $draft->citedCriteria,
             'successAnalysis' => $draft->successAnalysis?->toArray(),
             'generatedAt' => (new \DateTime())->format('c'),
-        ]);
+        ], $extraMetadata));
 
-        $this->entityManager->persist($document);
+        if ($isNew) {
+            $this->entityManager->persist($document);
+        }
         $this->entityManager->flush();
 
         return $document;

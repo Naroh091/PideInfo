@@ -13,6 +13,14 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Entity(repositoryClass: ComplaintOrganismRepository::class)]
 class ComplaintOrganism
 {
+    public const SHORT_NAME_CTBG = 'CTBG';
+
+    /** CTBG state-scope complaint form (Reclamaciones de ámbito estatal). */
+    public const CTBG_FORM_URL_STATE = 'https://sede.consejodetransparencia.gob.es/catalog/t/fd9abc4c-d3ba-4145-a2d9-ab51b0f9fa2e';
+
+    /** CTBG autonomic/local-scope complaint form (Reclamaciones de ámbito autonómico y local). */
+    public const CTBG_FORM_URL_REGIONAL = 'https://sede.consejodetransparencia.gob.es/catalog/t/2ed5dcfa-4396-485f-979a-3e39a27e971e';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -143,6 +151,23 @@ class ComplaintOrganism
     {
         $this->complaintFormUrl = $complaintFormUrl;
         return $this;
+    }
+
+    /**
+     * Pick the right form URL for a request. Most organisms publish one form
+     * regardless of scope; the CTBG is the exception — it has a state form
+     * and a separate autonomic/local form, and PideInfo derives which one
+     * applies from the request's `PublicBody.level`.
+     */
+    public function getComplaintFormUrlFor(AccessRequest $accessRequest): ?string
+    {
+        if ($this->shortName === self::SHORT_NAME_CTBG) {
+            $level = $accessRequest->getPublicBody()?->getLevel();
+            return $level === PublicBody::LEVEL_STATE
+                ? self::CTBG_FORM_URL_STATE
+                : self::CTBG_FORM_URL_REGIONAL;
+        }
+        return $this->complaintFormUrl;
     }
 
     public function getEmail(): ?string

@@ -359,8 +359,12 @@ final class ProcessDocumentHandler
                 break;
 
             case DocumentType::Response:
-                // Update status based on AI analysis
-                $status = $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
+                // Update status based on AI analysis. The analyzer's
+                // accessRequestStatus hint (derived from documentType labels
+                // like 'inadmitida'/'parcialmente_concedida') takes precedence
+                // over the freeform 'status' field when both are present.
+                $status = ($analysis['accessRequestStatus'] ?? null)
+                    ?: $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
                 if ($status && $accessRequest->getStatus() !== $status) {
                     $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus($status);
@@ -595,7 +599,10 @@ final class ProcessDocumentHandler
     {
         return match ($status) {
             'concedida' => AccessRequest::STATUS_GRANTED,
+            'concedida_completada' => AccessRequest::STATUS_GRANTED_COMPLETED,
+            'parcialmente_concedida' => AccessRequest::STATUS_PARTIALLY_GRANTED,
             'denegada' => AccessRequest::STATUS_DENIED,
+            'inadmitida' => AccessRequest::STATUS_INADMITTED,
             'en_tramite' => AccessRequest::STATUS_PROCESSING,
             'pendiente' => AccessRequest::STATUS_PENDING,
             'silencio' => AccessRequest::STATUS_DELAYED,

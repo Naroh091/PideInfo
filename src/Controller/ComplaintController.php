@@ -4,7 +4,9 @@ namespace App\Controller;
 
 use App\DTO\ChatMessage;
 use App\Entity\AccessRequest;
+use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Repository\AccessRequestRepository;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Complaint\SuccessAnalyzer;
@@ -18,6 +20,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/solicitudes/{id}/reclamacion')]
@@ -32,10 +35,31 @@ class ComplaintController extends AbstractController
         private readonly FilesystemOperator $documentsStorage,
         private readonly DocumentContentsCollector $documentContentsCollector,
         private readonly LlmClient $llmClient,
+        private readonly AccessRequestRepository $accessRequestRepository,
     ) {
     }
 
-    #[Route('', name: 'app_complaint_generate', methods: ['GET'])]
+    #[Route('', name: 'app_complaint_start', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function start(AccessRequest $accessRequest): Response
+    {
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+            $this->addFlash('error', 'Solo se pueden iniciar reclamaciones para solicitudes denegadas o sin respuesta.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $existingDocument = $accessRequest->getComplaintDraftDocument();
+
+        $complaintFormUrl = $accessRequest->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrl();
+
+        return $this->render('complaint/start.html.twig', [
+            'request' => $accessRequest,
+            'existingDocument' => $existingDocument,
+            'complaintFormUrl' => $complaintFormUrl,
+        ]);
+    }
+
+    #[Route('/asistente', name: 'app_complaint_assistant', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function generate(Request $request, AccessRequest $accessRequest): Response
     {
@@ -58,10 +82,19 @@ class ComplaintController extends AbstractController
         $availableDocuments = [];
         $searchType = $mode === 'alegation_response' ? DocumentType::AlegationResponse : DocumentType::Complaint;
         $excludedTypes = [DocumentType::Complaint, DocumentType::AlegationResponse, DocumentType::Unprocessed];
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === $searchType && !$existingDocument) {
-                $existingDocument = $document;
+
+        if ($mode === 'alegation_response') {
+            foreach ($accessRequest->getDocuments() as $document) {
+                if ($document->getType() === $searchType && !$existingDocument) {
+                    $existingDocument = $document;
+                    break;
+                }
             }
+        } else {
+            $existingDocument = $accessRequest->getComplaintDraftDocument();
+        }
+
+        foreach ($accessRequest->getDocuments() as $document) {
             if ($document->getType() === DocumentType::Alegaciones && !$alegacionesDoc) {
                 $alegacionesDoc = $document;
             }
@@ -275,6 +308,74 @@ class ComplaintController extends AbstractController
         }
     }
 
+    #[Route('/redactar', name: 'app_complaint_draft', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function draft(AccessRequest $accessRequest): Response
+    {
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+            $this->addFlash('error', 'Solo se pueden iniciar reclamaciones para solicitudes denegadas o sin respuesta.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $existingDocument = $accessRequest->getComplaintDraftDocument();
+        $existingHtml = $existingDocument ? $this->getComplaintContent($existingDocument) : '';
+
+        return $this->render('complaint/draft.html.twig', [
+            'request' => $accessRequest,
+            'existingDocument' => $existingDocument,
+            'existingHtml' => $existingHtml,
+        ]);
+    }
+
+    #[Route('/redactar', name: 'app_complaint_save_draft', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function saveDraft(Request $request, AccessRequest $accessRequest): JsonResponse
+    {
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'No se puede guardar la reclamación para esta solicitud.',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+        $html = trim((string) ($data['html'] ?? ''));
+
+        if ($html === '') {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'No hay contenido para guardar.',
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $transparencyCouncil = $accessRequest->getApplicableLaw()->getComplaintOrganism()?->getName() ?? '';
+        $applicableLaw = $accessRequest->getApplicableLaw()->getName();
+
+        $draft = \App\DTO\ComplaintDraft::fromArray([
+            'content' => $html,
+            'transparencyCouncil' => $transparencyCouncil,
+            'applicableLaw' => $applicableLaw,
+            'citedResolutions' => [],
+            'citedCriteria' => [],
+            'successAnalysis' => null,
+        ]);
+
+        try {
+            $document = $this->complaintGenerator->saveComplaint($accessRequest, $draft, ['origin' => 'external']);
+
+            return new JsonResponse([
+                'success' => true,
+                'documentId' => $document->getId()->toRfc4122(),
+                'redirectUrl' => $this->generateUrl('app_solicitudes_show', ['id' => $accessRequest->getId()]),
+            ]);
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'success' => false,
+                'error' => 'Error al guardar el documento: ' . $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+    }
+
     #[Route('/analisis', name: 'app_complaint_analyze', methods: ['POST'])]
     #[IsGranted('view', 'accessRequest')]
     public function analyze(Request $request, AccessRequest $accessRequest): JsonResponse
@@ -343,7 +444,7 @@ class ComplaintController extends AbstractController
 
         if (!$complaintDocument) {
             $this->addFlash('error', 'No hay documento generado para esta solicitud.');
-            return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
+            return $this->redirectToRoute('app_complaint_assistant', ['id' => $accessRequest->getId()]);
         }
 
         $metadata = $complaintDocument->getAiMetadata();
@@ -379,7 +480,7 @@ class ComplaintController extends AbstractController
 
         if (!$complaintDocument) {
             $this->addFlash('error', 'No hay documento generado para esta solicitud.');
-            return $this->redirectToRoute('app_complaint_generate', ['id' => $accessRequest->getId()]);
+            return $this->redirectToRoute('app_complaint_assistant', ['id' => $accessRequest->getId()]);
         }
 
         $metadata = $complaintDocument->getAiMetadata();
@@ -407,21 +508,172 @@ class ComplaintController extends AbstractController
         ]);
     }
 
+    #[Route('/presentar', name: 'app_complaint_present_via_agent', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function presentViaAgent(
+        Request $request,
+        AccessRequest $accessRequest,
+        \Doctrine\ORM\EntityManagerInterface $em,
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $mode = $data['mode'] ?? null;
+        if (!in_array($mode, [\App\Entity\AgentTask::MODE_AUTO, \App\Entity\AgentTask::MODE_SUPERVISED], true)) {
+            return new JsonResponse(['error' => 'invalid_mode'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $complaintDocument = $this->findGeneratedDocument($accessRequest);
+        if ($complaintDocument === null || $complaintDocument->getType() !== DocumentType::Complaint) {
+            return new JsonResponse(['error' => 'no_complaint_document'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
+        $complaintFormUrl = $organism?->getComplaintFormUrlFor($accessRequest);
+        if (!$complaintFormUrl) {
+            return new JsonResponse(['error' => 'no_form_url_configured'], Response::HTTP_CONFLICT);
+        }
+
+        // Use the same gate as the rest of the complaint flow — a request is
+        // complainable when explicitly denied/silent OR when its deadline has
+        // passed without a granting decision.
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+            return new JsonResponse([
+                'error' => 'request_not_complainable',
+                'message' => sprintf(
+                    'La solicitud aún no está en un estado reclamable (%s).',
+                    $accessRequest->getStatusLabel()
+                ),
+            ], Response::HTTP_CONFLICT);
+        }
+        $map = self::mapStatusToCtbg($accessRequest);
+
+        $solicitudDoc    = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Request);
+        $respuestaDoc    = $map['branch'] === 'yes'
+            ? $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Response)
+            : null;
+        // Many administrations send a single PDF that is both the resolution
+        // and its notification, so we don't always have a separate document
+        // classified as `Notification`. When missing, reuse the response —
+        // that's what a citizen with only the resolution PDF would upload.
+        $notificationDoc = $map['branch'] === 'yes'
+            ? ($this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Notification) ?? $respuestaDoc)
+            : null;
+
+        $missing = [];
+        if ($solicitudDoc === null)                                     { $missing[] = 'solicitud'; }
+        if ($map['branch'] === 'yes' && $respuestaDoc === null)         { $missing[] = 'respuesta'; }
+        if (!empty($missing)) {
+            return new JsonResponse([
+                'error' => 'missing_documents',
+                'missing' => $missing,
+                'message' => 'Faltan documentos obligatorios para presentar la reclamación. Súbelos al expediente y reintenta.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $task = new \App\Entity\AgentTask($this->getUser(), \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT);
+        $task->setAccessRequest($accessRequest);
+        $task->setMode($mode);
+        $task->setPayload([
+            // existentes
+            'access_request_id' => $accessRequest->getId()->toRfc4122(),
+            'complaint_document_id' => $complaintDocument->getId()->toRfc4122(),
+            'complaint_form_url' => $complaintFormUrl,
+            'request_external_id' => $accessRequest->getExternalId(),
+            'pdf_download_url' => $this->generateUrl('app_complaint_pdf', ['id' => $accessRequest->getId()], UrlGeneratorInterface::ABSOLUTE_URL),
+
+            // step 2 form fields
+            'public_body_name' => $accessRequest->getPublicBody()?->getName(),
+            'complaint_branch' => $map['branch'],
+            'complaint_reason' => $map['reason'],
+            'notification_date' => $map['notification_date'],
+            'complaint_body' => $this->extractComplaintBody($complaintDocument),
+
+            // step 3 attachments (URLs absolutas a /api/agent/documents/<id>/download)
+            'solicitud_pdf_url' => $this->urlForAgentDocument($solicitudDoc),
+            'respuesta_pdf_url' => $respuestaDoc ? $this->urlForAgentDocument($respuestaDoc) : null,
+            'notificacion_pdf_url' => $notificationDoc ? $this->urlForAgentDocument($notificationDoc) : null,
+        ]);
+        $em->persist($task);
+        $em->flush();
+
+        return new JsonResponse([
+            'taskId' => $task->getId()->toRfc4122(),
+            'schemeUrl' => 'pideinfo://present-complaint/' . $task->getId()->toRfc4122(),
+            'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $task->getId()->toRfc4122()]),
+        ]);
+    }
+
+    /**
+     * Map AccessRequest.status → CTBG complaint branch + reason + notification date.
+     *
+     * Caller must check `ComplaintGenerator::canGenerateComplaint` first; any
+     * status not explicitly listed below is treated as silence (branch=no),
+     * which is what `canGenerateComplaint` allows once the deadline passes.
+     *
+     * @return array{branch: 'yes'|'no', reason: ?string, notification_date: ?string}
+     */
+    private static function mapStatusToCtbg(AccessRequest $ar): array
+    {
+        $resolvedDate = $ar->getResolvedAt()?->format('d/m/Y');
+        return match ($ar->getStatus()) {
+            AccessRequest::STATUS_INADMITTED => [
+                'branch' => 'yes',
+                'reason' => 'No se admitió a trámite la solicitud formulada',
+                'notification_date' => $resolvedDate,
+            ],
+            AccessRequest::STATUS_DENIED => [
+                'branch' => 'yes',
+                'reason' => 'Se denegó el acceso a toda información solicitada',
+                'notification_date' => $resolvedDate,
+            ],
+            AccessRequest::STATUS_PARTIALLY_GRANTED => [
+                'branch' => 'yes',
+                'reason' => 'Se denegó el acceso a parte de la información solicitada',
+                'notification_date' => $resolvedDate,
+            ],
+            AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED => [
+                'branch' => 'yes',
+                'reason' => 'Estoy disconforme con la información recibida',
+                'notification_date' => $resolvedDate,
+            ],
+            // STATUS_DELAYED and any pre-decision status with deadline passed
+            // are silence reclamations.
+            default => [
+                'branch' => 'no', 'reason' => null, 'notification_date' => null,
+            ],
+        };
+    }
+
+    /**
+     * Read the complaint Document's HTML, strip tags and normalise whitespace.
+     * Used as the body for "Exponga brevemente los motivos" in CTBG step 2.
+     */
+    private function extractComplaintBody(Document $complaint): string
+    {
+        return \App\Util\HtmlToPlainText::convert($this->getComplaintContent($complaint));
+    }
+
+    private function urlForAgentDocument(Document $document): string
+    {
+        return $this->generateUrl(
+            'api_agent_document_download',
+            ['id' => $document->getId()->toRfc4122()],
+            UrlGeneratorInterface::ABSOLUTE_URL,
+        );
+    }
+
     private function findGeneratedDocument(AccessRequest $accessRequest): ?\App\Entity\Document
     {
-        // Look for AlegationResponse first, then Complaint
+        // Look for AlegationResponse first, then the editable Complaint draft
+        // (HTML). We must skip non-HTML Complaint documents like the signed
+        // PDF instance returned by the CTBG sede — that's not what callers
+        // want when they ask for the "generated draft".
         foreach ($accessRequest->getDocuments() as $document) {
             if ($document->getType() === DocumentType::AlegationResponse) {
                 return $document;
             }
         }
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Complaint) {
-                return $document;
-            }
-        }
 
-        return null;
+        return $accessRequest->getComplaintDraftDocument();
     }
 
     private function getComplaintContent(\App\Entity\Document $document): string

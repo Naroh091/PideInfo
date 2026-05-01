@@ -106,7 +106,10 @@ The AI classifies documents into these types:
 | `solicitud` | Request | Solicitud |
 | `acuse_recibo` | Receipt | Acuse de recibo |
 | `inicio_tramitacion` | ProcessingStart | Inicio de tramitación |
-| `resolucion` | Response | Respuesta |
+| `resolucion` | Response | Respuesta (denegada o concedida total) |
+| `inadmitida` | Response | Respuesta — además fija `AccessRequest.status = inadmitted` |
+| `parcialmente_concedida` | Response | Respuesta — además fija `AccessRequest.status = partially_granted` |
+| `notificacion` | Notification | Notificación pura (sin contener decisión de fondo) |
 | `prorroga` | Extension | Prórroga |
 | `traslado` | Redirection | Traslado a otro órgano |
 | `afectacion_terceros` | ThirdPartyRights | Afectación derechos terceros |
@@ -120,6 +123,8 @@ The AI classifies documents into these types:
 | `subsanacion_respuesta` | SubsanacionResponse | Subsanación presentada |
 | `audiencia` | Audiencia | Trámite de audiencia |
 | `ampliacion_reclamacion` | ComplaintExtension | Ampliación de reclamación |
+
+> Los labels `inadmitida` y `parcialmente_concedida` clasifican el sentido de la resolución (no son tipos de documento aparte). El normalizer en `DocumentAnalyzer::normalizeDocumentAnalysis` mapea ambos a `DocumentType::Response` y expone un `accessRequestStatus` extra que `ProcessDocumentHandler` aplica al `AccessRequest` (ver `AccessRequest::STATUS_INADMITTED` / `STATUS_PARTIALLY_GRANTED`).
 
 ### Batch analysis
 

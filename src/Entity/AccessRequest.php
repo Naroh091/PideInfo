@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\DocumentType;
 use App\Repository\AccessRequestRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -22,7 +23,9 @@ class AccessRequest
     public const STATUS_PROCESSING = 'processing';
     public const STATUS_GRANTED = 'granted';
     public const STATUS_GRANTED_COMPLETED = 'granted_completed';
+    public const STATUS_PARTIALLY_GRANTED = 'partially_granted';
     public const STATUS_DENIED = 'denied';
+    public const STATUS_INADMITTED = 'inadmitted';
     public const STATUS_DELAYED = 'delayed';
     public const STATUS_PENDING = 'pending';
 
@@ -321,11 +324,38 @@ class AccessRequest
             self::STATUS_PROCESSING => 'En trámite',
             self::STATUS_GRANTED => 'Concedida (pendiente de recepción)',
             self::STATUS_GRANTED_COMPLETED => 'Concedida y completada',
+            self::STATUS_PARTIALLY_GRANTED => 'Estimación parcial',
             self::STATUS_DENIED => 'Denegada',
+            self::STATUS_INADMITTED => 'Inadmitida a trámite',
             self::STATUS_DELAYED => 'Silencio administrativo',
             self::STATUS_PENDING => 'Pendiente de recepción',
             default => $this->status,
         };
+    }
+
+    /**
+     * The administration produced an explicit decision (regardless of outcome).
+     * Excludes silence (`STATUS_DELAYED`) and pre-decision states.
+     */
+    public function hasReceivedResponse(): bool
+    {
+        return in_array($this->status, [
+            self::STATUS_GRANTED,
+            self::STATUS_GRANTED_COMPLETED,
+            self::STATUS_PARTIALLY_GRANTED,
+            self::STATUS_DENIED,
+            self::STATUS_INADMITTED,
+        ], true);
+    }
+
+    public function isInadmitted(): bool
+    {
+        return $this->status === self::STATUS_INADMITTED;
+    }
+
+    public function isPartiallyGranted(): bool
+    {
+        return $this->status === self::STATUS_PARTIALLY_GRANTED;
     }
 
     public function getComplaint(): ?AccessRequestComplaint
@@ -649,6 +679,34 @@ class AccessRequest
     public function getDocuments(): Collection
     {
         return $this->documents;
+    }
+
+    /**
+     * The editable HTML draft of the complaint, if any.
+     *
+     * `DocumentType::Complaint` is overloaded — both the user's editable
+     * draft (HTML) and the signed PDF instance returned by the CTBG sede
+     * carry that type. Templates and controllers that want the draft (to
+     * load it in Trix or offer "Continuar") must filter by mime type so the
+     * signed PDF doesn't get fed into the editor as if it were HTML.
+     *
+     * Saving creates a new Document each time, so multiple HTML drafts can
+     * accumulate. Always return the most recent one — that's what the user
+     * sees when they reopen the editor.
+     */
+    public function getComplaintDraftDocument(): ?Document
+    {
+        $latest = null;
+        foreach ($this->documents as $document) {
+            if ($document->getType() !== DocumentType::Complaint
+                || $document->getMimeType() !== 'text/html') {
+                continue;
+            }
+            if ($latest === null || $document->getCreatedAt() > $latest->getCreatedAt()) {
+                $latest = $document;
+            }
+        }
+        return $latest;
     }
 
     public function addDocument(Document $document): static
