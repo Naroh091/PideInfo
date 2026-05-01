@@ -157,5 +157,14 @@ if _is_mac:
             # Accessory app: no Dock icon, no menu bar app icon in Mission Control
             "LSUIElement": True,
             "NSHumanReadableCopyright": "PideInfo",
+            # Declare the pideinfo:// URL scheme so Launch Services can route
+            # `pideinfo://...` clicks to this app once it is registered.
+            "CFBundleURLTypes": [
+                {
+                    "CFBundleURLName": "com.pideinfo.agent.url",
+                    "CFBundleURLSchemes": ["pideinfo"],
+                    "CFBundleTypeRole": "Viewer",
+                },
+            ],
         },
     )
