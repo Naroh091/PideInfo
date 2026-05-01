@@ -22,6 +22,7 @@ enum DocumentType: string
     case Audiencia = 'audiencia';
     case ComplaintExtension = 'complaint_extension';
     case Court = 'court';
+    case Notification = 'notification';
     case Other = 'other';
     case Unprocessed = 'unprocessed';
 
@@ -46,6 +47,7 @@ enum DocumentType: string
             self::Audiencia => 'Trámite de audiencia',
             self::ComplaintExtension => 'Ampliación de reclamación',
             self::Court => 'Documento judicial',
+            self::Notification => 'Notificación',
             self::Other => 'Otro',
             self::Unprocessed => 'Sin procesar',
         };
@@ -77,7 +79,11 @@ enum DocumentType: string
             'acuse_recibo' => self::Receipt,
             'inicio_tramitacion' => self::ProcessingStart,
             'resolucion' => self::Response,
-            'notificacion' => self::Other,
+            // 'inadmitida' / 'parcialmente_concedida' classify the *outcome* of the
+            // organism's resolution; the document itself is still a Response.
+            'inadmitida' => self::Response,
+            'parcialmente_concedida' => self::Response,
+            'notificacion' => self::Notification,
             'prorroga' => self::Extension,
             'traslado' => self::Redirection,
             'afectacion_terceros' => self::ThirdPartyRights,
@@ -93,6 +99,20 @@ enum DocumentType: string
             'audiencia' => self::Audiencia,
             'ampliacion_reclamacion' => self::ComplaintExtension,
             default => self::Other,
+        };
+    }
+
+    /**
+     * Some AI labels classify the outcome of a resolution rather than its
+     * document type. Returns the AccessRequest status implied by the label,
+     * or null when the label says nothing about the request status.
+     */
+    public static function statusFromAiValue(string $aiValue): ?string
+    {
+        return match ($aiValue) {
+            'inadmitida' => \App\Entity\AccessRequest::STATUS_INADMITTED,
+            'parcialmente_concedida' => \App\Entity\AccessRequest::STATUS_PARTIALLY_GRANTED,
+            default => null,
         };
     }
 }

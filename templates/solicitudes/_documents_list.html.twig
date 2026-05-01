@@ -9,15 +9,24 @@
         {% endif %}
     {% endfor %}
 
-    {% macro document_item(doc) %}
+    {% macro document_item(doc, request) %}
         {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
-        {% set iconName = isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) %}
+        {% set isDraft = doc.type and doc.type.value == 'complaint' and doc.mimeType == 'text/html' %}
+        {% set iconName = isDraft ? 'pen-line' : (isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file'))) %}
+        {% set draftOrigin = doc.aiMetadata.origin|default('ai') %}
+        {% set draftEditRoute = draftOrigin == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
+        {% set displayName = isDraft ? 'Borrador de la reclamación' : doc.displayFilename %}
         <div class="docs-row" data-document-id="{{ doc.id }}">
             <span class="docs-icon">
                 <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
             </span>
             <div class="docs-main">
-                <p class="docs-name" title="{{ doc.displayFilename }}">{{ doc.displayFilename }}</p>
+                <p class="docs-name" title="{{ displayName }}">
+                    {{ displayName }}
+                    {% if isDraft %}
+                        <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">Borrador</span>
+                    {% endif %}
+                </p>
                 {% if doc.documentDate or not doc.processed %}
                     <div class="docs-meta">
                         {% if doc.documentDate %}
@@ -29,26 +38,35 @@
                         {% endif %}
                     </div>
                 {% endif %}
-                {% if doc.summary %}
+                {% if isDraft %}
+                    <p class="docs-summary text-slate-500">Última edición: {{ doc.createdAt|date('d/m/Y H:i') }}.</p>
+                {% elseif doc.summary %}
                     <p class="docs-summary">{{ doc.summary }}</p>
                 {% endif %}
             </div>
             <div class="docs-actions">
-                <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
-                   target="_blank"
-                   title="Abrir en nueva pestaña">
-                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                </a>
-                <a href="{{ path('app_document_download', {id: doc.id}) }}"
-                   title="Descargar">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                </a>
-                {% if not isZip %}
-                    <button type="button"
-                            title="Reprocesar documento"
-                            onclick="reprocessDocument('{{ doc.id }}', this)">
-                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-                    </button>
+                {% if isDraft %}
+                    <a href="{{ path(draftEditRoute, {id: request.id}) }}"
+                       title="Continuar editando el borrador">
+                        <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
+                    </a>
+                {% else %}
+                    <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
+                       target="_blank"
+                       title="Abrir en nueva pestaña">
+                        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                    </a>
+                    <a href="{{ path('app_document_download', {id: doc.id}) }}"
+                       title="Descargar">
+                        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                    </a>
+                    {% if not isZip %}
+                        <button type="button"
+                                title="Reprocesar documento"
+                                onclick="reprocessDocument('{{ doc.id }}', this)">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                        </button>
+                    {% endif %}
                 {% endif %}
             </div>
         </div>
@@ -57,7 +75,7 @@
     {% if requestDocs|length > 0 %}
         <div class="docs-list">
             {% for doc in requestDocs %}
-                {{ _self.document_item(doc) }}
+                {{ _self.document_item(doc, request) }}
             {% endfor %}
         </div>
     {% endif %}
@@ -69,7 +87,7 @@
         </div>
         <div class="docs-list">
             {% for doc in complaintDocs %}
-                {{ _self.document_item(doc) }}
+                {{ _self.document_item(doc, request) }}
             {% endfor %}
         </div>
     {% endif %}

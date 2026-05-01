@@ -70,6 +70,160 @@ class PideInfoClient:
             "dehu": data.get("dehu", []),
         }
 
+    # ── Agent task queue (sync, used from IPC thread) ─────────────────────
+
+    def get_pending_tasks(self) -> list[dict]:
+        with httpx.Client(timeout=10) as client:
+            r = client.get(f"{self.base_url}/api/agent/tasks/pending", headers=self._auth_headers)
+        r.raise_for_status()
+        return r.json().get("tasks", [])
+
+    def claim_task(self, task_id: str) -> dict | None:
+        with httpx.Client(timeout=10) as client:
+            r = client.post(
+                f"{self.base_url}/api/agent/tasks/{task_id}/claim",
+                headers=self._auth_headers,
+            )
+        if r.status_code == 409:
+            return None
+        r.raise_for_status()
+        return r.json()
+
+    def progress_task(self, task_id: str, status: str, note: str | None = None) -> None:
+        body: dict = {"status": status}
+        if note:
+            body["note"] = note
+        with httpx.Client(timeout=10) as client:
+            r = client.post(
+                f"{self.base_url}/api/agent/tasks/{task_id}/progress",
+                json=body,
+                headers={**self._auth_headers, "Content-Type": "application/json"},
+            )
+        r.raise_for_status()
+
+    def complete_task(
+        self,
+        task_id: str,
+        success: bool,
+        *,
+        result: dict | None = None,
+        error: str | None = None,
+    ) -> None:
+        body: dict = {"success": success}
+        if result is not None:
+            body["result"] = result
+        if error is not None:
+            body["error"] = error
+        with httpx.Client(timeout=10) as client:
+            r = client.post(
+                f"{self.base_url}/api/agent/tasks/{task_id}/complete",
+                json=body,
+                headers={**self._auth_headers, "Content-Type": "application/json"},
+            )
+        r.raise_for_status()
+
+    def mark_complaint_filed(
+        self,
+        access_request_id: str,
+        registry_no: str,
+        csv: str | None = None,
+        filed_at: str | None = None,
+    ) -> dict:
+        """POST /api/agent/complaints/filed.
+
+        Updates the AccessRequestComplaint with the registry number returned
+        by the CTBG sede after the user signs the wizard. ``filed_at`` accepts
+        ISO 8601 (with or without TZ) or ``YYYY-MM-DD``.
+        """
+        body = {
+            "access_request_id": access_request_id,
+            "registry_no": registry_no,
+            "csv": csv,
+            "filed_at": filed_at,
+        }
+        with httpx.Client(timeout=15) as client:
+            r = client.post(
+                f"{self.base_url}/api/agent/complaints/filed",
+                json=body,
+                headers={**self._auth_headers, "Content-Type": "application/json"},
+            )
+        r.raise_for_status()
+        return r.json()
+
+    async def upload_filed_complaint_documents(
+        self,
+        registry_no: str,
+        files: dict[str, Path],
+        filed_at: str | None = None,
+    ) -> dict:
+        """Upload the CTBG receipt + signed instance against a freshly-filed
+        complaint. Uses the same webhook the consejo expediente sync uses,
+        with ``source=consejo_ctbg`` and ``metadata.complaint_phase=presentacion``.
+
+        ``files`` keys must be human titles (e.g. ``'Recibo'``,
+        ``'Instancia firmada'``). Filenames carry that title so the backend's
+        ``mapCtbgPhaseToType`` routes them: ``recibo*`` → ``ComplaintReceipt``,
+        the rest → ``Complaint``.
+        """
+        documents_payload = []
+        for title, path in files.items():
+            content = path.read_bytes()
+            safe_title = title.replace("/", "-")
+            suffix = path.suffix or ".pdf"
+            documents_payload.append({
+                "filename": f"{safe_title}{suffix}",
+                "contentType": self._guess_mime(path),
+                "content": base64.b64encode(content).decode("ascii"),
+                "contentHash": hashlib.sha256(content).hexdigest(),
+            })
+
+        payload = {
+            "source": "consejo_ctbg",
+            "expedienteRef": registry_no,
+            "documents": documents_payload,
+            "metadata": {
+                "complaint_phase": "presentacion",
+                "fechaApertura": filed_at,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(
+                self._webhook_url,
+                json=payload,
+                headers={
+                    **self._auth_headers,
+                    "Content-Type": "application/json",
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+
+        if result.get("created", 0) > 0:
+            console.print(
+                f"[green]CTBG: subidos {result['created']} doc(s) de la reclamación {registry_no}[/]"
+            )
+        for skipped in result.get("skipped", []):
+            console.print(
+                f"[dim]CTBG saltado: {skipped['filename']} ({skipped['reason']})[/]"
+            )
+        return result
+
+    def download_pdf(self, relative_or_absolute_path: str) -> bytes:
+        """Download an authenticated GET (e.g. /solicitudes/<uuid>/reclamacion/pdf).
+
+        Accepts an absolute path (starting with '/') or a full URL. Returns the
+        response body bytes. The caller writes it to disk.
+        """
+        if relative_or_absolute_path.startswith("http://") or relative_or_absolute_path.startswith("https://"):
+            url = relative_or_absolute_path
+        else:
+            url = f"{self.base_url}{relative_or_absolute_path}"
+        with httpx.Client(timeout=60, follow_redirects=True) as client:
+            r = client.get(url, headers=self._auth_headers)
+        r.raise_for_status()
+        return r.content
+
     async def sync_notification(
         self,
         notificacion: Notificacion,

@@ -92,6 +92,7 @@ All endpoints under `/api/agent/` are protected by the `api` firewall in `securi
 | `/api/agent/me` | GET | Validate token, return user info |
 | `/api/agent/webhook` | POST | Receive documents from the agent |
 | `/api/agent/pending-refs` | GET | Return refs currently stored as pending, grouped by portal source |
+| `/api/agent/documents/{id}/download` | GET | Streamed download of a Document owned by the user (used by the `present_complaint` handler to fetch attachments to upload into CTBG) |
 
 `/api/agent/pending-refs` returns `{ portal: [...expedienteRefs], consejo: [...expedienteRefs], dehu: [...sentRefs] }`. The agent calls this at the start of each sync to reconcile stale pending notifications (e.g. after a state reset).
 
@@ -485,6 +486,24 @@ The agent sends native desktop notifications for key events:
 | New documents synced | *Nuevos documentos* | macOS (osascript), console fallback |
 | Pending signatures | *Firmas pendientes* | macOS (osascript), console fallback |
 | Error | *Error* | macOS (osascript), console fallback |
+
+## Recepción de tareas (web → agente)
+
+Desde la versión 0.1.0 el agente recibe tareas iniciadas desde la web vía:
+
+1. **Cola persistente** — tabla `agent_task` en PideInfo. Una tarea contiene `type`, `mode`, `payload` JSON y `status` (`pending` → `claimed` → `in_progress` → `done`/`failed`). El agente lista las suyas con `GET /api/agent/tasks/pending`, las reclama con `POST /api/agent/tasks/{id}/claim` (atómico, devuelve 409 si ya estaba claimed), reporta progreso con `POST /api/agent/tasks/{id}/progress` y cierra con `POST /api/agent/tasks/{id}/complete`.
+
+2. **Wake-up vía esquema URL** — `pideinfo://<action>/<task_id>`. Registrado como handler del SO mediante `agent/protocol/registration.py`. Linux usa `xdg-mime` + un `.desktop`; Windows usa `HKEY_CURRENT_USER\Software\Classes\pideinfo`; macOS requiere bundle `.app` (no implementado en fase 2a).
+
+3. **Single-instance + relay** — al invocarse con `--url <pideinfo://...>`, el ejecutable detecta si ya hay un agente corriendo (Unix socket en `~/.config/pideinfo/agent.sock` o named pipe en Windows). Si lo hay, le envía la URL y sale; si no, se convierte en agente principal y procesa la URL antes de arrancar el daemon.
+
+### Tipos de tarea soportados
+
+- **`present_complaint`** (fase 2a): el agente descarga el PDF de la reclamación a `~/Downloads/PideInfo/` y abre el navegador en la URL del CTBG (estatal o autonómico, resuelta por la web). El usuario completa el envío manualmente. Una fase 2b posterior automatizará el formulario con Playwright.
+
+### Drenaje de cola
+
+Aparte del wake-up inmediato, en modo daemon el `AsyncIOScheduler` ejecuta cada 60 s un `_drain_tasks_job()` que lista pendientes, las reclama y las despacha. Esto cubre tareas encoladas mientras el agente estaba caído. En modos `--once`/`--tray`, el agente drena una vez al arrancar.
 
 ## Key files in the backend
 

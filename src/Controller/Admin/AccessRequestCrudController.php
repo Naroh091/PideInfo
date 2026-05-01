@@ -65,7 +65,9 @@ class AccessRequestCrudController extends AbstractCrudController
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
                 'Concedida' => 'granted',
+                'Estimación parcial' => 'partially_granted',
                 'Denegada' => 'denied',
+                'Inadmitida a trámite' => 'inadmitted',
                 'Silencio' => 'delayed',
                 'Pendiente' => 'pending',
             ]))
@@ -249,7 +251,9 @@ class AccessRequestCrudController extends AbstractCrudController
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
                 'Concedida' => 'granted',
+                'Estimación parcial' => 'partially_granted',
                 'Denegada' => 'denied',
+                'Inadmitida a trámite' => 'inadmitted',
                 'Silencio' => 'delayed',
                 'Pendiente' => 'pending',
             ])
@@ -257,7 +261,9 @@ class AccessRequestCrudController extends AbstractCrudController
                 'sent' => 'primary',
                 'processing' => 'info',
                 'granted' => 'success',
+                'partially_granted' => 'warning',
                 'denied' => 'danger',
+                'inadmitted' => 'danger',
                 'delayed' => 'warning',
                 'pending' => 'secondary',
             ]);

@@ -77,6 +77,7 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
 | `read_document`              | mcp:documents  | Lee un documento como texto extraído (default) o `mode=blob` en base64. Cachea texto en `Document.extractedText`. |
 | `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. Capa a 5 docs en `mode=blob`. |
+| `download_user_document`     | mcp:documents  | Descarga el binario de un documento del usuario en base64. Equivalente al endpoint REST `GET /api/agent/documents/{id}/download` que usa el agente. Comportamiento idéntico a `read_document` con `mode=blob`, expuesto bajo un nombre más descubrible. |
 | `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |

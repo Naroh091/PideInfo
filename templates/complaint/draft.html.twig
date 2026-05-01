@@ -1,0 +1,299 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% set council = request.applicableLaw.complaintOrganism
+    ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
+    : 'el Consejo de Transparencia' %}
+
+{% block title %}Redactar reclamación - {{ request.title }} - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
+    <style>
+        :root {
+            --doc-bg: #ffffff;
+            --doc-edge: #e2e8f0;
+            --ink: #0f172a;
+            --ink-soft: #334155;
+            --ink-mute: #64748b;
+            --rule: #e2e8f0;
+            --gold: #0284c7;
+        }
+        .doc {
+            position: relative;
+            background: var(--doc-bg);
+            border: 1px solid var(--doc-edge);
+            border-radius: 6px;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 32px -20px rgba(15,23,42,.12);
+            overflow: hidden;
+        }
+        .doc::before {
+            content: ""; position: absolute; top: 0; bottom: 0; left: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--gold) 0%, #075985 100%);
+        }
+        .doc-strip {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            padding: 0.7rem 1.25rem 0.7rem 1.5rem;
+            border-bottom: 1px solid var(--rule);
+            background: #f8fafc;
+        }
+        .doc-strip-label {
+            display: inline-flex; align-items: center; gap: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem; font-weight: 600; color: var(--ink-mute);
+        }
+        .doc-body {
+            padding: clamp(1.5rem, 3vw, 2.75rem) clamp(1.25rem, 4vw, 3.25rem);
+            min-height: 18rem;
+        }
+        /* Manual draft uses a serif body — closer to a printed document and
+           consistent with the PDF the user can download from this same page.
+           Georgia is the body face: well-balanced on screen and pre-installed
+           on every OS we care about, so the editor doesn't have to wait for a
+           web font to render. */
+        trix-editor {
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 1rem;
+            line-height: 1.65;
+            color: var(--ink);
+            text-align: justify;
+            hyphens: auto;
+            border: 0;
+            padding: 0;
+            min-height: 24rem;
+            outline: none;
+            background: transparent;
+        }
+        trix-editor h1 {
+            font-family: 'DM Serif Display', serif;
+            font-weight: 400;
+            font-size: 1.35rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--ink);
+            margin: 1.8em auto .8em;
+            padding-bottom: .5em;
+            border-bottom: 1px solid var(--rule);
+            text-align: center;
+        }
+        trix-editor h1:first-child { margin-top: 0; }
+        trix-editor h2 {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            font-weight: 600;
+            color: var(--ink-soft);
+            margin: 1.2em 0 .45em;
+            text-align: left;
+        }
+        trix-editor p { margin-bottom: 0.95em; }
+        trix-editor blockquote {
+            border-left: 3px solid var(--gold);
+            padding-left: 1em;
+            color: var(--ink-soft);
+            font-style: italic;
+            margin: 1em 0;
+        }
+        trix-editor ul, trix-editor ol {
+            padding-left: 1.5em;
+            margin-bottom: 0.95em;
+        }
+        trix-editor strong { font-weight: 600; color: var(--ink); }
+        trix-toolbar {
+            background: transparent;
+            padding: .35rem 0 .9rem 0;
+            border-bottom: 1px solid var(--rule);
+            margin-bottom: 1rem;
+        }
+        trix-toolbar .trix-button {
+            border-color: transparent;
+            color: var(--ink-soft);
+        }
+        trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
+    </style>
+{% endblock %}
+
+{% block content %}
+<nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+    <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+    <span class="text-slate-300">/</span>
+    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors">{{ request.title|u.truncate(40, '…') }}</a>
+    <span class="text-slate-300">/</span>
+    <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="hover:text-slate-800 transition-colors">RECLAMAR</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-slate-800 font-medium">REDACTAR</span>
+</nav>
+
+<div class="max-w-4xl"
+     x-data="complaintDraftEditor()"
+     x-init="initEditor()">
+
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-slate-800 mb-1">Redactar reclamación a {{ council }}</h1>
+        <p class="text-slate-500">Pega o escribe el texto de tu reclamación. Cuando guardes, podrás descargarla en PDF y presentarla en la sede.</p>
+    </div>
+
+    <template x-if="flash">
+        <div :class="flash.type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-emerald-50 border-emerald-200 text-emerald-700'"
+             class="border rounded-lg px-4 py-3 mb-4 text-sm">
+            <span x-text="flash.message"></span>
+        </div>
+    </template>
+
+    <div class="doc">
+        <div class="doc-strip">
+            <span class="doc-strip-label">
+                <i data-lucide="pen-line" class="w-4 h-4"></i>
+                Reclamación
+            </span>
+            <span class="text-xs text-slate-400">{{ request.title|u.truncate(60, '…') }}</span>
+        </div>
+        <div class="doc-body">
+            <input id="complaint-draft-html" type="hidden" value="">
+            <trix-editor x-ref="editor"
+                         input="complaint-draft-html"
+                         @trix-change="edited = true"></trix-editor>
+        </div>
+    </div>
+
+    <div class="flex items-center justify-between mt-6 gap-3 flex-wrap">
+        <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="text-sm text-slate-500 hover:text-slate-800 inline-flex items-center gap-1.5">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            Volver
+        </a>
+        <div class="flex items-center gap-2 flex-wrap">
+            <button type="button"
+                    class="btn btn-secondary"
+                    x-show="savedRedirectUrl"
+                    x-cloak
+                    @click="presentViaAgent('supervised')"
+                    :disabled="presentingMode !== null"
+                    title="El agente abre la sede con el formulario rellenado y tú revisas + envías">
+                <i data-lucide="eye" class="w-4 h-4 mr-1.5"></i>
+                <span x-text="presentingMode === 'supervised' ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
+            </button>
+            <button type="button"
+                    class="btn btn-secondary"
+                    x-show="savedRedirectUrl"
+                    x-cloak
+                    @click="presentViaAgent('auto')"
+                    :disabled="presentingMode !== null"
+                    title="El agente rellena y envía sin intervención">
+                <i data-lucide="zap" class="w-4 h-4 mr-1.5"></i>
+                <span x-text="presentingMode === 'auto' ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
+            </button>
+            <a x-show="savedRedirectUrl || hasInitialDraft" x-cloak
+               href="{{ path('app_complaint_pdf', {id: request.id}) }}"
+               class="btn btn-secondary">
+                <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
+                Descargar PDF
+            </a>
+            <a x-show="savedRedirectUrl" x-cloak :href="savedRedirectUrl" class="btn btn-tertiary">
+                Ir al expediente
+            </a>
+            <button type="button"
+                    class="btn btn-accent"
+                    :disabled="saving || !edited"
+                    @click="save()">
+                <i data-lucide="save" class="w-4 h-4 mr-1.5"></i>
+                <span x-text="saving ? 'Guardando…' : (savedRedirectUrl ? 'Guardar cambios' : 'Guardar reclamación')">Guardar reclamación</span>
+            </button>
+        </div>
+    </div>
+
+    {% include 'complaint/_present_modal.html.twig' %}
+</div>
+
+<script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>
+<script>
+    // Drives the Trix-based manual draft editor. Defined outside of x-data
+    // so the existing draft HTML never lands inside an HTML attribute — that
+    // path used to break the page when the JSON-encoded payload's quotes
+    // closed the surrounding x-data="..." attribute prematurely.
+    function complaintDraftEditor() {
+        const initialHtml = {{ existingHtml|json_encode|raw }};
+        const saveUrl = {{ path('app_complaint_save_draft', {id: request.id})|json_encode|raw }};
+        const presentUrl = {{ path('app_complaint_present_via_agent', {id: request.id})|json_encode|raw }};
+        return {
+            saving: false,
+            edited: !initialHtml,
+            hasInitialDraft: !!initialHtml,
+            flash: null,
+            savedRedirectUrl: null,
+            presentingMode: null,
+            presentResult: null,
+            presentError: null,
+            async save() {
+                const input = document.getElementById('complaint-draft-html');
+                const html = input ? input.value : '';
+                if (!html.trim()) {
+                    this.flash = { type: 'error', message: 'Escribe la reclamación antes de guardar.' };
+                    return;
+                }
+                this.saving = true;
+                this.flash = null;
+                try {
+                    const response = await fetch(saveUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ html }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                        this.flash = { type: 'error', message: data.error || 'No se pudo guardar la reclamación.' };
+                        return;
+                    }
+                    this.savedRedirectUrl = data.redirectUrl;
+                    this.flash = { type: 'success', message: 'Reclamación guardada. Ahora puedes presentarla mediante el agente o ir al expediente.' };
+                    this.edited = false;
+                } catch (e) {
+                    this.flash = { type: 'error', message: 'Error de red al guardar la reclamación.' };
+                } finally {
+                    this.saving = false;
+                }
+            },
+            closePresentModal() {
+                this.presentResult = null;
+                this.presentError = null;
+                this.presentingMode = null;
+            },
+            async presentViaAgent(mode) {
+                if (this.presentingMode) return;
+                if (!this.savedRedirectUrl) {
+                    await this.save();
+                    if (!this.savedRedirectUrl) return;
+                }
+                this.presentingMode = mode;
+                this.presentError = null;
+                this.presentResult = null;
+                try {
+                    const response = await fetch(presentUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        this.presentError = data.error || 'No se pudo encolar la tarea.';
+                        return;
+                    }
+                    this.presentResult = { taskId: data.taskId, mode, schemeUrl: data.schemeUrl };
+                } catch (e) {
+                    this.presentError = 'Error de red.';
+                } finally {
+                    this.presentingMode = null;
+                }
+            },
+            initEditor() {
+                const trixEditor = this.$refs.editor;
+                if (!trixEditor) return;
+                const apply = () => {
+                    trixEditor.editor.loadHTML(initialHtml || '');
+                };
+                if (trixEditor.editor) apply();
+                else trixEditor.addEventListener('trix-initialize', apply, { once: true });
+            },
+        };
+    }
+</script>
+{% endblock %}

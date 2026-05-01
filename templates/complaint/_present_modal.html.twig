@@ -1,0 +1,148 @@
+{# Reusable modal shown after the user clicks Presentar (auto/supervised).
+   Hosted by an x-data scope that exposes:
+     - presentingMode  (string|null) → 'auto' | 'supervised' while the POST is in flight
+     - presentResult   ({taskId, mode, schemeUrl} | null) once the task is enqueued
+     - presentError    (string|null)
+     - closePresentModal() resets the three above
+#}
+<div x-show="presentingMode || presentResult || presentError"
+     x-cloak
+     x-transition.opacity
+     class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[1px]"
+     @keydown.escape.window="closePresentModal()"
+     @click.self="closePresentModal()">
+
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden border border-slate-200">
+
+        {# header #}
+        <div class="px-6 pt-6 pb-2">
+            <h3 class="text-lg font-semibold text-slate-900">
+                <span x-show="presentingMode" x-cloak>Encolando reclamación…</span>
+                <span x-show="!presentingMode && presentResult" x-cloak>Tu reclamación va de camino al agente</span>
+                <span x-show="presentError" x-cloak>No se pudo encolar</span>
+            </h3>
+            <p class="text-sm text-slate-500 mt-1" x-show="presentResult" x-cloak>
+                Modo <span class="font-medium text-slate-700" x-text="presentResult?.mode"></span>.
+            </p>
+        </div>
+
+        {# animation #}
+        <div class="px-6 py-6 flex items-center justify-center" x-show="!presentError" x-cloak>
+            <div class="present-anim" :class="{ 'is-stopped': !presentResult && !presentingMode }">
+                <div class="present-anim-stage">
+                    <span class="present-anim-source" title="PideInfo">
+                        <i data-lucide="folder-open" class="w-6 h-6 text-slate-400"></i>
+                    </span>
+                    <span class="present-anim-track" aria-hidden="true">
+                        <span class="present-anim-doc" data-doc="1">
+                            <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                        </span>
+                        <span class="present-anim-doc" data-doc="2">
+                            <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                        </span>
+                        <span class="present-anim-doc" data-doc="3">
+                            <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                        </span>
+                    </span>
+                    <span class="present-anim-target" title="Agente / Sede">
+                        <i data-lucide="cpu" class="w-6 h-6 text-emerald-500"></i>
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 text-center mt-3">
+                    <span x-show="presentingMode" x-cloak>Guardando borrador y creando tarea…</span>
+                    <span x-show="!presentingMode && presentResult" x-cloak>
+                        El agente la recogerá automáticamente. Si quieres acelerar, fuerza el inicio.
+                    </span>
+                </p>
+            </div>
+        </div>
+
+        {# error state #}
+        <template x-if="presentError">
+            <div class="px-6 py-6">
+                <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2" x-text="presentError"></div>
+            </div>
+        </template>
+
+        {# footer #}
+        <div class="px-6 pb-6 pt-2 flex items-center justify-between gap-3">
+            <span class="text-[11px] text-slate-400 font-mono"
+                  x-show="presentResult"
+                  x-cloak
+                  x-text="'Tarea ' + presentResult?.taskId?.slice(0, 8)"></span>
+
+            <div class="flex items-center gap-2 ml-auto">
+                <button type="button"
+                        class="text-sm text-slate-500 hover:text-slate-800 px-3 py-1.5"
+                        @click="closePresentModal()">
+                    Cerrar
+                </button>
+                <a x-show="presentResult?.schemeUrl"
+                   x-cloak
+                   :href="presentResult?.schemeUrl"
+                   class="btn btn-accent inline-flex items-center gap-1.5">
+                    <i data-lucide="zap" class="w-4 h-4"></i>
+                    Forzar inicio
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .present-anim { width: 100%; }
+    .present-anim-stage {
+        position: relative;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px;
+    }
+    .present-anim-source,
+    .present-anim-target {
+        width: 56px; height: 56px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 14px;
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        flex-shrink: 0;
+    }
+    .present-anim-target { background: #ecfdf5; border-color: #a7f3d0; }
+    .present-anim-track {
+        position: absolute;
+        top: 50%;
+        left: 64px;
+        right: 64px;
+        height: 2px;
+        background: linear-gradient(90deg, #cbd5e1, #d1fae5);
+        transform: translateY(-50%);
+    }
+    .present-anim-doc {
+        position: absolute;
+        top: -10px;
+        left: 0;
+        width: 26px; height: 26px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #fff;
+        border: 1px solid #bae6fd;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, .08);
+        animation: present-doc-fly 2.4s linear infinite;
+    }
+    .present-anim-doc[data-doc="2"] { animation-delay: 0.8s; }
+    .present-anim-doc[data-doc="3"] { animation-delay: 1.6s; }
+    .present-anim.is-stopped .present-anim-doc { animation-play-state: paused; opacity: 0; }
+    @keyframes present-doc-fly {
+        0%   { transform: translateX(0)    scale(0.85); opacity: 0; }
+        12%  { opacity: 1; }
+        50%  { transform: translateX(50%)  scale(1);    opacity: 1; }
+        88%  { opacity: 1; }
+        100% { transform: translateX(100%) scale(0.85); opacity: 0; }
+    }
+</style>
+
+{# Re-init lucide icons after Alpine renders the modal #}
+<script>
+    document.addEventListener('alpine:initialized', () => { if (window.lucide) window.lucide.createIcons(); });
+</script>
