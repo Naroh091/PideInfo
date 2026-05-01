@@ -91,8 +91,12 @@ class CtbgComplaintFiller:
             label_re=re.compile(r"ENTIDAD RECLAMADA", re.I),
             value=self.payload["public_body_name"] or "",
         )
+        # Wicket label has appeared as both "Nº expediente del Portal de
+        # Transparencia" and "Indique el nº expediente del Portal de
+        # Transparencia" — match the invariant substring with a tolerant gap
+        # in case of additional articles ("del Portal **de la** Transparencia").
         await self._wicket_write(
-            label_re=re.compile(r"expediente\s+del\s+Portal\s+de\s+Transparencia", re.I),
+            label_re=re.compile(r"expediente.{0,20}Portal.{0,20}Transparencia", re.I),
             value=self.payload["request_external_id"] or "",
         )
 
@@ -240,21 +244,40 @@ class CtbgComplaintFiller:
         await self.page.wait_for_timeout(800)
 
     async def _open_wicket_field(self, label_re: re.Pattern[str]) -> None:
-        """Click the 'Escribir' / 'Seleccionar' anchor associated with a label."""
+        """Click the 'Escribir' / 'Seleccionar' anchor associated with a label.
+
+        Searches the anchor's enclosing row/section *and* its preceding label
+        cell — Wicket sometimes renders the label in `<th>` and the link in
+        `<td>` of the same row, sometimes in a `<dt>`/`<dd>` pair, etc. So we
+        widen the lookup to the nearest `tr/li/p/div/section/fieldset` and
+        also peek at the previous sibling's text.
+        """
         anchors = self.page.locator("a.inputTextDiv.personalizedField")
         count = await anchors.count()
+        contexts: list[str] = []
         for i in range(count):
             a = anchors.nth(i)
             ctx = await a.evaluate(
                 """el => {
-                    const parent = el.closest('tr,p,li,div');
-                    return parent ? parent.innerText : '';
+                    const ancestors = ['tr','li','p','div','section','fieldset'];
+                    const parent = el.closest(ancestors.join(','));
+                    const own = parent ? parent.innerText : '';
+                    const prev = parent && parent.previousElementSibling
+                        ? parent.previousElementSibling.innerText : '';
+                    return (prev + ' ' + own).replace(/\\s+/g, ' ').trim();
                 }"""
             )
+            contexts.append(ctx or "")
             if label_re.search(ctx or "") and (await a.inner_text()).strip() in {"Escribir", "Seleccionar"}:
                 await a.click()
                 return
-        raise CtbgFillerError(f"No encontré campo para {label_re.pattern}")
+        # Surface the labels we did see — turns the next failure into an
+        # actionable signal instead of "regex didn't match".
+        sample = " | ".join(c[:80] for c in contexts[:8])
+        raise CtbgFillerError(
+            f"No encontré campo para {label_re.pattern}. "
+            f"Anchors visibles ({count}): {sample}"
+        )
 
     async def _accept_modal(self) -> None:
         """Click the inline panel's 'Aceptar' and wait for the placeholder to settle."""

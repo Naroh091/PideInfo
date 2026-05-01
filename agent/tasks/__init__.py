@@ -44,6 +44,7 @@ def dispatch_action_id(action: str, task_id: str, client: _ClientProto) -> None:
         handler(task, client)
     except Exception as e:
         logger.exception("Handler for %s crashed: %s", task["type"], e)
+        _report_exception(e, task_type=task["type"], task_id=task_id)
         try:
             client.complete_task(task_id, success=False, error=f"handler_crashed:{e!s}"[:2000])
         except Exception:
@@ -60,10 +61,22 @@ def dispatch_existing(task: dict, client: _ClientProto) -> None:
         handler(task, client)
     except Exception as e:
         logger.exception("Handler for %s crashed: %s", task["type"], e)
+        _report_exception(e, task_type=task["type"], task_id=task["id"])
         try:
             client.complete_task(task["id"], success=False, error=f"handler_crashed:{e!s}"[:2000])
         except Exception:
             pass
+
+
+def _report_exception(exc: BaseException, **tags: str) -> None:
+    """Forward to Sentry explicitly. LoggingIntegration usually does this on
+    its own, but this guarantees the event leaves even if the logging
+    hierarchy is misconfigured."""
+    try:
+        from observability import capture_exception
+        capture_exception(exc, **tags)
+    except Exception:
+        pass
 
 
 # Auto-register handlers
