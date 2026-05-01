@@ -243,46 +243,72 @@ class CtbgComplaintFiller:
         await self.page.wait_for_load_state("domcontentloaded")
         await self.page.wait_for_timeout(800)
 
-    async def _open_wicket_field(self, label_re: re.Pattern[str]) -> None:
-        """Click the 'Escribir' / 'Seleccionar' anchor associated with a label.
-
-        Searches the anchor's enclosing row/section *and* its preceding label
-        cell — Wicket sometimes renders the label in `<th>` and the link in
-        `<td>` of the same row, sometimes in a `<dt>`/`<dd>` pair, etc. So we
-        widen the lookup to the nearest `tr/li/p/div/section/fieldset` and
-        also peek at the previous sibling's text.
-        """
-        anchors = self.page.locator("a.inputTextDiv.personalizedField")
-        count = await anchors.count()
-        contexts: list[str] = []
-        for i in range(count):
-            a = anchors.nth(i)
-            ctx = await a.evaluate(
-                """el => {
-                    const ancestors = ['tr','li','p','div','section','fieldset'];
-                    const parent = el.closest(ancestors.join(','));
-                    const own = parent ? parent.innerText : '';
-                    const prev = parent && parent.previousElementSibling
-                        ? parent.previousElementSibling.innerText : '';
-                    return (prev + ' ' + own).replace(/\\s+/g, ' ').trim();
-                }"""
+    async def _wait_wicket_idle(self) -> None:
+        """Wait until no inline edit panel is open. Signals the previous
+        `Aceptar` click's Ajax round-trip has finished and the form has been
+        re-rendered, so subsequent field lookups see the new DOM."""
+        try:
+            await self.page.locator('[name*=":modal:"]').first.wait_for(
+                state="detached", timeout=15_000,
             )
-            contexts.append(ctx or "")
-            if label_re.search(ctx or "") and (await a.inner_text()).strip() in {"Escribir", "Seleccionar"}:
-                await a.click()
-                return
-        # Surface the labels we did see — turns the next failure into an
-        # actionable signal instead of "regex didn't match".
-        sample = " | ".join(c[:80] for c in contexts[:8])
+        except PlaywrightTimeoutError:
+            # Either there was never a panel, or the page just timed out.
+            # Don't fail here — the caller's locator will raise a more
+            # specific error if the page really is broken.
+            pass
+
+    async def _open_wicket_field(self, label_re: re.Pattern[str]) -> None:
+        """Click the 'Escribir' / 'Seleccionar' anchor whose parent's label
+        matches *label_re*.
+
+        Each field on the Wicket form is structured as::
+
+            <p> {label text} <a class="inputTextDiv personalizedField">Escribir</a> </p>
+
+        so we read the anchor's *immediate parent* text and subtract the
+        anchor's own text — no `closest()` walking, which was matching wider
+        containers after Wicket replaced filled fields.
+
+        Retries up to 3 times because Wicket can finish rendering after our
+        idle wait completes.
+        """
+        await self._wait_wicket_idle()
+        last_labels: list[str] = []
+        for _attempt in range(3):
+            anchors = self.page.locator("a.inputTextDiv.personalizedField")
+            count = await anchors.count()
+            last_labels = []
+            for i in range(count):
+                a = anchors.nth(i)
+                label = await a.evaluate(
+                    """el => {
+                        const p = el.parentElement;
+                        if (!p) return '';
+                        const own = (p.innerText || '').replace(/\\s+/g, ' ').trim();
+                        const link = (el.innerText || '').trim();
+                        return link ? own.replace(link, '').trim() : own;
+                    }"""
+                )
+                last_labels.append(label or "")
+                text = (await a.inner_text()).strip()
+                if label_re.search(label or "") and text in {"Escribir", "Seleccionar"}:
+                    await a.click()
+                    return
+            await self.page.wait_for_timeout(400)
+        sample = " | ".join(repr(l)[:90] for l in last_labels[:8])
         raise CtbgFillerError(
             f"No encontré campo para {label_re.pattern}. "
-            f"Anchors visibles ({count}): {sample}"
+            f"Anchors visibles ({len(last_labels)}): {sample}"
         )
 
     async def _accept_modal(self) -> None:
-        """Click the inline panel's 'Aceptar' and wait for the placeholder to settle."""
+        """Click the inline panel's 'Aceptar' and wait until the panel is gone.
+
+        Waiting on the `:modal:` input being detached is deterministic — a
+        fixed `wait_for_timeout` raced Wicket's Ajax round-trip and was the
+        root cause of the field-not-found error David hit in production."""
         await self.page.locator('button:has-text("Aceptar")').first.click()
-        await self.page.wait_for_timeout(700)
+        await self._wait_wicket_idle()
 
     async def _wicket_write(self, label_re: re.Pattern[str], value: str) -> None:
         await self._open_wicket_field(label_re)
