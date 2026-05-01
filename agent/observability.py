@@ -78,12 +78,36 @@ def init(settings: "Settings", prefs: "AgentPreferences") -> None:
     )
     _INITIALISED = True
     _TELEMETRY_ON = True
+    logger.info(
+        "Sentry: telemetría activa (release=pideinfo-agent@%s, environment=%s)",
+        __version__, settings.sentry_environment,
+    )
 
     if prefs.user_email:
         set_user(prefs)
 
     # Cover crashes that escape every try/except.
     _install_excepthook()
+
+
+def capture_exception(exc: BaseException | None = None, **tags: str) -> None:
+    """Explicitly send an exception to Sentry (no-op when telemetry is off).
+
+    Belt-and-suspenders companion to LoggingIntegration: handlers that catch
+    via `try/except` and log via `logger.exception(...)` should also call
+    this so a single misconfigured logging hierarchy can't lose the event.
+    """
+    if not _TELEMETRY_ON:
+        return
+    try:
+        import sentry_sdk
+        with sentry_sdk.push_scope() as scope:
+            for k, v in tags.items():
+                if v is not None:
+                    scope.set_tag(k, str(v))
+            sentry_sdk.capture_exception(exc)
+    except Exception:
+        pass
 
 
 def shutdown() -> None:

@@ -79,6 +79,11 @@ def handle(task: dict, client: Any) -> None:
         result = asyncio.run(_drive_form(payload, files, console, client, task_id, mode, work_dir))
     except Exception as e:
         logger.exception("present_complaint pipeline crashed")
+        try:
+            from observability import capture_exception
+            capture_exception(e, task_type="present_complaint", task_id=task_id, mode=mode)
+        except Exception:
+            pass
         screenshot = work_dir / "failure.png"
         client.complete_task(
             task_id, success=False,
