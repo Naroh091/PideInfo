@@ -167,6 +167,40 @@ Settings are loaded from environment variables and/or a `.env` file via `pydanti
 | `SYNC_INTERVAL_MINUTES` | `30` | Daemon mode sync interval |
 | `DATA_DIR` | `~/.pideinfo-agent` | Directory for cookies, state, preferences, downloads |
 | `HEADLESS_DISABLED` | `false` | If `true`, forces a visible browser window for **all** auth flows (Portal de Transparencia, CTBG, DEHú, Red SARA). Useful for debugging. The same can be toggled at runtime via the tray menu (`headless_disabled` in `preferences.json`); the effective value is the OR of both sources. |
+| `SENTRY_DSN_AGENT` | *(empty)* | DSN del proyecto Sentry **del agente** (distinto del `SENTRY_DSN` del backend PHP). Vacío = telemetría desactivada en este build. |
+| `SENTRY_ENVIRONMENT` | `production` | Tag `environment` en los eventos Sentry. |
+
+## Observabilidad
+
+El agente registra a dos sumideros simultáneos:
+
+1. **Archivo local rotativo**: `<DATA_DIR>/agent.log` (5 MB × 3 ficheros). Siempre activo, independientemente del DSN. Útil cuando un usuario nos pega el log a mano y para correlacionar con un evento concreto en Sentry.
+2. **Sentry**: solo si `SENTRY_DSN_AGENT` está poblado en el build **y** el usuario no ha desactivado la telemetría desde la bandeja.
+
+### DSN baked-in en el build
+
+El agente se distribuye como `.app`/`.exe`. Los end users no editan `.env`, así que el DSN se "hornea" en el bundle al empaquetar:
+
+- **En desarrollo**: `agent/.env` con `SENTRY_DSN_AGENT=https://...` (gitignored).
+- **En CI** (`.github/workflows/build-agent.yml`, paso *Bake Sentry config into the build*): genera `agent/_baked_env.py` desde el secreto `SENTRY_DSN_AGENT` y un `SENTRY_ENVIRONMENT` derivado del ref (`production` para tags `agent-v*`, `development` para `workflow_dispatch`). PyInstaller lo recoge vía `_hidden_imports` cuando el archivo existe.
+
+`agent/_baked_env.py` está en `.gitignore` y solo se materializa durante la build; en runtime, `runtime.apply_baked_env()` lo importa de forma defensiva y hace `os.environ.setdefault(...)` — un `SENTRY_DSN_AGENT` real en el entorno o un `.env` de dev sigue ganando.
+
+El DSN no es un secreto: Sentry lo documenta como público y lleva su propio rate-limit + filtros de inbound. Aun así, el agente aplica `before_send` para borrar `Authorization: Bearer ...` y JWTs en URLs antes de enviar.
+
+### Opt-out
+
+Item del tray: **"Enviar telemetría de errores"** (checkmark). Persistido en `preferences.json` como `telemetry_enabled`. Al desmarcar:
+
+- `sentry_sdk.Hub.current.client.close()` se llama y los eventos en cola se descartan.
+- `agent.log` sigue capturando errores localmente.
+- Reactivarlo re-inicializa el SDK sin reiniciar el agente.
+
+### Init order
+
+`observability.init()` se llama en `main.py` justo después de cargar `Settings`, **antes** de `acquire_or_relay`, `ensure_firefox` y la cola de tareas. Así los crashes pre-autenticación (Firefox bootstrap, registro de URL handler en macOS, single-instance) llegan a Sentry — la clase de error que hemos perdido históricamente porque nadie estaba mirando los logs.
+
+`set_user(prefs)` adjunta el email del usuario solo cuando `connect()` ya validó el JWT.
 
 ## Portal authentication
 

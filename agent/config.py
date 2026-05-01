@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".pideinfo-agent"
     debug: bool = False
     headless_disabled: bool = False
+
+    # Sentry — DSN is baked into the build at release time. Empty disables.
+    # Named *_agent so it doesn't collide with the PHP web app's SENTRY_DSN.
+    sentry_dsn_agent: str = ""
+    sentry_environment: str = "production"
     # When True, the CTBG expediente crawl walks every expediente in the list
     # (including long-closed ones); otherwise it stops at the first all-closed
     # batch. The list is sorted with most-recent activity first.

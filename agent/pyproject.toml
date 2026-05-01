@@ -16,6 +16,7 @@ dependencies = [
     "pystray>=0.19",
     "Pillow>=10.0",
     "packaging>=24.0",
+    "sentry-sdk>=2.0",
 ]
 
 [project.optional-dependencies]

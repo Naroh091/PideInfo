@@ -9,10 +9,11 @@ import os
 import sys
 from pathlib import Path
 
-# Set PLAYWRIGHT_BROWSERS_PATH early, before playwright is imported anywhere.
-# This must happen at module level so it takes effect even if playwright is
-# imported transitively by an early import.
-from runtime import setup_playwright_env
+# Apply build-time-baked env vars (Sentry DSN, environment) before Settings is
+# constructed; setdefault means real env / .env still wins in dev. Also set
+# PLAYWRIGHT_BROWSERS_PATH before playwright is imported anywhere.
+from runtime import apply_baked_env, setup_playwright_env
+apply_baked_env()
 setup_playwright_env()
 
 from rich.console import Console
@@ -965,6 +966,8 @@ def _run_tray(settings: Settings) -> None:
 
         console.print(f"[green]Conectado como {prefs.user_email}[/]")
         show_connected_card(prefs.user_name, prefs.user_email)
+        import observability
+        observability.set_user(prefs)
 
     def disconnect() -> None:
         prefs.jwt_token = ""
@@ -972,6 +975,8 @@ def _run_tray(settings: Settings) -> None:
         prefs.user_name = ""
         save_preferences(prefs, settings.preferences_file)
         console.print("[yellow]Desconectado de PideInfo[/]")
+        import observability
+        observability.set_user(prefs)  # clears email
 
     def is_connected() -> bool:
         return prefs.is_connected
@@ -998,6 +1003,20 @@ def _run_tray(settings: Settings) -> None:
         save_preferences(prefs, settings.preferences_file)
         state = "deshabilitado (headed)" if prefs.headless_disabled else "habilitado"
         console.print(f"[yellow]Modo headless {state}[/]")
+
+    def get_telemetry_enabled() -> bool:
+        return prefs.telemetry_enabled
+
+    def toggle_telemetry_enabled() -> None:
+        prefs.telemetry_enabled = not prefs.telemetry_enabled
+        save_preferences(prefs, settings.preferences_file)
+        import observability
+        if prefs.telemetry_enabled:
+            observability.init(settings, prefs)
+            console.print("[yellow]Telemetría activada[/]")
+        else:
+            observability.shutdown()
+            console.print("[yellow]Telemetría desactivada[/]")
 
     def drain_pending_tasks() -> None:
         """Synchronously drain the agent task queue.
@@ -1048,6 +1067,8 @@ def _run_tray(settings: Settings) -> None:
         debug_mode=settings.debug,
         get_headless_disabled_fn=get_headless_disabled,
         toggle_headless_disabled_fn=toggle_headless_disabled,
+        get_telemetry_enabled_fn=get_telemetry_enabled,
+        toggle_telemetry_enabled_fn=toggle_telemetry_enabled,
         sync_interval_minutes=settings.sync_interval_minutes,
         drain_tasks_fn=drain_pending_tasks,
     ).run()
@@ -1128,6 +1149,11 @@ def main() -> None:
     console.print(f"[dim]Portal: {settings.portal_url}[/]")
     console.print(f"[dim]PideInfo: {settings.pideinfo_base_url}[/]")
     console.print(f"[dim]Datos: {settings.data_dir}[/]")
+
+    # Logging + Sentry. Initialised here so pre-auth crashes (Firefox install,
+    # URL handler registration, single-instance) reach the dashboard.
+    import observability
+    observability.init(settings, load_preferences(settings.preferences_file))
 
     # ── Single-instance + pideinfo:// URL handoff ────────────────────────
     # If another agent is already running and we were invoked with a URL,

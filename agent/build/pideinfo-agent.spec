@@ -53,7 +53,24 @@ _hidden_imports = [
     "apscheduler.triggers.interval",
     "bs4",
     "packaging.version",
+    # Sentry integrations are imported by name at runtime; PyInstaller does
+    # not detect them via static analysis.
+    "sentry_sdk",
+    "sentry_sdk.integrations.logging",
+    "sentry_sdk.integrations.httpx",
+    "sentry_sdk.integrations.threading",
+    "sentry_sdk.integrations.dedupe",
+    "sentry_sdk.integrations.atexit",
+    "sentry_sdk.integrations.excepthook",
+    "sentry_sdk.integrations.modules",
+    "sentry_sdk.integrations.stdlib",
 ]
+
+# CI generates _baked_env.py at build time. Imported defensively (try/except)
+# so its absence doesn't break source runs — but include it as a hidden import
+# so PyInstaller bundles it when present.
+if (_spec_dir.parent / "_baked_env.py").exists():
+    _hidden_imports.append("_baked_env")
 
 if _is_mac:
     _hidden_imports += [
