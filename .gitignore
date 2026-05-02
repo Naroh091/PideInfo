@@ -49,3 +49,6 @@ Thumbs.db
 ###> league/oauth2-server-bundle ###
 /config/jwt/*.pem
 ###< league/oauth2-server-bundle ###
+
+*.p12
+.env.dev

@@ -70,8 +70,19 @@ final class ProcessDocumentHandler
                 'referenceNumber' => $analysis['referenceNumber'] ?? null,
             ]);
 
-            // Update document with extracted info
-            $document->setType($analysis['documentType']);
+            // Update document with extracted info. When the type was preassigned
+            // upstream (e.g. AgentWebhookProcessor mapping a CTBG complaint phase
+            // to ComplaintResolution / Alegaciones / ...), trust it over the
+            // analyzer — the AI cannot tell "RESOLUCIÓN DE LA RECLAMACIÓN" apart
+            // from a regular Response, and that misclassification used to hide
+            // the doc from the reclamación section.
+            $preassignedType = $document->getType();
+            $typeWasPreassigned = $preassignedType !== DocumentType::Unprocessed;
+            if (!$typeWasPreassigned) {
+                $document->setType($analysis['documentType']);
+            } else {
+                $analysis['documentType'] = $preassignedType;
+            }
             $document->setExtractedText($analysis['summary'] ?? null);
             $document->setAiMetadata($analysis);
 

@@ -1,0 +1,92 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Nueva solicitud - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .choice-card {
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: inherit;
+            transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+            box-shadow: 0 1px 2px rgba(15,23,42,.04);
+        }
+        .choice-card:hover {
+            border-color: #0284c7;
+            box-shadow: 0 8px 24px -16px rgba(15,23,42,.18);
+            transform: translateY(-1px);
+        }
+        .choice-card .choice-icon {
+            width: 2.75rem; height: 2.75rem;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            margin-bottom: 1rem;
+        }
+        .choice-card.choice-register .choice-icon { background: #f1f5f9; color: #475569; }
+        .choice-card.choice-submit   .choice-icon { background: #ecfeff; color: #0e7490; }
+        .choice-card h3 {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 1rem;
+            margin-bottom: .35rem;
+        }
+        .choice-card p {
+            font-size: .9rem;
+            color: #475569;
+            line-height: 1.45;
+        }
+        .choice-card .choice-cta {
+            margin-top: auto;
+            padding-top: 1rem;
+            font-size: .85rem;
+            font-weight: 600;
+            color: #0284c7;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+        }
+        .choice-card.choice-register .choice-cta { color: #475569; }
+    </style>
+{% endblock %}
+
+{% block content %}
+<nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+    <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-slate-800 font-medium">NUEVA SOLICITUD</span>
+</nav>
+
+<div class="max-w-4xl">
+    <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-slate-800 mb-1">Nueva solicitud</h1>
+        <p class="text-slate-500">Elige cómo quieres empezar.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-4">
+        <a href="{{ path('app_solicitudes_register') }}" class="choice-card choice-register">
+            <div class="choice-icon"><i data-lucide="clipboard-list" class="w-5 h-5"></i></div>
+            <h3>Ya la envié, sólo quiero registrarla</h3>
+            <p>Anota una solicitud que ya presentaste por tu cuenta para hacerle seguimiento en PideInfo. Tú indicas el organismo, la fecha y, si la tienes, la referencia del expediente.</p>
+            <span class="choice-cta">Registrar manualmente <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
+
+        <a href="{{ path('app_solicitudes_submit_form') }}" class="choice-card choice-submit">
+            <div class="choice-icon"><i data-lucide="send" class="w-5 h-5"></i></div>
+            <h3>Quiero que PideInfo la envíe por mí</h3>
+            <p>Redactas la solicitud y eliges a qué organismos enviarla. PideInfo se la entrega al Portal de Transparencia o al REG en tu nombre, usando tu certificado digital.</p>
+            <span class="choice-cta">Realizar y enviar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
+    </div>
+
+    <p class="text-xs text-slate-400 mt-6">
+        <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1"></i>
+        Para "Realizar y enviar" necesitas tener el agente local de PideInfo conectado, ya que es quien firma con tu certificado.
+    </p>
+</div>
+{% endblock %}

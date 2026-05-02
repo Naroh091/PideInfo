@@ -1,0 +1,297 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Elige el organismo · Nueva solicitud · PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        /* ───────────────────────────────────────────────────────────
+           PAGE-SCOPED — "Realizar / paso 1: elegir organismo"
+           Uses the existing palette (--color-primary-*, accent, slate)
+           and the same typography pair as the dashboard hero
+           (DM Serif Display + DM Sans + Inter for eyebrows).
+           ─────────────────────────────────────────────────────────── */
+
+        .picker-band { margin: 0 0 1.5rem; }
+        .picker-eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: var(--color-primary-700, #0369a1);
+            display: inline-flex; align-items: center; gap: .5rem;
+            margin-bottom: .35rem;
+        }
+        .picker-eyebrow .dot {
+            width: 4px; height: 4px; border-radius: 50%;
+            background: var(--color-accent-500);
+        }
+        .picker-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            line-height: 1.05;
+            letter-spacing: -.018em;
+            color: rgb(15 23 42);
+            font-size: clamp(1.85rem, 3.5vw, 2.6rem);
+            margin: .25rem 0 .5rem;
+        }
+        .picker-title em { font-style: italic; color: var(--color-primary-600, #0284c7); }
+        .picker-sub {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem; color: rgb(100 116 139);
+            line-height: 1.55; max-width: 38rem;
+        }
+
+        .picker-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+            gap: 1.75rem;
+            align-items: start;
+        }
+        @media (max-width: 1023px) {
+            .picker-grid { grid-template-columns: 1fr; gap: 1.25rem; }
+        }
+
+        .picker-card {
+            background: #ffffff;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .85rem;
+            padding: 1.5rem 1.5rem 1.75rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+        }
+        .picker-card-label {
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem; letter-spacing: .07em; text-transform: uppercase;
+            font-weight: 700;
+            color: rgb(100 116 139);
+            margin-bottom: .55rem;
+        }
+        .picker-card .ts-control {
+            border-radius: .55rem;
+            border-color: rgb(203 213 225);
+            min-height: 2.7rem;
+            padding: .35rem .55rem;
+            font-family: 'DM Sans', sans-serif;
+        }
+        .picker-card .ts-control input { font-size: .95rem; }
+        .picker-card .ts-control:hover { border-color: rgb(186 230 253); }
+        .picker-card .ts-dropdown {
+            border-radius: .55rem;
+            box-shadow: 0 16px 40px -20px rgba(15, 23, 42, .25);
+        }
+
+        .picker-option { padding: .15rem 0; }
+        .picker-option-row {
+            display: flex; align-items: center; justify-content: space-between; gap: .65rem;
+        }
+        .picker-option-name {
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500; color: rgb(15 23 42);
+        }
+        .picker-option-meta {
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: .74rem; color: rgb(100 116 139);
+            margin-top: .15rem;
+        }
+
+        /* Channel badges — match the dossier-status palette */
+        .channel-badge {
+            display: inline-flex; align-items: center;
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; font-weight: 600;
+            letter-spacing: .04em; text-transform: uppercase;
+            padding: .15rem .5rem; border-radius: 999px;
+            border: 1px solid; white-space: nowrap;
+        }
+        .channel-badge-portal {
+            color: var(--color-primary-700, #0369a1);
+            background: var(--color-primary-50, #f0f9ff);
+            border-color: var(--color-primary-200, #bae6fd);
+        }
+        .channel-badge-reg {
+            color: rgb(71 85 105);
+            background: rgb(248 250 252);
+            border-color: rgb(226 232 240);
+        }
+        .channel-badge-sm { font-size: .62rem; padding: .1rem .45rem; }
+
+        .picker-help {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem; color: rgb(100 116 139);
+            margin-top: 1rem; padding-top: 1rem;
+            border-top: 1px dashed rgb(226 232 240);
+            line-height: 1.55;
+        }
+        .picker-help b { color: rgb(15 23 42); font-weight: 600; }
+
+        .picker-cta-row {
+            margin-top: 1.5rem;
+            display: flex; justify-content: space-between; gap: .75rem; align-items: center;
+            flex-wrap: wrap;
+        }
+        .picker-cta-row .btn { min-width: 11rem; justify-content: center; }
+        .picker-cta-row .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* Preview side */
+        .preview-card,
+        .preview-multi,
+        .preview-empty {
+            background: #ffffff;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .85rem;
+            padding: 1.5rem 1.5rem 1.65rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+        }
+        .preview-empty { display: flex; gap: .9rem; align-items: flex-start; }
+        .preview-empty-icon {
+            width: 2.4rem; height: 2.4rem;
+            border-radius: 999px;
+            background: var(--color-primary-50);
+            color: var(--color-primary-600);
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .preview-empty-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.1rem; color: rgb(15 23 42);
+            margin-bottom: .2rem;
+        }
+        .preview-empty-body {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem; color: rgb(100 116 139); line-height: 1.5;
+        }
+
+        .preview-card-head {
+            display: flex; gap: .4rem; flex-wrap: wrap; align-items: center;
+            margin-bottom: 1rem;
+        }
+        .preview-meta-pill {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; letter-spacing: .04em;
+            font-weight: 600;
+            color: rgb(71 85 105);
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+            padding: .15rem .5rem;
+            text-transform: uppercase;
+        }
+        .preview-card-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: clamp(1.25rem, 2.4vw, 1.5rem);
+            line-height: 1.18;
+            color: rgb(15 23 42);
+            letter-spacing: -.01em;
+            margin: 0 0 1.1rem;
+        }
+        .preview-law {
+            display: grid; grid-template-columns: max-content 1fr;
+            gap: .35rem 1rem;
+            font-family: 'DM Sans', sans-serif; font-size: .9rem;
+            padding-top: .6rem;
+            border-top: 1px solid rgb(241 245 249);
+        }
+        .preview-law dt {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; letter-spacing: .07em;
+            text-transform: uppercase; color: rgb(148 163 184);
+            align-self: center; font-weight: 600;
+        }
+        .preview-law dd { color: rgb(15 23 42); line-height: 1.45; margin: 0; }
+        .preview-law-code {
+            display: inline-block; margin-left: .35rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; color: rgb(100 116 139);
+            background: rgb(241 245 249);
+            padding: .1rem .4rem; border-radius: 4px;
+        }
+        .preview-law-empty {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem; color: rgb(148 163 184);
+        }
+
+        .preview-multi-head {
+            display: flex; align-items: center; gap: .55rem; margin-bottom: .85rem;
+        }
+        .preview-multi-head h3 {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.15rem; color: rgb(15 23 42);
+        }
+        .preview-multi-head i { color: var(--color-primary-600); }
+        .preview-multi-note {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem; color: rgb(71 85 105); line-height: 1.55;
+            margin-bottom: .9rem;
+        }
+        .preview-multi-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .35rem; }
+        .preview-chip {
+            display: flex; align-items: center; justify-content: space-between; gap: .65rem;
+            padding: .5rem .7rem;
+            background: rgb(248 250 252); border: 1px solid rgb(226 232 240);
+            border-radius: .55rem;
+        }
+        .preview-chip-name {
+            font-family: 'DM Sans', sans-serif;
+            color: rgb(15 23 42); font-size: .92rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+{# Breadcrumb — same pattern as solicitudes/show.html.twig #}
+<nav class="flex items-center gap-2 text-xs text-slate-500 mb-3"
+     style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+    <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+    <span class="text-slate-300">/</span>
+    <a href="{{ path('app_solicitudes_new') }}" class="hover:text-slate-800 transition-colors">NUEVA</a>
+    <span class="text-slate-300">/</span>
+    <span class="text-slate-800 font-medium">REALIZAR · ELEGIR ORGANISMO</span>
+</nav>
+
+<header class="picker-band">
+    <p class="picker-eyebrow">
+        <span>Paso 1 de 2</span><span class="dot"></span><span>Elegir destinatario</span>
+    </p>
+    <h1 class="picker-title">Elige a qué organismo u organismos va dirigida tu <em>solicitud</em></h1>
+    <p class="picker-sub">
+        Sólo aparecen los organismos que PideInfo puede enviar automáticamente a través del Portal de Transparencia. El resto los puedes anotar a mano desde el flujo "Ya la envié".
+    </p>
+</header>
+
+<div class="picker-grid"
+     data-controller="realizar-picker"
+     data-realizar-picker-load-url-value="{{ path('app_solicitudes_realizar_bodies_json') }}"
+     data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}">
+
+    <section class="picker-card">
+        <label for="realizar-organism-select" class="picker-card-label">Buscar organismo</label>
+        <select id="realizar-organism-select"
+                multiple
+                autocomplete="off"
+                data-realizar-picker-target="select"
+                placeholder="Empieza a escribir el nombre del organismo..."></select>
+
+        <p class="picker-help">
+            <b>¿No encuentras el tuyo?</b> En esta primera versión sólo enviamos automáticamente al Portal de Transparencia de la AGE. Si tu organismo está en otro registro electrónico, podrás registrarlo manualmente o esperar a la próxima entrega.
+        </p>
+
+        <div class="picker-cta-row">
+            <a href="{{ path('app_solicitudes_new') }}" class="btn btn-secondary">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Atrás
+            </a>
+            <button type="button"
+                    class="btn btn-primary"
+                    data-realizar-picker-target="continueButton"
+                    data-action="realizar-picker#submit"
+                    disabled>
+                Continuar a la redacción
+                <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
+            </button>
+        </div>
+    </section>
+
+    <aside data-realizar-picker-target="preview"></aside>
+</div>
+{% endblock %}
