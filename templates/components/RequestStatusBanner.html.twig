@@ -44,6 +44,54 @@
     </aside>
 {% endif %}
 
+{# Pending — request created but not yet sent. Offer to complete the dispatch
+   via the agent if the public body is reachable through the Portal de
+   Transparencia (only routable channel in v1). #}
+{% if request.status == 'pending' %}
+    {% set canRouteViaAgent = request.publicBody.transparencyPortalUrl is not empty %}
+    <aside class="dossier-notice is-sky mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="send" class="w-4 h-4"></i>
+            </div>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Pendiente de envío
+                    <span class="meta">· la solicitud aún no se ha presentado</span>
+                </div>
+                <h3 class="dossier-notice-headline">
+                    {% if canRouteViaAgent %}
+                        Completa el envío para que la administración la reciba.
+                    {% else %}
+                        Marca esta solicitud como enviada cuando la presentes.
+                    {% endif %}
+                </h3>
+                <div class="dossier-notice-prose">
+                    {% if canRouteViaAgent %}
+                        <p>
+                            <strong>{{ request.publicBody.name }}</strong> acepta solicitudes a través del Portal de Transparencia. PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
+                        </p>
+                    {% else %}
+                        <p>
+                            Este organismo no soporta envío automático todavía. Cuando lo presentes por tu cuenta, edita la solicitud para actualizar el estado a "Enviada" e introduce el número de expediente si lo tienes.
+                        </p>
+                    {% endif %}
+                </div>
+                {% if canRouteViaAgent %}
+                    <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
+                        <a href="{{ path('app_solicitudes_realizar_draft', {id: request.id}) }}"
+                           class="btn btn-primary btn-sm">
+                            <i data-lucide="send" class="w-3.5 h-3.5 mr-1.5"></i>
+                            Completar y enviar
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </aside>
+{% endif %}
+
 {# Granted pending reception #}
 {% if request.status == 'granted' %}
     <aside class="dossier-notice is-emerald mb-6" data-granted-banner>

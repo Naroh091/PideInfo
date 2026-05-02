@@ -383,6 +383,28 @@ class AccessRequestRepository extends ServiceEntityRepository
         return ['portal' => $portal, 'consejo' => $consejo];
     }
 
+    /**
+     * Drafts created in a single "realizar" batch share the same UUID under
+     * metadata.draft_batch_id. Used by the drafting page to render the
+     * sibling-organism switcher and by the dispatch endpoint to fan out
+     * the AgentTasks in one go.
+     *
+     * @return AccessRequest[]
+     */
+    public function findByDraftBatch(string $batchId, User $user): array
+    {
+        $qb = $this->createQueryBuilderForUser($user);
+        // The metadata column is declared as plain `json`, but the @> operator
+        // is only available on jsonb. Cast the left side explicitly so the
+        // resulting SQL is `metadata::jsonb @> '...'::jsonb`. Both casts are
+        // needed; the JSONB_CONTAINS DQL function adds the right-side ::jsonb.
+        $qb->andWhere('JSONB_CONTAINS(CAST(ar.metadata AS JSONB), :batchPredicate) = TRUE')
+            ->setParameter('batchPredicate', json_encode(['draft_batch_id' => $batchId]))
+            ->orderBy('ar.createdAt', 'ASC');
+
+        return $qb->getQuery()->getResult();
+    }
+
     private function createQueryBuilderForUser(User $user): QueryBuilder
     {
         $qb = $this->createQueryBuilder('ar')

@@ -226,6 +226,23 @@ class AgentWebhookProcessor
             );
         }
 
+        // Final fallback: when the agent uploads documents *before* the
+        // matching AccessRequest has its externalId set (e.g. the PT
+        // submission flow uploads the solicitud + justificante PDFs before
+        // calling complete_task that persists externalId), it includes the
+        // access_request UUID in metadata so we can still link the docs.
+        if (!$accessRequest && !empty($metadata['access_request_id'])) {
+            $rawId = (string) $metadata['access_request_id'];
+            try {
+                $candidate = $this->accessRequestRepository->find(\Symfony\Component\Uid\Uuid::fromString($rawId));
+            } catch (\InvalidArgumentException) {
+                $candidate = null;
+            }
+            if ($candidate && $candidate->getUser()->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
+                $accessRequest = $candidate;
+            }
+        }
+
         return $accessRequest;
     }
 
@@ -386,12 +403,10 @@ class AgentWebhookProcessor
 
         if ($type !== null) {
             $document->setType($type);
-            // The doc already has its definitive complaint-related type; mark
-            // it processed so the AI pipeline doesn't reclassify it under a
-            // non-complaint type (which would hide it from the reclamación
-            // section). AI may still enrich extractedText / aiMetadata via a
-            // future explicit reprocess.
-            $document->setProcessed(true);
+            // Type stays locked through the AI pipeline (see ProcessDocumentHandler:
+            // when type !== Unprocessed, setType is skipped). Leaving processed=false
+            // so DocumentAnalyzer still extracts the summary/text and the embeddings
+            // job downstream has something to chunk.
         }
 
         if ($accessRequest !== null) {
