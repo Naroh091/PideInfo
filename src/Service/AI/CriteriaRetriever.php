@@ -3,7 +3,6 @@
 namespace App\Service\AI;
 
 use Symfony\AI\Platform\Vector\Vector;
-use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -25,9 +24,25 @@ final class CriteriaRetriever
      */
     public function retrieve(string $query, int $topK = 5): array
     {
-        $embedding = $this->embeddingGenerator->generate($query);
-        $vector = new Vector($embedding);
+        try {
+            $embedding = $this->embeddingGenerator->generate($query);
+        } catch (\Exception) {
+            return [];
+        }
 
+        return $this->retrieveByVector(new Vector($embedding), $topK);
+    }
+
+    /**
+     * Same as retrieve(), but starts from a precomputed vector. Used by the
+     * complaint pipeline when the vector has already been generated (e.g. from
+     * a document chunk stored in ai_documents) so we can skip the embedding
+     * round-trip.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function retrieveByVector(Vector $vector, int $topK = 5): array
+    {
         $results = [];
 
         try {
@@ -39,6 +54,7 @@ final class CriteriaRetriever
                 $results[] = [
                     'text' => $metadata->getText() ?? '',
                     'criterion' => $metadata['criterion'] ?? 'Unknown',
+                    'criterionId' => $metadata['criterionId'] ?? null,
                     'year' => (int) ($metadata['year'] ?? 0),
                     'topic' => $metadata['topic'] ?? '',
                     'source' => $metadata->getSource() ?? '',
@@ -47,11 +63,51 @@ final class CriteriaRetriever
                     'score' => $document->score,
                 ];
             }
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return [];
         }
 
         return $results;
+    }
+
+    /**
+     * Run one search per vector and merge results, deduplicating by criterion
+     * (keeping the highest score per criterion). Used when the query is the
+     * set of chunk embeddings of a request's documents — different chunks may
+     * surface different relevant criteria, and we want all of them.
+     *
+     * @param array<int, Vector> $vectors
+     * @return array<int, array<string, mixed>>
+     */
+    public function retrieveByVectors(array $vectors, int $topK = 5): array
+    {
+        if ($vectors === []) {
+            return [];
+        }
+
+        // Per-vector top-K so each chunk gets a chance to surface its best matches
+        // before we merge. With cosine distance, lower score is closer for the
+        // raw distance returned by the store, but the StoreInterface normalises
+        // it: higher score = more similar. We dedup by criterion id (or, when
+        // the row predates `criterionId` metadata, by the reference + source).
+        $merged = [];
+        foreach ($vectors as $vector) {
+            $hits = $this->retrieveByVector($vector, $topK);
+            foreach ($hits as $hit) {
+                $key = $hit['criterionId'] ?? ($hit['criterion'] . '|' . $hit['source']);
+                $existing = $merged[$key] ?? null;
+                if ($existing === null || ($hit['score'] ?? -INF) > ($existing['score'] ?? -INF)) {
+                    $merged[$key] = $hit;
+                }
+            }
+        }
+
+        usort(
+            $merged,
+            static fn (array $a, array $b) => ($b['score'] ?? -INF) <=> ($a['score'] ?? -INF),
+        );
+
+        return array_slice(array_values($merged), 0, $topK);
     }
 
     /**

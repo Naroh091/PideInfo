@@ -6,6 +6,7 @@ use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Message\GenerateDocumentEmbeddingsMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\ApplicableLawRepository;
@@ -18,6 +19,7 @@ use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 #[AsMessageHandler]
 final class ProcessDocumentHandler
@@ -33,6 +35,7 @@ final class ProcessDocumentHandler
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
+        private readonly MessageBusInterface $messageBus,
     ) {
     }
 
@@ -120,6 +123,10 @@ final class ProcessDocumentHandler
             // doesn't wait when they click "Generar reclamación".
             if ($accessRequest) {
                 $this->successAnalysisWarmer->maybeWarm($accessRequest);
+            }
+
+            if ($document->getExtractedText()) {
+                $this->messageBus->dispatch(new GenerateDocumentEmbeddingsMessage($document->getId()));
             }
 
         } catch (\Exception $e) {
