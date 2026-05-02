@@ -59,6 +59,41 @@ final class UserNotificationManager
         );
     }
 
+    /**
+     * Dedicated notification for the moment async document analysis flips a
+     * request into "Reclamada". `notifyStatusChanged` would emit the generic
+     * arrow-right-left card; this one renders with a gavel icon and a copy
+     * tuned for "your complaint is now in process", which the user wants to
+     * see surfaced clearly in the inbox.
+     *
+     * Use it instead of `notifyStatusChanged` only on the FIRST transition
+     * into reclaimed (caller decides). Subsequent complaint-related document
+     * imports (acuses, alegaciones, etc.) still land via the document/status
+     * notifications.
+     */
+    public function notifyComplaintFiled(
+        User $user,
+        AccessRequest $accessRequest,
+        string $fromStatus,
+        string $notes,
+    ): UserNotification {
+        $organism = $accessRequest->getApplicableLaw()?->getComplaintOrganism();
+        $organismName = $organism?->getShortName() ?? $organism?->getName();
+
+        return $this->create(
+            user: $user,
+            type: UserNotification::TYPE_COMPLAINT_FILED,
+            message: $notes,
+            accessRequest: $accessRequest,
+            alertLevel: 'warning',
+            metadata: [
+                'fromStatus' => $fromStatus,
+                'toStatus' => 'reclaimed',
+                'organism' => $organismName,
+            ],
+        );
+    }
+
     public function notifyAgentDocumentDownloaded(User $user, ?AccessRequest $accessRequest, array $filenames): UserNotification
     {
         $count = count($filenames);

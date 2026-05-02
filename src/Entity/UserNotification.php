@@ -19,6 +19,8 @@ class UserNotification
     public const TYPE_NOTIFICATION_ACCEPTED = 'notification_accepted';
     public const TYPE_COMMUNICATION_ACCEPTED = 'communication_accepted';
     public const TYPE_AGENT_DOCUMENT_DOWNLOADED = 'agent_document_downloaded';
+    /** Detected via async document analysis that a complaint was filed (reclamada). */
+    public const TYPE_COMPLAINT_FILED = 'complaint_filed';
 
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
@@ -157,6 +159,7 @@ class UserNotification
             self::TYPE_NOTIFICATION_ACCEPTED => 'bell-ring',
             self::TYPE_COMMUNICATION_ACCEPTED => 'mail-check',
             self::TYPE_AGENT_DOCUMENT_DOWNLOADED => 'download',
+            self::TYPE_COMPLAINT_FILED => 'gavel',
             default => 'info',
         };
     }
@@ -170,6 +173,7 @@ class UserNotification
             self::TYPE_NOTIFICATION_ACCEPTED => 'Notificación aceptada',
             self::TYPE_COMMUNICATION_ACCEPTED => 'Comunicación aceptada',
             self::TYPE_AGENT_DOCUMENT_DOWNLOADED => 'Documentación importada',
+            self::TYPE_COMPLAINT_FILED => 'Reclamación presentada',
             default => 'Notificación',
         };
     }

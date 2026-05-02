@@ -50,7 +50,10 @@ class ComplaintController extends AbstractController
 
         $existingDocument = $accessRequest->getComplaintDraftDocument();
 
-        $complaintFormUrl = $accessRequest->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrl();
+        // Pick the URL by body level (CTBG: state vs autonomic/local). The
+        // generic getter would return whichever the entity stores literally,
+        // which is the autonomic form by convention — wrong for AGE bodies.
+        $complaintFormUrl = $accessRequest->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrlFor($accessRequest);
 
         return $this->render('complaint/start.html.twig', [
             'request' => $accessRequest,

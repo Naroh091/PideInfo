@@ -39,7 +39,7 @@ class RequestStatusBanner
 
     public function getComplaintFormUrl(): ?string
     {
-        return $this->request->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrl();
+        return $this->request->getApplicableLaw()->getComplaintOrganism()?->getComplaintFormUrlFor($this->request);
     }
 
     public function getAutonomousCommunityName(): ?string

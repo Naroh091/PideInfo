@@ -594,7 +594,18 @@ final class ProcessDocumentBatchHandler
         if ($fromStatus !== $toStatus) {
             $user = $accessRequest->getUser();
             if ($user) {
-                $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+                // Dedicated notification when the document analysis flips a
+                // request into "Reclamada" for the first time. Other
+                // complaint transitions keep the generic status-changed card.
+                if (
+                    $statusType === 'complaint'
+                    && $toStatus === AccessRequestComplaint::STATUS_RECLAIMED
+                    && $fromStatus !== AccessRequestComplaint::STATUS_RECLAIMED
+                ) {
+                    $this->notificationManager->notifyComplaintFiled($user, $accessRequest, $fromStatus, $notes);
+                } else {
+                    $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
+                }
             }
         }
     }
