@@ -25,6 +25,7 @@ final class PromptCatalog
             ['name' => 'pideinfo-resolution-extract-noncomplete', 'commitMessage' => 'Backfill analysis for resolutions missing fields'],
             ['name' => 'pideinfo-complaint-analyze-success-probability', 'commitMessage' => 'Estimate likelihood of complaint success'],
             ['name' => 'pideinfo-complaint-generate-complaint', 'commitMessage' => 'Draft a transparency complaint (reclamacion)'],
+            ['name' => 'pideinfo-complaint-generate-complaint-silence', 'commitMessage' => 'Compact prompt for silencio administrativo (positive or negative)'],
             ['name' => 'pideinfo-complaint-generate-alegation-response', 'commitMessage' => 'Draft a response to administration alegaciones'],
             ['name' => 'pideinfo-activity-summary-24h', 'commitMessage' => '24-hour AI activity summary shown on the home dashboard'],
         ];
