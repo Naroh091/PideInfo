@@ -64,11 +64,16 @@ class ComplaintOrganism
     #[ORM\OneToMany(targetEntity: Resolution::class, mappedBy: 'complaintOrganism')]
     private Collection $resolutions;
 
+    /** @var Collection<int, Criterion> */
+    #[ORM\OneToMany(targetEntity: Criterion::class, mappedBy: 'complaintOrganism')]
+    private Collection $criteria;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
         $this->applicableLaws = new ArrayCollection();
         $this->resolutions = new ArrayCollection();
+        $this->criteria = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -232,6 +237,12 @@ class ComplaintOrganism
     public function getResolutions(): Collection
     {
         return $this->resolutions;
+    }
+
+    /** @return Collection<int, Criterion> */
+    public function getCriteria(): Collection
+    {
+        return $this->criteria;
     }
 
     public function __toString(): string
