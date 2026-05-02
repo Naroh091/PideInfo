@@ -6,8 +6,10 @@ namespace App\Controller\Api;
 
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
+use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Repository\AccessRequestRepository;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -33,6 +35,7 @@ class AgentComplaintApiController extends AbstractController
         private readonly AccessRequestRepository $accessRequests,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
+        private readonly UserNotificationManager $notifications,
     ) {
     }
 
@@ -66,6 +69,12 @@ class AgentComplaintApiController extends AbstractController
             return new JsonResponse(['error' => 'not_found'], Response::HTTP_NOT_FOUND);
         }
 
+        // Snapshot the previous complaint status BEFORE we touch anything —
+        // a freshly-constructed AccessRequestComplaint defaults to RECLAIMED,
+        // so reading from `$complaint` after creating it would always show
+        // "no transition" and we'd miss the notification + history row.
+        $previousComplaintStatus = $ar->getComplaintStatus();
+
         $complaint = $ar->getComplaint();
         if ($complaint === null) {
             $complaint = new AccessRequestComplaint();
@@ -87,6 +96,30 @@ class AgentComplaintApiController extends AbstractController
         }
 
         $this->em->persist($complaint);
+
+        // Mirror the document-analysis path: write a StatusHistory entry and
+        // fire notifyComplaintFiled when this is the first time the request
+        // becomes "Reclamada". Otherwise the inbox stays silent and the audit
+        // trail loses the agent-presented transition.
+        $newStatus = AccessRequestComplaint::STATUS_RECLAIMED;
+        if ($previousComplaintStatus !== $newStatus) {
+            $note = sprintf(
+                'Reclamación presentada por el agente el %s con número de registro %s',
+                $complaint->getFiledAt()?->format('d/m/Y') ?? 'hoy',
+                $registryNo,
+            );
+
+            $history = new StatusHistory();
+            $history->setAccessRequest($ar);
+            $history->setStatusType(StatusHistory::TYPE_COMPLAINT);
+            $history->setFromStatus($previousComplaintStatus);
+            $history->setToStatus($newStatus);
+            $history->setNotes($note);
+            $this->em->persist($history);
+
+            $this->notifications->notifyComplaintFiled($user, $ar, $previousComplaintStatus, $note);
+        }
+
         $this->em->flush();
 
         $this->logger->info('Agent: complaint filed', [
