@@ -163,14 +163,28 @@ class ComplaintOrganism
      * regardless of scope; the CTBG is the exception — it has a state form
      * and a separate autonomic/local form, and PideInfo derives which one
      * applies from the request's `PublicBody.level`.
+     *
+     * Only fall through to the autonomic/local form when the body is
+     * **explicitly** classified as autonomous or local. The body table
+     * carries a fair amount of `level='other'` rows from importers that
+     * never refined the classification, plus historical NULLs; defaulting
+     * those to the regional form mis-routed the bulk of CTBG complaints
+     * to the wrong wizard. State is the safer default for CTBG: it covers
+     * the council's primary AGE jurisdiction and the form has the loosest
+     * required fields.
      */
     public function getComplaintFormUrlFor(AccessRequest $accessRequest): ?string
     {
         if ($this->shortName === self::SHORT_NAME_CTBG) {
             $level = $accessRequest->getPublicBody()?->getLevel();
-            return $level === PublicBody::LEVEL_STATE
-                ? self::CTBG_FORM_URL_STATE
-                : self::CTBG_FORM_URL_REGIONAL;
+            $isExplicitlyRegional = in_array(
+                $level,
+                [PublicBody::LEVEL_AUTONOMOUS, PublicBody::LEVEL_LOCAL],
+                true,
+            );
+            return $isExplicitlyRegional
+                ? self::CTBG_FORM_URL_REGIONAL
+                : self::CTBG_FORM_URL_STATE;
         }
         return $this->complaintFormUrl;
     }
