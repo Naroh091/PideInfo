@@ -11,6 +11,7 @@ use App\Entity\PublicBody;
 use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Service\Complaint\SuccessAnalysisWarmer;
+use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 
 class AccessRequestManager
@@ -19,6 +20,7 @@ class AccessRequestManager
         private EntityManagerInterface $em,
         private DeadlineCalculator $deadlineCalculator,
         private SuccessAnalysisWarmer $successAnalysisWarmer,
+        private UserNotificationManager $notifications,
     ) {
     }
 
@@ -550,14 +552,8 @@ class AccessRequestManager
             $request->setResolvedAt(new \DateTimeImmutable());
         }
 
-        // Record in StatusHistory
-        $history = new StatusHistory();
-        $history->setAccessRequest($request);
-        $history->setStatusType($statusType);
-        $history->setFromStatus($currentStatus);
-        $history->setToStatus($newStatus);
-        $history->setNotes($notes);
-        $request->addStatusHistory($history);
+        // Record in StatusHistory + dispatch notification.
+        $this->recordStatusEvent($request, $statusType, $currentStatus, $newStatus, $notes ?? '');
 
         $this->em->flush();
 
@@ -566,5 +562,62 @@ class AccessRequestManager
         $this->successAnalysisWarmer->maybeWarm($request);
 
         return true;
+    }
+
+    /**
+     * Persist a `StatusHistory` row for `$request` and dispatch the matching
+     * `UserNotification`. Single source of truth for "a status change just
+     * happened" — covers both:
+     *
+     *  - the `changeStatus()` happy path (where this service mutates the
+     *    entity itself and then logs), and
+     *  - call sites that do their OWN mutation and just need the audit row
+     *    + notification to fire — typically the document-analysis message
+     *    handlers (`ProcessDocumentHandler` / batch variant) and the agent
+     *    complaint callback. They used to inline `new StatusHistory()` and
+     *    forget the notification, which is the bug class this method exists
+     *    to prevent.
+     *
+     * The caller is still responsible for `flush()` — keeps the audit row in
+     * the same transaction as the actual mutation.
+     */
+    public function recordStatusEvent(
+        AccessRequest $request,
+        string $statusType,
+        string $fromStatus,
+        string $toStatus,
+        string $notes,
+        ?\DateTimeImmutable $eventDate = null,
+    ): void {
+        $history = new StatusHistory();
+        $history->setAccessRequest($request);
+        $history->setStatusType($statusType);
+        $history->setFromStatus($fromStatus);
+        $history->setToStatus($toStatus);
+        $history->setNotes($notes);
+        if ($eventDate !== null) {
+            $history->setCreatedAt($eventDate);
+        }
+        $this->em->persist($history);
+
+        if ($fromStatus === $toStatus) {
+            return;
+        }
+        $user = $request->getUser();
+        if ($user === null) {
+            return;
+        }
+
+        // Dedicated notification when the request becomes "Reclamada" for
+        // the first time; generic status_changed for everything else.
+        if (
+            $statusType === StatusHistory::TYPE_COMPLAINT
+            && $toStatus === AccessRequestComplaint::STATUS_RECLAIMED
+            && $fromStatus !== AccessRequestComplaint::STATUS_RECLAIMED
+        ) {
+            $this->notifications->notifyComplaintFiled($user, $request, $fromStatus, $notes);
+        } else {
+            $this->notifications->notifyStatusChanged($user, $request, $fromStatus, $toStatus, $notes);
+        }
     }
 }

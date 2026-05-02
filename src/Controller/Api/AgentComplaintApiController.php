@@ -9,7 +9,7 @@ use App\Entity\AccessRequestComplaint;
 use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Repository\AccessRequestRepository;
-use App\Service\UserNotificationManager;
+use App\Service\AccessRequest\AccessRequestManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -35,7 +35,7 @@ class AgentComplaintApiController extends AbstractController
         private readonly AccessRequestRepository $accessRequests,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
-        private readonly UserNotificationManager $notifications,
+        private readonly AccessRequestManager $accessRequestManager,
     ) {
     }
 
@@ -97,10 +97,9 @@ class AgentComplaintApiController extends AbstractController
 
         $this->em->persist($complaint);
 
-        // Mirror the document-analysis path: write a StatusHistory entry and
-        // fire notifyComplaintFiled when this is the first time the request
-        // becomes "Reclamada". Otherwise the inbox stays silent and the audit
-        // trail loses the agent-presented transition.
+        // Audit row + notification both flow through the canonical entry
+        // point so the agent-presented transition behaves identically to
+        // any other path that flips a request into "Reclamada".
         $newStatus = AccessRequestComplaint::STATUS_RECLAIMED;
         if ($previousComplaintStatus !== $newStatus) {
             $note = sprintf(
@@ -108,16 +107,9 @@ class AgentComplaintApiController extends AbstractController
                 $complaint->getFiledAt()?->format('d/m/Y') ?? 'hoy',
                 $registryNo,
             );
-
-            $history = new StatusHistory();
-            $history->setAccessRequest($ar);
-            $history->setStatusType(StatusHistory::TYPE_COMPLAINT);
-            $history->setFromStatus($previousComplaintStatus);
-            $history->setToStatus($newStatus);
-            $history->setNotes($note);
-            $this->em->persist($history);
-
-            $this->notifications->notifyComplaintFiled($user, $ar, $previousComplaintStatus, $note);
+            $this->accessRequestManager->recordStatusEvent(
+                $ar, StatusHistory::TYPE_COMPLAINT, $previousComplaintStatus, $newStatus, $note,
+            );
         }
 
         $this->em->flush();

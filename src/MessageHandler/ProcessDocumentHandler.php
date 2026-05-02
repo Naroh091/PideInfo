@@ -5,7 +5,6 @@ namespace App\MessageHandler;
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
-use App\Entity\StatusHistory;
 use App\Enum\DocumentType;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
@@ -648,37 +647,12 @@ final class ProcessDocumentHandler
             };
         }
 
-        $history = new StatusHistory();
-        $history->setAccessRequest($accessRequest);
-        $history->setStatusType($statusType);
-        $history->setFromStatus($fromStatus);
-        $history->setToStatus($toStatus);
-        $history->setNotes($notes);
-
-        if ($eventDate !== null) {
-            $history->setCreatedAt($eventDate);
-        }
-
-        $this->entityManager->persist($history);
-
-        if ($fromStatus !== $toStatus) {
-            $user = $accessRequest->getUser();
-            if ($user) {
-                // Dedicated notification when the document analysis flips a
-                // request into "Reclamada" for the first time. Other
-                // complaint transitions (e.g. reclamada → estimada) keep
-                // the generic status-changed card.
-                if (
-                    $statusType === 'complaint'
-                    && $toStatus === AccessRequestComplaint::STATUS_RECLAIMED
-                    && $fromStatus !== AccessRequestComplaint::STATUS_RECLAIMED
-                ) {
-                    $this->notificationManager->notifyComplaintFiled($user, $accessRequest, $fromStatus, $notes);
-                } else {
-                    $this->notificationManager->notifyStatusChanged($user, $accessRequest, $fromStatus, $toStatus, $notes);
-                }
-            }
-        }
+        // Delegate the audit row + notification dispatch to the canonical
+        // entry point. Keeps the "every status change writes history AND
+        // fires a notification" invariant in a single place.
+        $this->accessRequestManager->recordStatusEvent(
+            $accessRequest, $statusType, $fromStatus, $toStatus, $notes, $eventDate,
+        );
     }
 
     /**
