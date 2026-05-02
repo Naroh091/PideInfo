@@ -12,11 +12,12 @@
     {% macro document_item(doc, request) %}
         {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
         {% set isDraft = doc.type and doc.type.value == 'complaint' and doc.mimeType == 'text/html' %}
+        {% set draftFiled = isDraft and request.complaint is not null and request.complaint.filedAt is not null %}
         {% set iconName = isDraft ? 'pen-line' : (isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file'))) %}
         {% set draftOrigin = doc.aiMetadata.origin|default('ai') %}
         {% set draftEditRoute = draftOrigin == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
         {% set displayName = isDraft ? 'Borrador de la reclamación' : doc.displayFilename %}
-        <div class="docs-row" data-document-id="{{ doc.id }}">
+        <div class="docs-row{% if draftFiled %} opacity-75{% endif %}" data-document-id="{{ doc.id }}">
             <span class="docs-icon">
                 <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
             </span>
@@ -24,7 +25,11 @@
                 <p class="docs-name" title="{{ displayName }}">
                     {{ displayName }}
                     {% if isDraft %}
-                        <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">Borrador</span>
+                        {% if draftFiled %}
+                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">Borrador previo</span>
+                        {% else %}
+                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">Borrador</span>
+                        {% endif %}
                     {% endif %}
                 </p>
                 {% if doc.documentDate or not doc.processed %}
@@ -38,7 +43,7 @@
                         {% endif %}
                     </div>
                 {% endif %}
-                {% if isDraft %}
+                {% if isDraft and not draftFiled %}
                     <p class="docs-summary text-slate-500">Última edición: {{ doc.createdAt|date('d/m/Y H:i') }}.</p>
                 {% elseif doc.summary %}
                     <p class="docs-summary">{{ doc.summary }}</p>

@@ -1215,6 +1215,36 @@
 
             {% elseif doc.type.value == 'complaint' %}
                 {% set complaintCount = complaintCount + 1 %}
+                {% set complaintFiled = request.complaint is not null and request.complaint.filedAt is not null %}
+                {% set editRoute = (doc.aiMetadata.origin|default('ai')) == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
+                {% if complaintFiled %}
+                    {# Reclamación ya presentada: el borrador deja de ser la pieza activa, se muestra como referencia secundaria. #}
+                    <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 flex items-center gap-3">
+                        <i data-lucide="pen-line" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-slate-600 truncate">
+                                {% if complaintCount == 1 %}
+                                    Borrador de la reclamación
+                                {% else %}
+                                    Borrador de la ampliación
+                                {% endif %}
+                                <span class="ml-1 text-xs text-slate-400 font-normal">· {{ docDate|date('d/m/Y') }}</span>
+                            </p>
+                        </div>
+                        <a href="{{ path('app_complaint_pdf', {id: request.id}) }}"
+                           class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+                           title="Descargar PDF del borrador">
+                            <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
+                            PDF
+                        </a>
+                        <a href="{{ path(editRoute, {id: request.id}) }}"
+                           class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+                           title="Ver el borrador">
+                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                            Ver
+                        </a>
+                    </div>
+                {% else %}
                 <div class="alert-banner alert-banner-amber">
                     <div class="alert-banner-stripe"></div>
                     <div class="px-5 pt-4 pb-1 flex items-center gap-3">
@@ -1263,9 +1293,10 @@
                                 </ul>
                             </div>
                         {% endif %}
-                        {% set complaintFormUrl = request.applicableLaw.complaintOrganism ? request.applicableLaw.complaintOrganism.complaintFormUrl : null %}
-                        {% set notFiledYet = request.complaint is null or request.complaint.filedAt is null %}
-                        {% if notFiledYet %}
+                        {# Use the body-level-aware getter so AGE requests get the state CTBG form, not the autonomic one. #}
+                        {% set complaintFormUrl = request.applicableLaw.complaintOrganism ? request.applicableLaw.complaintOrganism.complaintFormUrlFor(request) : null %}
+                        {# Always-true guard: the outer branch already implies notFiledYet — kept for clarity of the action-button block. #}
+                        {% if true %}
                             <div class="mt-4 pt-4 border-t border-amber-200/60 flex flex-wrap items-center gap-2"
                                  x-data="{ openAgentModal: false, agentMode: 'supervised' }"
                                  data-controller="agent-present"
@@ -1299,7 +1330,6 @@
                                     <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
                                     Descargar Word
                                 </a>
-                                {% set editRoute = (doc.aiMetadata.origin|default('ai')) == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
                                 <a href="{{ path(editRoute, {id: request.id}) }}" class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
                                     <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
                                     Editar
@@ -1368,6 +1398,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
 
             {% elseif doc.type.value == 'alegaciones' %}
                 <div class="alert-banner" style="border-color: #fca5a5">
