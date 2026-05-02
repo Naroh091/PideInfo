@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Complaint\SuccessAnalysisWarmer;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
@@ -32,6 +33,7 @@ final class ProcessDocumentHandler
         private readonly ApplicableLawRepository $applicableLawRepository,
         private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
         private readonly AccessRequestManager $accessRequestManager,
+        private readonly ApplicableLawResolver $applicableLawResolver,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
@@ -232,21 +234,26 @@ final class ProcessDocumentHandler
                 }
             }
 
-            // Find applicable law - prioritize by autonomous community
+            // Find applicable law — preserves the original priority:
+            //   1) CCAA-derived law (resolver does findByAutonomousCommunity).
+            //   2) AI-extracted law name (acts as a tiebreaker for bodies
+            //      whose CCAA-derived law isn't found in the catalogue).
+            //   3) State law (resolver default).
             $applicableLaw = null;
-
-            // First, try to find law by autonomous community (most accurate)
-            if ($autonomousCommunity) {
-                $applicableLaw = $this->applicableLawRepository->findByAutonomousCommunity($autonomousCommunity);
-                if ($applicableLaw) {
+            if ($publicBody && $publicBody->getAutonomousCommunity()) {
+                $applicableLaw = $this->applicableLawResolver->resolveFor($publicBody);
+                if ($applicableLaw && $applicableLaw->getAutonomousCommunity()) {
                     $this->logger->info('Found applicable law by autonomous community', [
                         'law' => $applicableLaw->getShortCode(),
                         'ccaa' => $ccaaCode,
                     ]);
+                } else {
+                    // Resolver fell straight to state — null it so the AI
+                    // hint below gets a chance.
+                    $applicableLaw = null;
                 }
             }
 
-            // If no law found for the community (or it's a state entity), try by law name
             if (!$applicableLaw) {
                 $lawName = $analysis['applicableLaw'] ?? null;
                 if ($lawName) {
@@ -260,8 +267,7 @@ final class ProcessDocumentHandler
                 $publicBody = $this->publicBodyRepository->findOneBy([]);
             }
             if (!$applicableLaw) {
-                // Get state law as default (for state entities or when no specific law found)
-                $applicableLaw = $this->applicableLawRepository->findStateLaw();
+                $applicableLaw = $this->applicableLawResolver->resolveFor($publicBody);
             }
 
             if (!$publicBody || !$applicableLaw) {
