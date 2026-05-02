@@ -291,4 +291,85 @@ final class PdfTextExtractor
     {
         return (int) ceil(strlen($text) / self::AVG_CHARS_PER_TOKEN);
     }
+
+    /**
+     * Strip lines that appear too often — typically the digital signature
+     * footer that PDF signing tools paste on every page (e.g. "Código seguro
+     * de Verificación: GEN-…", "FIRMANTE(1): NAME | FECHA: …"). Without this
+     * the chunker emits chunks that are 80% footer noise and the embeddings
+     * carry zero signal.
+     *
+     * Lines shorter than $minLength or all-whitespace are kept untouched —
+     * we don't want to nuke "**SI**" / list bullets / one-line headings just
+     * because they happen to repeat.
+     */
+    public function removeRepeatedLines(string $text, int $threshold = 3, int $minLength = 30): string
+    {
+        $lines = preg_split("/\r\n|\r|\n/", $text) ?: [];
+
+        $counts = [];
+        foreach ($lines as $line) {
+            $key = trim($line);
+            if ($key === '' || mb_strlen($key) < $minLength) {
+                continue;
+            }
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        $kept = [];
+        foreach ($lines as $line) {
+            $key = trim($line);
+            if ($key !== '' && mb_strlen($key) >= $minLength && ($counts[$key] ?? 0) > $threshold) {
+                continue;
+            }
+            $kept[] = $line;
+        }
+
+        // Collapse blank-line runs the dedup may have left behind.
+        $joined = implode("\n", $kept);
+        return preg_replace("/\n{3,}/", "\n\n", $joined) ?? $joined;
+    }
+
+    /**
+     * Group raw text into chunks of ≤ MAX_TOKENS_PER_CHUNK without crossing
+     * paragraph boundaries. Used when the text source is the database (e.g.
+     * `Criterion::getFullText()`) instead of a paginated PDF, so there's no
+     * page metadata to attach.
+     *
+     * Returns at least one chunk; for short texts that's the whole input.
+     *
+     * @return list<array{text: string, chunkIndex: int}>
+     */
+    public function chunkText(string $text): array
+    {
+        $cleaned = $this->cleanText($text);
+        if (trim($cleaned) === '') {
+            return [];
+        }
+
+        // Split on paragraph boundaries; preserve internal whitespace so the
+        // model gets readable input even when paragraphs are tightly packed.
+        $paragraphs = preg_split('/\n{2,}/', $cleaned) ?: [$cleaned];
+
+        $chunks = [];
+        $current = '';
+        $index = 0;
+        foreach ($paragraphs as $paragraph) {
+            $paragraph = trim($paragraph);
+            if ($paragraph === '') {
+                continue;
+            }
+            $candidate = $current === '' ? $paragraph : ($current . "\n\n" . $paragraph);
+            if ($current !== '' && $this->estimateTokens($candidate) > self::MAX_TOKENS_PER_CHUNK) {
+                $chunks[] = ['text' => $current, 'chunkIndex' => $index++];
+                $current = $paragraph;
+            } else {
+                $current = $candidate;
+            }
+        }
+        if ($current !== '') {
+            $chunks[] = ['text' => $current, 'chunkIndex' => $index];
+        }
+        return $chunks;
+    }
 }

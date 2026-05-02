@@ -2,6 +2,8 @@
 
 namespace App\Command;
 
+use App\Entity\Criterion;
+use App\Repository\CriterionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Document\PdfTextExtractor;
 use Symfony\AI\Platform\Vector\Vector;
@@ -16,22 +18,31 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Finder\Finder;
 use Symfony\Component\Uid\Uuid;
 
+/**
+ * Vectorise interpretive criteria stored as `Criterion` rows into the
+ * `ai_ctbg_criteria` Postgres store.
+ *
+ * The previous version of this command read PDFs from a hardcoded
+ * `var/storage/data` directory and parsed metadata out of the filename. We
+ * moved the source of truth to the `criterion` table so the same data can
+ * be edited, browsed, linked to a `ComplaintOrganism`, and re-vectorised
+ * deterministically (`--source CTBG` re-embeds every criterion of that
+ * council without touching the filesystem).
+ */
 #[AsCommand(
     name: 'app:ctbg:load-criteria',
-    description: 'Load CTBG interpretive criteria PDFs into PostgreSQL vector store',
+    description: 'Embed interpretive criteria from the database into the PostgreSQL vector store',
 )]
 class LoadCGBGCriteriaCommand extends Command
 {
-    private const DATA_PATH = '/home/app/var/storage/data';
-
     public function __construct(
         #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
         private readonly StoreInterface $ctbgCriteriaStore,
         private readonly PdfTextExtractor $pdfTextExtractor,
         private readonly EmbeddingGenerator $embeddingGenerator,
+        private readonly CriterionRepository $criterionRepository,
     ) {
         parent::__construct();
     }
@@ -40,15 +51,17 @@ class LoadCGBGCriteriaCommand extends Command
     {
         $this
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview without storing')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Limit to a single source (e.g. CTBG, GAIP)')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $dryRun = $input->getOption('dry-run');
+        $dryRun = (bool) $input->getOption('dry-run');
+        $source = $input->getOption('source');
 
-        $io->title('CTBG Criteria Loader');
+        $io->title('Vectorising interpretive criteria');
 
         if (!$dryRun && $this->ctbgCriteriaStore instanceof ManagedStoreInterface) {
             $io->section('Setting up PostgreSQL vector store...');
@@ -63,41 +76,36 @@ class LoadCGBGCriteriaCommand extends Command
             $io->warning('Store does not implement ManagedStoreInterface, cannot auto-setup collection.');
         }
 
-        $finder = new Finder();
-        $finder->files()->in(self::DATA_PATH)->name('*.pdf')->sortByName();
-
-        if (!$finder->hasResults()) {
-            $io->warning('No PDF files found in ' . self::DATA_PATH);
-            return Command::SUCCESS;
-        }
-
-        $io->section('Processing PDF files...');
+        $io->section('Reading criteria from the database...');
         $totalChunks = 0;
-        $processedFiles = 0;
+        $processedCriteria = 0;
 
-        foreach ($finder as $file) {
-            $filename = $file->getFilename();
-            $io->text("Processing: $filename");
+        foreach ($this->criterionRepository->iterateForVectorization($source) as $criterion) {
+            /** @var Criterion $criterion */
+            $label = sprintf(
+                '%s/%s%s',
+                $criterion->getSource(),
+                $criterion->getReferenceNumber(),
+                $criterion->getYear() ? ' (' . $criterion->getYear() . ')' : '',
+            );
+            $io->text("Processing: $label");
 
-            $metadata = $this->parseFilename($filename);
-            if ($metadata === null) {
-                $io->warning("  Skipping - filename doesn't match expected pattern C[X]_YYYY_*.pdf");
+            $chunks = $this->pdfTextExtractor->chunkText($criterion->getFullText());
+            if (empty($chunks)) {
+                $io->warning('  Skipping — fullText is empty');
                 continue;
             }
 
-            try {
-                $chunks = $this->pdfTextExtractor->extractChunks($file->getRealPath());
-            } catch (\Exception $e) {
-                $io->error("  Error extracting text: " . $e->getMessage());
-                continue;
-            }
-
-            $io->text("  Found " . count($chunks) . " chunks");
+            $io->text('  Found ' . count($chunks) . ' chunk(s)');
 
             $documents = [];
-            foreach ($chunks as $index => $chunk) {
+            foreach ($chunks as $chunk) {
                 if ($dryRun) {
-                    $io->text("  [DRY-RUN] Chunk $index: " . strlen($chunk['text']) . " chars, pages {$chunk['pageStart']}-{$chunk['pageEnd']}");
+                    $io->text(sprintf(
+                        '  [DRY-RUN] Chunk %d: %d chars',
+                        $chunk['chunkIndex'],
+                        strlen($chunk['text']),
+                    ));
                     $totalChunks++;
                     continue;
                 }
@@ -105,19 +113,20 @@ class LoadCGBGCriteriaCommand extends Command
                 try {
                     $embedding = $this->embeddingGenerator->generate($chunk['text']);
                 } catch (\Exception $e) {
-                    $io->error("  Error generating embedding for chunk $index: " . $e->getMessage());
+                    $io->error("  Error generating embedding for chunk {$chunk['chunkIndex']}: " . $e->getMessage());
                     continue;
                 }
 
                 $docMetadata = new Metadata([
                     Metadata::KEY_TEXT => $chunk['text'],
-                    Metadata::KEY_SOURCE => $filename,
-                    'criterion' => $metadata['criterion'],
-                    'year' => $metadata['year'],
-                    'topic' => $metadata['topic'],
-                    'pageStart' => $chunk['pageStart'],
-                    'pageEnd' => $chunk['pageEnd'],
-                    'chunkIndex' => $index,
+                    Metadata::KEY_SOURCE => $criterion->getSource(),
+                    'criterionId' => (string) $criterion->getId(),
+                    'criterion' => $criterion->getReferenceNumber(),
+                    'year' => $criterion->getYear(),
+                    'topic' => $criterion->getTopic(),
+                    'scope' => $criterion->getScope(),
+                    'sourceUrl' => $criterion->getSourceUrl(),
+                    'chunkIndex' => $chunk['chunkIndex'],
                 ]);
 
                 $documents[] = new VectorDocument(
@@ -131,46 +140,24 @@ class LoadCGBGCriteriaCommand extends Command
 
             if (!$dryRun && !empty($documents)) {
                 $this->ctbgCriteriaStore->add($documents);
-                $io->text("  Stored " . count($documents) . " chunks in PostgreSQL");
+                $io->text('  Stored ' . count($documents) . ' chunks in PostgreSQL');
             }
 
-            $processedFiles++;
+            $processedCriteria++;
+        }
+
+        if ($processedCriteria === 0) {
+            $io->warning('No criteria found' . ($source ? " for source $source" : '') . '.');
+            return Command::SUCCESS;
         }
 
         $io->newLine();
-
         if ($dryRun) {
-            $io->success("Dry run complete. Would have stored $totalChunks chunks from $processedFiles files.");
+            $io->success("Dry run complete. Would have stored $totalChunks chunks from $processedCriteria criteria.");
         } else {
-            $io->success("Successfully stored $totalChunks chunks from $processedFiles files into PostgreSQL.");
+            $io->success("Successfully stored $totalChunks chunks from $processedCriteria criteria into PostgreSQL.");
         }
 
         return Command::SUCCESS;
-    }
-
-    /**
-     * Parse the filename to extract metadata
-     * Expected pattern: C[X]_YYYY_[description].pdf
-     * Examples:
-     *   C1_2015_AccesoRPT_retribuciones_Censurado.pdf
-     *   C2_2016_sobre_agendas_conjuntoAEPD_Censurado.pdf
-     *
-     * @return array{criterion: string, year: int, topic: string}|null
-     */
-    private function parseFilename(string $filename): ?array
-    {
-        if (!preg_match('/^C(\d+)_(\d{4})[-_](.+)\.pdf$/i', $filename, $matches)) {
-            return null;
-        }
-
-        $topic = str_replace('_', ' ', $matches[3]);
-        $topic = preg_replace('/\s*(Censurado|censurado)\s*$/', '', $topic);
-        $topic = trim($topic);
-
-        return [
-            'criterion' => 'C' . $matches[1],
-            'year' => (int) $matches[2],
-            'topic' => $topic,
-        ];
     }
 }
