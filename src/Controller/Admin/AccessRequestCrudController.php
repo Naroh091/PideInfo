@@ -202,18 +202,20 @@ class AccessRequestCrudController extends AbstractCrudController
             $target->setPendingPortalNotifications($source->getPendingPortalNotifications());
         }
 
-        // 10. Record the merge in status history
-        $history = new StatusHistory();
-        $history->setAccessRequest($target);
-        $history->setStatusType('status');
-        $history->setFromStatus($target->getStatus());
-        $history->setToStatus($target->getStatus());
-        $history->setNotes(sprintf(
-            'Solicitud fusionada con "%s" (ID: %s). Documentos y historial transferidos.',
-            $source->getTitle(),
-            $source->getId()
-        ));
-        $this->entityManager->persist($history);
+        // 10. Record the merge in status history. `from === to` here, which
+        // recordStatusEvent treats as audit-only — no notification fires,
+        // exactly what we want (this is a meta-event, not a status change).
+        $this->accessRequestManager->recordStatusEvent(
+            $target,
+            StatusHistory::TYPE_STATUS,
+            $target->getStatus(),
+            $target->getStatus(),
+            sprintf(
+                'Solicitud fusionada con "%s" (ID: %s). Documentos y historial transferidos.',
+                $source->getTitle(),
+                $source->getId(),
+            ),
+        );
 
         // 11. Delete source (collections already moved)
         $this->entityManager->remove($source);

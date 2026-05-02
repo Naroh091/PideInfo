@@ -5,8 +5,8 @@ namespace App\Command;
 use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Repository\AccessRequestRepository;
+use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\Complaint\SuccessAnalysisWarmer;
-use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -25,7 +25,7 @@ class UpdateExpiredRequestsCommand extends Command
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
-        private readonly UserNotificationManager $notificationManager,
+        private readonly AccessRequestManager $accessRequestManager,
     ) {
         parent::__construct();
     }
@@ -120,26 +120,15 @@ class UpdateExpiredRequestsCommand extends Command
 
         $request->setStatus(AccessRequest::STATUS_DELAYED);
 
-        $statusHistory = new StatusHistory();
-        $statusHistory->setAccessRequest($request);
-        $statusHistory->setFromStatus($previousStatus);
-        $statusHistory->setToStatus(AccessRequest::STATUS_DELAYED);
-        $statusHistory->setStatusType(StatusHistory::TYPE_STATUS);
-        $statusHistory->setNotes($notes);
-
-        $this->entityManager->persist($statusHistory);
-
-        // Surface the silencio administrativo to the user (campana, RecentNotifications,
-        // AI activity summary). Mirrors UpdateExpiredRequestsHandler::__invoke().
-        $owner = $request->getUser();
-        if ($owner !== null) {
-            $this->notificationManager->notifyStatusChanged(
-                $owner,
-                $request,
-                $previousStatus,
-                AccessRequest::STATUS_DELAYED,
-                $notes,
-            );
-        }
+        // Audit row + notification dispatch flow through the canonical
+        // entry point. The matching message-handler path
+        // (UpdateExpiredRequestsHandler) does the same thing.
+        $this->accessRequestManager->recordStatusEvent(
+            $request,
+            StatusHistory::TYPE_STATUS,
+            $previousStatus,
+            AccessRequest::STATUS_DELAYED,
+            $notes,
+        );
     }
 }

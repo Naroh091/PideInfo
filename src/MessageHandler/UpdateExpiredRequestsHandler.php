@@ -5,8 +5,8 @@ namespace App\MessageHandler;
 use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Message\UpdateExpiredRequestsMessage;
+use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\Complaint\SuccessAnalysisWarmer;
-use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -18,7 +18,7 @@ final class UpdateExpiredRequestsHandler
         private readonly EntityManagerInterface $entityManager,
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
-        private readonly UserNotificationManager $notificationManager,
+        private readonly AccessRequestManager $accessRequestManager,
     ) {
     }
 
@@ -52,27 +52,18 @@ final class UpdateExpiredRequestsHandler
             $previousStatus = $request->getStatus();
             $request->setStatus(AccessRequest::STATUS_DELAYED);
 
-            $statusHistory = new StatusHistory();
-            $statusHistory->setAccessRequest($request);
-            $statusHistory->setFromStatus($previousStatus);
-            $statusHistory->setToStatus(AccessRequest::STATUS_DELAYED);
-            $statusHistory->setStatusType(StatusHistory::TYPE_STATUS);
-            $statusHistory->setNotes($notes);
-
-            $this->entityManager->persist($statusHistory);
-
-            // Surface the silencio administrativo to the user via the notification
-            // pipeline (campana, RecentNotifications, AI activity summary).
-            $owner = $request->getUser();
-            if ($owner !== null) {
-                $this->notificationManager->notifyStatusChanged(
-                    $owner,
-                    $request,
-                    $previousStatus,
-                    AccessRequest::STATUS_DELAYED,
-                    $notes,
-                );
-            }
+            // Single canonical entry point: writes the audit row AND
+            // dispatches the matching UserNotification (status_changed,
+            // since this is not a complaint transition). The previous
+            // hand-rolled StatusHistory + notifyStatusChanged pair lived
+            // here because the service didn't expose this hook yet.
+            $this->accessRequestManager->recordStatusEvent(
+                $request,
+                StatusHistory::TYPE_STATUS,
+                $previousStatus,
+                AccessRequest::STATUS_DELAYED,
+                $notes,
+            );
 
             $this->logger->info('UpdateExpiredRequests: request updated to delayed', [
                 'requestId' => (string) $request->getId(),
