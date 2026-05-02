@@ -98,7 +98,7 @@ final class ComplaintGenerator
     {
         return $this->tracer->traceRoot(
             name: 'complaint.generate',
-            attributes: $this->rootAttributes($accessRequest, 'reclamacion'),
+            attributes: $this->rootAttributes($accessRequest, 'reclamacion:' . $this->detectComplaintKind($accessRequest)),
             fn: fn () => $this->doGenerate($accessRequest, $conversationHistory, $userDirections, $documentContents),
             captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
                 $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
@@ -120,7 +120,7 @@ final class ComplaintGenerator
     {
         return yield from $this->tracer->traceRootStream(
             name: 'complaint.generate.stream',
-            attributes: $this->rootAttributes($accessRequest, 'reclamacion'),
+            attributes: $this->rootAttributes($accessRequest, 'reclamacion:' . $this->detectComplaintKind($accessRequest)),
             gen: $this->doGenerateStream($accessRequest, $conversationHistory, $userDirections, $documentContents),
             captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
                 $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
@@ -369,6 +369,25 @@ final class ComplaintGenerator
         return implode('. ', $parts);
     }
 
+    private function buildTimeline(AccessRequest $accessRequest): string
+    {
+        $timeline = "El día {$accessRequest->getSentAt()->format('d/m/Y')} presenté solicitud de acceso a información pública";
+        if ($accessRequest->getAcknowledgedAt()) {
+            $timeline .= ", recibiendo acuse de recibo el {$accessRequest->getAcknowledgedAt()->format('d/m/Y')}";
+        }
+        if ($accessRequest->getExternalId()) {
+            $timeline .= " con número de registro {$accessRequest->getExternalId()}";
+        }
+        $timeline .= ".";
+
+        if ($accessRequest->getResolvedAt()) {
+            $timeline .= " La Administración resolvió el {$accessRequest->getResolvedAt()->format('d/m/Y')}.";
+        } else {
+            $timeline .= " Transcurrido el plazo legal de un mes sin obtener respuesta, se ha producido silencio administrativo negativo.";
+        }
+        return $timeline;
+    }
+
     private function hasResponseDocument(AccessRequest $accessRequest): bool
     {
         foreach ($accessRequest->getDocuments() as $document) {
@@ -377,6 +396,65 @@ final class ComplaintGenerator
             }
         }
         return false;
+    }
+
+    /** Generic prompt with full RAG citations + denial-refutation scaffolding. */
+    public const KIND_STANDARD = 'standard';
+
+    /** Compact prompt for silencio administrativo (covers both negative and
+     *  positive variants). The template is direction-agnostic; the framing
+     *  is supplied by `silenceDirective()` based on the law's silence rule.
+     *
+     *  Catalan + Aragón cases (silencio positivo) still need a complaint
+     *  when the Administración hasn't materialised the access despite the
+     *  right being acquired by silence — same shape, different ask. */
+    public const KIND_SILENCE = 'silence';
+
+    /**
+     * Pick the prompt to use based on the two signals the user spec calls out:
+     * the request status and whether the expediente already contains an
+     * express resolution from the Administration.
+     *
+     * - No express resolution + status indicates no answer → compact silence
+     *   template (positive or negative — directive is generated separately).
+     * - Everything else → existing template (handles express denials with
+     *   denial-refutation scaffolding and RAG citations).
+     */
+    public function detectComplaintKind(AccessRequest $accessRequest): string
+    {
+        if ($this->hasResponseDocument($accessRequest)) {
+            return self::KIND_STANDARD;
+        }
+        $statusIndicatesNoResponse = $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED
+            || $accessRequest->isDeadlinePassed();
+        if (!$statusIndicatesNoResponse) {
+            return self::KIND_STANDARD;
+        }
+        return self::KIND_SILENCE;
+    }
+
+    /**
+     * Inline legal-framing paragraph injected at the top of the silence
+     * template. Tells the model whether to argue "desestimación presunta"
+     * (silencio negativo) or "derecho adquirido pendiente de materialización"
+     * (silencio positivo).
+     */
+    private function silenceDirective(AccessRequest $accessRequest): string
+    {
+        $law = $accessRequest->getApplicableLaw();
+        $lawName = $law->getName();
+        if ($law->isSilenceIsPositive()) {
+            return <<<TXT
+Conforme a {$lawName}, el silencio administrativo en materia de acceso a información pública tiene sentido **estimatorio**: transcurrido el plazo legal sin respuesta expresa, el derecho de acceso queda **adquirido por silencio positivo**. La Administración no lo ha materializado pese a estar obligada a hacerlo.
+
+Argumenta la reclamación como falta de **materialización** de un derecho **ya reconocido**, no como impugnación de una denegación. En la SOLICITUD, pide al consejo que **declare** el derecho ya adquirido por silencio positivo y **ordene la entrega efectiva** de la información a la Administración.
+TXT;
+        }
+        return <<<TXT
+Conforme a {$lawName} (y al artículo 20.4 de la Ley 19/2013 cuando sea estatal), el silencio administrativo en materia de acceso a información pública tiene sentido **desestimatorio**: transcurrido el plazo legal sin respuesta expresa, la solicitud se entiende **denegada por silencio**. Esa denegación presunta carece de motivación, lo que vicia la decisión y justifica por sí solo la estimación de la reclamación.
+
+Argumenta la reclamación como impugnación de la denegación presunta. En la SOLICITUD, pide al consejo que **estime** la reclamación y **ordene** a la Administración entregar la información solicitada.
+TXT;
     }
 
     /**
@@ -391,16 +469,37 @@ final class ComplaintGenerator
         array $documentContents = [],
         bool $hasResponseDocument = false
     ): string {
+        $silencePositive = $accessRequest->getApplicableLaw()->isSilenceIsPositive();
+        $silenceLabel = $silencePositive
+            ? 'silencio administrativo positivo (derecho adquirido pero no materializado)'
+            : 'silencio administrativo negativo';
         $status = match (true) {
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
-            $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'no contestada (silencio administrativo negativo)',
-            $accessRequest->isDeadlinePassed() => 'no contestada (silencio administrativo negativo - plazo vencido)',
+            $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'no contestada (' . $silenceLabel . ')',
+            $accessRequest->isDeadlinePassed() => 'plazo vencido sin respuesta (' . $silenceLabel . ')',
             default => 'pendiente de resolución',
         };
 
-        $denialReason = $accessRequest->getResolutionNotes() ?? 'No se ha indicado motivo de denegación';
+        $timeline = $this->buildTimeline($accessRequest);
 
-        $silencePositive = $accessRequest->getApplicableLaw()->isSilenceIsPositive();
+        // Silence-by-administration cases use a separate, compact template.
+        // RAG citations and denial-refutation scaffolding are out of scope
+        // when there's literally no resolution to refute. The template is
+        // direction-agnostic; the directive paragraph at the top tells the
+        // model whether to frame as "denegación presunta" (silencio negativo)
+        // or "derecho adquirido pendiente de materialización" (positivo).
+        if ($this->detectComplaintKind($accessRequest) === self::KIND_SILENCE) {
+            return $this->promptStore->compile('pideinfo-complaint-generate-complaint-silence', [
+                'transparency_council' => $transparencyCouncil,
+                'request_title' => (string) $accessRequest->getTitle(),
+                'public_body_name' => $accessRequest->getPublicBody()?->getName() ?? '',
+                'status' => $status,
+                'timeline' => $timeline,
+                'silence_directive' => $this->silenceDirective($accessRequest),
+            ]);
+        }
+
+        $denialReason = $accessRequest->getResolutionNotes() ?? 'No se ha indicado motivo de denegación';
 
         if ($hasResponseDocument) {
             $silenceBlock = '';
@@ -447,21 +546,6 @@ SILENCE;
 
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
-
-        $timeline = "El día {$accessRequest->getSentAt()->format('d/m/Y')} presenté solicitud de acceso a información pública";
-        if ($accessRequest->getAcknowledgedAt()) {
-            $timeline .= ", recibiendo acuse de recibo el {$accessRequest->getAcknowledgedAt()->format('d/m/Y')}";
-        }
-        if ($accessRequest->getExternalId()) {
-            $timeline .= " con número de registro {$accessRequest->getExternalId()}";
-        }
-        $timeline .= ".";
-
-        if ($accessRequest->getResolvedAt()) {
-            $timeline .= " La Administración resolvió el {$accessRequest->getResolvedAt()->format('d/m/Y')}.";
-        } else {
-            $timeline .= " Transcurrido el plazo legal de un mes sin obtener respuesta, se ha producido silencio administrativo negativo.";
-        }
 
         $documentsBlock = $this->formatDocumentContents($documentContents);
 
