@@ -44,6 +44,14 @@ class PublicBody
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $registryCode = null;
 
+    /**
+     * Numeric `idAmb` used by the AGE Portal de Transparencia wizard
+     * (https://transparencia.sede.gob.es/procedimiento/formulario?idProc=133628&idAmb={ID}).
+     * Populated for state-level public bodies that accept FOIA requests through that portal.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?int $transparencyPortalAmbId = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -149,6 +157,17 @@ class PublicBody
     public function setRegistryCode(?string $registryCode): static
     {
         $this->registryCode = $registryCode;
+        return $this;
+    }
+
+    public function getTransparencyPortalAmbId(): ?int
+    {
+        return $this->transparencyPortalAmbId;
+    }
+
+    public function setTransparencyPortalAmbId(?int $transparencyPortalAmbId): static
+    {
+        $this->transparencyPortalAmbId = $transparencyPortalAmbId;
         return $this;
     }
 

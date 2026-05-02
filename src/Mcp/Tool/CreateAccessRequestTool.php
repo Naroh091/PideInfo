@@ -10,6 +10,7 @@ use App\Repository\ApplicableLawRepository;
 use App\Repository\PublicBodyRepository;
 use App\Security\OAuth2\OAuthTokenContext;
 use App\Service\AccessRequest\AccessRequestManager;
+use App\Service\Submission\ApplicableLawResolver;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Exception\InvalidArgumentException;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -30,6 +31,7 @@ final class CreateAccessRequestTool
         private readonly AccessRequestManager $accessRequestManager,
         private readonly PublicBodyRepository $publicBodyRepository,
         private readonly ApplicableLawRepository $applicableLawRepository,
+        private readonly ApplicableLawResolver $applicableLawResolver,
     ) {
     }
 
@@ -75,7 +77,9 @@ final class CreateAccessRequestTool
                 throw new InvalidArgumentException('ApplicableLaw not found.');
             }
         } else {
-            $applicableLaw = $this->applicableLawRepository->findStateLaw();
+            // Auto-resolve from the public body: CCAA-derived law if any,
+            // state law as fallback. Same rule the "realizar" UI applies.
+            $applicableLaw = $this->applicableLawResolver->resolveFor($publicBody);
             if (null === $applicableLaw) {
                 throw new InvalidArgumentException('Default state law not configured.');
             }

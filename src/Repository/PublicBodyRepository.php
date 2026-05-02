@@ -52,6 +52,28 @@ class PublicBodyRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * Routable through the agent's "realizar" flow: bodies that have a
+     * Portal de Transparencia URL registered. REG-only bodies are excluded
+     * until that handler ships. Optionally narrows by name substring.
+     *
+     * @return PublicBody[]
+     */
+    public function searchSubmittableByName(string $query = '', int $limit = 20): array
+    {
+        $qb = $this->createQueryBuilder('pb')
+            ->where('pb.transparencyPortalUrl IS NOT NULL')
+            ->orderBy('pb.name', 'ASC')
+            ->setMaxResults($limit);
+
+        if ($query !== '') {
+            $qb->andWhere('LOWER(pb.name) LIKE LOWER(:query)')
+                ->setParameter('query', '%' . $query . '%');
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
     public function findOneByNameLike(string $name): ?PublicBody
     {
         return $this->createQueryBuilder('pb')

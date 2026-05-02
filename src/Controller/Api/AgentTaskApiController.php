@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
+use App\Entity\AccessRequest;
 use App\Entity\AgentTask;
+use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Repository\AgentTaskRepository;
+use App\Service\AccessRequest\AccessRequestManager;
+use App\Service\AccessRequest\DeadlineCalculator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +27,8 @@ class AgentTaskApiController extends AbstractController
     public function __construct(
         private readonly AgentTaskRepository $tasks,
         private readonly EntityManagerInterface $em,
+        private readonly AccessRequestManager $accessRequestManager,
+        private readonly DeadlineCalculator $deadlineCalculator,
     ) {}
 
     #[Route('/pending', name: 'api_agent_tasks_pending', methods: ['GET'])]
@@ -98,8 +104,64 @@ class AgentTaskApiController extends AbstractController
         if (!$success && isset($data['error']) && is_string($data['error'])) {
             $task->setErrorMessage(mb_substr($data['error'], 0, 2000));
         }
+
+        if ($success && $task->getType() === AgentTask::TYPE_SUBMIT_REQUEST_PORTAL) {
+            $this->applyTransparenciaSubmissionResult($task, $data['result'] ?? []);
+        }
+
         $this->em->flush();
         return new JsonResponse($this->serialize($task));
+    }
+
+    /**
+     * Promotes a pending AccessRequest to "sent" once the agent confirms a
+     * successful Portal de Transparencia submission. Expects $result to carry
+     * the portal's expediente reference and the timestamp of the actual send,
+     * so we can recompute the deadline against the right anchor date.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function applyTransparenciaSubmissionResult(AgentTask $task, array $result): void
+    {
+        $request = $task->getAccessRequest();
+        if ($request === null) {
+            return;
+        }
+
+        $externalId = isset($result['externalId']) && is_string($result['externalId']) && $result['externalId'] !== ''
+            ? $result['externalId']
+            : null;
+
+        $sentAt = null;
+        if (isset($result['sentAt']) && is_string($result['sentAt']) && $result['sentAt'] !== '') {
+            try {
+                $sentAt = new \DateTimeImmutable($result['sentAt']);
+            } catch (\Exception) {
+                $sentAt = null;
+            }
+        }
+
+        if ($externalId !== null && $request->getExternalId() === null) {
+            $request->setExternalId($externalId);
+        }
+        if ($sentAt !== null) {
+            $request->setSentAt($sentAt);
+            $deadline = $this->deadlineCalculator->calculate($sentAt, $request->getApplicableLaw());
+            $request->setDeadlineAt($deadline);
+            if ($request->getOriginalDeadlineAt() === null) {
+                $request->setOriginalDeadlineAt($deadline);
+            }
+        }
+
+        if ($request->getStatus() !== AccessRequest::STATUS_SENT) {
+            $this->accessRequestManager->changeStatus(
+                $request,
+                StatusHistory::TYPE_STATUS,
+                AccessRequest::STATUS_SENT,
+                '[agent/submit_request_transparencia] enviada al Portal de Transparencia'
+                    . ($externalId !== null ? sprintf(' (expediente %s)', $externalId) : '')
+            );
+        }
     }
 
     private function loadOwnedTask(string $id): AgentTask
