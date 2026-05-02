@@ -23,7 +23,7 @@ use Psr\Log\LoggerInterface;
 final class ActivitySummarizer
 {
     /** Total character budget enforced both via prompt and post-hoc trimming. */
-    public const MAX_CHARS = 600;
+    public const MAX_CHARS = 1200;
 
     public function __construct(
         private readonly UserNotificationRepository $notificationRepository,
@@ -42,8 +42,13 @@ final class ActivitySummarizer
     }
 
     /**
-     * sha1 of the ordered notification UUIDs the cached summary was built from.
-     * If this changes vs. what we have in cache, the summary is stale.
+     * sha1 of the ordered notification UUIDs + the generation parameters the
+     * cached summary was built with. If this changes vs. what we have in
+     * cache, the summary is stale and gets regenerated.
+     *
+     * The MAX_CHARS suffix makes any change to the budget auto-invalidate
+     * existing caches — without it, bumping the cap had no effect on users
+     * whose 24 h notification set hadn't changed.
      *
      * @param UserNotification[] $notifications
      */
@@ -51,7 +56,7 @@ final class ActivitySummarizer
     {
         $ids = array_map(static fn (UserNotification $n) => (string) $n->getId(), $notifications);
         sort($ids);
-        return sha1(implode('|', $ids));
+        return sha1(implode('|', $ids) . '||v=' . self::MAX_CHARS);
     }
 
     /**
@@ -123,7 +128,7 @@ final class ActivitySummarizer
             'properties' => [
                 'summary' => [
                     'type' => 'string',
-                    'description' => 'Resumen 1-2 párrafos en HTML restringido a <b> e <i>. Máximo 600 caracteres totales.',
+                    'description' => 'Resumen 1-2 párrafos en HTML restringido a <b> e <i>. Máximo 1200 caracteres totales.',
                 ],
                 'references' => [
                     'type' => 'array',

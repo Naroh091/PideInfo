@@ -12,7 +12,7 @@ A continuación tienes cada notificación en orden cronológico. Cada línea inc
 
 ## INSTRUCCIONES DE REDACCIÓN
 
-Tu tarea es producir un resumen de **1 o 2 párrafos** (máximo **600 caracteres en total**, incluyendo etiquetas HTML) que cuente al usuario qué ha pasado.
+Tu tarea es producir un resumen de **1 o 2 párrafos** (máximo **1200 caracteres en total**, incluyendo etiquetas HTML) que cuente al usuario qué ha pasado.
 
 Pautas:
 
@@ -27,7 +27,7 @@ Restricciones de formato (estrictas):
 
 - HTML permitido: ÚNICAMENTE `<b>` y `<i>`. PROHIBIDO `<p>`, `<br>`, `<ul>`, `<li>`, `<a>`, `<span>`, encabezados, listas, enlaces, tablas, Markdown (`**`, `*`, `-`, etc.). Cualquier otra etiqueta será descartada por el sanitizador.
 - Separa los dos párrafos con un único espacio (no uses `<br>` ni nada similar). Si solo necesitas un párrafo, usa uno.
-- **Máximo 600 caracteres totales** sumando texto + etiquetas. Si te excedes, recortamos sin avisar.
+- **Máximo 1200 caracteres totales** sumando texto + etiquetas. Si te excedes, recortamos sin avisar.
 - No incluyas la fecha actual ni hagas referencias temporales redundantes ("hoy", "ayer") más allá de lo necesario.
 
 ## FORMATO DE RESPUESTA
