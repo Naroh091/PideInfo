@@ -25,8 +25,26 @@ ProcessDocumentHandler::__invoke()
   ├── DocumentAnalyzer::analyze()  ← Gemini API call
   ├── Find or create AccessRequest
   ├── Update request state from document
-  └── Mark document as processed
+  ├── Mark document as processed
+  └── Dispatch GenerateDocumentEmbeddingsMessage
+        │
+        ▼
+GenerateDocumentEmbeddingsHandler::__invoke()
+  ├── chunkText(extractedText) via PdfTextExtractor
+  ├── DELETE existing rows in ai_documents WHERE metadata->>'documentId' = ?
+  ├── EmbeddingGenerator::generate() per chunk
+  └── PostgresStore (ai.store.postgres.documents) ← halfvec(3072) + metadata
 ```
+
+The embedding step is fire-and-forget from the document handlers' perspective: failures don't roll back the document persistence. Pre-computed embeddings are consumed lazily by `SuccessAnalyzer` and `ComplaintGenerator` via `DocumentEmbeddingsRetriever::loadVectorsForRequest()`; when no vectors are stored yet (recently uploaded, queue pending, no extracted text) both services fall back to the inline string-based query path (`buildContextQuery`), so correctness is preserved during the gap.
+
+To backfill embeddings for existing documents (after the rollout, or after a corpus wipe):
+
+```bash
+php bin/console app:documents:backfill-embeddings [--limit N] [--source upload|email|portal] [--type Response] [--force] [--sync] [--dry-run]
+```
+
+By default the command dispatches `GenerateDocumentEmbeddingsMessage` to the `analysis` transport (workers handle it asynchronously). `--sync` runs the handler inline, `--force` re-embeds documents that already have rows, and `--dry-run` reports without doing anything.
 
 Hash-based deduplication is now uniform across all ingestion paths: manual upload (`DocumentController::upload`), agent webhook (`AgentWebhookProcessor`), and inbound email (`InboundEmailController`). All key on `(uploadedBy, contentHash)`, so the same file uploaded through any combination of channels lands as a single `Document`.
 

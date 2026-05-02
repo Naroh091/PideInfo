@@ -6,6 +6,7 @@ use App\DTO\SuccessAnalysis;
 use App\Entity\AccessRequest;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\AI\Llm\ModelSize;
@@ -26,6 +27,7 @@ final class SuccessAnalyzer
         private readonly DocumentContentsCollector $documentContentsCollector,
         private readonly EntityManagerInterface $entityManager,
         private readonly PromptStore $promptStore,
+        private readonly DocumentEmbeddingsRetriever $documentEmbeddingsRetriever,
     ) {
     }
 
@@ -69,18 +71,40 @@ final class SuccessAnalyzer
     public function analyze(AccessRequest $accessRequest): SuccessAnalysis
     {
         $documentContents = $this->documentContentsCollector->collect($accessRequest);
-        $contextQuery = $this->buildContextQuery($accessRequest, $documentContents);
-        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 3);
-        $favorablePrecedents = $this->resolutionRetriever->retrieveSimilarCases(
-            $contextQuery,
-            3,
-            ['favorable', 'partial', 'acuerdo_mediacion'],
-        );
-        $unfavorablePrecedents = $this->resolutionRetriever->retrieveSimilarCases(
-            $contextQuery,
-            3,
-            ['unfavorable', 'inadmissible'],
-        );
+        $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
+
+        if ($vectors !== []) {
+            $criteria = $this->criteriaRetriever->retrieveByVectors($vectors, 3);
+            $favorablePrecedents = $this->resolutionRetriever->retrieveSimilarCasesByVectors(
+                $vectors,
+                3,
+                ['favorable', 'partial', 'acuerdo_mediacion'],
+            );
+            $unfavorablePrecedents = $this->resolutionRetriever->retrieveSimilarCasesByVectors(
+                $vectors,
+                3,
+                ['unfavorable', 'inadmissible'],
+            );
+        } else {
+            // Fallback: documents not yet embedded (just uploaded, queue pending,
+            // or this is a request with no attached docs). Build the inline query
+            // from title/description and generate the embedding synchronously.
+            $this->logger->info('No precomputed document embeddings; falling back to inline query', [
+                'requestId' => (string) $accessRequest->getId(),
+            ]);
+            $contextQuery = $this->buildContextQuery($accessRequest, $documentContents);
+            $criteria = $this->criteriaRetriever->retrieve($contextQuery, 3);
+            $favorablePrecedents = $this->resolutionRetriever->retrieveSimilarCases(
+                $contextQuery,
+                3,
+                ['favorable', 'partial', 'acuerdo_mediacion'],
+            );
+            $unfavorablePrecedents = $this->resolutionRetriever->retrieveSimilarCases(
+                $contextQuery,
+                3,
+                ['unfavorable', 'inadmissible'],
+            );
+        }
 
         $prompt = $this->buildAnalysisPrompt(
             $accessRequest,

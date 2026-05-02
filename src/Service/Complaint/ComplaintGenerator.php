@@ -14,6 +14,7 @@ use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\AI\Llm\ModelSize;
@@ -35,7 +36,34 @@ final class ComplaintGenerator
         private readonly TransparencyCouncilResolver $councilResolver,
         private readonly Tracer $tracer,
         private readonly PromptStore $promptStore,
+        private readonly DocumentEmbeddingsRetriever $documentEmbeddingsRetriever,
     ) {
+    }
+
+    /**
+     * Retrieve the RAG context (criteria + similar resolutions) for a request,
+     * preferring precomputed document embeddings when available. Falls back
+     * to the inline string-based query (title + description + …) when no
+     * documents have been embedded yet.
+     *
+     * @return array{0: array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>}
+     */
+    private function retrieveCriteriaAndResolutions(AccessRequest $accessRequest, int $criteriaTopK = 5, int $resolutionsTopK = 3): array
+    {
+        $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
+
+        if ($vectors !== []) {
+            return [
+                $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK),
+                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK),
+            ];
+        }
+
+        $contextQuery = $this->buildContextQuery($accessRequest);
+        return [
+            $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK),
+            $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK),
+        ];
     }
 
     /**
@@ -147,9 +175,7 @@ final class ComplaintGenerator
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
-        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
-        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
 
         $hasResponseDocument = $this->hasResponseDocument($accessRequest);
 
@@ -212,9 +238,7 @@ final class ComplaintGenerator
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
-        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
-        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
 
         $hasResponseDocument = $this->hasResponseDocument($accessRequest);
 
@@ -627,9 +651,7 @@ SILENCE;
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
-        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
-        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
 
         $alegacionesContent = $this->getAlegacionesContent($accessRequest);
         $alegationPoints = $this->getAlegationPoints($accessRequest);
@@ -694,9 +716,7 @@ SILENCE;
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
-        $criteria = $this->criteriaRetriever->retrieve($contextQuery, 5);
-        $resolutions = $this->resolutionRetriever->retrieveSimilarCases($contextQuery, 3);
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
 
         $alegacionesContent = $this->getAlegacionesContent($accessRequest);
         $alegationPoints = $this->getAlegationPoints($accessRequest);

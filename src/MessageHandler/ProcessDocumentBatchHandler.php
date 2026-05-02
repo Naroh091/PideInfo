@@ -6,6 +6,7 @@ use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Message\GenerateDocumentEmbeddingsMessage;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\ApplicableLawRepository;
@@ -18,6 +19,7 @@ use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 #[AsMessageHandler]
 final class ProcessDocumentBatchHandler
@@ -33,6 +35,7 @@ final class ProcessDocumentBatchHandler
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
+        private readonly MessageBusInterface $messageBus,
     ) {
     }
 
@@ -146,6 +149,12 @@ final class ProcessDocumentBatchHandler
             // complaintable state.
             if ($accessRequest) {
                 $this->successAnalysisWarmer->maybeWarm($accessRequest);
+            }
+
+            foreach ($documents as $document) {
+                if ($document->getExtractedText()) {
+                    $this->messageBus->dispatch(new GenerateDocumentEmbeddingsMessage($document->getId()));
+                }
             }
 
         } catch (\Exception $e) {

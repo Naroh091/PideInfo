@@ -54,8 +54,28 @@ final class ResolutionRetriever
 
         try {
             $embedding = $this->embeddingGenerator->generate($query);
-            $vector = new Vector($embedding);
+        } catch (\Exception) {
+            return [];
+        }
 
+        return $this->retrieveSimilarCasesByVector(new Vector($embedding), $topK, $outcomes);
+    }
+
+    /**
+     * Same as retrieveSimilarCases() but starts from a precomputed vector,
+     * skipping the embedding API call. Used by the complaint pipeline when
+     * the query vector comes from an already-embedded document chunk.
+     *
+     * @param list<string> $outcomes
+     * @return array<int, array<string, mixed>>
+     */
+    public function retrieveSimilarCasesByVector(Vector $vector, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
+    {
+        if (empty($outcomes)) {
+            return [];
+        }
+
+        try {
             // Build a dynamic IN clause from the requested outcomes.
             $placeholders = [];
             $params = [];
@@ -100,6 +120,7 @@ final class ResolutionRetriever
 
                 $results[] = [
                     'reference' => $resolution->getReferenceNumber(),
+                    'resolutionId' => $resolutionId,
                     'date' => $resolution->getResolutionDate()?->format('d/m/Y'),
                     'outcome' => $resolution->getOutcome() ?? 'unknown',
                     'publicBody' => $resolution->getPublicBodyName(),
@@ -116,9 +137,45 @@ final class ResolutionRetriever
             }
 
             return $results;
-        } catch (\Exception $e) {
+        } catch (\Exception) {
             return [];
         }
+    }
+
+    /**
+     * Run one search per input vector against the resolutions store and merge
+     * the results, deduplicating by resolution id and keeping the highest
+     * score per resolution. Used when the query is the set of precomputed
+     * embedding chunks of the request's documents.
+     *
+     * @param array<int, Vector> $vectors
+     * @param list<string> $outcomes
+     * @return array<int, array<string, mixed>>
+     */
+    public function retrieveSimilarCasesByVectors(array $vectors, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
+    {
+        if ($vectors === [] || $outcomes === []) {
+            return [];
+        }
+
+        $merged = [];
+        foreach ($vectors as $vector) {
+            $hits = $this->retrieveSimilarCasesByVector($vector, $topK, $outcomes);
+            foreach ($hits as $hit) {
+                $key = $hit['resolutionId'] ?? $hit['reference'];
+                $existing = $merged[$key] ?? null;
+                if ($existing === null || ($hit['score'] ?? -INF) > ($existing['score'] ?? -INF)) {
+                    $merged[$key] = $hit;
+                }
+            }
+        }
+
+        usort(
+            $merged,
+            static fn (array $a, array $b) => ($b['score'] ?? -INF) <=> ($a['score'] ?? -INF),
+        );
+
+        return array_slice(array_values($merged), 0, $topK);
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\User;
 use App\Enum\DocumentType;
+use App\Message\GenerateDocumentEmbeddingsMessage;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
@@ -461,6 +462,12 @@ class DocumentController extends AbstractController
         }
 
         $this->entityManager->flush();
+
+        // Document is being attached to a (possibly new) request; refresh its
+        // embeddings so the accessRequestId metadata in ai_documents is current.
+        if ($document->getExtractedText()) {
+            $this->messageBus->dispatch(new GenerateDocumentEmbeddingsMessage($document->getId()));
+        }
 
         return new JsonResponse([
             'success' => true,
