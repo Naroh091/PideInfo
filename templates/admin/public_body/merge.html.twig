@@ -1,0 +1,199 @@
+{% extends '@EasyAdmin/page/content.html.twig' %}
+
+{% block page_title %}Fusionar organismos públicos{% endblock %}
+
+{% block content_header %}
+    <div class="content-header-title">
+        <h1 class="title">Fusionar organismos públicos</h1>
+    </div>
+{% endblock %}
+
+{% macro field_value_for(field_state, body_id) %}
+    {%- set entry = field_state.values[body_id]|default(null) -%}
+    {%- if entry is null or entry.is_empty -%}
+        <span class="text-muted">—</span>
+    {%- else -%}
+        {{ entry.display }}
+    {%- endif -%}
+{% endmacro %}
+
+{% block main %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            {% if mode == 'preview' %}
+                Vista previa de la fusión
+            {% else %}
+                Selecciona el superviviente y resuelve los conflictos
+            {% endif %}
+        </h2>
+    </div>
+    <div class="card-body">
+
+        {% if mode == 'preview' %}
+            <div class="alert alert-warning">
+                <strong>Esta operación es irreversible.</strong>
+                Se reasignarán
+                <strong>{{ preview.impact.accessRequestsPrimary }}</strong> solicitudes
+                ({{ preview.impact.accessRequestsOriginal }} como organismo original)
+                y <strong>{{ preview.impact.resolutions }}</strong> resoluciones,
+                y se eliminarán <strong>{{ preview.losers|length }}</strong> organismos.
+            </div>
+        {% else %}
+            <div class="alert alert-info">
+                Para cada campo se elige automáticamente el único valor disponible cuando solo hay uno.
+                Para los conflictos, selecciona qué valor debe sobrevivir.
+            </div>
+        {% endif %}
+
+        {% set merge_action_url = mode == 'preview'
+            ? ea_url().setController('App\\Controller\\Admin\\PublicBodyCrudController').setAction('mergeExecute').generateUrl()
+            : ea_url().setController('App\\Controller\\Admin\\PublicBodyCrudController').setAction('mergePreview').generateUrl() %}
+        <form method="post" action="{{ merge_action_url }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('merge_public_body') }}">
+            {% for body in bodies %}
+                <input type="hidden" name="ids[]" value="{{ body.id }}">
+            {% endfor %}
+
+            {# ── Survivor selection (form mode) or hidden (preview) ── #}
+            {% if mode == 'form' %}
+                <h3 class="mb-3">Organismo superviviente</h3>
+                <div class="table-responsive mb-4">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Nombre</th>
+                                <th>Nivel</th>
+                                <th>Comunidad</th>
+                                <th>Email</th>
+                                <th>Slug</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for body in bodies %}
+                                <tr>
+                                    <td>
+                                        <input type="radio" name="survivor"
+                                               value="{{ body.id }}" id="survivor_{{ body.id }}"
+                                               {% if survivor.id == body.id %}checked{% endif %} required>
+                                    </td>
+                                    <td><label for="survivor_{{ body.id }}" class="mb-0" style="cursor: pointer">{{ body.name }}</label></td>
+                                    <td>{{ body.levelLabel }}</td>
+                                    <td>{{ body.autonomousCommunity ? body.autonomousCommunity.name : '—' }}</td>
+                                    <td>{{ body.email ?? '—' }}</td>
+                                    <td>{{ body.slug ?? '—' }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <input type="hidden" name="survivor" value="{{ survivor.id }}">
+                {% for field, choice in choices %}
+                    <input type="hidden" name="field_choice[{{ field }}]" value="{{ choice }}">
+                {% endfor %}
+            {% endif %}
+
+            {% if mode == 'preview' %}
+                <h3 class="mb-3">Resultado de la fusión</h3>
+                <table class="table table-sm mb-4">
+                    <tbody>
+                    {% for field, label in field_labels %}
+                        <tr>
+                            <th style="width: 25%">{{ label }}</th>
+                            <td>{{ preview.resolved_values[field] }}</td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+
+                <h3 class="mb-3">Organismos a eliminar</h3>
+                <ul>
+                    {% for loser in preview.losers %}
+                        <li>{{ loser.name }} <small class="text-muted">({{ loser.id }})</small></li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <h3 class="mb-3">Campos</h3>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Campo</th>
+                                {% for body in bodies %}
+                                    <th>{{ body.name }}</th>
+                                {% endfor %}
+                                <th>Resultado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for field, label in field_labels %}
+                            {% set state = field_states[field] %}
+                            <tr class="{{ state.kind == 'conflict' ? 'table-warning' : '' }}">
+                                <th>
+                                    {{ label }}
+                                    {% if state.kind == 'conflict' %}
+                                        <span class="badge bg-warning text-dark">conflicto</span>
+                                    {% elseif state.kind == 'agreed' %}
+                                        <span class="badge bg-success">acuerdo</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">vacío</span>
+                                    {% endif %}
+                                </th>
+                                {% for body in bodies %}
+                                    <td>{{ _self.field_value_for(state, body.id ~ '') }}</td>
+                                {% endfor %}
+                                <td>
+                                    {% if state.kind == 'conflict' %}
+                                        {% for opt in state.choice_options %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio"
+                                                       name="field_choice[{{ field }}]"
+                                                       value="{{ opt.body_id }}"
+                                                       id="choice_{{ field }}_{{ opt.body_id }}"
+                                                       {% if choices[field]|default('') == opt.body_id %}checked{% endif %}
+                                                       required>
+                                                <label class="form-check-label" for="choice_{{ field }}_{{ opt.body_id }}">
+                                                    <strong>{{ opt.display }}</strong>
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                    {% elseif state.kind == 'agreed' %}
+                                        <input type="hidden" name="field_choice[{{ field }}]"
+                                               value="{{ choices[field]|default(survivor.id) }}">
+                                        <em>{{ state.choice_options[0].display }}</em>
+                                    {% else %}
+                                        <input type="hidden" name="field_choice[{{ field }}]"
+                                               value="{{ choices[field]|default(survivor.id) }}">
+                                        <em class="text-muted">(vacío)</em>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+
+            <div class="mt-4 d-flex gap-2">
+                {% if mode == 'preview' %}
+                    <button type="submit" class="btn btn-danger"
+                            onclick="return confirm('¿Confirmar la fusión? Esta acción no se puede deshacer.')">
+                        <i class="fa fa-code-merge me-1"></i>
+                        Confirmar fusión
+                    </button>
+                    <a href="javascript:history.back()" class="btn btn-secondary">Volver al formulario</a>
+                {% else %}
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa fa-eye me-1"></i>
+                        Vista previa
+                    </button>
+                    <a href="{{ ea_url().setController('App\\Controller\\Admin\\PublicBodyCrudController').setAction('index').generateUrl() }}"
+                       class="btn btn-secondary">Cancelar</a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
