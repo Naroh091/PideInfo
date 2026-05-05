@@ -27,9 +27,9 @@ final class SearchResolutionsTool
     /**
      * @param string       $query    Natural-language query (Spanish) describing the legal question.
      * @param int          $topK     Number of results to return (1-10, default 5).
-     * @param list<string> $outcomes CTBG outcome codes to include. Default: favorable + partial.
+     * @param array<string> $outcomes CTBG outcome codes to include. Default: favorable + partial.
      *
-     * @return array{results: list<array<string,mixed>>, count: int}
+     * @return array{results: array<array<string,mixed>>, count: int}
      */
     public function __invoke(string $query, int $topK = 5, array $outcomes = ['favorable', 'partial']): array
     {
