@@ -45,7 +45,7 @@ final class QwenEmbedder implements EmbedderInterface
             throw new \RuntimeException('Invalid response from custom embedding endpoint.');
         }
 
-        return $vector;
+        return $this->truncate($vector);
     }
 
     public function generateBatch(array $texts): array
@@ -58,7 +58,7 @@ final class QwenEmbedder implements EmbedderInterface
 
         $vectors = [];
         foreach ($response->embeddings as $embedding) {
-            $vectors[] = $embedding->embedding;
+            $vectors[] = $this->truncate($embedding->embedding);
         }
 
         if (count($vectors) !== count($texts)) {
@@ -78,19 +78,42 @@ final class QwenEmbedder implements EmbedderInterface
      */
     private function buildPayload(string|array $input): array
     {
-        $payload = [
+        // Truncation happens client-side (Matryoshka slice + L2 renormalize).
+        // The OpenAI `dimensions` param is rejected by LiteLLM for non-`text-embedding-3`
+        // models, so we never forward it.
+        return [
             'model' => $this->model,
             'input' => $input,
         ];
+    }
 
-        // Request Matryoshka truncation when a target dimension is configured.
-        // Lets us keep the existing pgvector schema (e.g. halfvec(3072)) when the
-        // model's native output is larger (Qwen3-Embedding-8B → 4096).
-        if ($this->dimension > 0) {
-            $payload['dimensions'] = $this->dimension;
+    /**
+     * @param array<int, float> $vector
+     * @return array<int, float>
+     */
+    private function truncate(array $vector): array
+    {
+        if ($this->dimension <= 0 || count($vector) <= $this->dimension) {
+            return $vector;
         }
 
-        return $payload;
+        $sliced = array_slice($vector, 0, $this->dimension);
+
+        $sumSquares = 0.0;
+        foreach ($sliced as $component) {
+            $sumSquares += $component * $component;
+        }
+
+        if ($sumSquares <= 0.0) {
+            return $sliced;
+        }
+
+        $norm = sqrt($sumSquares);
+        foreach ($sliced as $i => $component) {
+            $sliced[$i] = $component / $norm;
+        }
+
+        return $sliced;
     }
 
     public function getDimension(): int
