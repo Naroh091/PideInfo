@@ -81,9 +81,12 @@ final class QwenEmbedder implements EmbedderInterface
         // Truncation happens client-side (Matryoshka slice + L2 renormalize).
         // The OpenAI `dimensions` param is rejected by LiteLLM for non-`text-embedding-3`
         // models, so we never forward it.
+        // `encoding_format` must be set explicitly: LiteLLM forwards null to the
+        // serving backend when omitted, which rejects the request.
         return [
             'model' => $this->model,
             'input' => $input,
+            'encoding_format' => 'float',
         ];
     }
 
