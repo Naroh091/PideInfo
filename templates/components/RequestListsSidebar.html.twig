@@ -1,0 +1,28 @@
+<div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
+{# Listas — sidebar block showing lists that contain the current request.
+   Renders inside the parent .dossier-aside in show.html.twig. #}
+    {% if lists|length > 0 %}
+    <div class="aside-block">
+        <div class="aside-heading">
+            <span class="aside-heading-name">Listas</span>
+            <span class="aside-heading-rule"></span>
+        </div>
+
+        {% for item in lists %}
+            {% set list = item.list %}
+            {% set isInList = item.inList %}
+            <div class="aside-row">
+                <span class="aside-key">{{ list.name }}</span>
+                <span class="aside-value">
+                    <a href="{{ path('app_listas_show', {id: list.id}) }}" class="aside-link">
+                        {{ list.items|length }} elemento{{ list.items|length != 1 ? 's' : '' }}
+                        {% if isInList %}
+                            <span class="aside-tag is-sky">aquí</span>
+                        {% endif %}
+                    </a>
+                </span>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
