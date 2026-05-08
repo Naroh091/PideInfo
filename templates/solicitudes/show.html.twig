@@ -1616,6 +1616,7 @@
     <div class="lg:col-span-1 rise rise-5">
         <aside class="dossier-aside">
             {{ component('RequestStatusSidebar', {request: request}) }}
+            {{ component('RequestListsSidebar', {request: request}) }}
 
             {% if app.user.virtualEmail %}
                 <div class="aside-block" data-controller="clipboard">
