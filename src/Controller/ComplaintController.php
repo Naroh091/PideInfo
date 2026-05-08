@@ -62,59 +62,21 @@ class ComplaintController extends AbstractController
         ]);
     }
 
+    /**
+     * Legacy entry-point. Redirects to the unified `/redactar` view that
+     * superseded `interactive.html.twig`. Carries the `?mode=` query through
+     * so existing links keep landing on the right canvas.
+     */
     #[Route('/asistente', name: 'app_complaint_assistant', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function generate(Request $request, AccessRequest $accessRequest): Response
     {
-        $mode = $request->query->get('mode', 'complaint');
-
-        if ($mode === 'alegation_response') {
-            if (!$this->complaintGenerator->canGenerateAlegationResponse($accessRequest)) {
-                $this->addFlash('error', 'Solo se pueden generar respuestas a alegaciones para solicitudes con reclamación en curso.');
-                return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-            }
-        } else {
-            if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
-                $this->addFlash('error', 'Solo se pueden generar reclamaciones para solicitudes denegadas o sin respuesta.');
-                return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-            }
+        $mode = $request->query->get('mode');
+        $params = ['id' => $accessRequest->getId()];
+        if ($mode === 'alegation_response' || $mode === 'complaint') {
+            $params['mode'] = $mode;
         }
-
-        $existingDocument = null;
-        $alegacionesDoc = null;
-        $availableDocuments = [];
-        $searchType = $mode === 'alegation_response' ? DocumentType::AlegationResponse : DocumentType::Complaint;
-        $excludedTypes = [DocumentType::Complaint, DocumentType::AlegationResponse, DocumentType::Unprocessed];
-
-        if ($mode === 'alegation_response') {
-            foreach ($accessRequest->getDocuments() as $document) {
-                if ($document->getType() === $searchType && !$existingDocument) {
-                    $existingDocument = $document;
-                    break;
-                }
-            }
-        } else {
-            $existingDocument = $accessRequest->getComplaintDraftDocument();
-        }
-
-        foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Alegaciones && !$alegacionesDoc) {
-                $alegacionesDoc = $document;
-            }
-            if (!in_array($document->getType(), $excludedTypes, true)
-                && $document->isProcessed()
-                && $document->getExtractedText()) {
-                $availableDocuments[] = $document;
-            }
-        }
-
-        return $this->render('complaint/interactive.html.twig', [
-            'request' => $accessRequest,
-            'existingDocument' => $existingDocument,
-            'alegacionesDoc' => $alegacionesDoc,
-            'availableDocuments' => $availableDocuments,
-            'mode' => $mode,
-        ]);
+        return $this->redirectToRoute('app_complaint_redactar', $params, Response::HTTP_MOVED_PERMANENTLY);
     }
 
     #[Route('/generar', name: 'app_complaint_create', methods: ['POST'])]
@@ -311,23 +273,20 @@ class ComplaintController extends AbstractController
         }
     }
 
+    /**
+     * Legacy entry-point for the manual blank/edit view. Redirects to the
+     * unified `/redactar` flow in complaint mode (the existing draft, if any,
+     * loads automatically because complaint mode is single-draft per request).
+     */
     #[Route('/redactar', name: 'app_complaint_draft', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function draft(AccessRequest $accessRequest): Response
     {
-        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
-            $this->addFlash('error', 'Solo se pueden iniciar reclamaciones para solicitudes denegadas o sin respuesta.');
-            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-        }
-
-        $existingDocument = $accessRequest->getComplaintDraftDocument();
-        $existingHtml = $existingDocument ? $this->getComplaintContent($existingDocument) : '';
-
-        return $this->render('complaint/draft.html.twig', [
-            'request' => $accessRequest,
-            'existingDocument' => $existingDocument,
-            'existingHtml' => $existingHtml,
-        ]);
+        return $this->redirectToRoute(
+            'app_complaint_redactar',
+            ['id' => $accessRequest->getId(), 'mode' => 'complaint'],
+            Response::HTTP_MOVED_PERMANENTLY,
+        );
     }
 
     #[Route('/redactar', name: 'app_complaint_save_draft', methods: ['POST'])]

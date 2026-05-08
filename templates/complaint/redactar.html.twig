@@ -1,0 +1,1260 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% set isAlegation = mode == 'alegation_response' %}
+{% set pageTitle = mode is null
+    ? 'Redactar escrito'
+    : (isAlegation ? 'Respuesta a Alegaciones' : 'Reclamación') %}
+
+{% block title %}{{ pageTitle }} - {{ request.title }} - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
+    <style>
+        :root {
+            --doc-bg: #ffffff;
+            --doc-edge: #e2e8f0;
+            --ink: #0f172a;
+            --ink-soft: #334155;
+            --ink-mute: #64748b;
+            --rule: #e2e8f0;
+            --gold: #0284c7;
+        }
+        .typing-dots { display: inline-flex; gap: .25rem; }
+        .typing-dots span { width: .35rem; height: .35rem; border-radius: 999px; background: var(--ink-mute); animation: typingBounce 1.1s ease-in-out infinite; }
+        .typing-dots span:nth-child(2) { animation-delay: .15s; }
+        .typing-dots span:nth-child(3) { animation-delay: .3s; }
+        @keyframes typingBounce { 0%,80%,100% { transform: translateY(0); opacity: .4; } 40% { transform: translateY(-3px); opacity: 1; } }
+
+        .brief { display: flex; flex-direction: column; gap: 1.5rem; }
+        .panel { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1.25rem 1.25rem 1.4rem; }
+        .panel-label { display: flex; align-items: center; gap: .5rem; font-family: 'DM Sans', sans-serif; font-size: .85rem; font-weight: 600; color: var(--ink-mute); margin-bottom: .9rem; }
+        .panel-label::after { content: ""; flex: 1; height: 1px; background: #e2e8f0; }
+
+        .verdict { display: flex; align-items: baseline; gap: .5rem; font-family: 'DM Serif Display', serif; color: var(--ink); line-height: 1; margin-top: .25rem; }
+        .verdict-num { font-size: 4.25rem; font-weight: 400; letter-spacing: -.04em; font-feature-settings: "tnum"; }
+        .verdict-frac { font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--ink-mute); font-weight: 500; transform: translateY(-.2rem); }
+        .verdict-label { margin-top: .35rem; font-family: 'DM Sans', sans-serif; font-size: .85rem; color: var(--ink-soft); }
+        .verdict-zone { display: inline-block; padding: 1px 6px; border-radius: 3px; font-weight: 600; font-size: .8rem; margin-left: .25rem; }
+        .zone-low { background: #fee2e2; color: #b91c1c; }
+        .zone-mid-low { background: #fef3c7; color: #b45309; }
+        .zone-mid { background: #fef9c3; color: #854d0e; }
+        .zone-mid-high { background: #d1fae5; color: #065f46; }
+        .zone-high { background: #dcfce7; color: #166534; }
+
+        .gauge { margin-top: 1rem; height: 1.05rem; position: relative; }
+        .gauge-track { position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%); height: 6px; border-radius: 3px; background: linear-gradient(90deg, #fecaca 0%, #fed7aa 30%, #fde68a 50%, #bbf7d0 75%, #86efac 100%); opacity: .55; }
+        .gauge-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); transition: left .9s cubic-bezier(.25,.8,.25,1); }
+        .gauge-marker::before { content: ""; position: absolute; top: -3px; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; background: var(--ink); border-radius: 999px; border: 2px solid white; }
+        .gauge-scale { display: flex; justify-content: space-between; margin-top: .5rem; font-family: 'Inter', sans-serif; font-size: .62rem; color: var(--ink-mute); letter-spacing: .08em; }
+
+        .brief-section { margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid #f1f5f9; }
+        .brief-html { font-family: 'DM Sans', sans-serif; font-size: .87rem; line-height: 1.55; color: var(--ink-soft); }
+        .brief-html b { color: var(--ink); font-weight: 600; }
+        .brief-html ul { margin: 0; padding-left: 1.05rem; }
+        .brief-html li { margin-bottom: .25rem; }
+        .brief-summary { font-family: 'DM Serif Display', serif; font-style: italic; font-size: 1rem; line-height: 1.5; color: var(--ink); }
+
+        .file-row { display: flex; gap: .55rem; align-items: flex-start; padding: .5rem .15rem; font-size: .82rem; font-family: 'DM Sans', sans-serif; color: var(--ink-soft); border-bottom: 1px dashed #f1f5f9; }
+        .file-row:last-child { border-bottom: 0; }
+        .file-row .file-name { color: var(--ink); font-weight: 500; }
+        .file-row .file-meta { font-size: .7rem; color: var(--ink-mute); margin-top: .1rem; }
+
+        .alegation-stack { display: flex; flex-direction: column; gap: .55rem; }
+        .alegation-pt { display: flex; gap: .65rem; padding: .65rem .8rem; background: rgba(254,242,242,.5); border-left: 2px solid #ef4444; border-radius: 3px; font-size: .82rem; color: var(--ink-soft); font-family: 'DM Sans', sans-serif; line-height: 1.45; }
+        .alegation-pt .num { flex-shrink: 0; width: 1.3rem; height: 1.3rem; border-radius: 999px; background: #fee2e2; color: #991b1b; font-size: .7rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+        .page-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+        .page-title { font-family: 'DM Serif Display', serif; font-size: clamp(1.6rem, 3vw, 2.1rem); line-height: 1.15; color: var(--ink); }
+        .ghost-link { display: inline-flex; align-items: center; gap: .35rem; font-family: 'DM Sans', sans-serif; font-size: .82rem; color: var(--ink-mute); transition: color .15s; }
+        .ghost-link:hover { color: var(--ink); }
+
+        /* Mode chooser */
+        .mode-grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; max-width: 60rem; margin: 2rem auto; }
+        @media (min-width: 768px) { .mode-grid { grid-template-columns: repeat(2, 1fr); } }
+        .mode-card {
+            display: flex; flex-direction: column; gap: .8rem; padding: 1.75rem 1.5rem; background: white;
+            border: 1px solid var(--rule); border-radius: 8px; transition: border-color .15s, transform .15s, box-shadow .15s;
+        }
+        .mode-card:hover:not(.is-disabled) { border-color: var(--ink); transform: translateY(-2px); box-shadow: 0 8px 24px -16px rgba(15,23,42,.18); }
+        .mode-card.is-disabled { opacity: .55; cursor: not-allowed; }
+        .mode-card .mode-icon { width: 2.5rem; height: 2.5rem; border-radius: 8px; background: #e0f2fe; color: var(--gold); display: inline-flex; align-items: center; justify-content: center; }
+        .mode-card .mode-title { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--ink); }
+        .mode-card .mode-desc { font-family: 'DM Sans', sans-serif; font-size: .9rem; line-height: 1.5; color: var(--ink-soft); }
+        .mode-card .mode-cta { font-family: 'DM Sans', sans-serif; font-size: .85rem; color: var(--gold); font-weight: 600; }
+
+        /* ───────────────────────────────────────────────────────────
+           Draft canvas (mirrors templates/solicitudes/realizar/draft.html.twig
+           — same band, card, meta-pills, counters and CTA row, but the
+           editor is Trix because complaints are structured HTML, and we
+           omit the title/asunto field)
+           ─────────────────────────────────────────────────────────── */
+        .draft-band { margin: 0 0 1.25rem; }
+        .draft-eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem; font-weight: 700;
+            letter-spacing: .08em; text-transform: uppercase;
+            color: var(--color-primary-700, #0369a1);
+            display: inline-flex; align-items: center; gap: .5rem;
+            margin-bottom: .35rem;
+        }
+        .draft-eyebrow .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--color-accent-500); }
+        .draft-band-row {
+            display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+        }
+        .draft-band-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            line-height: 1.06;
+            letter-spacing: -.018em;
+            color: rgb(15 23 42);
+            font-size: clamp(1.6rem, 3vw, 2.1rem);
+            margin: .25rem 0;
+        }
+        .draft-band-title em { font-style: italic; color: var(--color-primary-600); }
+        .draft-status {
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem; letter-spacing: .03em; color: rgb(148 163 184);
+            min-width: 8.5rem; text-align: right;
+        }
+        .draft-status.is-saved { color: rgb(5 150 105); }
+        .draft-status.is-edited { color: var(--color-primary-700); }
+        .draft-status.is-streaming { color: var(--color-accent-700); }
+
+        /* Sibling switcher (alegation drafts) */
+        .draft-tabs { display: flex; gap: .35rem; flex-wrap: wrap; margin: 0 0 1.25rem; }
+        .draft-tab {
+            font-family: 'Inter', sans-serif;
+            font-size: .78rem; font-weight: 500;
+            padding: .35rem .7rem;
+            border-radius: 999px;
+            border: 1px solid var(--rule);
+            background: #ffffff;
+            color: var(--ink-soft);
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: .35rem;
+        }
+        .draft-tab:hover { border-color: rgb(186 230 253); color: var(--ink); }
+        .draft-tab.is-current {
+            background: var(--color-primary-50); color: var(--color-primary-700);
+            border-color: var(--color-primary-200);
+        }
+        .draft-tab .draft-tab-state { font-size: .62rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+
+        /* 2/3 + 1/3 layout */
+        .draft-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
+        @media (max-width: 1023px) { .draft-grid { grid-template-columns: 1fr; gap: 1rem; } }
+
+        /* Canvas card */
+        .draft-card {
+            position: relative;
+            background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+            border: 1px solid var(--rule);
+            border-radius: .85rem;
+            padding: 1.85rem 2rem 2.1rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+        }
+        .draft-meta-row {
+            display: flex; gap: .4rem; flex-wrap: wrap; align-items: center;
+            margin-bottom: 1.25rem;
+        }
+        .meta-pill {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; letter-spacing: .04em; font-weight: 600;
+            padding: .15rem .5rem; border-radius: 999px;
+            background: rgb(248 250 252); color: var(--ink-soft);
+            border: 1px solid var(--rule);
+            text-transform: uppercase;
+        }
+        .meta-pill-portal {
+            background: var(--color-primary-50); color: var(--color-primary-700);
+            border-color: var(--color-primary-200);
+        }
+        .meta-pill-law {
+            background: var(--color-accent-50); color: var(--color-accent-700);
+            border-color: var(--color-accent-200);
+        }
+
+        /* Body region (Trix editor + streaming + empty placeholder).
+           Editorial typography matching draft.html.twig: Source Serif 4,
+           justified, hyphenated. */
+        .draft-body {
+            margin-top: .25rem;
+            min-height: min(60vh, 38rem);
+        }
+        .draft-prose,
+        trix-editor {
+            font-family: 'Source Serif 4', 'DM Serif Display', Georgia, 'Times New Roman', serif;
+            font-size: 1.05rem;
+            line-height: 1.75;
+            color: rgb(15 23 42);
+            text-align: justify;
+            hyphens: auto;
+            background: transparent;
+        }
+        trix-editor {
+            display: block;
+            border: 0; padding: 0; outline: none;
+            min-height: min(60vh, 38rem);
+            transition: background-color .35s ease;
+        }
+        trix-editor.canvas-typing {
+            background-color: rgba(2, 132, 199, .04);
+            caret-color: var(--color-primary-500);
+        }
+        .draft-prose h1, trix-editor h1 {
+            font-family: 'DM Serif Display', serif; font-weight: 400; font-size: 1.05rem;
+            text-transform: uppercase; letter-spacing: .04em; color: var(--ink);
+            margin: 1.6em 0 .65em; padding-bottom: .4em; border-bottom: 1px solid var(--rule); text-align: left;
+        }
+        .draft-prose h1:first-child, trix-editor h1:first-child { margin-top: 0; }
+        .draft-prose p, trix-editor p { margin-bottom: 0.95em; }
+        .draft-prose blockquote, trix-editor blockquote {
+            border-left: 3px solid var(--gold); padding-left: 1em; color: var(--ink-soft); font-style: italic; margin: 1em 0;
+        }
+        .draft-prose ul, .draft-prose ol, trix-editor ul, trix-editor ol { padding-left: 1.5em; margin-bottom: 0.95em; }
+        .draft-prose strong, trix-editor strong { font-weight: 600; color: var(--ink); }
+        trix-toolbar { background: transparent; padding: .35rem 0 .9rem 0; border-bottom: 1px solid var(--rule); margin-bottom: 1rem; }
+        trix-toolbar .trix-button { border-color: transparent; color: var(--ink-soft); }
+        trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
+
+        .typewriter::after { content: "▌"; display: inline-block; margin-left: 1px; color: var(--ink); opacity: .85; animation: blink 1s steps(2) infinite; font-weight: 100; }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        .draft-empty {
+            display: flex; flex-direction: column; align-items: flex-start; gap: .75rem;
+            padding: 1.5rem 0; color: var(--ink-mute);
+            font-family: 'DM Sans', sans-serif; font-size: .92rem; line-height: 1.55;
+        }
+        .draft-empty .draft-empty-headline {
+            font-family: 'DM Serif Display', Georgia, serif; font-size: 1.15rem; color: var(--ink);
+        }
+
+        .draft-counters {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 1.1rem; padding-top: 1rem;
+            border-top: 1px dashed var(--rule);
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem; color: rgb(148 163 184); letter-spacing: .04em;
+        }
+        .draft-cta-row {
+            margin-top: 1.5rem;
+            display: flex; justify-content: space-between; gap: .75rem; align-items: center;
+            flex-wrap: wrap;
+        }
+        .draft-cta-group {
+            display: flex; gap: .5rem; align-items: center; flex-wrap: wrap;
+        }
+        .draft-cta-row .btn { min-width: 10rem; justify-content: center; }
+
+        /* Sticky sidebar (matches draft.html.twig) */
+        .brief { position: sticky; top: 5.25rem; }
+        @media (max-width: 1023px) { .brief { position: static; } }
+
+        /* ───────────────────────────────────────────────────────────
+           Floating chat widget (bottom-right)
+           Identical to templates/solicitudes/realizar/draft.html.twig
+           ─────────────────────────────────────────────────────────── */
+        .chatbot-fab {
+            position: fixed;
+            right: 1.5rem; bottom: 1.5rem;
+            z-index: 30;
+            width: 3.4rem; height: 3.4rem;
+            border-radius: 999px;
+            background: var(--ink);
+            color: #ffffff;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px -8px rgba(15, 23, 42, .35);
+            transition: transform .15s ease, box-shadow .15s ease;
+        }
+        .chatbot-fab:hover { transform: translateY(-1px); box-shadow: 0 14px 36px -8px rgba(15, 23, 42, .45); }
+        .chatbot-fab.is-open { transform: scale(.85); opacity: 0; pointer-events: none; }
+        .chatbot-fab .chatbot-fab-dot {
+            position: absolute; top: .55rem; right: .55rem;
+            width: .55rem; height: .55rem; border-radius: 999px;
+            background: var(--color-accent-500);
+            box-shadow: 0 0 0 2px var(--ink);
+        }
+
+        .chatbot-panel {
+            position: fixed;
+            right: 1.5rem; bottom: 1.5rem;
+            z-index: 31;
+            width: min(380px, calc(100vw - 2rem));
+            height: min(560px, calc(100vh - 5rem));
+            background: #ffffff;
+            border: 1px solid var(--rule);
+            border-radius: 14px;
+            box-shadow: 0 24px 60px -16px rgba(15, 23, 42, .35);
+            display: flex; flex-direction: column;
+            overflow: hidden;
+            transform: translateY(20px) scale(.96);
+            opacity: 0; pointer-events: none;
+            transition: transform .18s ease, opacity .18s ease;
+        }
+        .chatbot-panel.is-open { transform: translateY(0) scale(1); opacity: 1; pointer-events: auto; }
+
+        .chatbot-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .85rem 1rem;
+            background: var(--ink);
+            color: #ffffff;
+        }
+        .chatbot-head-title {
+            display: flex; align-items: center; gap: .55rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem; font-weight: 600;
+        }
+        .chatbot-head-title small {
+            display: block;
+            font-family: 'Inter', sans-serif;
+            font-size: .65rem; font-weight: 500;
+            opacity: .7; letter-spacing: .04em; text-transform: uppercase;
+            margin-top: .15rem;
+        }
+        .chatbot-close {
+            background: transparent; border: none; cursor: pointer;
+            color: rgba(255, 255, 255, .8);
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.85rem; height: 1.85rem; border-radius: 999px;
+        }
+        .chatbot-close:hover { background: rgba(255, 255, 255, .1); color: #ffffff; }
+
+        .chatbot-history {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex; flex-direction: column; gap: .5rem;
+            background: rgb(248 250 252);
+        }
+        .chat-empty {
+            display: flex; gap: .5rem; align-items: flex-start;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem; color: var(--ink-mute);
+            padding: .2rem 0;
+            line-height: 1.5;
+        }
+        .chat-empty i { color: var(--color-primary-600); flex-shrink: 0; margin-top: .12rem; }
+        .chat-empty b { color: var(--ink); font-weight: 600; }
+
+        .chat-turn {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem; line-height: 1.5;
+            padding: .55rem .75rem;
+            border-radius: .6rem;
+            max-width: 90%;
+            word-wrap: break-word;
+        }
+        .chat-turn-user {
+            align-self: flex-end;
+            background: var(--color-primary-600);
+            color: #ffffff;
+        }
+        .chat-turn-assistant {
+            align-self: flex-start;
+            background: #ffffff;
+            color: var(--ink);
+            border: 1px solid var(--rule);
+        }
+        .chat-turn-error {
+            align-self: flex-start;
+            background: rgb(254 242 242);
+            color: rgb(185 28 28);
+            border: 1px solid rgb(254 202 202);
+        }
+
+        .chat-suggest-grid { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+        .chat-suggest-card {
+            background: #ffffff;
+            border: 1px solid var(--rule);
+            border-radius: .5rem;
+            padding: .55rem .7rem;
+            display: flex; flex-direction: column; gap: .35rem;
+        }
+        .chat-suggest-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+        .chat-suggest-head strong {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem; color: var(--ink); font-weight: 600;
+        }
+        .chat-suggest-source {
+            font-family: 'Inter', sans-serif;
+            font-size: .58rem; color: rgb(148 163 184);
+            text-transform: uppercase; letter-spacing: .04em;
+        }
+        .chat-suggest-body {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem; color: var(--ink-soft); line-height: 1.5;
+        }
+        .chat-suggest-insert {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem; color: var(--color-primary-700);
+            display: inline-flex; align-items: center; gap: .25rem;
+            background: transparent; border: none; cursor: pointer;
+            padding: 0; align-self: flex-start;
+        }
+        .chat-suggest-insert:hover { color: var(--color-primary-600); }
+        .chat-suggest-insert:disabled { color: rgb(5 150 105); cursor: default; }
+
+        .chatbot-toolbar {
+            display: flex; gap: .35rem; flex-wrap: wrap;
+            padding: .5rem .75rem;
+            background: #ffffff;
+            border-top: 1px solid var(--rule);
+        }
+        .composer-quick {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; font-weight: 500;
+            padding: .3rem .55rem;
+            border-radius: .4rem;
+            border: 1px solid var(--rule);
+            background: #ffffff;
+            color: var(--ink-soft);
+            cursor: pointer;
+            display: inline-flex; align-items: center; gap: .25rem;
+        }
+        .composer-quick:hover { border-color: var(--color-primary-300); color: var(--color-primary-700); }
+        .composer-quick:disabled { opacity: .5; cursor: not-allowed; }
+        .composer-quick.is-primary {
+            background: var(--color-primary-600);
+            color: #ffffff; border-color: var(--color-primary-600);
+        }
+        .composer-quick.is-primary:hover { background: var(--color-primary-700); }
+
+        .chatbot-input-row {
+            display: flex; gap: .35rem; align-items: stretch;
+            padding: .65rem .75rem .85rem;
+            background: #ffffff;
+            border-top: 1px solid var(--rule);
+        }
+        .composer-input {
+            flex: 1;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            border: 1px solid rgb(203 213 225);
+            border-radius: .45rem;
+            padding: .45rem .65rem;
+            background: #ffffff;
+            outline: none;
+        }
+        .composer-input:focus {
+            border-color: var(--color-primary-300);
+            box-shadow: 0 0 0 3px rgba(2, 132, 199, .08);
+        }
+        .composer-send {
+            display: inline-flex; align-items: center; justify-content: center; gap: .3rem;
+            padding: 0 .75rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .76rem; font-weight: 600;
+            border-radius: .45rem;
+            background: var(--ink);
+            color: #ffffff;
+            border: none; cursor: pointer;
+        }
+        .composer-send:hover { background: rgb(30 41 59); }
+        .composer-send:disabled { opacity: .55; cursor: not-allowed; }
+        .composer-status {
+            font-family: 'Inter', sans-serif;
+            font-size: .65rem; color: rgb(148 163 184);
+            align-self: center; margin-right: .15rem;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+    {# ── Breadcrumb ─────────────────────────────────────────── #}
+    <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+        <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+        <span class="text-slate-300">/</span>
+        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors truncate max-w-[14rem]">
+            {{ request.title|u.truncate(28) }}
+        </a>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-800 font-medium">{{ pageTitle|upper }}</span>
+    </nav>
+
+    {% if mode is null %}
+        {# ── Mode selector ─────────────────────────────────────── #}
+        <header class="page-head">
+            <div>
+                <h1 class="page-title">¿Qué quieres redactar?</h1>
+                <p class="text-slate-500 mt-2" style="font-family:'DM Sans',sans-serif;font-size:.95rem;">Elige el tipo de escrito para empezar.</p>
+            </div>
+            <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="ghost-link"><i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al expediente</a>
+        </header>
+
+        <div class="mode-grid">
+            <a href="{{ canComplaint ? path('app_complaint_redactar', {id: request.id, mode: 'complaint'}) : '#' }}"
+               class="mode-card {{ canComplaint ? '' : 'is-disabled' }}"
+               {% if not canComplaint %}aria-disabled="true" onclick="event.preventDefault()"{% endif %}>
+                <span class="mode-icon"><i data-lucide="gavel" class="w-5 h-5"></i></span>
+                <h2 class="mode-title">Reclamación</h2>
+                <p class="mode-desc">Reclama ante el Consejo de Transparencia cuando la administración deniegue o no responda dentro de plazo.</p>
+                {% if canComplaint %}
+                    <span class="mode-cta">Empezar →</span>
+                {% else %}
+                    <span class="text-xs" style="color:var(--ink-mute);font-family:'DM Sans',sans-serif;">No disponible: la solicitud aún no admite reclamación.</span>
+                {% endif %}
+            </a>
+            <a href="{{ canAlegation ? path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) : '#' }}"
+               class="mode-card {{ canAlegation ? '' : 'is-disabled' }}"
+               {% if not canAlegation %}aria-disabled="true" onclick="event.preventDefault()"{% endif %}>
+                <span class="mode-icon"><i data-lucide="message-square-reply" class="w-5 h-5"></i></span>
+                <h2 class="mode-title">Respuesta a alegaciones</h2>
+                <p class="mode-desc">Rebate punto por punto las alegaciones que la administración haya presentado en el procedimiento de reclamación.</p>
+                {% if canAlegation %}
+                    <span class="mode-cta">Empezar →</span>
+                {% else %}
+                    <span class="text-xs" style="color:var(--ink-mute);font-family:'DM Sans',sans-serif;">No disponible: aún no hay reclamación con alegaciones.</span>
+                {% endif %}
+            </a>
+        </div>
+
+        <script>
+            window.addEventListener('DOMContentLoaded', () => { if (window.lucide) window.lucide.createIcons(); });
+        </script>
+    {% else %}
+        {# ── Canvas + chat ─────────────────────────────────────── #}
+        <header class="draft-band">
+            <div class="draft-eyebrow">
+                <span class="dot"></span>
+                {% if isAlegation %}Respuesta a alegaciones{% else %}Reclamación{% endif %}
+            </div>
+            <div class="draft-band-row">
+                <h1 class="draft-band-title">
+                    {% if isAlegation %}
+                        Responde a las alegaciones de
+                    {% else %}
+                        Reclama frente a
+                    {% endif %}
+                    <em>{{ request.publicBody.name|u.truncate(60, '…') }}</em>
+                </h1>
+                <span class="draft-status"
+                      :class="{
+                          'is-streaming': loading,
+                          'is-saved': !loading && editorReady && !documentEdited && draftSavedAt,
+                          'is-edited': !loading && editorReady && documentEdited,
+                      }"
+                      x-text="docStatusLabel()"></span>
+            </div>
+        </header>
+
+        {% if isAlegation and existingDrafts|length > 0 %}
+            <nav class="draft-tabs" aria-label="Borradores de respuesta a alegaciones">
+                {% for draft in existingDrafts %}
+                    <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response', draft: draft.id}) }}"
+                       class="draft-tab{% if currentDraft and currentDraft.id == draft.id %} is-current{% endif %}">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                        {{ draft.originalFilename|default('Borrador')|u.truncate(30) }}
+                    </a>
+                {% endfor %}
+                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}"
+                   class="draft-tab">
+                    <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nuevo borrador
+                </a>
+            </nav>
+        {% endif %}
+
+        <div x-data="redactarApp()">
+        <div class="draft-grid">
+
+            <article class="draft-card">
+                <div class="draft-meta-row">
+                    <span class="meta-pill meta-pill-portal">
+                        {% if isAlegation %}Consejo de Transparencia{% else %}Reclamación{% endif %}
+                    </span>
+                    <span class="meta-pill">{{ request.publicBody.getLevelLabel() }}</span>
+                    {% if request.applicableLaw %}
+                        <span class="meta-pill meta-pill-law">{{ request.applicableLaw.shortCode ?? request.applicableLaw.name }}</span>
+                    {% endif %}
+                </div>
+
+                {% if not isAlegation %}
+                    {% include 'complaint/_present_modal.html.twig' %}
+                {% endif %}
+
+                <div class="draft-body">
+                    {# Streaming preview replaces the editor only while the AI is writing. #}
+                    <div x-show="loading && streamingHtml" x-cloak x-ref="streamingPreview"
+                         class="draft-prose typewriter" x-html="streamingHtml"></div>
+
+                    {# Preparing state (model is still gathering context). #}
+                    <div x-show="loading && !streamingHtml" x-cloak class="draft-empty">
+                        <p class="draft-empty-headline">Preparando el contexto…</p>
+                        <p>Recuperando precedentes, criterios y documentos del expediente.</p>
+                    </div>
+
+                    {# Trix editor — always present so the user can write directly without
+                       the AI, like the textareas in the access-request flow. Hidden only
+                       while the model is streaming or preparing. #}
+                    <div x-show="!loading">
+                        <input id="redactar-html-input" type="hidden" value="">
+                        <trix-editor input="redactar-html-input"
+                                     placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o abre el asistente en la zona inferior derecha para comenzar a redactar la respuesta utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% else %}Escribe la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la reclamación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% endif %}"
+                                     @trix-change="documentEdited = true; persistedAt = null; charCount = ($event.target.editor.getDocument().toString() || '').length"></trix-editor>
+                    </div>
+                </div>
+
+                <div class="draft-counters" x-show="editorReady" x-cloak>
+                    <span x-text="`${charCount.toLocaleString('es-ES')} caracteres`">0 caracteres</span>
+                    <span>{% if isAlegation %}Respuesta a alegaciones · escrito estructurado{% else %}Reclamación · escrito estructurado{% endif %}</span>
+                </div>
+
+                <div class="draft-cta-row">
+                    <div class="draft-cta-group">
+                        <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Volver al expediente
+                        </a>
+                        <button type="button" x-show="editorReady" x-cloak
+                                @click="saveDraft()" :disabled="savingDraft"
+                                class="btn btn-secondary">
+                            <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                            <span x-text="savingDraft ? 'Guardando…' : (draftSavedAt ? 'Borrador guardado' : 'Guardar borrador')">Guardar borrador</span>
+                        </button>
+                        <button type="button" x-show="editorReady" x-cloak
+                                @click="downloadPdf()" :disabled="downloadingPdf"
+                                class="btn btn-secondary">
+                            <i data-lucide="file-down" class="w-4 h-4 mr-2"></i>
+                            <span x-text="downloadingPdf ? 'Generando…' : 'Descargar PDF'">Descargar PDF</span>
+                        </button>
+                    </div>
+                    {% if not isAlegation %}
+                        <div class="draft-cta-group">
+                            <button type="button" x-show="editorReady" x-cloak
+                                    @click="presentViaAgent('supervised')" :disabled="presentingMode !== null"
+                                    class="btn btn-secondary"
+                                    title="El agente abre la sede con el formulario rellenado y tú revisas + envías">
+                                <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
+                                <span x-text="presentingMode === 'supervised' ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
+                            </button>
+                            <button type="button" x-show="editorReady" x-cloak
+                                    @click="presentViaAgent('auto')" :disabled="presentingMode !== null"
+                                    class="btn btn-primary"
+                                    title="El agente rellena y envía sin intervención">
+                                <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                                <span x-text="presentingMode === 'auto' ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </article>
+
+            {# ── Sidebar ─────────────────────────────────────── #}
+            <aside class="brief">
+                <section class="panel">
+                    <div class="panel-label"><i data-lucide="gavel" class="w-3.5 h-3.5"></i> Informe preliminar</div>
+                    <template x-if="analysisLoading && !analysis">
+                        <div>
+                            <div class="brief-skel-num" style="display:inline-block;width:5rem;height:4rem;border-radius:4px;background:linear-gradient(90deg,#f1f5f9 0%,#e2e8f0 50%,#f1f5f9 100%);background-size:200% 100%;animation:shimmer 1.4s infinite;"></div>
+                        </div>
+                    </template>
+                    <template x-if="analysis">
+                        <div>
+                            <div class="verdict">
+                                <span class="verdict-num" x-text="displayPercentage"></span>
+                                <span class="verdict-frac">/100</span>
+                            </div>
+                            <div class="verdict-label">
+                                Probabilidad de estimación
+                                <span class="verdict-zone" :class="zoneClass(analysis.percentage)" x-text="zoneLabel(analysis.percentage)"></span>
+                            </div>
+                            <div class="gauge">
+                                <div class="gauge-track"></div>
+                                <div class="gauge-marker" :style="`left: ${analysis.percentage}%`"></div>
+                            </div>
+                            <div class="gauge-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+                            <div class="brief-section" x-show="analysis.summary">
+                                <p class="brief-summary brief-html" x-html="analysis.summary"></p>
+                            </div>
+                            <div class="brief-section" x-show="analysis.strengths">
+                                <h3 class="brief-html" style="color:#047857;font-weight:600;margin-bottom:.4rem;">A favor</h3>
+                                <div class="brief-html" x-html="analysis.strengths"></div>
+                            </div>
+                            <div class="brief-section" x-show="analysis.weaknesses">
+                                <h3 class="brief-html" style="color:#b91c1c;font-weight:600;margin-bottom:.4rem;">En contra</h3>
+                                <div class="brief-html" x-html="analysis.weaknesses"></div>
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
+                {% if isAlegation and alegacionesDoc and alegacionesDoc.aiMetadata.alegationPoints is defined and alegacionesDoc.aiMetadata.alegationPoints %}
+                    <section class="panel">
+                        <div class="panel-label"><i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> Alegaciones de la administración</div>
+                        <div class="alegation-stack">
+                            {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
+                                <div class="alegation-pt"><span class="num">{{ loop.index }}</span><span>{{ point }}</span></div>
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endif %}
+
+                {% if availableDocuments|length > 0 %}
+                    <section class="panel">
+                        <div class="panel-label"><i data-lucide="files" class="w-3.5 h-3.5"></i> Documentos como contexto</div>
+                        <p class="text-xs mb-2" style="color:var(--ink-mute);font-family:'DM Sans',sans-serif;">Los documentos marcados se enviarán al modelo como evidencia primaria.</p>
+                        {% for doc in availableDocuments %}
+                            <label class="file-row cursor-pointer">
+                                <input type="checkbox" value="{{ doc.id }}" x-model="selectedDocIds"
+                                       {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}>
+                                <div class="min-w-0">
+                                    <p class="file-name truncate">{{ doc.originalFilename }}</p>
+                                    <p class="file-meta">{{ doc.typeLabel }} · {{ doc.fileSizeFormatted }}</p>
+                                </div>
+                            </label>
+                        {% endfor %}
+                    </section>
+                {% endif %}
+            </aside>
+        </div>
+
+        {# ── Floating chatbot (bottom-right) ─────────────────── #}
+        <button type="button"
+                class="chatbot-fab"
+                :class="{ 'is-open': chatOpen }"
+                @click="openChat()"
+                aria-label="Abrir asistente">
+            <i data-lucide="sparkles" class="w-5 h-5"></i>
+            <span class="chatbot-fab-dot"></span>
+        </button>
+
+        <div class="chatbot-panel"
+             :class="{ 'is-open': chatOpen }"
+             role="dialog"
+             aria-label="Asistente de redacción">
+            <header class="chatbot-head">
+                <div class="chatbot-head-title">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <div>
+                        Asistente de redacción
+                        <small>{% if isAlegation %}Ayuda a redactar tu respuesta{% else %}Ayuda a redactar tu reclamación{% endif %}</small>
+                    </div>
+                </div>
+                <button type="button"
+                        class="chatbot-close"
+                        @click="closeChat()"
+                        aria-label="Cerrar asistente">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </header>
+
+            <div class="chatbot-history" x-ref="historyEl">
+                <template x-if="messages.length === 0 && !loading">
+                    <div class="chat-empty">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                        <span>
+                            <b>Pídeme que redacte el escrito</b> con «Generar», pulsa «Sugerir» para ver ideas concretas o pregúntame lo que quieras sobre el expediente.
+                        </span>
+                    </div>
+                </template>
+
+                <template x-for="(msg, idx) in messages" :key="idx">
+                    <template x-if="msg.role === 'user'">
+                        <div class="chat-turn chat-turn-user" x-text="msg.content"></div>
+                    </template>
+                    <template x-if="msg.role !== 'user' && msg.kind === 'suggestions'">
+                        <div class="chat-turn chat-turn-assistant">
+                            <div class="chat-suggest-grid">
+                                <template x-for="(s, sidx) in msg.items || []" :key="sidx">
+                                    <div class="chat-suggest-card">
+                                        <div class="chat-suggest-head">
+                                            <strong x-text="s.title"></strong>
+                                            <template x-if="s.source">
+                                                <span class="chat-suggest-source" x-text="s.source"></span>
+                                            </template>
+                                        </div>
+                                        <p class="chat-suggest-body" x-text="s.body"></p>
+                                        <button type="button"
+                                                class="chat-suggest-insert"
+                                                :disabled="s.inserted"
+                                                @click="insertSuggestion(s, $event)">
+                                            <i data-lucide="plus" class="w-3 h-3"></i>
+                                            <span x-text="s.inserted ? 'Añadido' : 'Añadir al borrador'">Añadir al borrador</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                    <template x-if="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind === 'system'">
+                        <div class="chat-turn chat-turn-error" x-html="escapeHtml(msg.content)"></div>
+                    </template>
+                    <template x-if="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind !== 'system'">
+                        <div class="chat-turn chat-turn-assistant"
+                             x-html="msg.allowsHtml ? msg.content : escapeHtml(msg.content)"></div>
+                    </template>
+                </template>
+
+                <template x-if="loading">
+                    <div class="chat-turn chat-turn-assistant inline-flex items-center gap-2">
+                        <span class="typing-dots"><span></span><span></span><span></span></span>
+                        <span x-text="loadingLabel"></span>
+                    </div>
+                </template>
+            </div>
+
+            <div class="chatbot-toolbar">
+                <button type="button"
+                        class="composer-quick is-primary"
+                        @click="generateFirst()"
+                        :disabled="loading">
+                    <i data-lucide="sparkles" class="w-3 h-3"></i> Generar
+                </button>
+                <button type="button"
+                        class="composer-quick"
+                        @click="rewriteOnly()"
+                        :disabled="loading || charCount === 0">
+                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Reescribir
+                </button>
+                <button type="button"
+                        class="composer-quick"
+                        @click="suggestIdeas()"
+                        :disabled="loading">
+                    <i data-lucide="lightbulb" class="w-3 h-3"></i> Sugerir
+                </button>
+            </div>
+
+            <form class="chatbot-input-row" @submit.prevent="sendFreeChat()">
+                <input type="text"
+                       class="composer-input"
+                       :placeholder="editorReady
+                           ? 'Pide ajustes: «cita la Resolución X», «más conciso»…'
+                           : 'Pregúntame qué reclamar, cómo formularlo…'"
+                       x-model="userInput"
+                       x-ref="chatInput">
+                <span class="composer-status" x-text="loading ? loadingLabel : ''"></span>
+                <button type="submit"
+                        class="composer-send"
+                        :disabled="!userInput.trim() || loading"
+                        aria-label="Enviar">
+                    <i data-lucide="send" class="w-3 h-3"></i>
+                </button>
+            </form>
+        </div>
+
+        </div>
+    {% endif %}
+</div>
+
+{% if mode is not null %}
+<script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>
+<script>
+function redactarApp() {
+    return {
+        mode: '{{ mode }}',
+        draftId: {{ currentDraft ? "'#{currentDraft.id}'"|raw : 'null' }},
+        currentBodyHtml: {{ currentBodyHtml|json_encode|raw }},
+        messages: {{ chatHistory|json_encode|raw }},
+        userInput: '',
+        loading: false,
+        loadingLabel: 'Pensando…',
+        editorReady: false,
+        editorInstance: null,
+        documentEdited: false,
+        savingDraft: false,
+        draftSavedAt: null,
+        downloadingPdf: false,
+        presentingMode: null,
+        presentResult: null,
+        presentError: null,
+        analysis: null,
+        analysisLoading: false,
+        streamingHtml: '',
+        chatOpen: false,
+        charCount: 0,
+        displayPercentage: 0,
+        selectedDocIds: [{% for doc in availableDocuments %}{% if doc.type.value in ['response', 'alegaciones'] %}'{{ doc.id }}',{% endif %}{% endfor %}],
+
+        init() {
+            // Always init Trix — empty if no draft yet — so the user can write
+            // directly without having to call the AI first.
+            this.$nextTick(() => this.initEditor(this.currentBodyHtml || ''));
+            this.runAnalysis();
+            this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+        },
+
+        escapeHtml(s) {
+            return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        },
+
+        docStatusLabel() {
+            if (this.loading && !this.streamingHtml) return 'Preparando contexto…';
+            if (this.loading && this.streamingHtml) return 'Redactando…';
+            if (this.charCount === 0) return 'Borrador en blanco';
+            if (this.documentEdited) return 'Borrador con cambios sin guardar';
+            if (this.draftSavedAt) return 'Borrador guardado';
+            return 'Borrador listo';
+        },
+
+        zoneClass(p) {
+            if (p < 30) return 'zone-low';
+            if (p < 50) return 'zone-mid-low';
+            if (p < 65) return 'zone-mid';
+            if (p < 80) return 'zone-mid-high';
+            return 'zone-high';
+        },
+        zoneLabel(p) {
+            if (p < 30) return 'Muy baja';
+            if (p < 50) return 'Baja';
+            if (p < 65) return 'Media';
+            if (p < 80) return 'Alta';
+            return 'Muy alta';
+        },
+        animatePercentage(target) {
+            const start = this.displayPercentage;
+            const delta = target - start;
+            if (delta === 0) return;
+            const duration = 900;
+            const t0 = performance.now();
+            const tick = (now) => {
+                const t = Math.min(1, (now - t0) / duration);
+                const eased = 1 - Math.pow(1 - t, 3);
+                this.displayPercentage = Math.round(start + delta * eased);
+                if (t < 1) requestAnimationFrame(tick); else this.displayPercentage = target;
+            };
+            requestAnimationFrame(tick);
+        },
+
+        initEditor(html) {
+            const trixEditor = document.querySelector('trix-editor');
+            if (!trixEditor) return;
+            const apply = () => {
+                trixEditor.editor.loadHTML(html || '');
+                this.editorInstance = trixEditor;
+                this.editorReady = true;
+                this.documentEdited = false;
+                this.charCount = (trixEditor.editor.getDocument().toString() || '').length;
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            };
+            if (trixEditor.editor) apply();
+            else trixEditor.addEventListener('trix-initialize', apply, { once: true });
+        },
+
+        getCanvasHtml() {
+            if (this.editorReady) {
+                return document.getElementById('redactar-html-input').value || '';
+            }
+            return this.currentBodyHtml || '';
+        },
+
+        async sendFreeChat() {
+            if (this.loading) return;
+            const text = this.userInput.trim();
+            if (!text) return;
+            this.userInput = '';
+            this.loadingLabel = 'Pensando…';
+            this.messages.push({ role: 'user', kind: 'text', content: text });
+            this.scrollHistoryEnd();
+            await this.postAtomic('free_chat', { message: text });
+        },
+
+        async suggestIdeas() {
+            if (this.loading) return;
+            const text = this.userInput.trim();
+            this.userInput = '';
+            this.loadingLabel = 'Buscando ideas…';
+            this.messages.push({ role: 'user', kind: 'text', content: text || 'Sugerir ideas' });
+            this.scrollHistoryEnd();
+            await this.postAtomic('suggest_ideas', { message: text });
+        },
+
+        async generateFirst() {
+            if (this.loading) return;
+            const text = this.userInput.trim();
+            this.userInput = '';
+            this.loadingLabel = 'Redactando…';
+            this.messages.push({ role: 'user', kind: 'text', content: text || 'Generar primer borrador' });
+            this.scrollHistoryEnd();
+            await this.streamCanvas('generate_first_draft', text || null);
+        },
+
+        async rewriteOnly() {
+            if (this.loading) return;
+            if (!this.editorReady && !(this.getCanvasHtml() || '').trim()) return;
+            const text = this.userInput.trim();
+            this.userInput = '';
+            this.loadingLabel = 'Reescribiendo…';
+            this.messages.push({ role: 'user', kind: 'text', content: text || 'Reescribir borrador' });
+            this.scrollHistoryEnd();
+            await this.streamCanvas('rewrite', text || null);
+        },
+
+        insertSuggestion(suggestion, ev) {
+            if (!suggestion || suggestion.inserted) return;
+            const text = (suggestion.body || '').trim();
+            if (!text) return;
+            if (this.editorReady && this.editorInstance && this.editorInstance.editor) {
+                const editor = this.editorInstance.editor;
+                const length = editor.getDocument().toString().length;
+                editor.setSelectedRange([length, length]);
+                if (length > 0) editor.insertString('\n\n');
+                editor.insertString(text);
+                this.documentEdited = true;
+            } else {
+                this.currentBodyHtml = (this.currentBodyHtml || '') +
+                    (this.currentBodyHtml ? '\n\n' : '') + text;
+                this.$nextTick(() => this.initEditor(this.currentBodyHtml));
+            }
+            suggestion.inserted = true;
+            if (ev && ev.currentTarget) ev.currentTarget.disabled = true;
+        },
+
+        async postAtomic(action, payload) {
+            this.loading = true;
+            try {
+                const res = await fetch('{{ path('app_complaint_redactar_chat', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: this.mode,
+                        action,
+                        message: payload.message || '',
+                        currentBodyHtml: this.getCanvasHtml(),
+                        documentIds: this.selectedDocIds,
+                        draftId: this.draftId,
+                    }),
+                });
+                if (!res.ok) {
+                    const j = await res.json().catch(() => ({}));
+                    this.messages.push({ role: 'model', kind: 'system', content: 'Error: ' + (j.error || res.statusText) });
+                    return;
+                }
+                const data = await res.json();
+                if (action === 'free_chat') {
+                    this.messages.push({ role: 'model', kind: 'text', content: data.result?.reply ?? '', allowsHtml: true });
+                } else if (action === 'suggest_ideas') {
+                    this.messages.push({ role: 'model', kind: 'suggestions', items: data.result?.suggestions ?? [] });
+                }
+            } catch (e) {
+                this.messages.push({ role: 'model', kind: 'system', content: 'Error de red.' });
+            } finally {
+                this.loading = false;
+                this.scrollHistoryEnd();
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            }
+        },
+
+        async streamCanvas(action, userDirections) {
+            this.loading = true;
+            this.streamingHtml = '';
+            try {
+                const res = await fetch('{{ path('app_complaint_redactar_chat', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+                    body: JSON.stringify({
+                        mode: this.mode,
+                        action,
+                        message: userDirections ?? '',
+                        currentBodyHtml: this.getCanvasHtml(),
+                        documentIds: this.selectedDocIds,
+                        draftId: this.draftId,
+                    }),
+                });
+                if (!res.ok) {
+                    let errMsg = 'Error al generar el documento.';
+                    try { const j = await res.json(); errMsg = j.error || errMsg; } catch (_) {}
+                    this.messages.push({ role: 'model', kind: 'system', content: 'Error: ' + errMsg });
+                    return;
+                }
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let finalPayload = null;
+                let errorMsg = null;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    let sep;
+                    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+                        const rawEvent = buffer.slice(0, sep);
+                        buffer = buffer.slice(sep + 2);
+                        const dataLine = rawEvent.split('\n').find(l => l.startsWith('data: '));
+                        if (!dataLine) continue;
+                        let payload;
+                        try { payload = JSON.parse(dataLine.slice(6)); } catch (_) { continue; }
+                        if (payload.type === 'chunk') {
+                            this.streamingHtml += payload.text;
+                            this.$nextTick(() => {
+                                const pv = this.$refs.streamingPreview;
+                                if (pv) pv.scrollTop = pv.scrollHeight;
+                            });
+                        } else if (payload.type === 'done') {
+                            finalPayload = payload;
+                        } else if (payload.type === 'error') {
+                            errorMsg = payload.error;
+                        }
+                    }
+                }
+                if (errorMsg) {
+                    this.messages.push({ role: 'model', kind: 'system', content: 'Error: ' + errorMsg });
+                    return;
+                }
+                if (!finalPayload) {
+                    this.messages.push({ role: 'model', kind: 'system', content: 'Generación interrumpida.' });
+                    return;
+                }
+                this.currentBodyHtml = finalPayload.html;
+                this.messages.push({ role: 'model', kind: 'text', content: finalPayload.chatReply || 'Borrador listo.' });
+                if (finalPayload.successAnalysis) {
+                    this.analysis = finalPayload.successAnalysis;
+                    this.animatePercentage(this.analysis.percentage || 0);
+                }
+                this.streamingHtml = '';
+                this.$nextTick(() => this.initEditor(finalPayload.html));
+            } catch (e) {
+                this.messages.push({ role: 'model', kind: 'system', content: 'Error de red.' });
+            } finally {
+                this.loading = false;
+                this.scrollHistoryEnd();
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            }
+        },
+
+        async saveDraft() {
+            if (!this.editorReady) return;
+            const html = this.getCanvasHtml();
+            if (!html.trim()) { alert('No hay contenido para guardar.'); return; }
+            this.savingDraft = true;
+            try {
+                const res = await fetch('{{ path('app_complaint_redactar_save', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: this.mode, html, draftId: this.draftId }),
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    alert(data.error || 'No se pudo guardar el borrador.');
+                    return;
+                }
+                this.draftSavedAt = Date.now();
+                this.documentEdited = false;
+                if (data.documentId) this.draftId = data.documentId;
+                if (data.redirectUrl && this.draftId !== data.documentId) {
+                    // First save: navigate so the URL reflects the saved draft id.
+                    window.history.replaceState(null, '', data.redirectUrl);
+                }
+                setTimeout(() => { this.draftSavedAt = null; }, 4000);
+            } catch (e) {
+                alert('Error de red al guardar el borrador.');
+            } finally {
+                this.savingDraft = false;
+            }
+        },
+
+        async downloadPdf() {
+            if (!this.editorReady) return;
+            this.downloadingPdf = true;
+            const html = this.getCanvasHtml();
+            try {
+                const res = await fetch('{{ path('app_complaint_download_pdf', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ html }),
+                });
+                if (!res.ok) {
+                    const j = await res.json().catch(() => ({}));
+                    alert(j.error || 'Error al generar PDF');
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || 'documento.pdf';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert('Error de conexión.');
+            } finally {
+                this.downloadingPdf = false;
+            }
+        },
+
+        closePresentModal() {
+            this.presentResult = null;
+            this.presentError = null;
+            this.presentingMode = null;
+        },
+        async presentViaAgent(mode) {
+            if (this.presentingMode) return;
+            if (!this.draftSavedAt) {
+                await this.saveDraft();
+                if (!this.draftSavedAt) return;
+            }
+            this.presentingMode = mode;
+            this.presentError = null;
+            this.presentResult = null;
+            try {
+                const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    this.presentError = data.error || 'No se pudo encolar la tarea.';
+                    return;
+                }
+                this.presentResult = { taskId: data.taskId, mode, schemeUrl: data.schemeUrl };
+            } catch (e) {
+                this.presentError = 'Error de red.';
+            } finally {
+                this.presentingMode = null;
+            }
+        },
+
+        async runAnalysis() {
+            this.analysisLoading = true;
+            try {
+                const url = '{{ path('app_complaint_analyze', {id: request.id}) }}';
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                const data = await res.json();
+                if (data.success) {
+                    this.analysis = data.analysis;
+                    this.animatePercentage(this.analysis.percentage || 0);
+                }
+            } catch (_) {
+                // silently ignore
+            } finally {
+                this.analysisLoading = false;
+                this.$nextTick(() => { if (window.lucide) window.lucide.createIcons(); });
+            }
+        },
+
+        scrollHistoryEnd() {
+            this.$nextTick(() => {
+                const el = this.$refs.historyEl;
+                if (el) el.scrollTop = el.scrollHeight;
+            });
+        },
+
+        openChat() {
+            this.chatOpen = true;
+            this.$nextTick(() => {
+                if (window.lucide) window.lucide.createIcons();
+                this.scrollHistoryEnd();
+                const inp = this.$refs.chatInput;
+                if (inp) inp.focus();
+            });
+        },
+        closeChat() {
+            this.chatOpen = false;
+        },
+    };
+}
+</script>
+{% endif %}
+{% endblock %}
