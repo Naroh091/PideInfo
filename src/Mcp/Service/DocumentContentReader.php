@@ -30,6 +30,10 @@ final class DocumentContentReader
 
     public function read(Document $document, string $mode): DocumentContent
     {
+        if (!in_array($mode, ['text', 'url'], true)) {
+            throw new \InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'url'.");
+        }
+
         $stored = $document->getStoredFilename();
         if (!$this->documentsStorage->fileExists($stored)) {
             return DocumentContent::unsupported($document, $mode, 'blob_missing');
