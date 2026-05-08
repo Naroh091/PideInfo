@@ -21,12 +21,10 @@ use Symfony\Component\Uid\Uuid;
  */
 #[McpTool(
     name: 'read_request_documents',
-    description: 'Lee el contenido de todos los documentos de una solicitud propia en una sola llamada. mode=text devuelve texto; mode=blob devuelve base64 (limitado a 5 docs).',
+    description: 'Lee el contenido de todos los documentos de una solicitud propia en una sola llamada. mode=text devuelve texto; mode=url devuelve una pre-signed URL de descarga por documento.',
 )]
 final class ReadRequestDocumentsTool
 {
-    private const BLOB_HARD_LIMIT = 5;
-
     public function __construct(
         private readonly Security $security,
         private readonly OAuthTokenContext $tokenContext,
@@ -37,8 +35,8 @@ final class ReadRequestDocumentsTool
 
     /**
      * @param string $requestId UUID of the access request.
-     * @param string $mode      'text' (default) or 'blob'.
-     * @param int    $limit     Max documents to return (1-50, capped to 5 when mode=blob).
+     * @param string $mode      'text' (default) or 'url' (pre-signed download link).
+     * @param int    $limit     Max documents to return (1-50).
      *
      * @return array{requestId: string, documents: list<DocumentContent>, count: int, total: int, truncated: bool, mode: string}
      */
@@ -50,8 +48,8 @@ final class ReadRequestDocumentsTool
         if (!Uuid::isValid($requestId)) {
             throw new InvalidArgumentException('Invalid request id.');
         }
-        if (!in_array($mode, ['text', 'blob'], true)) {
-            throw new InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'blob'.");
+        if (!in_array($mode, ['text', 'url'], true)) {
+            throw new InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'url'.");
         }
 
         $request = $this->accessRequestRepository->find(Uuid::fromString($requestId));
@@ -62,8 +60,7 @@ final class ReadRequestDocumentsTool
             throw new AccessDeniedException('Request does not belong to the authenticated user.');
         }
 
-        $cap = $mode === 'blob' ? self::BLOB_HARD_LIMIT : 50;
-        $limit = max(1, min($cap, $limit));
+        $limit = max(1, min(50, $limit));
 
         $allDocs = $request->getDocuments()->toArray();
         $total = count($allDocs);

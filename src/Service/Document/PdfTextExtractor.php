@@ -18,7 +18,7 @@ use Symfony\Component\Process\Process;
  * like glyph-id soup (no Spanish vowels, sea of single-char "words"). Better
  * to vectorize nothing than to vectorize garbage.
  */
-final class PdfTextExtractor
+class PdfTextExtractor
 {
     private const MAX_TOKENS_PER_CHUNK = 1000;
     private const AVG_CHARS_PER_TOKEN = 4;

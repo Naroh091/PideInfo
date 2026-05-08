@@ -16,13 +16,13 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Read a user's document either as plain text (extracted/cached) or as the raw
- * blob in base64. Operational alternative to the `pideinfo://document/{uuid}`
- * resource template while the SDK PHP does not route resource templates.
+ * Read a user's document as plain text (extracted/cached) or as a download link
+ * (pre-signed S3 URL). Replaces the old 'blob' mode which returned raw base64
+ * and was prone to truncation on large files.
  */
 #[McpTool(
     name: 'read_document',
-    description: 'Lee el contenido de un documento propio. Por defecto devuelve texto extraído (PDF/text); con mode=blob devuelve el binario en base64.',
+    description: 'Lee el contenido de un documento propio. mode=text devuelve texto extraído (PDF/text); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos).',
 )]
 final class ReadDocumentTool
 {
@@ -36,7 +36,7 @@ final class ReadDocumentTool
 
     /**
      * @param string $documentId UUID of the document to read.
-     * @param string $mode       'text' (default) returns extracted text; 'blob' returns base64 of the raw bytes.
+     * @param string $mode       'text' (default) returns extracted text; 'url' returns a pre-signed download link.
      */
     public function __invoke(string $documentId, string $mode = 'text'): DocumentContent
     {
@@ -46,8 +46,8 @@ final class ReadDocumentTool
         if (!Uuid::isValid($documentId)) {
             throw new InvalidArgumentException('Invalid document id.');
         }
-        if (!in_array($mode, ['text', 'blob'], true)) {
-            throw new InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'blob'.");
+        if (!in_array($mode, ['text', 'url'], true)) {
+            throw new InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'url'.");
         }
 
         $document = $this->documentRepository->find(Uuid::fromString($documentId));

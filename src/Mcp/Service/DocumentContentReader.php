@@ -7,6 +7,7 @@ namespace App\Mcp\Service;
 use App\Entity\Document;
 use App\Mcp\Dto\DocumentContent;
 use App\Service\Document\PdfTextExtractor;
+use Aws\S3\S3Client;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 
@@ -22,20 +23,26 @@ final class DocumentContentReader
         private readonly FilesystemOperator $documentsStorage,
         private readonly PdfTextExtractor $pdfTextExtractor,
         private readonly EntityManagerInterface $em,
+        private readonly S3Client $s3Client,
+        private readonly string $s3Bucket,
     ) {
     }
 
     public function read(Document $document, string $mode): DocumentContent
     {
+        if (!in_array($mode, ['text', 'url'], true)) {
+            throw new \InvalidArgumentException("Invalid mode '{$mode}'. Use 'text' or 'url'.");
+        }
+
         $stored = $document->getStoredFilename();
         if (!$this->documentsStorage->fileExists($stored)) {
             return DocumentContent::unsupported($document, $mode, 'blob_missing');
         }
 
-        if ($mode === 'blob') {
-            $bytes = $this->documentsStorage->read($stored);
+        if ($mode === 'url') {
+            $presignedUrl = $this->generatePresignedUrl($document, $stored);
 
-            return DocumentContent::blob($document, base64_encode($bytes));
+            return DocumentContent::url($document, $presignedUrl, $document->getFileSize());
         }
 
         $cached = $document->getExtractedText();
@@ -73,5 +80,17 @@ final class DocumentContentReader
         }
 
         return DocumentContent::unsupported($document, 'text', 'unsupported_mimetype');
+    }
+
+    private function generatePresignedUrl(Document $document, string $stored): string
+    {
+        $command = $this->s3Client->getCommand('GetObject', [
+            'Bucket' => $this->s3Bucket,
+            'Key' => $stored,
+        ]);
+
+        $request = $this->s3Client->createPresignedRequest($command, '+15 minutes');
+
+        return (string) $request->getUri();
     }
 }

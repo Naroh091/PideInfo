@@ -17,6 +17,7 @@ final readonly class DocumentSummary
         public string $uri,
         public ?string $accessRequestId,
         public string $createdAt,
+        public ?string $downloadUrl = null,
     ) {
     }
 
