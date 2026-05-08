@@ -17,6 +17,9 @@ services:
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         bind:
             $projectDir: '%kernel.project_dir%'
+            $s3Bucket: '%env(AWS_S3_BUCKET_NAME)%'
+            League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
+            League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
 
     # makes classes in src/ available to be used as services
     # this creates a service per class whose id is the fully-qualified class name
@@ -50,13 +53,6 @@ services:
         class: Twig\Extra\Markdown\LeagueMarkdown
         arguments:
             - '@League\CommonMark\MarkdownConverter'
-
-    # Flysystem storage aliases for autowiring
-    League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
-    League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
-
-    # S3 bucket name for presigned URL generation
-    string $s3Bucket: '%env(AWS_S3_BUCKET_NAME)%'
 
     # OAuth2 discovery controller — needs the public key file path resolved
     App\Controller\OAuth2\DiscoveryController:
