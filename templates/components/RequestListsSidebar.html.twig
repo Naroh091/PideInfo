@@ -1,28 +1,62 @@
 <div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
-{# Listas — sidebar block showing lists that contain the current request.
-   Renders inside the parent .dossier-aside in show.html.twig. #}
-    {% if lists|length > 0 %}
+{# Listas — sidebar block: shows lists this request is in, lets the user
+   toggle membership in any visible list they can edit, and create a new
+   private list inline (all via LiveActions, no page reload). #}
     <div class="aside-block">
         <div class="aside-heading">
             <span class="aside-heading-name">Listas</span>
             <span class="aside-heading-rule"></span>
         </div>
 
-        {% for item in lists %}
-            {% set list = item.list %}
-            {% set isInList = item.inList %}
-            <div class="aside-row">
-                <span class="aside-key">{{ list.name }}</span>
-                <span class="aside-value">
-                    <a href="{{ path('app_listas_show', {id: list.id}) }}" class="aside-link">
-                        {{ list.items|length }} elemento{{ list.items|length != 1 ? 's' : '' }}
-                        {% if isInList %}
-                            <span class="aside-tag is-sky">aquí</span>
-                        {% endif %}
-                    </a>
-                </span>
+        {% if lists|length > 0 %}
+            <div class="lists-toggle-stack">
+                {% for item in lists %}
+                    {% set list = item.list %}
+                    <button type="button"
+                            class="list-pill {{ item.inList ? 'is-in' : '' }} {{ item.canEdit ? '' : 'is-readonly' }}"
+                            {% if item.canEdit %}
+                                data-action="live#action"
+                                data-live-action-param="toggle"
+                                data-live-list-id-param="{{ list.id }}"
+                                title="{{ item.inList ? 'Quitar de la lista' : 'Añadir a la lista' }}"
+                            {% else %}
+                                disabled
+                                title="No puedes modificar esta lista"
+                            {% endif %}>
+                        <span class="list-pill-check" aria-hidden="true">
+                            {% if item.inList %}
+                                <i data-lucide="check" class="w-3 h-3"></i>
+                            {% else %}
+                                <i data-lucide="plus" class="w-3 h-3"></i>
+                            {% endif %}
+                        </span>
+                        <span class="list-pill-name">{{ list.name }}</span>
+                        <span class="list-pill-meta">{{ list.items|length }}</span>
+                    </button>
+                {% endfor %}
             </div>
-        {% endfor %}
+        {% else %}
+            <p class="lists-empty">Aún no tienes listas. Crea una abajo y añade esta solicitud.</p>
+        {% endif %}
+
+        <form class="list-create-row"
+              data-action="live#action:prevent"
+              data-live-action-param="createAndAdd">
+            <input type="text"
+                   class="list-create-input"
+                   placeholder="Nombre de una nueva lista…"
+                   data-model="newListName"
+                   maxlength="100">
+            <button type="submit"
+                    class="list-create-btn"
+                    {{ newListName|trim is empty ? 'disabled' : '' }}>
+                <i data-lucide="folder-plus" class="w-3.5 h-3.5"></i>
+                Crear y añadir
+            </button>
+        </form>
+
+        {% if errorMessage %}
+            <p class="list-error" role="alert">{{ errorMessage }}</p>
+        {% endif %}
     </div>
-    {% endif %}
 </div>
