@@ -75,9 +75,8 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
 | `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
-| `read_document`              | mcp:documents  | Lee un documento como texto extraído (default) o `mode=blob` en base64. Cachea texto en `Document.extractedText`. |
-| `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. Capa a 5 docs en `mode=blob`. |
-| `download_user_document`     | mcp:documents  | Descarga el binario de un documento del usuario en base64. Equivalente al endpoint REST `GET /api/agent/documents/{id}/download` que usa el agente. Comportamiento idéntico a `read_document` con `mode=blob`, expuesto bajo un nombre más descubrible. |
+| `read_document`              | mcp:documents  | Lee un documento: mode=text devuelve texto extraído (PDF → texto, plano → texto); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos). Cachea texto en `Document.extractedText`. |
+| `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. mode=text devuelve texto; mode=url devuelve pre-signed URLs de descarga. Sin límite de documentos. |
 | `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |
@@ -92,7 +91,18 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 |-------------------------------------------|------------------|--------------------------------------------|
 | `pideinfo://document/{uuid}`              | mcp:documents    | Bytes del documento (Flysystem S3) en base64. |
 
-> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama. Mientras tanto, **`read_document` y `read_request_documents`** son la vía operativa: devuelven texto extraído (cacheado en `Document.extractedText`) o el binario en base64 con `mode=blob`.
+> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama. Mientras tanto, **`read_document` y `read_request_documents`** son la vía operativa: devuelven texto extraído (cacheado en `Document.extractedText`) o una pre-signed URL de descarga con `mode=url`.
+
+## Modo url — descargas de archivos grandes
+
+Los documentos de gran tamaño (>1 MB) se sirven como pre-signed URLs de S3 en lugar de contenido binario para evitar truncamiento por límites del canal de comunicación MCP. La URL expira en 15 minutos.
+
+```
+read_document(documentId: "uuid", mode: "url")
+→ { id, filename, mimeType, size, mode: "url", downloadUrl: "https://...", ... }
+```
+
+Para archivos pequeños, `mode=url` también devuelve la URL — el cliente elige explícitamente el modo.
 
 ## Auditoría
 

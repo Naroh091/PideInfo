@@ -7,6 +7,7 @@ namespace App\Mcp\Resource;
 use App\Entity\User;
 use App\Repository\DocumentRepository;
 use App\Security\OAuth2\OAuthTokenContext;
+use Aws\S3\S3Client;
 use League\Flysystem\FilesystemOperator;
 use Mcp\Capability\Attribute\McpResourceTemplate;
 use Mcp\Exception\InvalidArgumentException;
@@ -17,6 +18,9 @@ use Symfony\Component\Uid\Uuid;
 
 /**
  * Streams documents owned by the authenticated user as MCP resources.
+ *
+ * For large files, returns a pre-signed S3 URL instead of streaming the blob
+ * through the MCP channel to avoid truncation issues.
  *
  * Resource Templates are not yet fully supported by the SDK; once the SDK can
  * route `pideinfo://document/{uuid}` URIs here, this provider will respond.
@@ -36,6 +40,8 @@ final class DocumentResourceProvider
         private readonly OAuthTokenContext $tokenContext,
         private readonly DocumentRepository $documentRepository,
         private readonly FilesystemOperator $documentsStorage,
+        private readonly S3Client $s3Client,
+        private readonly string $s3Bucket,
     ) {
     }
 
@@ -61,20 +67,37 @@ final class DocumentResourceProvider
         }
 
         $stored = $document->getStoredFilename();
-        if (!$this->documentsStorage->fileExists($stored)) {
-            throw new InvalidArgumentException('Document blob is missing from storage.');
+
+        // For small files, stream the blob directly through MCP
+        // For large files, return a pre-signed S3 URL
+        if ($document->getFileSize() < 1_048_576) {
+            $stream = $this->documentsStorage->readStream($stored);
+            $bytes = stream_get_contents($stream);
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
+            return new BlobResourceContents(
+                uri: 'pideinfo://document/'.$document->getId()->toRfc4122(),
+                mimeType: $document->getMimeType(),
+                blob: base64_encode((string) $bytes),
+            );
         }
 
-        $stream = $this->documentsStorage->readStream($stored);
-        $bytes = stream_get_contents($stream);
-        if (is_resource($stream)) {
-            fclose($stream);
-        }
+        // Large file: generate pre-signed URL
+        $command = $this->s3Client->getCommand('GetObject', [
+            'Bucket' => $this->s3Bucket,
+            'Key' => $stored,
+        ]);
 
+        $request = $this->s3Client->createPresignedRequest($command, '+15 minutes');
+        $presignedUrl = (string) $request->getUri();
+
+        // Return the URL as the blob content so the MCP client can use it
         return new BlobResourceContents(
             uri: 'pideinfo://document/'.$document->getId()->toRfc4122(),
             mimeType: $document->getMimeType(),
-            blob: base64_encode((string) $bytes),
+            blob: base64_encode($presignedUrl),
         );
     }
 

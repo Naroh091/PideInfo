@@ -17,6 +17,7 @@ final readonly class DocumentContent
         public string $mode,
         public ?string $content,
         public bool $fromCache,
+        public ?string $downloadUrl = null,
         public ?string $error = null,
     ) {
     }
@@ -35,17 +36,18 @@ final readonly class DocumentContent
         );
     }
 
-    public static function blob(Document $doc, string $base64): self
+    public static function url(Document $doc, string $downloadUrl, int $size): self
     {
         return new self(
             id: $doc->getId()->toRfc4122(),
             filename: $doc->getOriginalFilename(),
             mimeType: $doc->getMimeType(),
-            size: $doc->getFileSize(),
+            size: $size,
             accessRequestId: $doc->getAccessRequest()?->getId()->toRfc4122(),
-            mode: 'blob',
-            content: $base64,
+            mode: 'url',
+            content: null,
             fromCache: false,
+            downloadUrl: $downloadUrl,
         );
     }
 
