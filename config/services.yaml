@@ -55,6 +55,9 @@ services:
     League\Flysystem\FilesystemOperator $documentsStorage: '@documents.storage'
     League\Flysystem\FilesystemOperator $defaultStorage: '@default.storage'
 
+    # S3 bucket name for presigned URL generation
+    string $s3Bucket: '%env(AWS_S3_BUCKET_NAME)%'
+
     # OAuth2 discovery controller — needs the public key file path resolved
     App\Controller\OAuth2\DiscoveryController:
         arguments:
