@@ -74,27 +74,37 @@ The complaint is triggered when the access request is in status `denied`, `delay
 
 **Chooser screen** (`templates/complaint/start.html.twig`). Three convergent paths:
 
-1. **Generar con IA** → `app_complaint_assistant` (`/asistente`). Streaming AI editor described below.
-2. **Ya tengo el texto** → `app_complaint_draft` (`/redactar`). Lightweight Trix editor where the citizen pastes a complaint they wrote externally. Saves through the same `ComplaintGenerator::saveComplaint()` pipeline so the resulting `Document` is indistinguishable downstream — only `aiMetadata.origin === 'external'` marks the source.
+1. **Generar con IA** → 301 → `app_complaint_redactar` (`/solicitudes/{id}/redactar?mode=complaint`). Unified canvas + chat view described below.
+2. **Ya tengo el texto** → 301 → same `app_complaint_redactar`. The user lands on the same canvas; ignoring the chat and pasting into the Trix editor is functionally equivalent to the old "manual" path. Saves still mark `aiMetadata.origin === 'external'` for unmodified pastes.
 3. **Hacerlo manualmente en la sede** → external link to `ComplaintOrganism.complaintFormUrl`. The citizen presents directly on the council's e-office, bypassing PideInfo.
 
-The first two paths converge on a saved `Document(type=Complaint)` and a unified post-save panel in `templates/solicitudes/show.html.twig` that offers **"Iniciar presentación"** (opens the council e-office in a new tab + downloads the PDF), plus PDF/Word download and a link back to the editor of origin.
+The first two paths converge on a saved `Document(type=Complaint)` and a unified post-save panel in `templates/solicitudes/show.html.twig` that offers **"Iniciar presentación"** (opens the council e-office in a new tab + downloads the PDF), plus PDF/Word download and a link back to the editor.
 
-`Document.aiMetadata.origin` is set to `'ai'` for assistant-generated complaints and `'external'` for pasted ones. This is the canonical marker for routing the "Continuar / Editar" link to the correct editor.
+`Document.aiMetadata.origin` is set to `'ai'` for assistant-generated complaints and `'external'` for pasted ones. The "Continuar / Editar" link points to `/redactar` regardless of origin.
 
 **Manual status filing.** Independently of the editor flow, the user can change the complaint status dropdown on the request detail page to "Reclamada". The system creates an `AccessRequestComplaint` entity, sets a 3-month resolution deadline, and records the transition in `StatusHistory`.
 
-**AI-assisted editor.** From the chooser, "Generar con IA" lands on the interactive editor (`app_complaint_assistant`). The `ComplaintGenerator` service:
-1. Checks eligibility via `canGenerateComplaint()` — request must be denied or delayed
-2. Runs a `SuccessAnalyzer` to estimate success probability. Returns a `SuccessAnalysis` DTO (`percentage`, `summary`, `strengths`, `weaknesses` — last three are HTML restricted to `<b>`, `<i>`, `<br>`; total payload capped at 2000 chars and sanitized server-side). The result is cached in `AccessRequest.metadata['success_analysis']` keyed by a fingerprint of `SCHEMA_VERSION + status + attached document IDs`, so subsequent calls reuse it until either the schema bumps or the request changes. The analyze endpoint (`POST /reclamacion/analisis?force=1`) honours `force` to bypass the cache.
-3. Retrieves similar favorable resolutions and relevant interpretive criteria via vector search against `ai_resolutions` and `ai_ctbg_criteria`. The query vectors come from `DocumentEmbeddingsRetriever::loadVectorsForRequest()` — i.e. the precomputed chunk embeddings of the request's documents stored in `ai_documents` (one search per chunk, results merged and deduped by id keeping the max score). When no documents have embeddings yet (just uploaded, queue still pending, or the request has no extracted text), both retrievers fall back to the inline string-based query built from title + description + denial reason — same RAG, slightly worse signal, but the analysis still runs.
-4. Loads the extracted text of every attached document via `DocumentContentsCollector` (truncated per document) and includes it in the prompt as a primary "DOCUMENTOS DEL EXPEDIENTE" section. The `SuccessAnalyzer` consumes the same documents.
-5. Builds a detailed legal prompt with the request context, timeline, expediente documents, and retrieved references
-6. Calls the configured LLM (Google Gemini, or an OpenAI-compatible model when `USE_CUSTOM_MODEL=true`) to generate an HTML-formatted complaint
-7. Supports multi-turn conversation — the user can request revisions
-8. The final draft can be saved as a `Document` (type: `complaint`) and downloaded as PDF or Word
+**Unified `/redactar` view** (`templates/complaint/redactar.html.twig`, served by `App\Controller\ComplaintRedactController`). Single canvas + chat workspace that handles both reclamación and respuesta a alegaciones authoring:
 
-**Streaming UI.** The interactive view (`templates/complaint/interactive.html.twig`) consumes the SSE endpoint `POST /solicitudes/{id}/reclamacion/generar/stream` (`app_complaint_create_stream`), which streams `text/event-stream` chunks emitted by `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()`. The stream uses three event types: `chunk` (delta text, appended to a live preview), `done` (final `ComplaintDraft` payload — HTML, citations, success analysis), and `error`. Streaming requires `USE_CUSTOM_MODEL=true`; the underlying `LlmClient::chatStream()` only supports the OpenAI-compatible backend. The legacy non-streaming endpoint (`POST /solicitudes/{id}/reclamacion/generar`, `app_complaint_create`) remains for non-UI callers.
+- **Mode selection** — entering `/solicitudes/{id}/redactar` without `?mode=` shows two CTAs ("Redactar reclamación" / "Responder a alegaciones"). The user picks explicitly; auto-detection from request state is intentionally avoided so the citizen knows which document they are producing.
+- **Modes** — `?mode=complaint` or `?mode=alegation_response`. Once chosen, the URL keeps the mode for the rest of the session.
+- **Multiple drafts in alegation mode** — alegation responses can have several rounds, so `?draft=<docId>` selects which saved draft to load. The header shows a list of saved alegation drafts plus a "Nuevo borrador" link. Complaint mode is single-draft per request: `getComplaintDraftDocument()` autoloads.
+- **Four chat actions** (`POST /solicitudes/{id}/redactar/asistente`, dispatched by `action`):
+  1. `free_chat` → JSON, `{reply}`. Free-form Q&A; doesn't touch the canvas.
+  2. `suggest_ideas` → JSON, `{suggestions: [{title, body, source}]}`. 2-4 concrete ideas the user can adopt by hand.
+  3. `generate_first_draft` → SSE. Streams a fresh draft into the canvas with a typewriter effect.
+  4. `rewrite` → SSE. Same shape as `generate_first_draft` but the prompt receives the current canvas HTML and is told to preserve everything not asked to change.
+- **Persistence.** Chat history lives in two places depending on draft state:
+  - Before any save (scratch) → `AccessRequest.metadata.complaint_scratch_chat` or `alegation_response_scratch_chat`.
+  - After save → `Document.aiMetadata.chat_history`.
+  - First save migrates the scratch slot into the new document and clears it.
+- **Save.** `POST /redactar/guardar` delegates to the existing `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()` so downstream consumers (PDF, Word, present-via-agent) are unchanged.
+
+**`ComplaintDraftGenerator` service** (`src/Service/Complaint/`) owns chat-flow concerns: building the conversation preamble (history + this turn's directions + current draft for `rewrite`) and dispatching to `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()` with that preamble injected as `userDirections`. The legal scaffolding (sections, citations, RAG retrieval) stays in `ComplaintGenerator` — the new class is a thin orchestrator. `suggest_ideas` and `free_chat` use four new prompts under `config/prompts/complaint/draft-*.md` and `config/prompts/alegation/draft-*.md`.
+
+**Streaming pipeline.** SSE follows the same shape as `app_complaint_create_stream`: `chunk`, `done`, `error` events; requires `USE_CUSTOM_MODEL=true` (Gemini path doesn't support streaming). The legacy non-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) and its SSE sibling remain for MCP tools and the agent.
+
+**Legacy routes.** `/reclamacion/asistente` (`app_complaint_assistant`) and `/reclamacion/redactar` (`app_complaint_draft`) now return 301 to the unified view. Their templates (`interactive.html.twig`, `draft.html.twig`) are unused and kept only for reference until the first cleanup pass.
 
 **Automatic detection.** When a document classified as `DocumentType::Complaint` is uploaded, the system automatically creates the complaint entity and records a timeline entry.
 
@@ -103,7 +113,7 @@ The first two paths converge on a saved `Document(type=Complaint)` and a unified
 Una vez la reclamación está guardada como `Document(type=Complaint)`, dos puntos de la UI ofrecen la presentación vía agente:
 
 - En el detalle de la solicitud (`templates/solicitudes/show.html.twig`) — "Presentar con el agente" + "Iniciar manual".
-- En el propio editor (`templates/complaint/draft.html.twig` para texto pegado, `templates/complaint/interactive.html.twig` para borrador IA): tras pulsar **Guardar borrador** aparecen botones **Presentar (supervisado)** y **Presentar (auto)** sin necesidad de volver al expediente. El botón "Guardar borrador" del editor IA reutiliza el endpoint `app_complaint_save_draft` (mismo que el flujo de "Pegar mi texto").
+- En el propio editor (`templates/complaint/redactar.html.twig`): tras pulsar **Guardar borrador** aparecen botones **Presentar (supervisado)** y **Presentar (auto)** sin necesidad de volver al expediente. El guardado pasa por `app_complaint_redactar_save`, que delega en `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()`.
 
 Flujo:
 
@@ -164,12 +174,11 @@ The council gives the citizen a deadline to review the administration's allegati
 
 **Document type (notification):** `DocumentType::Audiencia` — The council's notification of the audience period, typically sent together with the administration's allegations
 
-**Generating a response.** When the complaint status is `reclaimed`, the user can click "Generar respuesta a alegaciones". The `ComplaintGenerator::generateAlegationResponse()` method:
-1. Reads the administration's allegations document
-2. Extracts the alegation points from AI metadata
-3. Retrieves fresh resolutions and criteria relevant to the arguments
-4. Builds a prompt instructing Gemini to rebut each point with legal grounding
-5. Generates a structured response (saved as `DocumentType::AlegationResponse`)
+**Generating a response.** When the complaint status is `reclaimed`, the user can click "Responder a alegaciones" and lands on `/solicitudes/{id}/redactar?mode=alegation_response`. From there the same chat-driven flow as for reclamaciones applies — `free_chat`, `suggest_ideas`, `generate_first_draft`, `rewrite`. Internally `ComplaintDraftGenerator` delegates the canvas-replacing actions to `ComplaintGenerator::generateAlegationResponseStream()`, which:
+1. Reads the administration's allegations document and its extracted `alegationPoints`.
+2. Retrieves fresh resolutions and criteria relevant to the arguments.
+3. Receives the chat preamble (conversation context + current draft body + this turn's directions) injected as `userDirections`.
+4. Streams a structured response that, on save, becomes a new `DocumentType::AlegationResponse` (multiple rounds → multiple drafts, switchable via `?draft=`).
 
 ### 7. Complaint extension
 
