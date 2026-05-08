@@ -539,8 +539,7 @@
            Component wrapper (<div data-action="...">) sits between
            consecutive .aside-block elements. */
         .dossier-aside > * + * {
-            margin-top: 3rem;
-            padding-top: 2.25rem;
+            padding-top: 1.25rem;
             border-top: 1px solid rgb(241 245 249);
         }
         .aside-heading {
@@ -615,6 +614,100 @@
             color: rgb(148 163 184);
             margin-top: .25rem;
             line-height: 1.45;
+        }
+
+        /* Lists sidebar — toggle pills + inline create form */
+        .lists-toggle-stack {
+            display: flex; flex-direction: column; gap: .3rem;
+            margin-bottom: .75rem;
+        }
+        .list-pill {
+            display: flex; align-items: center; gap: .5rem;
+            padding: .35rem .55rem;
+            border-radius: .45rem;
+            border: 1px solid rgb(226 232 240);
+            background: #ffffff;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            color: rgb(71 85 105);
+            cursor: pointer;
+            text-align: left;
+            transition: border-color .15s ease, background .15s ease, color .15s ease;
+        }
+        .list-pill:hover:not(:disabled) { border-color: rgb(186 230 253); color: rgb(15 23 42); }
+        .list-pill.is-in {
+            border-color: var(--color-primary-200, rgb(186 230 253));
+            background: var(--color-primary-50, rgb(240 249 255));
+            color: var(--color-primary-700, rgb(3 105 161));
+            font-weight: 500;
+        }
+        .list-pill.is-readonly { cursor: default; opacity: .75; }
+        .list-pill-check {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.1rem; height: 1.1rem; flex-shrink: 0;
+            border-radius: 999px;
+            background: rgb(241 245 249);
+            color: rgb(148 163 184);
+        }
+        .list-pill.is-in .list-pill-check {
+            background: var(--color-primary-600, rgb(2 132 199));
+            color: #ffffff;
+        }
+        .list-pill-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .list-pill-meta {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem; color: rgb(148 163 184);
+            font-weight: 500;
+        }
+        .list-pill.is-in .list-pill-meta { color: var(--color-primary-700, rgb(3 105 161)); }
+
+        .lists-empty {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem; color: rgb(148 163 184);
+            line-height: 1.5;
+            margin-bottom: .65rem;
+        }
+
+        .list-create-row {
+            display: flex; gap: .35rem; align-items: stretch;
+            margin-top: .25rem;
+        }
+        .list-create-input {
+            flex: 1; min-width: 0;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem;
+            padding: .35rem .55rem;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .4rem;
+            background: #ffffff; color: rgb(15 23 42);
+            outline: none;
+        }
+        .list-create-input:focus {
+            border-color: var(--color-primary-300, rgb(125 211 252));
+            box-shadow: 0 0 0 2px rgba(2, 132, 199, .12);
+        }
+        .list-create-btn {
+            display: inline-flex; align-items: center; gap: .3rem;
+            padding: .35rem .6rem;
+            border-radius: .4rem;
+            border: 1px solid rgb(15 23 42);
+            background: rgb(15 23 42);
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem; font-weight: 500;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .list-create-btn:hover:not(:disabled) { background: #000; border-color: #000; }
+        .list-create-btn:disabled {
+            background: rgb(203 213 225); border-color: rgb(203 213 225);
+            cursor: not-allowed;
+        }
+        .list-error {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            color: rgb(185 28 28);
+            margin-top: .45rem;
         }
 
         .aside-link {
