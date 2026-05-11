@@ -7,8 +7,8 @@ PideInfo expone un servidor [Model Context Protocol](https://modelcontextprotoco
 | Método  | Ruta                                            | Descripción                                              |
 |---------|-------------------------------------------------|----------------------------------------------------------|
 | GET/POST/DELETE/OPTIONS | `/mcp`                                | JSON-RPC 2.0 del servidor MCP (StreamableHttpTransport). Bearer token obligatorio. |
-| GET     | `/.well-known/oauth-authorization-server`       | Metadata RFC 8414.                                       |
-| GET     | `/.well-known/oauth-protected-resource`         | Metadata RFC 9728 — declara `/mcp` como recurso protegido. |
+| GET     | `/.well-known/oauth-authorization-server`       | Metadata RFC 8414. También servido bajo `/.well-known/oauth-authorization-server/mcp` (path-suffixed) para clientes que aplican el sufijo del recurso. |
+| GET     | `/.well-known/oauth-protected-resource`         | Metadata RFC 9728 — declara `/mcp` como recurso protegido. También bajo `/.well-known/oauth-protected-resource/mcp` (path-suffixed, exigido por la MCP spec 2025-06-18 cuando el recurso tiene path no vacío). |
 | GET     | `/.well-known/jwks.json`                        | Clave pública RSA en formato JWK (RS256).                |
 | ANY     | `/oauth2/authorize`                             | Authorization endpoint — requiere usuario logueado y emite consentimiento. |
 | POST    | `/oauth2/token`                                 | Intercambio de `code` (PKCE) por `access_token`/`refresh_token`. |
