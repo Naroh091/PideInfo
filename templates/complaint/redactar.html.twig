@@ -238,6 +238,38 @@
             font-family: 'DM Serif Display', Georgia, serif; font-size: 1.15rem; color: var(--ink);
         }
 
+        /* Streaming overlay: covers the editor in-place so the new draft replaces the
+           previous one progressively without unmounting Trix. */
+        .draft-body-stack { position: relative; }
+        .draft-editor-wrap { position: relative; z-index: 0; }
+        .draft-stream-overlay {
+            position: absolute; inset: 0;
+            background: var(--paper, #fff);
+            padding-top: .25rem;
+            overflow-y: auto;
+            z-index: 2;
+        }
+        .draft-preparing-banner {
+            position: absolute; top: .5rem; left: 0; right: 0;
+            display: flex; align-items: center; gap: .55rem;
+            padding: .5rem .75rem;
+            background: rgba(255,255,255,.85);
+            backdrop-filter: blur(4px);
+            border: 1px dashed var(--rule);
+            border-radius: .5rem;
+            color: var(--ink-mute);
+            font-family: 'DM Sans', sans-serif; font-size: .85rem;
+            z-index: 3;
+        }
+        .draft-preparing-sub { color: var(--ink-mute); font-size: .8rem; }
+        .draft-preparing-spinner {
+            width: .85rem; height: .85rem;
+            border: 2px solid var(--rule); border-top-color: var(--ink);
+            border-radius: 50%; display: inline-block;
+            animation: draft-spin .9s linear infinite;
+        }
+        @keyframes draft-spin { to { transform: rotate(360deg); } }
+
         .draft-counters {
             display: flex; justify-content: space-between; align-items: center;
             margin-top: 1.1rem; padding-top: 1rem;
@@ -583,25 +615,26 @@
                     {% include 'complaint/_present_modal.html.twig' %}
                 {% endif %}
 
-                <div class="draft-body">
-                    {# Streaming preview replaces the editor only while the AI is writing. #}
-                    <div x-show="loading && streamingHtml" x-cloak x-ref="streamingPreview"
-                         class="draft-prose typewriter" x-html="streamingHtml"></div>
-
-                    {# Preparing state (model is still gathering context). #}
-                    <div x-show="loading && !streamingHtml" x-cloak class="draft-empty">
-                        <p class="draft-empty-headline">Preparando el contexto…</p>
-                        <p>Recuperando precedentes, criterios y documentos del expediente.</p>
-                    </div>
-
-                    {# Trix editor — always present so the user can write directly without
-                       the AI, like the textareas in the access-request flow. Hidden only
-                       while the model is streaming or preparing. #}
-                    <div x-show="!loading">
+                <div class="draft-body draft-body-stack">
+                    {# Trix editor — always mounted so the previous draft remains visible while
+                       the model streams a new version on top. #}
+                    <div class="draft-editor-wrap">
                         <input id="redactar-html-input" type="hidden" value="">
                         <trix-editor input="redactar-html-input"
                                      placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o abre el asistente en la zona inferior derecha para comenzar a redactar la respuesta utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% else %}Escribe la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la reclamación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% endif %}"
                                      @trix-change="documentEdited = true; persistedAt = null; charCount = ($event.target.editor.getDocument().toString() || '').length"></trix-editor>
+                    </div>
+
+                    {# Streaming overlay: covers the editor in-place while the AI writes, so the
+                       user sees the new draft replace the previous one progressively. #}
+                    <div x-show="loading && streamingHtml" x-cloak x-ref="streamingPreview"
+                         class="draft-prose typewriter draft-stream-overlay" x-html="streamingHtml"></div>
+
+                    {# Discreet "preparing" banner — does NOT hide the editor; sits on top while
+                       the model is still gathering context, until the first chunk arrives. #}
+                    <div x-show="loading && !streamingHtml" x-cloak class="draft-preparing-banner">
+                        <span class="draft-preparing-spinner" aria-hidden="true"></span>
+                        <span>Preparando el contexto… <span class="draft-preparing-sub">recuperando precedentes, criterios y documentos.</span></span>
                     </div>
                 </div>
 
@@ -759,19 +792,17 @@
                 </template>
 
                 <template x-for="(msg, idx) in messages" :key="idx">
-                    <template x-if="msg.role === 'user'">
-                        <div class="chat-turn chat-turn-user" x-text="msg.content"></div>
-                    </template>
-                    <template x-if="msg.role !== 'user' && msg.kind === 'suggestions'">
-                        <div class="chat-turn chat-turn-assistant">
+                    {# Single root per iteration: Alpine x-for only processes the first child of its template. #}
+                    <div class="chat-message">
+                        <div x-show="msg.role === 'user'" class="chat-turn chat-turn-user" x-text="msg.content"></div>
+
+                        <div x-show="msg.role !== 'user' && msg.kind === 'suggestions'" class="chat-turn chat-turn-assistant">
                             <div class="chat-suggest-grid">
                                 <template x-for="(s, sidx) in msg.items || []" :key="sidx">
                                     <div class="chat-suggest-card">
                                         <div class="chat-suggest-head">
                                             <strong x-text="s.title"></strong>
-                                            <template x-if="s.source">
-                                                <span class="chat-suggest-source" x-text="s.source"></span>
-                                            </template>
+                                            <span x-show="s.source" class="chat-suggest-source" x-text="s.source"></span>
                                         </div>
                                         <p class="chat-suggest-body" x-text="s.body"></p>
                                         <button type="button"
@@ -785,14 +816,14 @@
                                 </template>
                             </div>
                         </div>
-                    </template>
-                    <template x-if="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind === 'system'">
-                        <div class="chat-turn chat-turn-error" x-html="escapeHtml(msg.content)"></div>
-                    </template>
-                    <template x-if="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind !== 'system'">
-                        <div class="chat-turn chat-turn-assistant"
+
+                        <div x-show="msg.role !== 'user' && msg.kind === 'system'"
+                             class="chat-turn chat-turn-error" x-text="msg.content"></div>
+
+                        <div x-show="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind !== 'system'"
+                             class="chat-turn chat-turn-assistant"
                              x-html="msg.allowsHtml ? msg.content : escapeHtml(msg.content)"></div>
-                    </template>
+                    </div>
                 </template>
 
                 <template x-if="loading">
@@ -807,7 +838,8 @@
                 <button type="button"
                         class="composer-quick is-primary"
                         @click="generateFirst()"
-                        :disabled="loading">
+                        :disabled="loading || charCount > 0"
+                        :title="charCount > 0 ? 'Ya hay un borrador. Usa «Reescribir» para modificarlo.' : ''">
                     <i data-lucide="sparkles" class="w-3 h-3"></i> Generar
                 </button>
                 <button type="button"
@@ -970,6 +1002,9 @@ function redactarApp() {
 
         async generateFirst() {
             if (this.loading) return;
+            // Guard: when there's already a draft, force the user through "Rewrite" so the
+            // current body is preserved and only the requested changes are applied.
+            if (this.charCount > 0) return;
             const text = this.userInput.trim();
             this.userInput = '';
             this.loadingLabel = 'Redactando…';
@@ -1031,7 +1066,12 @@ function redactarApp() {
                 }
                 const data = await res.json();
                 if (action === 'free_chat') {
-                    this.messages.push({ role: 'model', kind: 'text', content: data.result?.reply ?? '', allowsHtml: true });
+                    const reply = (data.result?.reply ?? '').toString();
+                    if (reply.trim() === '') {
+                        this.messages.push({ role: 'model', kind: 'system', content: 'No he recibido respuesta del modelo. Reintenta o reformula.' });
+                    } else {
+                        this.messages.push({ role: 'model', kind: 'text', content: reply, allowsHtml: true });
+                    }
                 } else if (action === 'suggest_ideas') {
                     this.messages.push({ role: 'model', kind: 'suggestions', items: data.result?.suggestions ?? [] });
                 }

@@ -267,13 +267,43 @@ final class ComplaintDraftGenerator
      * turn's directions, and (for rewrite) the current draft body the model
      * must preserve unless asked to change it.
      *
+     * When the user fires a canvas action (Generate/Rewrite) without typing in
+     * the composer, we promote the most recent real user message from the chat
+     * to "INDICACIÓN DE ESTE TURNO". Otherwise that precision stays buried in
+     * the history and the model treats it as background instead of a directive.
+     *
      * @param array<int, array<string, mixed>> $chatHistory
      */
     private function buildDirectionsBlock(string $mode, array $chatHistory, ?string $userDirections, ?string $currentBodyHtml): string
     {
         $parts = [];
 
-        $context = $this->buildConversationContext($chatHistory);
+        $effectiveDirections = $userDirections;
+        $promotedIndex = null;
+        if (($effectiveDirections === null || trim($effectiveDirections) === '') && $chatHistory !== []) {
+            for ($i = count($chatHistory) - 1; $i >= 0; $i--) {
+                $turn = $chatHistory[$i];
+                if (!is_array($turn) || ($turn['role'] ?? '') !== 'user') {
+                    continue;
+                }
+                $content = trim((string) ($turn['content'] ?? ''));
+                if ($content === '' || $this->isSyntheticUserTurn($content)) {
+                    continue;
+                }
+                $effectiveDirections = $content;
+                $promotedIndex = $i;
+                break;
+            }
+        }
+
+        $historyForContext = $chatHistory;
+        if ($promotedIndex !== null) {
+            // Drop the promoted turn from the conversation context so the model
+            // doesn't see it twice (once as directive, once as history).
+            array_splice($historyForContext, $promotedIndex, 1);
+        }
+
+        $context = $this->buildConversationContext($historyForContext);
         if ($context !== '') {
             $parts[] = "### CONVERSACIÓN PREVIA CON EL ASISTENTE\n\n"
                 . "Historial reciente de la conversación entre el usuario y tú sobre este borrador. Es tu fuente principal para entender qué quiere — léelo antes de redactar.\n\n"
@@ -287,13 +317,28 @@ final class ComplaintDraftGenerator
                 . $currentBodyHtml;
         }
 
-        if ($userDirections !== null && trim($userDirections) !== '') {
-            $parts[] = "### INDICACIÓN DE ESTE TURNO\n\n" . trim($userDirections);
+        if ($effectiveDirections !== null && trim($effectiveDirections) !== '') {
+            $parts[] = "### INDICACIÓN DE ESTE TURNO\n\n" . trim($effectiveDirections);
         } elseif ($currentBodyHtml === null && $context === '') {
             $parts[] = "### INDICACIÓN DE ESTE TURNO\n\n(El usuario no ha escrito indicaciones; redacta un borrador con argumentos por defecto adecuados al expediente.)";
         }
 
         return implode("\n\n", $parts);
+    }
+
+    /**
+     * Synthetic placeholder strings the controller writes to chat history when the
+     * user fires a button-only action ("Reescribir", "Generar", "Sugerir") without
+     * typing in the composer. We must not promote these to "INDICACIÓN DE ESTE
+     * TURNO" — they're cosmetic transcript markers, not real user instructions.
+     */
+    private function isSyntheticUserTurn(string $content): bool
+    {
+        return in_array($content, [
+            'Reescribir borrador',
+            'Generar primer borrador',
+            'Sugerir ideas',
+        ], true);
     }
 
     /**
