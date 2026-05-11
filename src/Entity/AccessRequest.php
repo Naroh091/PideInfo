@@ -29,6 +29,14 @@ class AccessRequest
     public const STATUS_DELAYED = 'delayed';
     public const STATUS_PENDING = 'pending';
 
+    // Resolution result — what the administration actually decided.
+    // Orthogonal to $status (which tracks where we are in the workflow). NULL until resolved.
+    public const RESULT_GRANTED = 'granted';
+    public const RESULT_PARTIALLY_GRANTED = 'partially_granted';
+    public const RESULT_DENIED = 'denied';
+    public const RESULT_INADMITTED = 'inadmitted';
+    public const RESULT_SILENCE = 'silence';
+
     // Complaint status: "no complaint" sentinel value
     public const COMPLAINT_NONE = 'none';
 
@@ -77,6 +85,9 @@ class AccessRequest
 
     #[ORM\Column(length: 50)]
     private string $status = self::STATUS_SENT;
+
+    #[ORM\Column(length: 30, nullable: true)]
+    private ?string $resolutionResult = null;
 
     #[ORM\OneToOne(mappedBy: 'accessRequest', targetEntity: AccessRequestComplaint::class, cascade: ['persist', 'remove'])]
     private ?AccessRequestComplaint $complaint = null;
@@ -331,6 +342,34 @@ class AccessRequest
             self::STATUS_PENDING => 'Pendiente de recepción',
             default => $this->status,
         };
+    }
+
+    public function getResolutionResult(): ?string
+    {
+        return $this->resolutionResult;
+    }
+
+    public function setResolutionResult(?string $resolutionResult): static
+    {
+        $this->resolutionResult = $resolutionResult;
+        return $this;
+    }
+
+    public function getResolutionResultLabel(): ?string
+    {
+        return match ($this->resolutionResult) {
+            self::RESULT_GRANTED => 'Concesión total',
+            self::RESULT_PARTIALLY_GRANTED => 'Concesión parcial',
+            self::RESULT_DENIED => 'Denegación',
+            self::RESULT_INADMITTED => 'Inadmisión',
+            self::RESULT_SILENCE => 'Silencio administrativo',
+            default => null,
+        };
+    }
+
+    public function hasResolution(): bool
+    {
+        return $this->resolutionResult !== null;
     }
 
     /**

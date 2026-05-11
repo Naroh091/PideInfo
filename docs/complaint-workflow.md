@@ -50,25 +50,58 @@ When a complaint is filed, an `AccessRequestComplaint` entity is created with a 
 | Field | Description |
 |-------|-------------|
 | `externalId` | The transparency council's reference number (e.g., `R/0123/2025`) |
-| `status` | Current complaint status (see below) |
+| `status` | Current complaint workflow position (see below) |
+| `complaintResult` | What the council actually decided (see below). NULL until resolved |
 | `deadlineAt` | Deadline for the council to resolve (typically 3 months) |
 | `complianceDeadlineAt` | If complaint granted, deadline for the administration to comply |
 | `filedAt` | Date the complaint was submitted |
 
-### Complaint statuses
+### Status vs. result — two orthogonal axes
+
+Both `AccessRequest` and `AccessRequestComplaint` separate **workflow position** (`status`) from **administrative decision** (`resolutionResult` / `complaintResult`). The status describes where we are in the procedure (`processing`, `granted_completed`, `reclaimed`, …); the result captures what the administration or council decided.
+
+This split exists because the two evolve independently:
+
+- A request marked `granted_completed` (citizen received the documentation) may still carry `resolutionResult = partially_granted` if the original resolution was a partial concession. A later workflow transition no longer overwrites the original decision.
+- A resolution marked nominally as `granted` may not match what the citizen actually received — they can still file a complaint without flipping the result back to `denied`.
+- `complaint_granted` (the council estimated the complaint) coexists with `complaintResult = upheld` or `partially_upheld` to capture whether the relief was total or partial.
+
+### Complaint statuses (workflow)
 
 | Status | Label | Meaning |
 |--------|-------|---------|
 | `reclaimed` | Reclamada | Complaint filed and pending resolution |
-| `complaint_granted` | Reclamación estimada | Council ruled in citizen's favor |
+| `complaint_granted` | Reclamación estimada | Council ruled in citizen's favor (total or partial — see `complaintResult`) |
 | `complaint_denied` | Reclamación desestimada | Council ruled against the citizen |
 | `complaint_archived` | Reclamación archivada | Complaint archived (withdrawn or procedural closure) |
+
+### Complaint results (decision)
+
+| Result | Label | Meaning |
+|--------|-------|---------|
+| `upheld` | Estimada | Council upheld the complaint in full |
+| `partially_upheld` | Estimada parcialmente | Council upheld part of the complaint |
+| `dismissed` | Desestimada | Council rejected the complaint |
+| `inadmitted` | Inadmitida | Council refused to admit the complaint |
+| `archived` | Archivada | Complaint archived |
+| `NULL` | — | Not yet resolved |
+
+### AccessRequest results (decision)
+
+| Result | Label | Meaning |
+|--------|-------|---------|
+| `granted` | Concesión total | Administration granted everything requested |
+| `partially_granted` | Concesión parcial | Administration granted part of what was requested |
+| `denied` | Denegación | Administration refused the request |
+| `inadmitted` | Inadmisión | Administration refused to admit the request |
+| `silence` | Silencio administrativo | No express resolution within the legal deadline |
+| `NULL` | — | Not yet resolved |
 
 ## Stages of the complaint process
 
 ### 1. Filing the complaint
 
-The complaint is triggered when the access request is in status `denied`, `delayed`, or has a passed deadline without being `granted`.
+The complaint is available when the request is in workflow status `denied` or `delayed`, **or** when its `resolutionResult` is one of `partially_granted`, `denied`, `inadmitted`, `silence`, **or** when the legal deadline has passed without a `granted`/`granted_completed` resolution. See `ComplaintGenerator::canGenerateComplaint()`. The prompt adapts to the case: when `resolutionResult = partially_granted`, the draft is framed against the information NOT facilitated rather than as a total denial.
 
 **Entry point — single CTA.** From the request detail page (`templates/components/RequestStatusBanner.html.twig`), the citizen sees one button — "Reclamar a {{ council }}" — that routes to `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). If a draft `Document` of type `Complaint` already exists, the label switches to "Continuar reclamación" and the same chooser surfaces the in-progress draft on top.
 

@@ -210,6 +210,45 @@
     </aside>
 {% endif %}
 
+{# Concesión parcial — la administración facilitó parte de lo solicitado.
+   Invita a reclamar la parte no facilitada (skip if a complaint already exists). #}
+{% if request.resolutionResult == 'partially_granted' and request.complaint is null %}
+    {% set council = this.transparencyCouncilName %}
+    <aside class="dossier-notice is-amber mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="pie-chart" class="w-4 h-4"></i>
+            </div>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Concesión parcial
+                    <span class="meta">· puedes reclamar lo no facilitado</span>
+                </div>
+                <h3 class="dossier-notice-headline">
+                    La administración ha facilitado sólo parte de la información. Puedes reclamar a {{ council }} por lo restante.
+                </h3>
+                <div class="dossier-notice-prose">
+                    <p>
+                        Si parte de lo que pediste no se ha entregado o se ha entregado de forma incompleta, tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que ordene su entrega. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% set draftDocument = this.complaintDraftDocument %}
+        <div class="dossier-notice-footer">
+            <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-accent btn-sm">
+                <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
+                {% if draftDocument %}
+                    Continuar reclamación a {{ council|u.truncate(40, '…') }}
+                {% else %}
+                    Reclamar a {{ council|u.truncate(40, '…') }}
+                {% endif %}
+            </a>
+        </div>
+    </aside>
+{% endif %}
+
 {# Solicitud denegada — invita a reclamar (skip if a complaint already exists) #}
 {% if request.status == 'denied' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}

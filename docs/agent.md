@@ -409,7 +409,12 @@ The `expedienteRef` matches `AccessRequestComplaint.externalId` in PideInfo. The
 
 Each stored notification is enriched server-side with a `reportedAt` timestamp (ISO 8601) and the `source` field (`transparencia_age` or `consejo_ctbg`). The UI renders Portal de Transparencia and Consejo de Transparencia notifications in separate, visually distinct sections.
 
-### CTBG expediente document
+### CTBG expediente batch (one POST per expediente)
+
+The agent posts every new document of a CTBG expediente in a single request.
+Per-doc `metadata` overrides the body-level `metadata`; expediente-level
+fields (`expedienteEstado`, `expedienteTitulo`, `fechaApertura`,
+`fechaCierre`) are always at body level.
 
 ```json
 {
@@ -417,26 +422,103 @@ Each stored notification is enriched server-side with a `reportedAt` timestamp (
     "expedienteRef": "590/2026",
     "documents": [
         {
-            "filename": "R CTBG 2026-0204 [Resolución expte. 501-2026].pdf",
+            "filename": "Recibo-2026-E-RE-1017.pdf",
             "contentType": "application/pdf",
             "content": "<base64>",
-            "contentHash": "<sha256>",
-            "portalDate": "27/02/2026"
-        }
+            "contentHash": "<sha256 hex>",
+            "portalDate": "24/04/2026",
+            "metadata": {
+                "complaint_phase": "ENTRADA",
+                "csv": "3PAGQH4WW4CQLPTJDN2FC9MZD",
+                "documentTitle": "Recibo-2026-E-RE-1017"
+            }
+        },
+        { "...": "más documentos del mismo expediente" }
     ],
     "metadata": {
-        "complaint_phase": "RESOLUCIÓN",
-        "csv": "3PAGQH4WW4CQLPTJDN2FC9MZD",
-        "documentTitle": "R CTBG 2026-0204 [Resolución expte. 501-2026]",
-        "expedienteEstado": "Resolución Cumplida",
-        "expedienteTitulo": "Reclamaciones de ámbito estatal",
-        "fechaApertura": "27/02/2026",
+        "expedienteEstado": "Abierto",
+        "expedienteTitulo": "Reclamaciones de ámbito estatal\nPendiente: ...",
+        "fechaApertura": "24/04/2026",
         "fechaCierre": ""
     }
 }
 ```
 
-When the webhook receives a payload with `source: "consejo_ctbg"` and `metadata.complaint_phase` is present, `AgentWebhookProcessor::mapCtbgPhaseToType()` pre-assigns `Document.type` from a deterministic title-pattern map (`R CTBG …` → `ComplaintResolution`, `Trámite de audiencia` → `Audiencia`, `Recibo` → `ComplaintReceipt`, `Comunicación de inicio` → `ComplaintProcessingStart`, `Alegaciones` → `Alegaciones`, default → `Complaint`). The document is also marked `processed = true` so the AI pipeline (`ProcessDocumentHandler`) skips it — without that, AI reclassification could move the document out of the complaint section. Trade-off: no `extractedText` / `aiMetadata` is populated for these documents; the deterministic type is enough to render them in `_documents_list.html.twig`'s "Documentos de reclamación" block.
+#### Reconciliation algorithm
+
+`AgentWebhookProcessor::processCtbgBatch()` resolves the
+`AccessRequestComplaint` this batch belongs to in this order:
+
+1. `expedienteRef` against `AccessRequest.externalId`,
+   `AccessRequest.alternativeReferences`, or `AccessRequestComplaint.externalId`
+   (current). Same lookup the legacy path used.
+2. **Historical complaint refs**: `AccessRequestComplaint.externalIds` JSONB
+   array. Covers late uploads still using a pre-promotion `registry_no`.
+3. **Per-doc hash fallback** (CTBG only): if (1) and (2) miss and the doc's
+   `contentHash` already exists on a complaint owned by this user, that
+   complaint is the match. The first 1:1 hit triggers `promoteExternalId()`,
+   which sets `complaint.externalId = expedienteRef`, appends the new ref to
+   `externalIds[]` (preserving history), and snapshots the body's
+   `expedienteEstado / Titulo / fechaApertura / fechaCierre` onto the complaint.
+4. Replay: docs deferred while the complaint was unresolved are reprocessed
+   against the just-promoted complaint.
+
+Hash matches with `>1 candidates` → log `ctbg.hash.ambiguous` and defer.
+Trying to overwrite a complaint that already carries a final
+`NNN/YYYY`-style ref with a different one → log `ctbg.externalId.conflict`
+and defer (re-presentation is not a flow the agent should generate).
+
+#### Document type pre-assignment
+
+When `metadata.complaint_phase` is present, `mapCtbgPhaseToType()` assigns
+`Document.type` from a deterministic title-pattern map (`R CTBG …` →
+`ComplaintResolution`, `Trámite de audiencia` → `Audiencia`, `Recibo` →
+`ComplaintReceipt`, `Comunicación de inicio` → `ComplaintProcessingStart`,
+`Alegaciones` → `Alegaciones`, default → `Complaint`). The document still
+runs through the AI pipeline (extractedText, aiMetadata) but its `type`
+stays locked.
+
+#### Response shape (CTBG only — `created` is an array, not a count)
+
+```json
+{
+    "ok": true,
+    "documents": 2,
+    "created": [
+        {
+            "filename": "Recibo-2026-E-RE-1017.pdf",
+            "csv": "3PAGQH4WW4CQLPTJDN2FC9MZD",
+            "complaintId": "uuid",
+            "documentId": "uuid"
+        }
+    ],
+    "skipped": [
+        {
+            "filename": "Resolución expte. 590-2026.pdf",
+            "csv": "<csv del agente>",
+            "code": "complaint_not_found",
+            "retryable": true,
+            "reason": "No matching complaint by externalId or contentHash"
+        }
+    ]
+}
+```
+
+`skipped[].code` taxonomy:
+
+| code | retryable | meaning |
+| --- | --- | --- |
+| `complaint_not_found` | `true` | No match by externalId, historical ids, or contentHash. The agent must retry on the next crawl (do **not** persist the csv as seen). |
+| `duplicate_hash` | `false` | The doc is already attached. Terminal — agent persists csv. |
+| `unsupported_type` / `decode_error` / `tiny_image` | `false` | Filtered out terminally. |
+
+The agent uses `len(created)` and the per-item `csv` to decide which CSVs to
+add to `state.ctbg_synced_csvs`. Items with `retryable: true` must NOT be
+persisted.
+
+Other sources (`transparencia_age`, `dehu_redsara`, `redsara_rec`, the PT
+submission flow) keep the legacy response shape (`created` as integer,
+`skipped[]` with `{filename, reason}`).
 
 ### DEHú pending notifications report
 
