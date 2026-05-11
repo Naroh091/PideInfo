@@ -535,7 +535,13 @@ TXT;
             ]);
         }
 
-        $denialReason = $accessRequest->getResolutionNotes() ?? 'No se ha indicado motivo de denegación';
+        // Nota: este campo lo rellena un humano (o queda vacío); NO es la fuente
+        // de verdad sobre lo que dijo la administración — los documentos del
+        // expediente lo son. El default deja claro al modelo que debe ir a los
+        // documentos para identificar límites/causas concretos en lugar de
+        // afirmar genéricamente que «no se han invocado».
+        $denialReason = $accessRequest->getResolutionNotes()
+            ?? '(no hay nota humana; consulta los documentos del expediente para identificar lo que la Administración haya alegado, si algo)';
 
         if ($hasResponseDocument) {
             $silenceBlock = '';

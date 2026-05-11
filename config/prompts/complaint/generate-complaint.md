@@ -7,8 +7,8 @@ Escribe un párrafo breve que resuma:
 - Qué información se solicitó: {{request_title}}
 - A qué organismo: {{public_body_name}}
 - Qué ocurrió: {{status}}
-- Motivo alegado por la Administración: {{denial_reason}}
-- Por qué debe estimarse la reclamación (una frase)
+- Lo que dijo la Administración (si emitió resolución): {{denial_reason}}. **Si en los documentos del expediente la Administración invoca límites concretos del art. 14 o causas de inadmisión del art. 18 LTAIBG (o equivalente autonómico), reprodúcelos aquí literalmente — aunque este campo te llegue vacío o con un texto genérico.** El campo `denial_reason` es solo lo que un humano anotó a mano; los documentos son la verdad.
+- Por qué debe estimarse la reclamación (una frase, adaptada al supuesto: denegación, parcial, silencio, concesión no materializada, inadmisión…)
 
 ## 2. ANTECEDENTES
 
@@ -29,7 +29,7 @@ Cada fundamento debe ser un punto numerado con título temático descriptivo que
 
 Cada punto debe seguir esta estructura:
 1. **Título temático** en negrita que identifique la cuestión (ej. "Sobre la inadmisibilidad de...", "Sobre la forma de acceso a la información pública y la vulneración del artículo 22.1 de la LTAIBG", "Sobre la naturaleza electrónica de los expedientes...", "Inaplicabilidad de la causa de inadmisión por reelaboración", "Sobre la interoperabilidad y los medios electrónicos en la Administración")
-2. **Argumentación**: cita artículos de ley literalmente, refuta los argumentos de la administración punto por punto, y apoya con criterios interpretativos y resoluciones favorables cuando sean relevantes
+2. **Argumentación**: cita artículos de ley literalmente, refuta los argumentos concretos que la Administración haya invocado en su resolución (si los hay) punto por punto, y apoya con criterios interpretativos y resoluciones favorables cuando sean relevantes. **No te limites a frases genéricas tipo «no se han alegado límites»: si los hay, nómbralos; si no los hay, dilo y termina.**
 
 Ejemplos de títulos temáticos correctos:
 - "Sobre la inadmisibilidad de [causa invocada por la Administración]"
@@ -39,6 +39,19 @@ Ejemplos de títulos temáticos correctos:
 - "La normativa de [norma] como umbral mínimo, no como límite al derecho de acceso"
 - "La dispersión de la información no justifica la denegación del acceso"
 - "Sobre la [cuestión concreta que refutes]"
+
+### COHERENCIA CON LO QUE DICE LA RESOLUCIÓN — REGLA TRANSVERSAL
+
+Antes de redactar nada, LEE lo que la Administración haya dicho en los documentos del expediente (la resolución, el oficio, la notificación, las alegaciones). La argumentación debe partir de hechos verificables en esos documentos, no de un supuesto genérico de denegación.
+
+- **No presumas que se trata de una denegación.** El supuesto puede ser denegación expresa, inadmisión, concesión parcial, concesión no materializada o silencio. Adapta el tono y las pretensiones al caso real (ver el campo `Qué ocurrió` y los supuestos específicos abajo).
+- **Si la resolución cita LÍMITES concretos del art. 14 LTAIBG (o equivalente autonómico)** —p. ej. seguridad nacional, secreto profesional, protección de datos, intereses económicos…— reprodúcelos en los Antecedentes y refútalos UNO A UNO en la Fundamentación, nombrando el límite concreto. NO escribas «la Administración no ha invocado ningún límite»: lo está invocando, está en el documento.
+- **Si la resolución cita CAUSAS DE INADMISIÓN concretas del art. 18 LTAIBG (o equivalente autonómico)** —reelaboración, información auxiliar, repetitiva, en curso de elaboración, órgano incompetente…— reprodúcelas y refútalas. El título del fundamento debe nombrar la causa expresamente («Inaplicabilidad de la causa de reelaboración del art. 18.1.c LTAIBG»). NO afirmes en abstracto que «no se han invocado causas de inadmisión» si las hay en la resolución.
+- **Si invoca PROTECCIÓN DE DATOS**, el debate no es «conceder o no conceder» en bloque sino DISOCIACIÓN/ANONIMIZACIÓN: argumenta que la negativa total es desproporcionada cuando un volcado disociado satisface el derecho de acceso.
+- **Solo si la resolución NO invoca ningún límite ni causa concreta** (o no hay resolución) puedes afirmar que «no se ha ofrecido motivo válido». En ese supuesto sí, en el contrario no.
+- **No inventes motivos** que la Administración no haya esgrimido — pero **tampoco los ocultes** si están en los documentos.
+
+Esta regla aplica SIEMPRE, en cualquiera de los supuestos de abajo.
 
 ### CASO DE SILENCIO ADMINISTRATIVO NEGATIVO
 
