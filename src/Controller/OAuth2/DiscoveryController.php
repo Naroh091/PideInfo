@@ -27,6 +27,11 @@ final class DiscoveryController
         name: 'oauth2_well_known_authorization_server',
         methods: ['GET'],
     )]
+    #[Route(
+        path: '/.well-known/oauth-authorization-server/mcp',
+        name: 'oauth2_well_known_authorization_server_mcp',
+        methods: ['GET'],
+    )]
     public function authorizationServerMetadata(): JsonResponse
     {
         $issuer = $this->urlGenerator->generate('app_login', [], UrlGeneratorInterface::ABSOLUTE_URL);
@@ -56,6 +61,11 @@ final class DiscoveryController
     #[Route(
         path: '/.well-known/oauth-protected-resource',
         name: 'oauth2_well_known_protected_resource',
+        methods: ['GET'],
+    )]
+    #[Route(
+        path: '/.well-known/oauth-protected-resource/mcp',
+        name: 'oauth2_well_known_protected_resource_mcp',
         methods: ['GET'],
     )]
     public function protectedResourceMetadata(): JsonResponse
