@@ -122,14 +122,17 @@ Todos los campos de esta sección usan el patrón Wicket "Escribir"/"Seleccionar
 | RAZONES DE LA RECLAMACIÓN | Select (id típico `id13c`) | Opciones literales:<br>• `No se admitió a trámite la solicitud formulada`<br>• `Se denegó el acceso a toda información solicitada`<br>• `Se denegó el acceso a parte de la información solicitada`<br>• `Estoy disconforme con la información recibida` |
 | Exponga brevemente los motivos por los que presenta la reclamación | Textarea | Texto libre, resumen ejecutivo del por qué se reclama. |
 
-Mapeo sugerido `AccessRequest.status → RAZONES`:
+Mapeo `AccessRequest.resolutionResult → RAZONES` (lo aplica `ComplaintController::mapStatusToCtbg()` y se vuelca en `AgentTask.payload.complaint_reason` + `AgentTask.payload.resolution_result`):
 
-| Status PideInfo (sugerido) | Razón CTBG literal |
+| `resolutionResult` PideInfo | Razón CTBG literal |
 |---|---|
-| `denied_inadmission` | `No se admitió a trámite la solicitud formulada` |
-| `denied` / `resolutionType=denial_total` | `Se denegó el acceso a toda información solicitada` |
-| `partial_response` / `resolutionType=denial_partial` | `Se denegó el acceso a parte de la información solicitada` |
-| `responded` (con desacuerdo del usuario) | `Estoy disconforme con la información recibida` |
+| `inadmitted` | `No se admitió a trámite la solicitud formulada` |
+| `denied` | `Se denegó el acceso a toda información solicitada` |
+| `partially_granted` | `Se denegó el acceso a parte de la información solicitada` |
+| `granted` (concesión nominal no materializada) | `Estoy disconforme con la información recibida` |
+| `silence` o `null` (plazo agotado sin respuesta) | branch=no — silencio (sin razón explícita) |
+
+> El `resolutionResult` es ortogonal al `status` del flujo: el status puede evolucionar a `granted_completed` y perder el matiz "parcial", pero `resolutionResult` preserva la verdad de qué dijo la administración. Por eso el mapeo a la opción del portal CTBG se hace contra `resolutionResult`, no contra `status`.
 
 #### B.2 — branch "No he recibido respuesta a la solicitud" (silencio)
 

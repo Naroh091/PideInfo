@@ -546,6 +546,7 @@ class ComplaintController extends AbstractController
             'public_body_name' => $accessRequest->getPublicBody()?->getName(),
             'complaint_branch' => $map['branch'],
             'complaint_reason' => $map['reason'],
+            'resolution_result' => $accessRequest->getResolutionResult(),
             'notification_date' => $map['notification_date'],
             'complaint_body' => $this->extractComplaintBody($complaintDocument),
 
@@ -565,40 +566,44 @@ class ComplaintController extends AbstractController
     }
 
     /**
-     * Map AccessRequest.status → CTBG complaint branch + reason + notification date.
+     * Map AccessRequest.resolutionResult → CTBG complaint branch + reason + notification date.
      *
-     * Caller must check `ComplaintGenerator::canGenerateComplaint` first; any
-     * status not explicitly listed below is treated as silence (branch=no),
-     * which is what `canGenerateComplaint` allows once the deadline passes.
+     * The resolutionResult captures the type of administrative response and is
+     * orthogonal to the workflow status (which may evolve to `granted_completed`
+     * and lose the original "parcial" nuance). Caller must check
+     * `ComplaintGenerator::canGenerateComplaint` first; any resolutionResult
+     * other than the four reclamable cases (and the explicit silence case) is
+     * treated as silence (branch=no), which is what `canGenerateComplaint`
+     * allows once the deadline passes without a decision.
      *
      * @return array{branch: 'yes'|'no', reason: ?string, notification_date: ?string}
      */
     private static function mapStatusToCtbg(AccessRequest $ar): array
     {
         $resolvedDate = $ar->getResolvedAt()?->format('d/m/Y');
-        return match ($ar->getStatus()) {
-            AccessRequest::STATUS_INADMITTED => [
+        return match ($ar->getResolutionResult()) {
+            AccessRequest::RESULT_INADMITTED => [
                 'branch' => 'yes',
                 'reason' => 'No se admitió a trámite la solicitud formulada',
                 'notification_date' => $resolvedDate,
             ],
-            AccessRequest::STATUS_DENIED => [
+            AccessRequest::RESULT_DENIED => [
                 'branch' => 'yes',
                 'reason' => 'Se denegó el acceso a toda información solicitada',
                 'notification_date' => $resolvedDate,
             ],
-            AccessRequest::STATUS_PARTIALLY_GRANTED => [
+            AccessRequest::RESULT_PARTIALLY_GRANTED => [
                 'branch' => 'yes',
                 'reason' => 'Se denegó el acceso a parte de la información solicitada',
                 'notification_date' => $resolvedDate,
             ],
-            AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED => [
+            AccessRequest::RESULT_GRANTED => [
                 'branch' => 'yes',
                 'reason' => 'Estoy disconforme con la información recibida',
                 'notification_date' => $resolvedDate,
             ],
-            // STATUS_DELAYED and any pre-decision status with deadline passed
-            // are silence reclamations.
+            // RESULT_SILENCE and null (deadline-expired without decision) are
+            // both silence reclamations on the CTBG portal.
             default => [
                 'branch' => 'no', 'reason' => null, 'notification_date' => null,
             ],
