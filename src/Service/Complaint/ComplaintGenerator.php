@@ -166,7 +166,7 @@ final class ComplaintGenerator
     {
         if (!$this->canGenerateComplaint($accessRequest)) {
             throw new \InvalidArgumentException(
-                'Cannot generate complaint for this request. Status must be denied or delayed.'
+                'Cannot generate complaint for this request. Resolution must be denied, partially granted, inadmitted, or in administrative silence.'
             );
         }
 
@@ -229,7 +229,7 @@ final class ComplaintGenerator
     {
         if (!$this->canGenerateComplaint($accessRequest)) {
             throw new \InvalidArgumentException(
-                'Cannot generate complaint for this request. Status must be denied or delayed.'
+                'Cannot generate complaint for this request. Resolution must be denied, partially granted, inadmitted, or in administrative silence.'
             );
         }
 
@@ -343,6 +343,16 @@ final class ComplaintGenerator
     public function canGenerateComplaint(AccessRequest $accessRequest): bool
     {
         if (in_array($accessRequest->getStatus(), [AccessRequest::STATUS_DENIED, AccessRequest::STATUS_DELAYED], true)) {
+            return true;
+        }
+
+        // Any explicit resolution result is grounds for a complaint:
+        // - denied / inadmitted / silence: classic refusal
+        // - partially_granted: claim against the part not facilitated
+        // - granted: the resolution says "yes" but the citizen may claim
+        //   the information was never actually delivered (or was delivered
+        //   incomplete despite the nominal grant)
+        if ($accessRequest->getResolutionResult() !== null) {
             return true;
         }
 
@@ -498,6 +508,7 @@ TXT;
             ? 'silencio administrativo positivo (derecho adquirido pero no materializado)'
             : 'silencio administrativo negativo';
         $status = match (true) {
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_PARTIALLY_GRANTED => 'estimada parcialmente (concesión parcial)',
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
             $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'no contestada (' . $silenceLabel . ')',
             $accessRequest->isDeadlinePassed() => 'plazo vencido sin respuesta (' . $silenceLabel . ')',
@@ -566,6 +577,33 @@ En los Fundamentos Jurídicos debes:
 
 NO inventes motivos de denegación: parte explícitamente de que la Administración no ha ofrecido ninguno.
 SILENCE;
+        }
+
+        // Concesión parcial: la queja debe enfocarse sobre la información NO
+        // facilitada, no como denegación total. Sustituye el bloque de
+        // silencio (mutuamente excluyentes — si hay resolución parcial, no
+        // estamos en silencio).
+        if ($accessRequest->getResolutionResult() === AccessRequest::RESULT_PARTIALLY_GRANTED) {
+            $silenceBlock = <<<'PARTIAL'
+
+
+## SUPUESTO DE CONCESIÓN PARCIAL
+
+La Administración ha resuelto expresamente facilitando SÓLO PARTE de la información solicitada. La reclamación NO debe argumentarse como una denegación total: hay que delimitar con precisión qué partes de lo solicitado se concedieron y cuáles quedaron sin facilitar.
+
+En la EXPOSICIÓN DE HECHOS:
+- Identifica con detalle qué información sí se entregó.
+- Identifica qué información solicitada NO se ha facilitado (o se ha facilitado de forma incompleta o ilegible).
+- Si la Administración ha motivado la negativa parcial con algún límite del art. 14 o causa de inadmisión del art. 18 Ley 19/2013 (o equivalente autonómico), reprodúcela y rebátela en los Fundamentos Jurídicos.
+
+En los FUNDAMENTOS JURÍDICOS:
+- Recuerda que el derecho de acceso es la regla general y los límites son de interpretación restrictiva.
+- Argumenta por qué la parte NO facilitada no encaja en los límites alegados (o por qué no se ha alegado ninguno).
+- Si la Administración invocó protección de datos, exige que se aplique la disociación o anonimización antes que la denegación.
+
+En la SOLICITUD: pide al {$transparencyCouncil} que estime la reclamación EN LO NO CONCEDIDO y ordene a la Administración la entrega efectiva de la información restante. NO pidas lo que ya se ha facilitado.
+PARTIAL;
+            $silenceBlock = strtr($silenceBlock, ['{$transparencyCouncil}' => $transparencyCouncil]);
         }
 
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);

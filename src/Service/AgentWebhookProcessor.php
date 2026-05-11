@@ -3,11 +3,13 @@
 namespace App\Service;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
 use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
+use App\Repository\AccessRequestComplaintRepository;
 use App\Repository\AccessRequestRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -25,10 +27,14 @@ class AgentWebhookProcessor
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ];
 
+    /** Marker used by promoteExternalId to detect already-final CTBG refs. */
+    private const FINAL_CTBG_REF_PATTERN = '/^\d{1,5}\/\d{4}$/';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly FilesystemOperator $documentsStorage,
         private readonly AccessRequestRepository $accessRequestRepository,
+        private readonly AccessRequestComplaintRepository $complaintRepository,
         private readonly MessageBusInterface $messageBus,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
@@ -55,22 +61,33 @@ class AgentWebhookProcessor
         $this->handleAcceptedNotifications($user, $data, $expedienteRef, $metadata);
 
         if (empty($documents)) {
+            if ($source === 'consejo_ctbg') {
+                return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => [], 'skipped' => []]);
+            }
             return new JsonResponse(['ok' => true, 'documents' => 0, 'created' => 0, 'skipped' => []]);
         }
 
-        // Look up an existing AccessRequest matching this expediente reference
         $accessRequest = $this->findAccessRequest($expedienteRef, $user, $metadata);
 
-        // When documents are present but no AR exists, let the document
-        // processing pipeline create the AccessRequest via AI analysis
-        // instead of building a bare-bones one from metadata alone.
-        $accessRequestCreated = false;
-
-        // Save portal numeric expedienteId as an alternative reference
         if ($accessRequest !== null && !empty($metadata['expedienteId'])) {
             $accessRequest->addAlternativeReference((string) $metadata['expedienteId']);
         }
 
+        if ($source === 'consejo_ctbg') {
+            return $this->processCtbgBatch($user, $expedienteRef, $documents, $metadata, $accessRequest);
+        }
+
+        return $this->processLegacyBatch($user, $source, $expedienteRef, $documents, $metadata, $accessRequest);
+    }
+
+    /**
+     * Legacy batch path for non-CTBG sources (transparencia_age, presentation
+     * flow, etc). Same behavior as before the CTBG reconciliation rework:
+     * top-level metadata only, no hash fallback, response shape with
+     * `created` as integer.
+     */
+    private function processLegacyBatch(User $user, string $source, string $expedienteRef, array $documents, array $metadata, ?AccessRequest $accessRequest): JsonResponse
+    {
         $documentIds = [];
         $createdFilenames = [];
         $skipped = [];
@@ -91,23 +108,20 @@ class AgentWebhookProcessor
                 'documents' => count($documents),
                 'created' => 0,
                 'skipped' => $skipped,
-                'accessRequestCreated' => $accessRequestCreated,
+                'accessRequestCreated' => false,
             ]);
         }
 
-        // Documents were received — clear any stale pending notifications on this AR.
         if ($accessRequest !== null && $accessRequest->hasPendingPortalNotifications()) {
             $accessRequest->setPendingPortalNotifications(null);
         }
 
-        // Notify the user about documents downloaded in the background by the agent.
         if (!empty($createdFilenames)) {
             $this->notificationManager->notifyAgentDocumentDownloaded($user, $accessRequest, $createdFilenames);
         }
 
         $this->entityManager->flush();
 
-        // Dispatch processing
         if (count($documentIds) > 1) {
             $this->messageBus->dispatch(new ProcessDocumentBatchMessage($documentIds));
         } else {
@@ -127,8 +141,316 @@ class AgentWebhookProcessor
             'documents' => count($documents),
             'created' => count($documentIds),
             'skipped' => $skipped,
-            'accessRequestCreated' => $accessRequestCreated,
+            'accessRequestCreated' => false,
         ]);
+    }
+
+    /**
+     * CTBG batched-reconciliation path. The agent posts every doc of an
+     * expediente in one shot. If expedienteRef doesn't match locally, we
+     * try a hash-based fallback per-doc: any doc already on file (typically
+     * the user's signed instancia or the recibo) tells us which existing
+     * complaint this freshly-renumbered expediente belongs to. On a clean
+     * 1:1 hash match we promote the complaint's externalId to the new ref
+     * and replay the rest of the batch against the resolved complaint.
+     */
+    private function processCtbgBatch(User $user, string $expedienteRef, array $documents, array $bodyMetadata, ?AccessRequest $accessRequest): JsonResponse
+    {
+        $complaint = $accessRequest?->getComplaint();
+        $created = [];
+        $skipped = [];
+        $deferred = [];
+        $documentIds = [];
+
+        foreach ($documents as $doc) {
+            $merged = $this->mergeDocMetadata($doc, $bodyMetadata);
+
+            if ($complaint !== null) {
+                $this->ingestCtbgDoc($user, $doc, $expedienteRef, $merged, $complaint, $created, $skipped, $documentIds);
+                continue;
+            }
+
+            // No complaint resolved yet — try hash fallback on this doc.
+            $contentHash = $this->resolveContentHash($doc);
+            if ($contentHash === null) {
+                $deferred[] = $doc;
+                continue;
+            }
+
+            $matches = $this->complaintRepository->findByDocumentHashForUser($contentHash, $user);
+
+            if (count($matches) === 1) {
+                $candidate = $matches[0];
+
+                if ($this->wouldConflictPromotion($candidate, $expedienteRef)) {
+                    $this->logger->warning('ctbg.externalId.conflict', [
+                        'userId' => (string) $user->getId(),
+                        'complaintId' => (string) $candidate->getId(),
+                        'currentExternalId' => $candidate->getExternalId(),
+                        'newExternalId' => $expedienteRef,
+                    ]);
+                    $deferred[] = $doc;
+                    continue;
+                }
+
+                $this->promoteExternalId($candidate, $expedienteRef, $bodyMetadata);
+                $complaint = $candidate;
+                $accessRequest = $complaint->getAccessRequest();
+
+                $this->ingestCtbgDoc($user, $doc, $expedienteRef, $merged, $complaint, $created, $skipped, $documentIds);
+            } elseif (count($matches) > 1) {
+                $this->logger->warning('ctbg.hash.ambiguous', [
+                    'userId' => (string) $user->getId(),
+                    'contentHash' => $contentHash,
+                    'candidates' => array_map(static fn (AccessRequestComplaint $c) => (string) $c->getId(), $matches),
+                ]);
+                $deferred[] = $doc;
+            } else {
+                $deferred[] = $doc;
+            }
+        }
+
+        // Replay deferred docs now that we may have a resolved complaint.
+        foreach ($deferred as $doc) {
+            $merged = $this->mergeDocMetadata($doc, $bodyMetadata);
+            if ($complaint !== null) {
+                $this->ingestCtbgDoc($user, $doc, $expedienteRef, $merged, $complaint, $created, $skipped, $documentIds);
+            } else {
+                $skipped[] = [
+                    'filename' => $doc['filename'] ?? 'document.pdf',
+                    'csv' => $merged['csv'] ?? null,
+                    'code' => 'complaint_not_found',
+                    'retryable' => true,
+                    'reason' => 'No matching complaint by externalId or contentHash',
+                ];
+            }
+        }
+
+        if ($accessRequest !== null && $accessRequest->hasPendingPortalNotifications() && !empty($documentIds)) {
+            $accessRequest->setPendingPortalNotifications(null);
+        }
+
+        if (!empty($created) && $accessRequest !== null) {
+            $this->notificationManager->notifyAgentDocumentDownloaded(
+                $user,
+                $accessRequest,
+                array_column($created, 'filename')
+            );
+        }
+
+        $this->entityManager->flush();
+
+        if (count($documentIds) > 1) {
+            $this->messageBus->dispatch(new ProcessDocumentBatchMessage($documentIds));
+        } elseif (count($documentIds) === 1) {
+            $this->messageBus->dispatch(new ProcessDocumentMessage($documentIds[0]));
+        }
+
+        $this->logger->info('CTBG agent: batch reconciled', [
+            'userId' => (string) $user->getId(),
+            'expedienteRef' => $expedienteRef,
+            'documents' => count($documents),
+            'created' => count($created),
+            'skipped' => count($skipped),
+            'complaintId' => $complaint ? (string) $complaint->getId() : null,
+        ]);
+
+        return new JsonResponse([
+            'ok' => true,
+            'documents' => count($documents),
+            'created' => $created,
+            'skipped' => $skipped,
+        ]);
+    }
+
+    /**
+     * Process one CTBG document against a known complaint, appending to the
+     * created/skipped/documentIds arrays in the new response shape.
+     *
+     * @param array<string, mixed> $doc
+     * @param array<string, mixed> $mergedMeta
+     * @param list<array{filename: string, csv: ?string, complaintId: string, documentId: string}> $created
+     * @param list<array{filename: string, csv: ?string, code: string, retryable: bool, reason: string}> $skipped
+     * @param list<string> $documentIds
+     */
+    private function ingestCtbgDoc(
+        User $user,
+        array $doc,
+        string $expedienteRef,
+        array $mergedMeta,
+        AccessRequestComplaint $complaint,
+        array &$created,
+        array &$skipped,
+        array &$documentIds,
+    ): void {
+        $accessRequest = $complaint->getAccessRequest();
+        $result = $this->processDocument($user, $doc, 'consejo_ctbg', $expedienteRef, $mergedMeta, $accessRequest);
+
+        if ($result['id'] !== null) {
+            $created[] = [
+                'filename' => $doc['filename'] ?? 'document.pdf',
+                'csv' => $mergedMeta['csv'] ?? null,
+                'complaintId' => (string) $complaint->getId(),
+                'documentId' => (string) $result['id'],
+            ];
+            $documentIds[] = $result['id'];
+            return;
+        }
+
+        if ($result['skipped'] !== null) {
+            $reason = $result['skipped']['reason'];
+            $skipped[] = [
+                'filename' => $result['skipped']['filename'],
+                'csv' => $mergedMeta['csv'] ?? null,
+                'code' => $reason === 'duplicate' ? 'duplicate_hash' : $reason,
+                'retryable' => false,
+                'reason' => self::reasonText($reason),
+            ];
+        }
+    }
+
+    /**
+     * Promote a complaint's externalId to a freshly-discovered CTBG ref and
+     * snapshot the expediente metadata. Idempotent: re-promoting to the same
+     * ref is a no-op. Always pushes the new ref into the historical list.
+     *
+     * @param array<string, mixed> $expMeta
+     */
+    private function promoteExternalId(AccessRequestComplaint $complaint, string $newExternalId, array $expMeta): void
+    {
+        $oldExternalId = $complaint->getExternalId();
+
+        $isNewRef = $oldExternalId !== $newExternalId;
+
+        $complaint->setExternalId($newExternalId); // setter pushes into externalIds[]
+
+        if (isset($expMeta['expedienteEstado']) && '' !== $expMeta['expedienteEstado']) {
+            $complaint->setExpedienteEstado((string) $expMeta['expedienteEstado']);
+        }
+        if (isset($expMeta['expedienteTitulo']) && '' !== $expMeta['expedienteTitulo']) {
+            $complaint->setExpedienteTitulo((string) $expMeta['expedienteTitulo']);
+        }
+        if (isset($expMeta['fechaApertura'])) {
+            $parsed = $this->parsePortalDate((string) $expMeta['fechaApertura']);
+            if ($parsed !== null) {
+                $complaint->setFechaApertura($parsed);
+            }
+        }
+        if (isset($expMeta['fechaCierre'])) {
+            $parsed = $this->parsePortalDate((string) $expMeta['fechaCierre']);
+            $complaint->setFechaCierre($parsed); // null clears the field if expediente reopened
+        }
+
+        if ($isNewRef) {
+            $this->logger->info('complaint.externalId.promoted', [
+                'complaintId' => (string) $complaint->getId(),
+                'userId' => (string) $complaint->getAccessRequest()->getUser()->getId(),
+                'from' => $oldExternalId,
+                'to' => $newExternalId,
+            ]);
+        }
+    }
+
+    /**
+     * A complaint already carrying a final CTBG ref (NNN/YYYY) should NOT be
+     * re-promoted to a different one — that's an anomalous re-presentation
+     * the agent shouldn't generate, and silently overwriting could fuse two
+     * separate expedientes. Older registry_no-style refs are fair game to
+     * promote over.
+     */
+    private function wouldConflictPromotion(AccessRequestComplaint $complaint, string $newExternalId): bool
+    {
+        $current = $complaint->getExternalId();
+        if ($current === null || $current === $newExternalId) {
+            return false;
+        }
+
+        return preg_match(self::FINAL_CTBG_REF_PATTERN, $current) === 1
+            && preg_match(self::FINAL_CTBG_REF_PATTERN, $newExternalId) === 1;
+    }
+
+    /**
+     * Merge per-doc metadata over body metadata. Per-spec: each per-doc field
+     * (complaint_phase, csv, documentTitle, etc.) falls back to its top-level
+     * counterpart. Expediente-level fields (expedienteEstado, fechaApertura,
+     * etc.) are intentionally NOT merged here — they only ever come at body
+     * level.
+     *
+     * @param array<string, mixed> $doc
+     * @param array<string, mixed> $bodyMetadata
+     * @return array<string, mixed>
+     */
+    private function mergeDocMetadata(array $doc, array $bodyMetadata): array
+    {
+        $docMeta = is_array($doc['metadata'] ?? null) ? $doc['metadata'] : [];
+
+        // Per-doc keys win, body keys fill the gaps.
+        $merged = $bodyMetadata;
+        foreach ($docMeta as $key => $value) {
+            if ($value !== null && $value !== '') {
+                $merged[$key] = $value;
+            }
+        }
+
+        if (empty($merged['documentTitle'])) {
+            $merged['documentTitle'] = $doc['filename'] ?? null;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * Compute the contentHash from the doc payload, preferring the agent's
+     * pre-computed hash. Returns null when no content + no hash given.
+     *
+     * @param array<string, mixed> $doc
+     */
+    private function resolveContentHash(array $doc): ?string
+    {
+        if (!empty($doc['contentHash']) && is_string($doc['contentHash'])) {
+            return $doc['contentHash'];
+        }
+
+        $base64 = $doc['content'] ?? null;
+        if (!is_string($base64) || $base64 === '') {
+            return null;
+        }
+        $bytes = base64_decode($base64, true);
+        if ($bytes === false) {
+            return null;
+        }
+
+        return hash('sha256', $bytes);
+    }
+
+    private function parsePortalDate(string $value): ?\DateTimeImmutable
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+        // CTBG sede emits DD/MM/YYYY.
+        $parsed = \DateTimeImmutable::createFromFormat('!d/m/Y', $value);
+        if ($parsed instanceof \DateTimeImmutable) {
+            return $parsed;
+        }
+        // Defensive: ISO 8601 fallback (in case the agent ever normalizes).
+        try {
+            return new \DateTimeImmutable($value);
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    private static function reasonText(string $reasonCode): string
+    {
+        return match ($reasonCode) {
+            'duplicate' => 'Document with this content hash is already attached.',
+            'unsupported_type' => 'Unsupported MIME type.',
+            'decode_error' => 'Could not base64-decode the payload.',
+            'tiny_image' => 'Image filtered out as visual noise (too small).',
+            default => $reasonCode,
+        };
     }
 
     private function handleDehuPendingNotifications(User $user, string $expedienteRef, array $pendingNotifications): JsonResponse
@@ -219,6 +541,16 @@ class AgentWebhookProcessor
             ? $this->accessRequestRepository->findByExternalId($expedienteRef, $user)
             : null;
 
+        // Historical complaint externalIds — covers the case where a CTBG
+        // expediente was renumbered (registry_no → NNN/YYYY) and a late
+        // upload still uses the old reference.
+        if (!$accessRequest && $expedienteRef !== '') {
+            $complaint = $this->complaintRepository->findByAnyExternalIdForUser($expedienteRef, $user);
+            if ($complaint !== null) {
+                $accessRequest = $complaint->getAccessRequest();
+            }
+        }
+
         if (!$accessRequest && !empty($metadata['expedienteId'])) {
             $accessRequest = $this->accessRequestRepository->findByExternalId(
                 (string) $metadata['expedienteId'],
@@ -226,11 +558,11 @@ class AgentWebhookProcessor
             );
         }
 
-        // Final fallback: when the agent uploads documents *before* the
-        // matching AccessRequest has its externalId set (e.g. the PT
-        // submission flow uploads the solicitud + justificante PDFs before
-        // calling complete_task that persists externalId), it includes the
-        // access_request UUID in metadata so we can still link the docs.
+        // Final fallback: the agent uploads documents *before* the matching
+        // AccessRequest has its externalId set (e.g. the PT submission flow
+        // uploads the solicitud + justificante PDFs before calling
+        // complete_task that persists externalId), and includes the access
+        // request UUID in metadata.
         if (!$accessRequest && !empty($metadata['access_request_id'])) {
             $rawId = (string) $metadata['access_request_id'];
             try {
@@ -270,7 +602,6 @@ class AgentWebhookProcessor
             return ['id' => null, 'skipped' => ['filename' => $filename, 'reason' => 'decode_error']];
         }
 
-        // Tiny images (< 10 KB) are noise — signature logos, icons, etc.
         if (\App\Service\Document\DocumentIngestionFilter::isTinyImage($contentType, strlen($content))) {
             $this->logger->info('Agent: skipping tiny image', [
                 'filename' => $filename,
@@ -403,10 +734,6 @@ class AgentWebhookProcessor
 
         if ($type !== null) {
             $document->setType($type);
-            // Type stays locked through the AI pipeline (see ProcessDocumentHandler:
-            // when type !== Unprocessed, setType is skipped). Leaving processed=false
-            // so DocumentAnalyzer still extracts the summary/text and the embeddings
-            // job downstream has something to chunk.
         }
 
         if ($accessRequest !== null) {

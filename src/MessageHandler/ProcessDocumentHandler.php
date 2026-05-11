@@ -386,8 +386,9 @@ final class ProcessDocumentHandler
                 // accessRequestStatus hint (derived from documentType labels
                 // like 'inadmitida'/'parcialmente_concedida') takes precedence
                 // over the freeform 'status' field when both are present.
+                $rawAnalysisStatus = $analysis['status'] ?? null;
                 $status = ($analysis['accessRequestStatus'] ?? null)
-                    ?: $this->mapAnalysisStatusToAccessRequestStatus($analysis['status'] ?? null);
+                    ?: $this->mapAnalysisStatusToAccessRequestStatus($rawAnalysisStatus);
                 if ($status && $accessRequest->getStatus() !== $status) {
                     $previousStatus = $accessRequest->getStatus();
                     $accessRequest->setStatus($status);
@@ -401,6 +402,16 @@ final class ProcessDocumentHandler
                     }
 
                     $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate, $previousStatus);
+                }
+                // Persist the orthogonal "what did the admin decide" signal so
+                // it survives later transitions (e.g. granted_completed pisando
+                // partially_granted). 'concedida_completada' carries no
+                // partial/total signal — preserve any prior result.
+                $resolutionResult = $this->mapAnalysisStatusToResolutionResult($rawAnalysisStatus);
+                if ($resolutionResult !== null && $accessRequest->getResolutionResult() === null) {
+                    $accessRequest->setResolutionResult($resolutionResult);
+                } elseif ($resolutionResult !== null && $rawAnalysisStatus !== 'concedida_completada') {
+                    $accessRequest->setResolutionResult($resolutionResult);
                 }
                 break;
 
@@ -565,11 +576,16 @@ final class ProcessDocumentHandler
                 break;
 
             case DocumentType::ComplaintResolution:
-                $status = $this->mapAnalysisStatusToComplaintStatus($analysis['status'] ?? null);
+                $rawComplaintStatus = $analysis['status'] ?? null;
+                $status = $this->mapAnalysisStatusToComplaintStatus($rawComplaintStatus);
                 if ($status) {
                     $complaint = $this->ensureComplaint($accessRequest);
                     $previousComplaintStatus = $complaint->getStatus();
                     $complaint->setStatus($status);
+                    $complaintResult = $this->mapAnalysisStatusToComplaintResult($rawComplaintStatus);
+                    if ($complaintResult !== null) {
+                        $complaint->setComplaintResult($complaintResult);
+                    }
                     $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
                 }
                 break;
@@ -633,11 +649,53 @@ final class ProcessDocumentHandler
         };
     }
 
+    /**
+     * Maps the AI's analysis label to the orthogonal "what did the admin
+     * decide" signal. 'concedida_completada' is intentionally absent — it only
+     * tells us the user already received the documentation, not whether the
+     * grant was total or partial. Callers must preserve any prior result.
+     */
+    private function mapAnalysisStatusToResolutionResult(?string $status): ?string
+    {
+        return match ($status) {
+            'concedida' => AccessRequest::RESULT_GRANTED,
+            'concedida_completada' => AccessRequest::RESULT_GRANTED,
+            'parcialmente_concedida' => AccessRequest::RESULT_PARTIALLY_GRANTED,
+            'denegada' => AccessRequest::RESULT_DENIED,
+            'inadmitida' => AccessRequest::RESULT_INADMITTED,
+            'silencio' => AccessRequest::RESULT_SILENCE,
+            default => null,
+        };
+    }
+
     private function mapAnalysisStatusToComplaintStatus(?string $status): ?string
     {
         return match ($status) {
             'concedida' => AccessRequestComplaint::STATUS_GRANTED,
+            'estimada' => AccessRequestComplaint::STATUS_GRANTED,
+            'estimada_parcialmente' => AccessRequestComplaint::STATUS_GRANTED,
             'denegada' => AccessRequestComplaint::STATUS_DENIED,
+            'desestimada' => AccessRequestComplaint::STATUS_DENIED,
+            'inadmitida' => AccessRequestComplaint::STATUS_DENIED,
+            'archivada' => AccessRequestComplaint::STATUS_ARCHIVED,
+            default => null,
+        };
+    }
+
+    /**
+     * Maps the AI's analysis label for a complaint resolution to the
+     * orthogonal "what did the council decide" signal.
+     */
+    private function mapAnalysisStatusToComplaintResult(?string $status): ?string
+    {
+        return match ($status) {
+            'concedida' => AccessRequestComplaint::RESULT_UPHELD,
+            'estimada' => AccessRequestComplaint::RESULT_UPHELD,
+            'estimada_parcialmente' => AccessRequestComplaint::RESULT_PARTIALLY_UPHELD,
+            'denegada' => AccessRequestComplaint::RESULT_DISMISSED,
+            'desestimada' => AccessRequestComplaint::RESULT_DISMISSED,
+            'inadmitida' => AccessRequestComplaint::RESULT_INADMITTED,
+            'archivada' => AccessRequestComplaint::RESULT_ARCHIVED,
             default => null,
         };
     }

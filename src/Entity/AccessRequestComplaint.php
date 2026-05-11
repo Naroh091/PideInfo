@@ -24,6 +24,14 @@ class AccessRequestComplaint
         self::STATUS_ARCHIVED,
     ];
 
+    // Complaint result — what the transparency council actually decided.
+    // Orthogonal to $status (workflow). NULL until resolved.
+    public const RESULT_UPHELD = 'upheld';
+    public const RESULT_PARTIALLY_UPHELD = 'partially_upheld';
+    public const RESULT_DISMISSED = 'dismissed';
+    public const RESULT_INADMITTED = 'inadmitted';
+    public const RESULT_ARCHIVED = 'archived';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -35,8 +43,38 @@ class AccessRequestComplaint
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $externalId = null;
 
+    /**
+     * Historical log of every externalId this complaint has ever had. The
+     * "current" externalId above is canonical; this list is the union and is
+     * used by lookups so a late upload referring to an obsolete ref still
+     * resolves to this complaint.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(
+        type: Types::JSON,
+        options: ['default' => '[]', 'jsonb' => true],
+        columnDefinition: "JSONB DEFAULT '[]'::jsonb NOT NULL",
+    )]
+    private array $externalIds = [];
+
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $expedienteEstado = null;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $expedienteTitulo = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $fechaApertura = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $fechaCierre = null;
+
     #[ORM\Column(length: 50)]
     private string $status = self::STATUS_RECLAIMED;
+
+    #[ORM\Column(length: 30, nullable: true)]
+    private ?string $complaintResult = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $deadlineAt = null;
@@ -90,6 +128,65 @@ class AccessRequestComplaint
     public function setExternalId(?string $externalId): static
     {
         $this->externalId = $externalId;
+        if ($externalId !== null && !in_array($externalId, $this->externalIds, true)) {
+            $this->externalIds[] = $externalId;
+        }
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getExternalIds(): array
+    {
+        return $this->externalIds;
+    }
+
+    public function hasExternalId(string $externalId): bool
+    {
+        return $this->externalId === $externalId
+            || in_array($externalId, $this->externalIds, true);
+    }
+
+    public function getExpedienteEstado(): ?string
+    {
+        return $this->expedienteEstado;
+    }
+
+    public function setExpedienteEstado(?string $expedienteEstado): static
+    {
+        $this->expedienteEstado = $expedienteEstado;
+        return $this;
+    }
+
+    public function getExpedienteTitulo(): ?string
+    {
+        return $this->expedienteTitulo;
+    }
+
+    public function setExpedienteTitulo(?string $expedienteTitulo): static
+    {
+        $this->expedienteTitulo = $expedienteTitulo;
+        return $this;
+    }
+
+    public function getFechaApertura(): ?\DateTimeImmutable
+    {
+        return $this->fechaApertura;
+    }
+
+    public function setFechaApertura(?\DateTimeImmutable $fechaApertura): static
+    {
+        $this->fechaApertura = $fechaApertura;
+        return $this;
+    }
+
+    public function getFechaCierre(): ?\DateTimeImmutable
+    {
+        return $this->fechaCierre;
+    }
+
+    public function setFechaCierre(?\DateTimeImmutable $fechaCierre): static
+    {
+        $this->fechaCierre = $fechaCierre;
         return $this;
     }
 
@@ -112,6 +209,29 @@ class AccessRequestComplaint
             self::STATUS_DENIED => 'Reclamación desestimada',
             self::STATUS_ARCHIVED => 'Reclamación archivada',
             default => $this->status,
+        };
+    }
+
+    public function getComplaintResult(): ?string
+    {
+        return $this->complaintResult;
+    }
+
+    public function setComplaintResult(?string $complaintResult): static
+    {
+        $this->complaintResult = $complaintResult;
+        return $this;
+    }
+
+    public function getComplaintResultLabel(): ?string
+    {
+        return match ($this->complaintResult) {
+            self::RESULT_UPHELD => 'Estimada',
+            self::RESULT_PARTIALLY_UPHELD => 'Estimada parcialmente',
+            self::RESULT_DISMISSED => 'Desestimada',
+            self::RESULT_INADMITTED => 'Inadmitida',
+            self::RESULT_ARCHIVED => 'Archivada',
+            default => null,
         };
     }
 

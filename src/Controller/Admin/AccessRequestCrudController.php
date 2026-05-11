@@ -65,11 +65,19 @@ class AccessRequestCrudController extends AbstractCrudController
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
                 'Concedida' => 'granted',
+                'Concedida y completada' => 'granted_completed',
                 'Estimación parcial' => 'partially_granted',
                 'Denegada' => 'denied',
                 'Inadmitida a trámite' => 'inadmitted',
                 'Silencio' => 'delayed',
                 'Pendiente' => 'pending',
+            ]))
+            ->add(ChoiceFilter::new('resolutionResult', 'Tipo de concesión')->setChoices([
+                'Concesión total' => AccessRequest::RESULT_GRANTED,
+                'Concesión parcial' => AccessRequest::RESULT_PARTIALLY_GRANTED,
+                'Denegación' => AccessRequest::RESULT_DENIED,
+                'Inadmisión' => AccessRequest::RESULT_INADMITTED,
+                'Silencio administrativo' => AccessRequest::RESULT_SILENCE,
             ]))
             ->add(EntityFilter::new('publicBody', 'Organismo'))
             ->add(EntityFilter::new('user', 'Usuario'))
@@ -253,6 +261,7 @@ class AccessRequestCrudController extends AbstractCrudController
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
                 'Concedida' => 'granted',
+                'Concedida y completada' => 'granted_completed',
                 'Estimación parcial' => 'partially_granted',
                 'Denegada' => 'denied',
                 'Inadmitida a trámite' => 'inadmitted',
@@ -263,11 +272,30 @@ class AccessRequestCrudController extends AbstractCrudController
                 'sent' => 'primary',
                 'processing' => 'info',
                 'granted' => 'success',
+                'granted_completed' => 'success',
                 'partially_granted' => 'warning',
                 'denied' => 'danger',
                 'inadmitted' => 'danger',
                 'delayed' => 'warning',
                 'pending' => 'secondary',
+            ]);
+
+        yield ChoiceField::new('resolutionResult', 'Tipo de concesión')
+            ->setChoices([
+                'Concesión total' => AccessRequest::RESULT_GRANTED,
+                'Concesión parcial' => AccessRequest::RESULT_PARTIALLY_GRANTED,
+                'Denegación' => AccessRequest::RESULT_DENIED,
+                'Inadmisión' => AccessRequest::RESULT_INADMITTED,
+                'Silencio administrativo' => AccessRequest::RESULT_SILENCE,
+            ])
+            ->setRequired(false)
+            ->setHelp('Resultado de la resolución, independiente del estado del flujo. Vacío hasta que se resuelve.')
+            ->renderAsBadges([
+                AccessRequest::RESULT_GRANTED => 'success',
+                AccessRequest::RESULT_PARTIALLY_GRANTED => 'warning',
+                AccessRequest::RESULT_DENIED => 'danger',
+                AccessRequest::RESULT_INADMITTED => 'danger',
+                AccessRequest::RESULT_SILENCE => 'secondary',
             ]);
 
         yield TextField::new('complaintStatusLabel', 'Reclamación')

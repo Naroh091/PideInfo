@@ -503,9 +503,32 @@ class AccessRequestManager
                     $this->em->persist($complaint);
                 }
                 $complaint->setStatus($newStatus);
+                if ($complaint->getComplaintResult() === null) {
+                    $inferred = match ($newStatus) {
+                        AccessRequestComplaint::STATUS_GRANTED => AccessRequestComplaint::RESULT_UPHELD,
+                        AccessRequestComplaint::STATUS_DENIED => AccessRequestComplaint::RESULT_DISMISSED,
+                        AccessRequestComplaint::STATUS_ARCHIVED => AccessRequestComplaint::RESULT_ARCHIVED,
+                        default => null,
+                    };
+                    if ($inferred !== null) {
+                        $complaint->setComplaintResult($inferred);
+                    }
+                }
             }
         } elseif ($statusType === StatusHistory::TYPE_STATUS) {
             $request->setStatus($newStatus);
+
+            if ($request->getResolutionResult() === null) {
+                $inferred = match ($newStatus) {
+                    AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED => AccessRequest::RESULT_GRANTED,
+                    AccessRequest::STATUS_DENIED => AccessRequest::RESULT_DENIED,
+                    AccessRequest::STATUS_DELAYED => AccessRequest::RESULT_SILENCE,
+                    default => null,
+                };
+                if ($inferred !== null) {
+                    $request->setResolutionResult($inferred);
+                }
+            }
 
             // If the deadline was suspended (third-party allegations) and a resolution arrives,
             // clear the suspension — the request is resolved, the suspended deadline is moot
