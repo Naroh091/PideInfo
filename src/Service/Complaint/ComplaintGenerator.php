@@ -509,6 +509,7 @@ TXT;
             : 'silencio administrativo negativo';
         $status = match (true) {
             $accessRequest->getResolutionResult() === AccessRequest::RESULT_PARTIALLY_GRANTED => 'estimada parcialmente (concesión parcial)',
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_GRANTED => 'concedida en la resolución pero información no facilitada',
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
             $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'no contestada (' . $silenceLabel . ')',
             $accessRequest->isDeadlinePassed() => 'plazo vencido sin respuesta (' . $silenceLabel . ')',
@@ -603,6 +604,33 @@ En los FUNDAMENTOS JURÍDICOS:
 
 En la SOLICITUD: pide al {$transparencyCouncil} que estime la reclamación EN LO NO CONCEDIDO y ordene a la Administración la entrega efectiva de la información restante. NO pidas lo que ya se ha facilitado.
 PARTIAL;
+            $silenceBlock = strtr($silenceBlock, ['{$transparencyCouncil}' => $transparencyCouncil]);
+        }
+
+        // Concesión total no materializada: la resolución dice "sí" pero la
+        // Administración no ha entregado efectivamente la información.
+        if ($accessRequest->getResolutionResult() === AccessRequest::RESULT_GRANTED) {
+            $silenceBlock = <<<'GRANTED_PENDING'
+
+
+## SUPUESTO DE CONCESIÓN TOTAL NO MATERIALIZADA
+
+La Administración ha resuelto expresamente CONCEDIENDO el acceso, pero NO ha entregado efectivamente la información (o lo entregado no se corresponde con lo concedido). El derecho al acceso ya está RECONOCIDO en la resolución; lo que falta es su MATERIALIZACIÓN.
+
+La reclamación NO debe argumentarse como impugnación de una denegación: no la hay. Argumenta la falta de cumplimiento efectivo de una resolución estimatoria.
+
+En la EXPOSICIÓN DE HECHOS:
+- Cita la resolución de la Administración y reproduce su contenido estimatorio.
+- Describe qué información debió entregarse según esa resolución.
+- Detalla qué se ha entregado realmente (nada, parcial, ilegible, formato no útil) y por qué no satisface lo concedido.
+
+En los FUNDAMENTOS JURÍDICOS:
+- Recuerda la OBLIGACIÓN DE EJECUTAR los propios actos administrativos firmes (arts. 38 y 39 Ley 39/2015).
+- El derecho de acceso fue ya reconocido por la propia Administración: la inejecución constituye un incumplimiento autónomo, no una nueva valoración del fondo.
+- Sé BREVE en el fondo: no necesitas argumentar por qué procede el acceso (ya está reconocido). Céntrate en el incumplimiento.
+
+En la SOLICITUD: pide al {$transparencyCouncil} que ORDENE a la Administración el cumplimiento efectivo de su propia resolución estimatoria, con entrega material de la información en el plazo que se determine.
+GRANTED_PENDING;
             $silenceBlock = strtr($silenceBlock, ['{$transparencyCouncil}' => $transparencyCouncil]);
         }
 
