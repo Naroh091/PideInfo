@@ -125,8 +125,8 @@ The first two paths converge on a saved `Document(type=Complaint)` and a unified
 - **Four chat actions** (`POST /solicitudes/{id}/redactar/asistente`, dispatched by `action`):
   1. `free_chat` → JSON, `{reply}`. Free-form Q&A; doesn't touch the canvas.
   2. `suggest_ideas` → JSON, `{suggestions: [{title, body, source}]}`. 2-4 concrete ideas the user can adopt by hand.
-  3. `generate_first_draft` → SSE. Streams a fresh draft into the canvas with a typewriter effect.
-  4. `rewrite` → SSE. Same shape as `generate_first_draft` but the prompt receives the current canvas HTML and is told to preserve everything not asked to change.
+  3. `generate_first_draft` → SSE. Streams a fresh draft into the canvas with a typewriter effect. **Disabled in the UI when the canvas already has content** — once there is a draft, the user is funnelled through "Reescribir" so the existing body is preserved.
+  4. `rewrite` → SSE. Same shape as `generate_first_draft` but the prompt receives the current canvas HTML and is told to preserve everything not asked to change. When the user fires a canvas action with an empty composer, the **last real user message** from the chat history is promoted to `### INDICACIÓN DE ESTE TURNO` (synthetic markers like "Reescribir borrador" are skipped) so a precision typed in chat actually drives the rewrite instead of staying buried as context.
 - **Persistence.** Chat history lives in two places depending on draft state:
   - Before any save (scratch) → `AccessRequest.metadata.complaint_scratch_chat` or `alegation_response_scratch_chat`.
   - After save → `Document.aiMetadata.chat_history`.
