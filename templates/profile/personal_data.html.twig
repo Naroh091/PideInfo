@@ -1,0 +1,29 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Datos personales - PideInfo{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <header class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-900">Datos personales</h1>
+        <p class="text-slate-600 mt-1">
+            Estos datos se rellenan en cada envío al Registro Electrónico (REG / RED SARA).
+            Los guardamos para no tener que pedírtelos en cada solicitud — sólo se envían a
+            la unidad de destino a la que dirijas tu petición.
+        </p>
+    </header>
+
+    {% for label, messages in app.flashes(['success', 'error']) %}
+        {% for message in messages %}
+            <div class="mb-4 rounded-lg border px-4 py-3 text-sm
+                {{ label == 'success' ? 'border-green-200 bg-green-50 text-green-800' : 'border-red-200 bg-red-50 text-red-800' }}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6">
+        {% include 'profile/_personal_data_form.html.twig' with {form: form, retry_batch: retry_batch} %}
+    </section>
+</div>
+{% endblock %}

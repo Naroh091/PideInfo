@@ -185,6 +185,140 @@ final class AccessRequestDraftGenerator
     }
 
     /**
+     * REG variant of {@see generateFirstDraft}. The REG step 2 form has two
+     * textareas (EXPONE / SOLICITA, ≤4000 chars each), so the model emits a
+     * structured pair instead of a single HTML body. Prompt is composed
+     * inline rather than via PromptStore so we don't need a new Langfuse
+     * entry just to ship the channel — once the wording stabilises we'll
+     * promote it.
+     *
+     * @param array<int, array<string, mixed>> $similarResolutions
+     * @return array{title: string, expone: string, solicita: string, chat_reply: string}
+     */
+    public function generateFirstDraftReg(AccessRequest $ar, ?string $userDirections, array $similarResolutions): array
+    {
+        $prompt = $this->composeRegPrompt(
+            base: 'Eres un experto redactor de solicitudes de acceso a la información pública dirigidas al Registro Electrónico Común (REG / RED SARA). Cumple SIEMPRE el formato estricto EXPONE / SOLICITA y los límites de 4000 caracteres por campo.',
+            ar: $ar,
+            userDirections: $userDirections,
+            similarResolutions: $similarResolutions,
+        );
+
+        $result = $this->llmClient->chatJson(new ChatRequest(
+            systemPrompt: $prompt,
+            size: ModelSize::Big,
+            temperature: 0.4,
+            jsonSchema: $this->regDraftSchema(),
+            schemaName: 'access_request_first_draft_reg',
+            requiredJsonKeys: ['title', 'expone', 'solicita'],
+            maxOutputTokens: 6144,
+            label: 'access_request.generate_first_draft_reg',
+        ));
+
+        return [
+            'title' => $this->trimTitle((string) ($result['title'] ?? '')),
+            'expone' => $this->trimRegField((string) ($result['expone'] ?? '')),
+            'solicita' => $this->trimRegField((string) ($result['solicita'] ?? '')),
+            'chat_reply' => 'Aquí tienes un primer borrador en formato EXPONE / SOLICITA para el REG.',
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $similarResolutions
+     * @return array{title: string, expone: string, solicita: string, chat_reply: string}
+     */
+    public function rewriteDraftReg(AccessRequest $ar, ?string $userDirections, array $similarResolutions): array
+    {
+        $prompt = $this->composeRegPrompt(
+            base: 'Reescribe la solicitud manteniendo el formato EXPONE / SOLICITA. No cambies la intención de la solicitud salvo que el usuario lo pida; pule el lenguaje y respeta los 4000 caracteres por campo.',
+            ar: $ar,
+            userDirections: $userDirections,
+            similarResolutions: $similarResolutions,
+            includeCurrentDraft: true,
+        );
+
+        $result = $this->llmClient->chatJson(new ChatRequest(
+            systemPrompt: $prompt,
+            size: ModelSize::Big,
+            temperature: 0.3,
+            jsonSchema: $this->regDraftSchema(includeChatReply: true),
+            schemaName: 'access_request_rewrite_draft_reg',
+            requiredJsonKeys: ['title', 'expone', 'solicita', 'chat_reply'],
+            maxOutputTokens: 6144,
+            label: 'access_request.rewrite_draft_reg',
+        ));
+
+        return [
+            'title' => $this->trimTitle((string) ($result['title'] ?? '')),
+            'expone' => $this->trimRegField((string) ($result['expone'] ?? '')),
+            'solicita' => $this->trimRegField((string) ($result['solicita'] ?? '')),
+            'chat_reply' => mb_substr((string) ($result['chat_reply'] ?? 'Borrador actualizado.'), 0, 600),
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $similarResolutions
+     */
+    private function composeRegPrompt(
+        string $base,
+        AccessRequest $ar,
+        ?string $userDirections,
+        array $similarResolutions,
+        bool $includeCurrentDraft = false,
+    ): string {
+        $vars = $this->commonVars($ar);
+        $sections = [
+            $base,
+            'Organismo destinatario: ' . $vars['public_body_name'],
+            'Ley aplicable: ' . $vars['applicable_law_name'] . ' (' . $vars['applicable_law_short_code'] . ')',
+            'Plazo de respuesta: ' . $vars['deadline_label'],
+            "Conversación previa con el usuario:\n" . $this->buildConversationContext($ar),
+            "Indicaciones del usuario en este turno:\n" . ($userDirections ?? '(sin indicaciones específicas)'),
+            "Resoluciones similares (para inspirarte sin copiar literalmente):\n" . $this->formatResolutions($similarResolutions),
+        ];
+        if ($includeCurrentDraft) {
+            $sections[] = "Borrador actual a reescribir:\nTÍTULO: " . $ar->getTitle()
+                . "\nEXPONE:\n" . ($ar->getExpone() ?? '')
+                . "\nSOLICITA:\n" . ($ar->getSolicita() ?? '');
+        }
+        $sections[] = <<<TXT
+            Devuelve EXCLUSIVAMENTE un JSON válido con las claves:
+              - "title": asunto (máx 255 caracteres, sin comillas tipográficas).
+              - "expone": hechos, contexto y motivación. Máx 4000 caracteres. Texto plano, sin HTML.
+              - "solicita": petición concreta amparada en la ley aplicable. Máx 4000 caracteres. Texto plano, sin HTML.
+            Sin texto adicional fuera del JSON.
+            TXT;
+        return implode("\n\n", $sections);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function regDraftSchema(bool $includeChatReply = false): array
+    {
+        $schema = [
+            'type' => 'object',
+            'properties' => [
+                'title' => ['type' => 'string'],
+                'expone' => ['type' => 'string'],
+                'solicita' => ['type' => 'string'],
+            ],
+            'required' => ['title', 'expone', 'solicita'],
+        ];
+        if ($includeChatReply) {
+            $schema['properties']['chat_reply'] = ['type' => 'string'];
+            $schema['required'][] = 'chat_reply';
+        }
+        return $schema;
+    }
+
+    private function trimRegField(string $value): string
+    {
+        $clean = trim(strip_tags($value));
+        return mb_substr($clean, 0, 4000);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function commonVars(AccessRequest $ar): array

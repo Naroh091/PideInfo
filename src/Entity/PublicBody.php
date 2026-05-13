@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\PublicBodyRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
@@ -52,9 +54,30 @@ class PublicBody
     #[ORM\Column(nullable: true)]
     private ?int $transparencyPortalAmbId = null;
 
+    /**
+     * DIR3 code of the Raíz / Organismo principal. Populated when the body
+     * was either imported from a DIR3 source or curated by a human after the
+     * REG import matched it by name.
+     */
+    #[ORM\Column(length: 12, nullable: true)]
+    private ?string $dir3Code = null;
+
+    /**
+     * True when this row was created by `app:reg:import-destinations` because
+     * the DIR3 Raíz had no matching PublicBody yet. Curators in `/admin`
+     * should review and enrich these (slug, address, level, etc.).
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $importedFromReg = false;
+
+    /** @var Collection<int, RegDestination> */
+    #[ORM\OneToMany(targetEntity: RegDestination::class, mappedBy: 'publicBody', cascade: ['persist'])]
+    private Collection $regDestinations;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
+        $this->regDestinations = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -168,6 +191,49 @@ class PublicBody
     public function setTransparencyPortalAmbId(?int $transparencyPortalAmbId): static
     {
         $this->transparencyPortalAmbId = $transparencyPortalAmbId;
+        return $this;
+    }
+
+    public function getDir3Code(): ?string
+    {
+        return $this->dir3Code;
+    }
+
+    public function setDir3Code(?string $dir3Code): static
+    {
+        $this->dir3Code = $dir3Code;
+        return $this;
+    }
+
+    public function isImportedFromReg(): bool
+    {
+        return $this->importedFromReg;
+    }
+
+    public function setImportedFromReg(bool $imported): static
+    {
+        $this->importedFromReg = $imported;
+        return $this;
+    }
+
+    /** @return Collection<int, RegDestination> */
+    public function getRegDestinations(): Collection
+    {
+        return $this->regDestinations;
+    }
+
+    public function addRegDestination(RegDestination $destination): static
+    {
+        if (!$this->regDestinations->contains($destination)) {
+            $this->regDestinations->add($destination);
+            $destination->setPublicBody($this);
+        }
+        return $this;
+    }
+
+    public function removeRegDestination(RegDestination $destination): static
+    {
+        $this->regDestinations->removeElement($destination);
         return $this;
     }
 

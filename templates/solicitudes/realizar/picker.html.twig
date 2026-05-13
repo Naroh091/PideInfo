@@ -236,6 +236,15 @@
             font-family: 'DM Sans', sans-serif;
             color: rgb(15 23 42); font-size: .92rem;
         }
+        .preview-chip { flex-direction: column; align-items: stretch; }
+        .preview-chip-head { display: flex; justify-content: space-between; align-items: center; gap: .65rem; }
+        .preview-chip-unit { margin-top: .55rem; }
+
+        .preview-card-unit {
+            margin-top: 1.1rem; padding-top: .9rem;
+            border-top: 1px dashed rgb(226 232 240);
+        }
+        .preview-card-unit .ts-control { font-family: 'DM Sans', sans-serif; }
     </style>
 {% endblock %}
 
@@ -256,14 +265,15 @@
     </p>
     <h1 class="picker-title">Elige a qué organismo u organismos va dirigida tu <em>solicitud</em></h1>
     <p class="picker-sub">
-        Sólo aparecen los organismos que PideInfo puede enviar automáticamente a través del Portal de Transparencia. El resto los puedes anotar a mano desde el flujo "Ya la envié".
+        Aparecen los organismos que PideInfo puede enviar automáticamente: por Portal de Transparencia (AGE) o por el Registro Electrónico Común (REG/RED SARA). El resto los puedes anotar a mano desde "Ya la envié".
     </p>
 </header>
 
 <div class="picker-grid"
      data-controller="realizar-picker"
      data-realizar-picker-load-url-value="{{ path('app_solicitudes_realizar_bodies_json') }}"
-     data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}">
+     data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}"
+     data-realizar-picker-units-url-template-value="{{ path('app_solicitudes_realizar_units_json', {'publicBody': '__body__'}) }}">
 
     <section class="picker-card">
         <label for="realizar-organism-select" class="picker-card-label">Buscar organismo</label>
@@ -274,7 +284,7 @@
                 placeholder="Empieza a escribir el nombre del organismo..."></select>
 
         <p class="picker-help">
-            <b>¿No encuentras el tuyo?</b> En esta primera versión sólo enviamos automáticamente al Portal de Transparencia de la AGE. Si tu organismo está en otro registro electrónico, podrás registrarlo manualmente o esperar a la próxima entrega.
+            <b>¿No encuentras el tuyo?</b> En esta primera versión enviamos automáticamente al Portal de Transparencia (AGE) y a las unidades del REG / RED SARA importadas del catálogo DIR3. Si tu organismo no está, podrás registrarlo manualmente desde "Ya la envié".
         </p>
 
         <div class="picker-cta-row">

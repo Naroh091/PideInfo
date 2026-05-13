@@ -126,6 +126,26 @@ class AccessRequest
     #[ORM\JoinColumn(nullable: true)]
     private ?PublicBody $originalPublicBody = null;
 
+    /**
+     * Target DIR3 Unidad when the request travels via the REG channel. Null
+     * for AGE / email submissions. The picker enforces a value before dispatch.
+     */
+    #[ORM\ManyToOne(targetEntity: RegDestination::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?RegDestination $regDestination = null;
+
+    /**
+     * REG step 2 is split into two textareas (≤4000 chars each). For REG-bound
+     * requests these are the source of truth and the agent sends them verbatim;
+     * `description` is kept around for AGE / email and for IA generation that
+     * targets those channels.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $expone = null;
+
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $solicita = null;
+
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $redirectedAt = null;
 
@@ -571,6 +591,53 @@ class AccessRequest
     public function wasRedirected(): bool
     {
         return $this->originalPublicBody !== null;
+    }
+
+    public function getRegDestination(): ?RegDestination
+    {
+        return $this->regDestination;
+    }
+
+    public function setRegDestination(?RegDestination $regDestination): static
+    {
+        $this->regDestination = $regDestination;
+        return $this;
+    }
+
+    public function getExpone(): ?string
+    {
+        return $this->expone;
+    }
+
+    public function setExpone(?string $expone): static
+    {
+        $this->expone = $expone;
+        return $this;
+    }
+
+    public function getSolicita(): ?string
+    {
+        return $this->solicita;
+    }
+
+    public function setSolicita(?string $solicita): static
+    {
+        $this->solicita = $solicita;
+        return $this;
+    }
+
+    /**
+     * `(expone, solicita)` ready to feed the REG step 2 form. Empty strings
+     * stand in for nulls so the agent never has to null-check.
+     *
+     * @return array{expone: string, solicita: string}
+     */
+    public function getRegBody(): array
+    {
+        return [
+            'expone' => $this->expone ?? '',
+            'solicita' => $this->solicita ?? '',
+        ];
     }
 
     public function getApplicableLaw(): ApplicableLaw

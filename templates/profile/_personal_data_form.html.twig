@@ -1,0 +1,61 @@
+{# Inline form fragment — used both standalone (profile page) and embedded in the dispatch gate.
+   Tom-Select pickers are rendered next to the hidden inputs by the
+   `reg-address-form` Stimulus controller; we only mark the slots here. #}
+{{ form_start(form, {
+    action: path('app_user_personal_data', retry_batch ? {'retry': retry_batch, '_fragment': 1} : {}),
+    attr: {
+        'class': 'space-y-4',
+        'data-controller': 'reg-address-form',
+    }
+}) }}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de vía</label>
+            {{ form_widget(form.addressStreetType) }}
+            {{ form_errors(form.addressStreetType) }}
+        </div>
+        <div class="md:col-span-2">
+            {{ form_label(form.addressLine, null, {'label_attr': {'class': 'block text-sm font-medium text-slate-700 mb-1'}}) }}
+            {{ form_widget(form.addressLine, {'attr': {'class': 'block w-full rounded-lg border border-slate-300 px-3 py-2'}}) }}
+            {{ form_errors(form.addressLine) }}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">País</label>
+            {{ form_widget(form.addressCountry) }}
+            <p class="text-xs text-slate-500 mt-1">España (fijo en esta versión)</p>
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Provincia</label>
+            {{ form_widget(form.addressProvince) }}
+            {{ form_errors(form.addressProvince) }}
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Población</label>
+            {{ form_widget(form.addressMunicipality) }}
+            {{ form_errors(form.addressMunicipality) }}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            {{ form_label(form.addressPostalCode, null, {'label_attr': {'class': 'block text-sm font-medium text-slate-700 mb-1'}}) }}
+            {{ form_widget(form.addressPostalCode, {'attr': {'class': 'block w-full rounded-lg border border-slate-300 px-3 py-2'}}) }}
+            {{ form_errors(form.addressPostalCode) }}
+        </div>
+        <div>
+            {{ form_label(form.contactPhone, null, {'label_attr': {'class': 'block text-sm font-medium text-slate-700 mb-1'}}) }}
+            {{ form_widget(form.contactPhone, {'attr': {'class': 'block w-full rounded-lg border border-slate-300 px-3 py-2'}}) }}
+            {{ form_errors(form.contactPhone) }}
+        </div>
+    </div>
+
+    <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="submit" class="btn btn-primary">
+            Guardar datos personales
+        </button>
+    </div>
+{{ form_end(form) }}

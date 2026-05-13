@@ -34,11 +34,15 @@ final class PortalFieldLimits
     ];
 
     /**
-     * REG limits TBD — pending discovery. Empty array means "no extra limits
-     * beyond the channel that does have them": intersect() falls back to
-     * whatever value other channels declare.
+     * REG step 2 ("Datos de solicitud") splits the body into two textareas
+     * of max 4000 characters each (EXPONE / SOLICITA). The asunto limit is
+     * a conservative estimate pending in-flow confirmation by the agent.
      */
-    public const REDSARA_REC = [];
+    public const REDSARA_REC = [
+        'title' => 255,
+        'expone' => 4000,
+        'solicita' => 4000,
+    ];
 
     /**
      * Returns the limits for a single channel (AgentTask::TYPE_SUBMIT_REQUEST_*),
