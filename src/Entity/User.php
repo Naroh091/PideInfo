@@ -93,6 +93,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $activitySummaryUpdatedAt = null;
 
+    /**
+     * Personal data the REG (Registro Electrónico Común) forces users to fill on
+     * every submission. We store it here once so the agent can fan-out without
+     * a UI round-trip per request. All nullable so existing accounts can complete
+     * the profile lazily the first time they send to a REG-bound body — see
+     * `hasCompleteRegProfile()` for the gating rule.
+     */
+    #[ORM\Column(length: 30, nullable: true)]
+    private ?string $addressStreetType = null;
+
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $addressLine = null;
+
+    #[ORM\Column(length: 2, nullable: true)]
+    private ?string $addressCountry = null;
+
+    /** Provincia tal y como aparece en el desplegable del REG (sin código INE). */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $addressProvince = null;
+
+    /** Municipio tal y como aparece en el desplegable del REG (filtrado por provincia). */
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $addressMunicipality = null;
+
+    #[ORM\Column(length: 10, nullable: true)]
+    private ?string $addressPostalCode = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $contactPhone = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -335,6 +365,42 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->activitySummaryUpdatedAt = $activitySummaryUpdatedAt;
         return $this;
+    }
+
+    public function getAddressStreetType(): ?string { return $this->addressStreetType; }
+    public function setAddressStreetType(?string $value): static { $this->addressStreetType = $value; return $this; }
+
+    public function getAddressLine(): ?string { return $this->addressLine; }
+    public function setAddressLine(?string $value): static { $this->addressLine = $value; return $this; }
+
+    public function getAddressCountry(): ?string { return $this->addressCountry; }
+    public function setAddressCountry(?string $value): static { $this->addressCountry = $value; return $this; }
+
+    public function getAddressProvince(): ?string { return $this->addressProvince; }
+    public function setAddressProvince(?string $value): static { $this->addressProvince = $value; return $this; }
+
+    public function getAddressMunicipality(): ?string { return $this->addressMunicipality; }
+    public function setAddressMunicipality(?string $value): static { $this->addressMunicipality = $value; return $this; }
+
+    public function getAddressPostalCode(): ?string { return $this->addressPostalCode; }
+    public function setAddressPostalCode(?string $value): static { $this->addressPostalCode = $value; return $this; }
+
+    public function getContactPhone(): ?string { return $this->contactPhone; }
+    public function setContactPhone(?string $value): static { $this->contactPhone = $value; return $this; }
+
+    /**
+     * True when the User has every field the REG step-1 form requires. The
+     * country code is treated as defaulting to "ES" — if you've ever filled
+     * the address, you've implicitly picked Spain unless you set it otherwise.
+     */
+    public function hasCompleteRegProfile(): bool
+    {
+        return $this->addressStreetType !== null && $this->addressStreetType !== ''
+            && $this->addressLine !== null && $this->addressLine !== ''
+            && $this->addressProvince !== null && $this->addressProvince !== ''
+            && $this->addressMunicipality !== null && $this->addressMunicipality !== ''
+            && $this->addressPostalCode !== null && $this->addressPostalCode !== ''
+            && $this->contactPhone !== null && $this->contactPhone !== '';
     }
 
     public function __toString(): string

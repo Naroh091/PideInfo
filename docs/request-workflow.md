@@ -20,9 +20,14 @@ An access request moves through these primary statuses:
 
 ### 1. Creation
 
-A request can be created in two ways:
+A request can be created in three ways:
 
 **Manual creation.** The user fills out a form with title, description, public body, applicable law, date sent, and optional external reference number. The system calculates the response deadline from the sent date and applicable law.
+
+**Agent-driven creation.** "Realizar" lets the user redact and dispatch a brand-new request to the agent. The picker auto-detects which submission channel applies (`ChannelResolver`):
+
+- **AGE Portal de Transparencia** when `PublicBody.transparencyPortalUrl !== null`.
+- **REG / RED SARA** when the body has at least one active `RegDestination` imported from DIR3 (see `docs/redsara_reg_submission.md`). REG drafts collect `expone` and `solicita` (max 4000 chars each) instead of a single description, and require the user's postal address + phone (`/perfil/datos-personales`) before dispatch.
 
 **Automatic creation from documents.** When a user uploads a document classified as a request (`DocumentType::Request`) or receipt (`DocumentType::Receipt`), and no matching request is found, the system creates one automatically. The AI extracts the title, description, public body, applicable law, and sent date from the document.
 

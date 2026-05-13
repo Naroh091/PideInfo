@@ -2,6 +2,14 @@
 
 The PideInfo agent is a standalone Python application that runs on the user's local machine. It authenticates against Spain's Portal de Transparencia using the user's FNMT digital certificate, scrapes their FOIA request data (expedientes and notifications), downloads documents, and forwards everything to PideInfo via webhook.
 
+Submission channels supported as agent tasks (`AgentTask::TYPE_*`):
+
+| Type | Target | Discovery doc |
+| --- | --- | --- |
+| `submit_request_transparencia` | Portal de Transparencia AGE | `docs/transparencia_age_submission.md` |
+| `submit_request_reg` | Registro Electrónico Común (REG / RED SARA) | `docs/redsara_reg_submission.md` |
+| `present_complaint` | Sede CTBG / consejos autonómicos | `docs/complaint-workflow.md` |
+
 ## Architecture overview
 
 ```

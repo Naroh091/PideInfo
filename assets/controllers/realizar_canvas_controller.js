@@ -14,7 +14,7 @@ import { Controller } from '@hotwired/stimulus';
  * Values: autosaveUrl
  */
 export default class extends Controller {
-    static targets = ['title', 'body', 'status'];
+    static targets = ['title', 'body', 'expone', 'solicita', 'status'];
     static values = {
         autosaveUrl: String,
     };
@@ -38,6 +38,8 @@ export default class extends Controller {
             requestAnimationFrame(() => this._growTitle());
         }
         if (this.hasBodyTarget) this.bodyTarget.addEventListener('input', this._onInput);
+        if (this.hasExponeTarget) this.exponeTarget.addEventListener('input', this._onInput);
+        if (this.hasSolicitaTarget) this.solicitaTarget.addEventListener('input', this._onInput);
         document.addEventListener('keydown', this._onKeyDown);
 
         this._renderStatus();
@@ -66,6 +68,8 @@ export default class extends Controller {
             this.titleTarget.removeEventListener('input', this._onTitleInput);
         }
         if (this.hasBodyTarget) this.bodyTarget.removeEventListener('input', this._onInput);
+        if (this.hasExponeTarget) this.exponeTarget.removeEventListener('input', this._onInput);
+        if (this.hasSolicitaTarget) this.solicitaTarget.removeEventListener('input', this._onInput);
         document.removeEventListener('keydown', this._onKeyDown);
         if (this._saveTimer) clearTimeout(this._saveTimer);
         if (this._settleTimer) clearTimeout(this._settleTimer);
@@ -104,9 +108,11 @@ export default class extends Controller {
      *
      * @param {{title?: string, bodyHtml?: string}} payload
      */
-    async replaceContent({ title = '', bodyHtml = '' } = {}) {
+    async replaceContent({ title = '', bodyHtml = '', expone = '', solicita = '' } = {}) {
         const plainBody = this._htmlToPlain(bodyHtml).slice(0, 3000);
         const safeTitle = String(title || '').slice(0, 255);
+        const safeExpone = this._htmlToPlain(expone).slice(0, 4000);
+        const safeSolicita = this._htmlToPlain(solicita).slice(0, 4000);
 
         if (this._typingAbort) this._typingAbort();
         this._typing = true;
@@ -117,16 +123,16 @@ export default class extends Controller {
         }
 
         // Disable inputs while typing so concurrent edits don't fight us.
-        if (this.hasTitleTarget) {
-            this.titleTarget.readOnly = true;
-            this.titleTarget.value = '';
-            this.titleTarget.classList.add('canvas-typing');
-        }
-        if (this.hasBodyTarget) {
-            this.bodyTarget.readOnly = true;
-            this.bodyTarget.value = '';
-            this.bodyTarget.classList.add('canvas-typing');
-        }
+        const lockTargets = [];
+        if (this.hasTitleTarget) lockTargets.push(this.titleTarget);
+        if (this.hasBodyTarget) lockTargets.push(this.bodyTarget);
+        if (this.hasExponeTarget) lockTargets.push(this.exponeTarget);
+        if (this.hasSolicitaTarget) lockTargets.push(this.solicitaTarget);
+        lockTargets.forEach((el) => {
+            el.readOnly = true;
+            el.value = '';
+            el.classList.add('canvas-typing');
+        });
 
         let aborted = false;
         const abortPromise = new Promise((resolve) => {
@@ -146,31 +152,27 @@ export default class extends Controller {
                 this._growTitle();
             }
 
-            // Body: target a total of ~3 s regardless of length so neither
-            // a 200-char draft feels sluggish nor a 3000-char one drags on.
-            if (this.hasBodyTarget && plainBody.length > 0 && !aborted) {
+            // Body / expone / solicita: ~3 s total each.
+            const typeBlock = async (el, text) => {
+                if (text.length === 0 || aborted) return;
                 const targetMs = 3000;
                 const intervalMs = 14;
                 const ticks = Math.max(1, Math.floor(targetMs / intervalMs));
-                const chunk = Math.max(1, Math.ceil(plainBody.length / ticks));
-                await this._typeInto(this.bodyTarget, plainBody, {
-                    chunk,
-                    intervalMs,
-                    isAborted: () => aborted,
-                });
-                if (aborted) this.bodyTarget.value = plainBody;
-            }
+                const chunk = Math.max(1, Math.ceil(text.length / ticks));
+                await this._typeInto(el, text, { chunk, intervalMs, isAborted: () => aborted });
+                if (aborted) el.value = text;
+            };
+
+            if (this.hasBodyTarget && plainBody.length > 0) await typeBlock(this.bodyTarget, plainBody);
+            if (this.hasExponeTarget && safeExpone.length > 0) await typeBlock(this.exponeTarget, safeExpone);
+            if (this.hasSolicitaTarget && safeSolicita.length > 0) await typeBlock(this.solicitaTarget, safeSolicita);
         } finally {
             this._typing = false;
             this._typingAbort = null;
-            if (this.hasTitleTarget) {
-                this.titleTarget.readOnly = false;
-                this.titleTarget.classList.remove('canvas-typing');
-            }
-            if (this.hasBodyTarget) {
-                this.bodyTarget.readOnly = false;
-                this.bodyTarget.classList.remove('canvas-typing');
-            }
+            lockTargets.forEach((el) => {
+                el.readOnly = false;
+                el.classList.remove('canvas-typing');
+            });
         }
 
         // One save at the end, plus one settled-event so the sidebar refreshes.
@@ -258,15 +260,21 @@ export default class extends Controller {
     }
 
     _currentPayload() {
-        return {
+        const payload = {
             title: this.hasTitleTarget ? this.titleTarget.value : '',
-            description: this.hasBodyTarget ? this.bodyTarget.value : '',
         };
+        if (this.hasBodyTarget) payload.description = this.bodyTarget.value;
+        if (this.hasExponeTarget) payload.expone = this.exponeTarget.value;
+        if (this.hasSolicitaTarget) payload.solicita = this.solicitaTarget.value;
+        return payload;
     }
 
     _payloadEquals(a, b) {
         if (!a || !b) return false;
-        return a.title === b.title && a.description === b.description;
+        return a.title === b.title
+            && (a.description ?? '') === (b.description ?? '')
+            && (a.expone ?? '') === (b.expone ?? '')
+            && (a.solicita ?? '') === (b.solicita ?? '');
     }
 
     _htmlToPlain(html) {
