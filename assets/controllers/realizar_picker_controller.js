@@ -211,7 +211,9 @@ export default class extends Controller {
         const ts = new TomSelect(select, {
             valueField: 'id',
             labelField: 'displayLabel',
-            searchField: ['displayLabel', 'name', 'provincia'],
+            // Search across the whole hierarchy so the user can find a unit
+            // by Oficina or Raíz name/code, not just the Unidad label.
+            searchField: ['displayLabel', 'name', 'dir3', 'oficinaName', 'oficinaDir3', 'raizName', 'raizDir3', 'provincia'],
             preload: 'focus',
             maxOptions: 100,
             plugins: { dropdown_input: {} },
@@ -222,12 +224,25 @@ export default class extends Controller {
                     .catch(() => cb());
             },
             render: {
-                option: (data, esc) => `<div class="picker-option">
-                    <div class="picker-option-row">
-                        <span class="picker-option-name">${esc(data.displayLabel)}</span>
-                        ${data.provincia ? `<span class="picker-option-meta">${esc(data.provincia)}</span>` : ''}
-                    </div>
-                </div>`,
+                option: (data, esc) => {
+                    // Three lines: Unidad (bold) / Oficina / Raíz. Each line
+                    // shows "[DIR3] Nombre"; missing pieces render as "—" so
+                    // the structure stays readable even on legacy rows that
+                    // haven't been re-imported with Oficina yet.
+                    const line = (code, name) => `
+                        <div class="picker-option-row">
+                            <span class="picker-option-dir3">${esc(code || '—')}</span>
+                            <span class="picker-option-name">${esc(name || '—')}</span>
+                        </div>`;
+                    return `<div class="picker-option picker-option-tree">
+                        <div class="picker-option-line picker-option-line-unit">${line(data.dir3, data.name)}</div>
+                        <div class="picker-option-line picker-option-line-oficina">${line(data.oficinaDir3, data.oficinaName)}</div>
+                        <div class="picker-option-line picker-option-line-raiz">
+                            ${line(data.raizDir3, data.raizName)}
+                            ${data.provincia ? `<span class="picker-option-meta">${esc(data.provincia)}</span>` : ''}
+                        </div>
+                    </div>`;
+                },
             },
             onChange: (value) => {
                 if (value) {

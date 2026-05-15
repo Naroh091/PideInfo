@@ -184,6 +184,11 @@ class AccessRequestController extends AbstractController
             'displayLabel' => $u->getDisplayLabel(),
             'provincia' => $u->getProvincia(),
             'comunidad' => $u->getComunidad(),
+            // Full DIR3 chain so the picker can render Unidad / Oficina / Raíz.
+            'oficinaDir3' => $u->getOficinaDir3(),
+            'oficinaName' => $u->getOficinaName(),
+            'raizDir3' => $u->getPublicBody()->getDir3Code(),
+            'raizName' => $u->getPublicBody()->getName(),
         ], $units);
 
         return new JsonResponse([

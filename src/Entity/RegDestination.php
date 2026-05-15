@@ -46,6 +46,13 @@ class RegDestination
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $intermediateOrganismName = null;
 
+    /** Deepest DIR3 level (the office that physically registers the unit). */
+    #[ORM\Column(length: 12, nullable: true)]
+    private ?string $oficinaDir3 = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $oficinaName = null;
+
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $comunidad = null;
 
@@ -104,6 +111,20 @@ class RegDestination
     public function setIntermediateOrganismName(?string $name): static
     {
         $this->intermediateOrganismName = $name;
+        return $this;
+    }
+
+    public function getOficinaDir3(): ?string { return $this->oficinaDir3; }
+    public function setOficinaDir3(?string $code): static
+    {
+        $this->oficinaDir3 = $code;
+        return $this;
+    }
+
+    public function getOficinaName(): ?string { return $this->oficinaName; }
+    public function setOficinaName(?string $name): static
+    {
+        $this->oficinaName = $name;
         return $this;
     }
 

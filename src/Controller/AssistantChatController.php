@@ -37,8 +37,11 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  */
 final class AssistantChatController extends AbstractController
 {
-    private const CHAT_HISTORY_KEY = 'draft_chat_history';
+    private const CHAT_HISTORY_KEY_REQUEST = 'draft_chat_history';
+    private const CHAT_HISTORY_KEY_COMPLAINT_PREFIX = 'complaint_chat_history_';
     private const CHAT_HISTORY_CAP = 60;
+    /** Number of recent turns sent to the LLM as context. */
+    private const CHAT_HISTORY_LLM_WINDOW = 12;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -76,7 +79,8 @@ final class AssistantChatController extends AbstractController
         $similar = $this->loadSimilarResolutions($accessRequest);
         $systemPrompt = $this->requestPromptComposer->compose($accessRequest, $similar);
 
-        $history = $this->extractHistoryForLlm($accessRequest);
+        $historyKey = self::CHAT_HISTORY_KEY_REQUEST;
+        $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
         $previousDraft = $this->snapshotDraft($accessRequest);
 
         $turn = new AssistantChatTurn(
@@ -92,14 +96,15 @@ final class AssistantChatController extends AbstractController
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft) use ($accessRequest, $previousDraft, $userMessage): ?array {
+            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $previousDraft, $userMessage, $historyKey): ?array {
                 if ($action === 'reply' || $draft === null) {
-                    $this->appendUserAndAssistantHistory($accessRequest, $userMessage, $action, null);
+                    $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
+                    $this->entityManager->flush();
                     return null;
                 }
 
                 $normalized = $this->applyRequestDraft($accessRequest, $draft);
-                $this->appendUserAndAssistantHistory($accessRequest, $userMessage, $action, $normalized);
+                $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
                 $this->entityManager->flush();
 
                 return [
@@ -150,12 +155,17 @@ final class AssistantChatController extends AbstractController
 
         $previousDraft = ['title' => '', 'body_html' => $currentBodyHtml];
 
+        // Namespaced by mode so complaint vs alegation-response don't bleed
+        // into each other (different prompt, different flow).
+        $historyKey = self::CHAT_HISTORY_KEY_COMPLAINT_PREFIX . $mode;
+        $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
+
         $turn = new AssistantChatTurn(
             flow: 'complaint',
             entityId: $accessRequest->getId()->toRfc4122(),
             systemPrompt: $systemPrompt,
             userMessage: $userMessage,
-            history: [],
+            history: $history,
             attachments: $attachments,
             label: 'assistant.complaint:' . $mode,
         );
@@ -163,7 +173,10 @@ final class AssistantChatController extends AbstractController
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft) use ($previousDraft): ?array {
+            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $historyKey, $userMessage, $previousDraft): ?array {
+                $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
+                $this->entityManager->flush();
+
                 if ($action === 'reply' || $draft === null) {
                     return null;
                 }
@@ -185,10 +198,11 @@ final class AssistantChatController extends AbstractController
     /**
      * Run the streamer and translate its tuples into a Symfony StreamedResponse
      * carrying SSE-formatted events. The `onDecision` callback is invoked when
-     * the LLM emits its decision; it can return extra payload (the draft and
-     * the previous snapshot) that gets merged into the SSE event.
+     * the LLM emits its decision; it receives the action, the draft (or null),
+     * and the full conversational reply text accumulated up to that point so
+     * the caller can persist it as the assistant turn in chat history.
      *
-     * @param callable(string $action, ?array<string,mixed> $draft): ?array<string,mixed> $onDecision
+     * @param callable(string $action, ?array<string,mixed> $draft, string $chatReply): ?array<string,mixed> $onDecision
      */
     private function streamTurn(AssistantChatTurn $turn, string $userMessage, callable $onDecision): StreamedResponse
     {
@@ -203,8 +217,15 @@ final class AssistantChatController extends AbstractController
             ignore_user_abort(true);
 
             $emit = static function (string $event, array $data): void {
+                // JSON_INVALID_UTF8_SUBSTITUTE is defense-in-depth: even after
+                // the splitter snaps to char boundaries, any stray bad byte
+                // upstream becomes U+FFFD instead of dropping the whole chunk
+                // (json_encode would otherwise return false → empty data line).
                 echo "event: {$event}\n";
-                echo 'data: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
+                echo 'data: ' . json_encode(
+                    $data,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE,
+                ) . "\n\n";
                 if (\function_exists('ob_get_level') && ob_get_level() > 0) {
                     @ob_flush();
                 }
@@ -218,10 +239,14 @@ final class AssistantChatController extends AbstractController
             }
             @flush();
 
+            $chatReply = '';
             try {
                 foreach ($streamer->stream($turn) as [$event, $payload]) {
+                    if ($event === 'chat_token') {
+                        $chatReply .= (string) ($payload['text'] ?? '');
+                    }
                     if ($event === 'decision') {
-                        $extra = $onDecision((string) $payload['action'], $payload['draft'] ?? null);
+                        $extra = $onDecision((string) $payload['action'], $payload['draft'] ?? null, $chatReply);
                         if (is_array($extra)) {
                             $payload = array_merge($payload, $extra);
                         }
@@ -295,20 +320,33 @@ final class AssistantChatController extends AbstractController
     }
 
     /**
+     * Loads the recent chat turns under `$key` and converts them to the
+     * ChatMessage DTOs the LLM client expects. Capped at the LLM context
+     * window so old turns get rolled off as the conversation grows.
+     *
      * @return list<\App\DTO\ChatMessage>
      */
-    private function extractHistoryForLlm(AccessRequest $ar): array
+    private function loadHistoryForLlm(AccessRequest $ar, string $key): array
     {
-        $raw = $ar->getMetadataValue(self::CHAT_HISTORY_KEY);
+        $raw = $ar->getMetadataValue($key);
         if (!is_array($raw)) {
             return [];
         }
-        // Only keep recent turns to avoid bloating the prompt.
-        $recent = array_slice($raw, -12);
+        $recent = array_slice($raw, -self::CHAT_HISTORY_LLM_WINDOW);
         return AssistantChatStreamer::toLlmHistory($recent);
     }
 
-    private function appendUserAndAssistantHistory(AccessRequest $ar, string $userMessage, string $action, ?array $normalizedDraft): void
+    /**
+     * Persists the just-finished turn (user message + assistant reply) under
+     * `$key` so the next call to {@see loadHistoryForLlm} can rehydrate it.
+     *
+     * The assistant content is the *actual* conversational reply text the LLM
+     * streamed before `===DECISION===` — that's what the model needs to see
+     * next turn to keep context. For canvas-replacing turns where the model
+     * was terse (or omitted the chat reply entirely), we fall back to a
+     * marker so history isn't completely silent.
+     */
+    private function appendChatHistory(AccessRequest $ar, string $key, string $userMessage, string $action, string $chatReply): void
     {
         $turns = [];
         $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
@@ -322,19 +360,19 @@ final class AssistantChatController extends AbstractController
             ];
         }
 
-        // We persist only the assistant's chat reply text; the canvas keeps the draft.
-        // The chat-reply text was just streamed; reconstruct from the splitter is not
-        // available here, so we rely on a generic marker for canvas-replacing turns.
-        $assistantContent = match ($action) {
-            'generate' => '✦ Borrador generado.',
-            'rewrite' => '✦ Borrador reescrito.',
-            default => '',
-        };
+        $assistantContent = trim($chatReply);
+        if ($assistantContent === '') {
+            $assistantContent = match ($action) {
+                'generate' => '✦ Borrador generado.',
+                'rewrite' => '✦ Borrador reescrito.',
+                default => '',
+            };
+        }
         if ($assistantContent !== '') {
             $turns[] = [
                 'role' => 'assistant',
                 'kind' => 'text',
-                'content' => $assistantContent,
+                'content' => mb_substr($assistantContent, 0, 4000),
                 'ts' => $now,
             ];
         }
@@ -343,7 +381,7 @@ final class AssistantChatController extends AbstractController
             return;
         }
 
-        $current = $ar->getMetadataValue(self::CHAT_HISTORY_KEY);
+        $current = $ar->getMetadataValue($key);
         $history = is_array($current) ? $current : [];
         foreach ($turns as $turn) {
             $history[] = $turn;
@@ -351,7 +389,7 @@ final class AssistantChatController extends AbstractController
         if (count($history) > self::CHAT_HISTORY_CAP) {
             $history = array_slice($history, -self::CHAT_HISTORY_CAP);
         }
-        $ar->setMetadataValue(self::CHAT_HISTORY_KEY, $history);
+        $ar->setMetadataValue($key, $history);
     }
 
     /**

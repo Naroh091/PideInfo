@@ -175,7 +175,8 @@
                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <span class="font-medium {{ titleColor }}">{{ title }}</span>
                                 <div class="flex items-center gap-2 flex-shrink-0">
-                                    <span class="text-sm text-slate-500">{{ history.createdAt|date(history.createdAt|date('H:i') == '00:00' ? 'd/m/Y' : 'd/m/Y H:i') }}</span>
+                                    {% set displayDate = isCreation ? request.sentAt : history.createdAt %}
+                                    <span class="text-sm text-slate-500">{{ displayDate|date(displayDate|date('H:i') == '00:00' ? 'd/m/Y' : 'd/m/Y H:i') }}</span>
                                     {% if is_granted('edit', request) %}
                                         <form action="{{ path('app_solicitudes_status_history_delete', {id: request.id, historyId: history.id}) }}"
                                               method="post"

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Service\Submission;
 
 use App\Entity\ApplicableLaw;
+use App\Entity\AutonomousCommunity;
 use App\Entity\PublicBody;
 use App\Repository\ApplicableLawRepository;
+use App\Repository\AutonomousCommunityRepository;
+use App\Repository\RegDestinationRepository;
 
 /**
  * Picks the most natural ApplicableLaw for a given PublicBody. The rule is:
@@ -19,14 +22,44 @@ use App\Repository\ApplicableLawRepository;
  */
 final class ApplicableLawResolver
 {
+    /**
+     * Aliases for CCAA names that appear in the DIR3 / REG export differently
+     * than `autonomous_community.name`. Mirror of the importer's table for
+     * the cases we've actually observed in production data — the importer
+     * canonicalises the body anchor, but `RegDestination.comunidad` keeps
+     * the raw label, so we apply the same normalisation here.
+     *
+     * Keys are normalised (lowercase, accents stripped) — see {@see normalize()}.
+     */
+    private const COMUNIDAD_ALIASES = [
+        'castilla la mancha' => 'Castilla-La Mancha',
+        'castilla y leon' => 'Castilla y León',
+        'comunidad valenciana' => 'Comunitat Valenciana',
+        'valenciana' => 'Comunitat Valenciana',
+        'madrid' => 'Comunidad de Madrid',
+        'navarra' => 'Comunidad Foral de Navarra',
+        'islas baleares' => 'Illes Balears',
+        'baleares' => 'Illes Balears',
+        'pais vasco' => 'País Vasco',
+        'asturias' => 'Principado de Asturias',
+        'murcia' => 'Región de Murcia',
+        'region de murcia' => 'Región de Murcia',
+        'ciudad autonoma de ceuta' => 'Ceuta',
+        'ciudad autonoma de melilla' => 'Melilla',
+    ];
+
     public function __construct(
         private readonly ApplicableLawRepository $applicableLawRepository,
+        private readonly RegDestinationRepository $regDestinationRepository,
+        private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
     ) {
     }
 
     public function resolveFor(PublicBody $body): ?ApplicableLaw
     {
-        $community = $body->getAutonomousCommunity();
+        $community = $body->getAutonomousCommunity()
+            ?? $this->deriveCommunityFromRegDestinations($body);
+
         if ($community !== null) {
             $law = $this->applicableLawRepository->findByAutonomousCommunity($community);
             if ($law !== null) {
@@ -35,6 +68,53 @@ final class ApplicableLawResolver
         }
 
         return $this->applicableLawRepository->findStateLaw();
+    }
+
+    /**
+     * Safety net for legacy `PublicBody` rows that pre-dated the REG import
+     * and never had `autonomous_community_id` seeded (≈27% of `level=local`
+     * bodies). When every linked `RegDestination` resolves to the same
+     * AutonomousCommunity we use it; if any unit disagrees we abstain so we
+     * never mis-attribute a cross-territorial body.
+     */
+    private function deriveCommunityFromRegDestinations(PublicBody $body): ?AutonomousCommunity
+    {
+        $candidates = [];
+        foreach ($this->regDestinationRepository->findDistinctComunidades($body) as $raw) {
+            $resolved = $this->resolveCommunityName($raw);
+            if ($resolved === null) {
+                continue;
+            }
+            $candidates[$resolved->getId()->toRfc4122()] = $resolved;
+        }
+        if (count($candidates) !== 1) {
+            return null;
+        }
+        return array_values($candidates)[0];
+    }
+
+    private function resolveCommunityName(string $raw): ?AutonomousCommunity
+    {
+        $key = self::normalize($raw);
+        if ($key === '') {
+            return null;
+        }
+        $canonical = self::COMUNIDAD_ALIASES[$key] ?? trim($raw);
+        return $this->autonomousCommunityRepository->findByName($canonical);
+    }
+
+    private static function normalize(string $value): string
+    {
+        $lower = mb_strtolower(trim($value), 'UTF-8');
+        if (\function_exists('iconv')) {
+            $stripped = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $lower);
+            if ($stripped !== false) {
+                $lower = $stripped;
+            }
+        }
+        // Collapse non-letter runs to single spaces so "Castilla-La Mancha"
+        // and "Castilla La Mancha" both normalise to "castilla la mancha".
+        return trim((string) preg_replace('/[^a-z0-9]+/', ' ', $lower));
     }
 
     /**

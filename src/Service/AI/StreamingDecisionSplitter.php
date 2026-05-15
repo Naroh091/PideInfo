@@ -66,8 +66,19 @@ final class StreamingDecisionSplitter
             return [];
         }
 
-        $emit = substr($buffer, 0, -$keepBack);
-        $this->pendingChatTail = substr($buffer, -$keepBack);
+        // Snap the slice point back to a UTF-8 character boundary so we never
+        // emit a half-encoded multi-byte char (the SSE layer json_encode-s
+        // each chunk; broken UTF-8 makes json_encode return false, dropping
+        // the chunk entirely → "día"→"da", "€"→"", etc.). Continuation bytes
+        // are 10xxxxxx (0x80–0xBF); shifting the split a few bytes left at
+        // most grows pendingChatTail by ≤3 bytes — harmless.
+        $splitPos = strlen($buffer) - $keepBack;
+        while ($splitPos > 0 && (ord($buffer[$splitPos]) & 0xC0) === 0x80) {
+            $splitPos--;
+        }
+
+        $emit = substr($buffer, 0, $splitPos);
+        $this->pendingChatTail = substr($buffer, $splitPos);
         $this->chatBuffer .= $emit;
         return $emit !== '' ? [$emit] : [];
     }
