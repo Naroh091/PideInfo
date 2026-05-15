@@ -29,6 +29,7 @@ use App\Service\Submission\ChannelResolver;
 use App\Service\Submission\RegPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -50,6 +51,7 @@ class AccessRequestController extends AbstractController
         private AccessRequestListRepository $accessRequestListRepository,
         private EntityManagerInterface $entityManager,
         private DataTableFactory $dataTableFactory,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -576,6 +578,35 @@ class AccessRequestController extends AbstractController
             }
         }
         if ($blockers !== []) {
+            // Snapshot the actual entity state so we can debug why blockers
+            // fired in prod (typical cause: dispatch raced ahead of autosave
+            // / chat onDecision flush, so the row was empty when read here
+            // even though it looks complete in psql moments later).
+            foreach ($blockers as $arId => $errs) {
+                $ar = $this->findInDrafts($drafts, $arId);
+                if ($ar === null) {
+                    continue;
+                }
+                $regDest = $ar->getRegDestination();
+                $body = $ar->getRegBody();
+                $this->logger->warning('Dispatch blocked: REG preconditions failed', [
+                    'access_request_id' => $arId,
+                    'batch_id' => $batchId,
+                    'blockers' => $errs,
+                    'status' => $ar->getStatus(),
+                    'reg_destination_id' => $regDest?->getId()->toRfc4122(),
+                    'reg_destination_dir3' => $regDest?->getDir3Code(),
+                    'public_body_id' => $ar->getPublicBody()->getId()->toRfc4122(),
+                    'public_body_name' => $ar->getPublicBody()->getName(),
+                    'title_len' => mb_strlen((string) $ar->getTitle()),
+                    'expone_len' => mb_strlen($body['expone']),
+                    'solicita_len' => mb_strlen($body['solicita']),
+                    'description_len' => mb_strlen((string) $ar->getDescription()),
+                    'updated_at' => $ar->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+                    'user_email' => $user->getEmail(),
+                ]);
+            }
+
             // The profile gate is the most common case — surface it first so
             // the user lands on the form rather than reading a list of codes.
             $needsProfile = false;
@@ -1021,5 +1052,18 @@ class AccessRequestController extends AbstractController
 
         $this->addFlash('success', 'Estado actualizado correctamente');
         return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    /**
+     * @param list<AccessRequest> $drafts
+     */
+    private function findInDrafts(array $drafts, string $arId): ?AccessRequest
+    {
+        foreach ($drafts as $draft) {
+            if ($draft->getId()->toRfc4122() === $arId) {
+                return $draft;
+            }
+        }
+        return null;
     }
 }

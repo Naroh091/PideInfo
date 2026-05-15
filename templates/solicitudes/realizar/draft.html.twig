@@ -900,9 +900,15 @@
                     </a>
                 </div>
                 {% if batchId %}
+                    {# Submit goes through realizar-canvas#dispatchSubmit so we
+                       (a) confirm, (b) block while assistant-chat is mid-stream,
+                       (c) force-flush any pending autosave before POSTing.
+                       Avoids the prod race that surfaces as reg_body_required
+                       / reg_destination_required blockers on rows that look
+                       complete in psql a few seconds later. #}
                     <form method="post"
                           action="{{ path('app_solicitudes_realizar_dispatch', {batchId: batchId}) }}"
-                          onsubmit="return confirm('¿Enviar la solicitud al organismo? El agente local empezará a procesarla y no podrás editarla más.');">
+                          data-action="submit->realizar-canvas#dispatchSubmit">
                         <button type="submit" class="btn btn-primary">
                             <i data-lucide="send" class="w-4 h-4 mr-2"></i>
                             {% if isMultiOrganism %}

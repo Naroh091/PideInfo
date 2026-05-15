@@ -334,4 +334,54 @@ export default class extends Controller {
         await this.flush();
         window.location.href = url;
     }
+
+    /**
+     * Submit handler for the "Enviar al organismo" form. Prevents the race
+     * where the user clicks dispatch before autosave/onDecision have flushed
+     * (we'd POST to the dispatch endpoint while the row still has empty
+     * title/expone/solicita and possibly a stale regDestination snapshot,
+     * which surfaces in production as `reg_body_required` /
+     * `reg_destination_required` blockers despite the canvas looking full).
+     *
+     * Order: confirm → block if chat is mid-stream → flush autosave → submit.
+     */
+    async dispatchSubmit(event) {
+        event?.preventDefault();
+        const form = event?.currentTarget;
+        if (!form) return;
+
+        const button = form.querySelector('button[type="submit"]');
+        if (button?.dataset.dispatchInFlight === '1') return;
+
+        if (!window.confirm('¿Enviar la solicitud al organismo? El agente local empezará a procesarla y no podrás editarla más.')) {
+            return;
+        }
+
+        // If the assistant chat is mid-turn, the server hasn't persisted the
+        // generated draft yet — wait for it instead of dispatching empty.
+        const chatEl = document.querySelector('[data-controller~="assistant-chat"]');
+        const chatCtrl = chatEl
+            ? this.application?.getControllerForElementAndIdentifier(chatEl, 'assistant-chat')
+            : null;
+        if (chatCtrl && typeof chatCtrl.isBusy === 'function' && chatCtrl.isBusy()) {
+            window.alert('El asistente todavía está generando la respuesta. Espera a que termine y vuelve a pulsar "Enviar".');
+            return;
+        }
+
+        if (button) {
+            button.disabled = true;
+            button.dataset.dispatchInFlight = '1';
+        }
+
+        try {
+            await this.flush();
+        } catch (err) {
+            console.error('flush before dispatch failed', err);
+            // Still submit — the server will refuse with a precise blocker if
+            // the autosave never landed, which is more honest than silently
+            // sending nothing.
+        }
+
+        form.submit();
+    }
 }

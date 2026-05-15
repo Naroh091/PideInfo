@@ -57,6 +57,17 @@ export default class extends Controller {
         this.fabTarget?.classList.remove('is-active');
     }
 
+    /**
+     * Public API for outside controllers (e.g. the canvas wrapping the
+     * dispatch button) to query whether a chat turn is mid-stream — the
+     * decision callback that persists title/expone/solicita to the
+     * AccessRequest hasn't run yet, so dispatching now would race against
+     * a row that doesn't yet have the data the LLM is producing.
+     */
+    isBusy() {
+        return !!this._busy;
+    }
+
     onKeydown(event) {
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
             event.preventDefault();
