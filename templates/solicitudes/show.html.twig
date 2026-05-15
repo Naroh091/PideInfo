@@ -1107,9 +1107,13 @@
     <div class="dossier-meta">
         <div class="dossier-meta-cell">
             <span class="dossier-meta-key">Administración</span>
+            {% set displayedAdmin = request.regDestination ? request.regDestination.displayLabel : request.publicBody.name %}
+            {% set adminTitle = request.regDestination
+                ? request.regDestination.displayLabel ~ ' · ' ~ request.publicBody.name
+                : request.publicBody.name %}
             <span class="dossier-meta-value">
                 <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span class="truncate-inline" title="{{ request.publicBody.name }}">{{ request.publicBody.name }}</span>
+                <span class="truncate-inline" title="{{ adminTitle }}">{{ displayedAdmin }}</span>
             </span>
         </div>
         <div class="dossier-meta-cell">

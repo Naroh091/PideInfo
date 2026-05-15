@@ -73,6 +73,17 @@ Pure calculation service with no side effects. Handles:
 - Dynamic holiday calculation (Easter-based: Maundy Thursday, Good Friday)
 - Law-specific deadline rules (some laws use calendar days, others use business days)
 
+### AssistantChatController + AssistantChatStreamer
+
+`src/Controller/AssistantChatController.php` + `src/Service/AI/Chat/AssistantChatStreamer.php`
+
+Unified chat-driven drafting assistant for the "Realizar" flow. One SSE endpoint per supported flow (today: `POST /asistente/request/{id}`; complaint is on the roadmap and still served by the legacy SSE endpoint in `ComplaintRedactController`).
+
+- The system prompt (`App\Service\AI\Chat\Composer\RequestPromptComposer` for solicitudes) embeds an **auto-decision policy**: the model emits a conversational reply, then a literal `===DECISION===` marker, then a JSON `{action, draft?}` where `action ∈ {"reply", "generate", "rewrite"}`.
+- `App\Service\AI\StreamingDecisionSplitter` reads the token stream, flushes everything before the marker as `chat_token` events and accumulates the post-marker JSON to emit a single `decision` event at the end.
+- Attachments uploaded in the chat composer are parsed by `App\Service\AI\Chat\ChatAttachmentParser` into `ContentPart[]` (PDF/PNG/JPG inline as base64; CSV/TXT/MD inline as text) and travel as part of the user turn. They are **not** persisted to S3; the parser is a pure transform.
+- The controller captures a `previousDraft` snapshot before the LLM call and passes it back in the `decision` event for the optional client-side diff modal.
+
 ### ComplaintGenerator
 
 `src/Service/Complaint/ComplaintGenerator.php`

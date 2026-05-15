@@ -20,7 +20,6 @@ use App\Repository\RegDestinationRepository;
 use App\Repository\StatusHistoryRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AccessRequest\DeadlineCalculator;
-use App\Service\AccessRequest\AccessRequestDraftGenerator;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\ResolutionRetriever;
@@ -366,7 +365,9 @@ class AccessRequestController extends AbstractController
         }
 
         $payload = json_decode($request->getContent(), true) ?? [];
-        $title = isset($payload['title']) ? mb_substr((string) $payload['title'], 0, 255) : null;
+        // REG asunto caps at 80 (portal silently truncates); other channels keep 255.
+        $titleLimit = $accessRequest->getRegDestination() !== null ? 80 : 255;
+        $title = isset($payload['title']) ? mb_substr((string) $payload['title'], 0, $titleLimit) : null;
         $description = isset($payload['description']) ? mb_substr((string) $payload['description'], 0, 3000) : null;
         $expone = isset($payload['expone']) ? mb_substr((string) $payload['expone'], 0, 4000) : null;
         $solicita = isset($payload['solicita']) ? mb_substr((string) $payload['solicita'], 0, 4000) : null;
@@ -403,140 +404,6 @@ class AccessRequestController extends AbstractController
         $this->entityManager->flush();
 
         return new JsonResponse(['savedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
-    }
-
-    #[Route('/nueva/realizar/redactar/{id}/asistente', name: 'app_solicitudes_realizar_chat', methods: ['POST'])]
-    #[IsGranted('edit', 'accessRequest')]
-    public function chat(
-        Request $request,
-        AccessRequest $accessRequest,
-        AccessRequestDraftGenerator $draftGenerator,
-        EmbeddingGenerator $embeddingGenerator,
-        ResolutionRetriever $resolutionRetriever,
-    ): JsonResponse {
-        if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
-            return new JsonResponse(['error' => 'not_a_draft'], Response::HTTP_CONFLICT);
-        }
-
-        $payload = json_decode($request->getContent(), true) ?? [];
-        $action = (string) ($payload['action'] ?? 'free_chat');
-        $userMessage = isset($payload['message']) ? trim((string) $payload['message']) : '';
-        $directions = $userMessage !== '' ? $userMessage : null;
-
-        // Pull resolutions similar to the current draft + organism. The same
-        // set populates the sidebar — passing it into the prompt keeps both
-        // the user and the model looking at the same precedents.
-        $similar = $this->loadSimilarResolutions($accessRequest, $embeddingGenerator, $resolutionRetriever, 3);
-
-        $isRegDraft = $accessRequest->getRegDestination() !== null;
-
-        try {
-            $result = match ($action) {
-                'generate_first_draft' => $isRegDraft
-                    ? $draftGenerator->generateFirstDraftReg($accessRequest, $directions, $similar)
-                    : $draftGenerator->generateFirstDraft($accessRequest, $directions, $similar),
-                'rewrite' => $isRegDraft
-                    ? $draftGenerator->rewriteDraftReg($accessRequest, $directions, $similar)
-                    : $draftGenerator->rewriteDraft($accessRequest, $directions, $similar),
-                'suggest_ideas' => $draftGenerator->suggestIdeas($accessRequest, $directions, $similar),
-                'free_chat' => $draftGenerator->freeChat($accessRequest, $userMessage !== '' ? $userMessage : '¿Por dónde empiezo?', $similar),
-                default => throw new \InvalidArgumentException('unknown_action'),
-            };
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'llm_failure', 'detail' => mb_substr($e->getMessage(), 0, 240)], Response::HTTP_BAD_GATEWAY);
-        }
-
-        // Persist canvas-replacing actions immediately so the autosave timeline
-        // stays consistent with what the chat just produced.
-        if ($action === 'generate_first_draft' || $action === 'rewrite') {
-            $accessRequest->setTitle(mb_substr($result['title'], 0, 255));
-            if ($isRegDraft) {
-                $expone = mb_substr((string) ($result['expone'] ?? ''), 0, 4000);
-                $solicita = mb_substr((string) ($result['solicita'] ?? ''), 0, 4000);
-                $accessRequest->setExpone($expone);
-                $accessRequest->setSolicita($solicita);
-                $accessRequest->setDescription(mb_substr(
-                    trim("EXPONE:\n" . $expone . "\n\nSOLICITA:\n" . $solicita),
-                    0,
-                    8500,
-                ));
-            } else {
-                $accessRequest->setDescription(mb_substr($this->htmlToPlain($result['body_html']), 0, 3000));
-            }
-        }
-
-        // Append this round to the persisted chat history so the conversation
-        // survives page reloads. We store user prompts and the user-facing
-        // response (text replies, suggestions, or the assistant's chat_reply
-        // accompanying a canvas replacement) — we don't persist the regenerated
-        // body itself: the canvas already keeps that.
-        $turns = [];
-        $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-
-        $userLabel = $userMessage !== '' ? $userMessage : match ($action) {
-            'generate_first_draft' => 'Generar primer borrador',
-            'rewrite' => 'Reescribir el borrador',
-            'suggest_ideas' => 'Sugerir mejoras',
-            default => '',
-        };
-        if ($userLabel !== '') {
-            $turns[] = ['role' => 'user', 'kind' => 'text', 'content' => $userLabel, 'ts' => $now];
-        }
-
-        if ($action === 'suggest_ideas') {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'suggestions',
-                'items' => $result['suggestions'] ?? [],
-                'ts' => $now,
-            ];
-        } elseif ($action === 'free_chat') {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'text',
-                'content' => $result['reply'] ?? '',
-                'allowsHtml' => true,
-                'ts' => $now,
-            ];
-        } elseif (in_array($action, ['generate_first_draft', 'rewrite'], true)) {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'text',
-                'content' => $result['chat_reply'] ?? 'Borrador actualizado.',
-                'ts' => $now,
-            ];
-        }
-
-        $this->appendChatHistory($accessRequest, $turns);
-
-        $this->entityManager->flush();
-
-        return new JsonResponse([
-            'action' => $action,
-            'result' => $result,
-            'replacesCanvas' => in_array($action, ['generate_first_draft', 'rewrite'], true),
-        ]);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $newTurns
-     */
-    private function appendChatHistory(AccessRequest $ar, array $newTurns): void
-    {
-        if ($newTurns === []) {
-            return;
-        }
-        $current = $ar->getMetadataValue(self::CHAT_HISTORY_KEY);
-        $history = is_array($current) ? $current : [];
-        foreach ($newTurns as $turn) {
-            $history[] = $turn;
-        }
-        if (count($history) > self::CHAT_HISTORY_CAP) {
-            $history = array_slice($history, -self::CHAT_HISTORY_CAP);
-        }
-        $ar->setMetadataValue(self::CHAT_HISTORY_KEY, $history);
     }
 
     #[Route('/nueva/realizar/redactar/{id}/resoluciones-similares.json', name: 'app_solicitudes_realizar_similar', methods: ['GET'])]
@@ -643,12 +510,6 @@ class AccessRequestController extends AbstractController
         }
     }
 
-    private function htmlToPlain(string $html): string
-    {
-        $with_breaks = str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", $html);
-        return trim(strip_tags($with_breaks));
-    }
-
     #[Route('/nueva/realizar/redactar/{id}/descargar-pdf', name: 'app_solicitudes_realizar_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function downloadDraftPdf(AccessRequest $accessRequest, PdfGenerator $pdfGenerator): Response
@@ -741,6 +602,20 @@ class AccessRequestController extends AbstractController
                     return new JsonResponse([
                         'error' => 'incomplete_draft',
                         'accessRequestId' => $accessRequest->getId()->toRfc4122(),
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
+                // REG asunto hard-caps at 80 chars (portal truncates silently);
+                // reject before the agent even gets the task.
+                if ($accessRequest->getRegDestination() !== null
+                    && mb_strlen($accessRequest->getTitle()) > 80
+                ) {
+                    $this->entityManager->rollback();
+                    return new JsonResponse([
+                        'error' => 'title_too_long_for_reg',
+                        'accessRequestId' => $accessRequest->getId()->toRfc4122(),
+                        'limit' => 80,
+                        'actualLength' => mb_strlen($accessRequest->getTitle()),
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
