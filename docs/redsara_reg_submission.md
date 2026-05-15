@@ -20,6 +20,7 @@ activa importada del catálogo DIR3 (`PublicBodyRepository::searchSubmittableByN
 | `PublicBody` | `importedFromReg` | `true` si la entidad la creó el comando de import; queda pendiente de curación. |
 | `RegDestination` *(nueva)* | `dir3Code`, `name`, `publicBody`, `intermediateOrganismDir3/Name`, `comunidad`, `provincia`, `nivelAdministracion`, `activatedAt`, `disabledAt` | Cada Unidad DIR3 a la que se puede dirigir un escrito. |
 | `AccessRequest` | `regDestination` | FK opcional a la Unidad elegida. |
+| `AccessRequest` | `title` | Asunto en REG: máx. **80 caracteres** (el portal trunca silenciosamente lo que sobre, así que se valida en cliente, autosave y `dispatchBatch`). |
 | `AccessRequest` | `expone`, `solicita` | Paso 2 del REG: dos textareas de ≤4000 caracteres. |
 
 Migración: `migrations/Version20260512120000.php` (idempotente).

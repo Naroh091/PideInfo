@@ -498,6 +498,126 @@
             font-size: .65rem; color: rgb(148 163 184);
             align-self: center; margin-right: .15rem;
         }
+
+        /* ── Multi-line composer + adjuntos + system bubbles (shared with realizar/draft.html.twig) ── */
+        .composer-input-multiline {
+            resize: none;
+            min-height: 2.4rem;
+            max-height: 14rem;
+            overflow-y: auto;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+        }
+        .composer-attach {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0 .55rem; cursor: pointer;
+            color: rgb(100 116 139);
+            border: 1px solid rgb(203 213 225);
+            border-radius: .45rem; background: #ffffff;
+        }
+        .composer-attach:hover { color: var(--gold); border-color: var(--gold); }
+        .composer-attach .hidden { display: none !important; }
+        .composer-chips {
+            display: flex; flex-wrap: wrap; gap: .35rem;
+            padding: 0 .75rem .35rem;
+        }
+        .composer-chips:empty { padding: 0; }
+        .composer-chip {
+            display: inline-flex; align-items: center; gap: .25rem;
+            padding: .15rem .4rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem;
+            color: rgb(51 65 85);
+            background: rgb(241 245 249);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+        }
+        .composer-chip-name { font-weight: 500; }
+        .composer-chip-size { color: rgb(100 116 139); font-variant-numeric: tabular-nums; }
+        .composer-chip button {
+            margin-left: .15rem;
+            border: none; background: transparent; cursor: pointer;
+            color: rgb(100 116 139); font-size: .85rem; line-height: 1;
+        }
+        .composer-chip button:hover { color: rgb(220 38 38); }
+        .composer-disclaimer {
+            margin: 0; padding: 0 .85rem .65rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .65rem; color: rgb(148 163 184);
+        }
+        .chat-bubble-text { white-space: pre-wrap; word-break: break-word; }
+        .chat-bubble-attachments {
+            margin-top: .25rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem;
+            color: rgb(100 116 139);
+        }
+        .chat-turn-system {
+            align-self: center;
+            display: inline-flex; align-items: center; gap: .5rem;
+            padding: .35rem .7rem;
+            font-family: 'Inter', sans-serif; font-size: .72rem; font-weight: 500;
+            color: rgb(71 85 105);
+            background: rgb(241 245 249);
+            border-radius: 999px;
+        }
+        .chat-bubble-diff-btn {
+            padding: .15rem .55rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem; font-weight: 600;
+            color: var(--gold);
+            background: #ffffff;
+            border: 1px solid rgb(186 230 253);
+            border-radius: 999px;
+            cursor: pointer;
+        }
+        .chat-bubble-diff-btn:hover { background: rgb(240 249 255); }
+
+        /* ── Diff modal (shared) ── */
+        .diff-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+            padding: 1.5rem;
+        }
+        .diff-modal-card {
+            width: min(960px, 100%); max-height: 90vh;
+            display: flex; flex-direction: column;
+            background: #ffffff; border-radius: .85rem;
+            box-shadow: 0 25px 60px -10px rgba(15, 23, 42, .4);
+            overflow: hidden;
+        }
+        .diff-modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .85rem 1.1rem;
+            border-bottom: 1px solid rgb(226 232 240);
+            font-family: 'Inter', sans-serif;
+        }
+        .diff-modal-close {
+            border: none; background: transparent; cursor: pointer;
+            font-size: 1.4rem; color: rgb(100 116 139);
+        }
+        .diff-modal-body {
+            padding: 1rem 1.1rem; overflow-y: auto;
+            font-family: 'Inter', sans-serif;
+        }
+        .diff-modal-section { margin-bottom: 1.1rem; }
+        .diff-modal-section-title {
+            font-size: .8rem; text-transform: uppercase;
+            color: rgb(100 116 139); margin: 0 0 .4rem;
+        }
+        .diff-modal-fallback {
+            font-family: 'Source Code Pro', monospace;
+            font-size: .82rem; line-height: 1.5;
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: .45rem;
+            padding: .65rem .8rem;
+            white-space: pre-wrap; word-break: break-word;
+            margin: 0;
+        }
+        .diff-line { padding: .05rem .25rem; }
+        .diff-line-add { background: rgba(34, 197, 94, .12); color: rgb(22 101 52); }
+        .diff-line-del { background: rgba(239, 68, 68, .12); color: rgb(153 27 27); }
     </style>
 {% endblock %}
 
@@ -617,25 +737,17 @@
 
                 <div class="draft-body draft-body-stack">
                     {# Trix editor — always mounted so the previous draft remains visible while
-                       the model streams a new version on top. #}
-                    <div class="draft-editor-wrap">
+                       the model streams a new version on top. The complaint-canvas Stimulus
+                       controller exposes `replaceContent({bodyHtml})` to the assistant-chat
+                       outlet so the chat can push generated HTML into Trix. #}
+                    <div id="complaint-canvas" data-controller="complaint-canvas" class="draft-editor-wrap">
                         <input id="redactar-html-input" type="hidden" value="">
                         <trix-editor input="redactar-html-input"
+                                     data-complaint-canvas-target="editor"
                                      placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o abre el asistente en la zona inferior derecha para comenzar a redactar la respuesta utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% else %}Escribe la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la reclamación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% endif %}"
                                      @trix-change="documentEdited = true; persistedAt = null; charCount = ($event.target.editor.getDocument().toString() || '').length"></trix-editor>
                     </div>
 
-                    {# Streaming overlay: covers the editor in-place while the AI writes, so the
-                       user sees the new draft replace the previous one progressively. #}
-                    <div x-show="loading && streamingHtml" x-cloak x-ref="streamingPreview"
-                         class="draft-prose typewriter draft-stream-overlay" x-html="streamingHtml"></div>
-
-                    {# Discreet "preparing" banner — does NOT hide the editor; sits on top while
-                       the model is still gathering context, until the first chunk arrives. #}
-                    <div x-show="loading && !streamingHtml" x-cloak class="draft-preparing-banner">
-                        <span class="draft-preparing-spinner" aria-hidden="true"></span>
-                        <span>Preparando el contexto… <span class="draft-preparing-sub">recuperando precedentes, criterios y documentos.</span></span>
-                    </div>
                 </div>
 
                 <div class="draft-counters" x-show="editorReady" x-cloak>
@@ -751,127 +863,95 @@
             </aside>
         </div>
 
-        {# ── Floating chatbot (bottom-right) ─────────────────── #}
-        <button type="button"
-                class="chatbot-fab"
-                :class="{ 'is-open': chatOpen }"
-                @click="openChat()"
-                aria-label="Abrir asistente">
-            <i data-lucide="sparkles" class="w-5 h-5"></i>
-            <span class="chatbot-fab-dot"></span>
-        </button>
+        {# ── Floating chatbot (bottom-right) — unified assistant-chat controller ── #}
+        <div data-controller="assistant-chat"
+             data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
+             data-assistant-chat-canvas-outlet-selector-value="#complaint-canvas"
+             @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.element.innerHTML : ''); $refs.assistantDocumentIds.value = selectedDocIds.join(',')">
 
-        <div class="chatbot-panel"
-             :class="{ 'is-open': chatOpen }"
-             role="dialog"
-             aria-label="Asistente de redacción">
-            <header class="chatbot-head">
-                <div class="chatbot-head-title">
-                    <i data-lucide="sparkles" class="w-4 h-4"></i>
-                    <div>
-                        Asistente de redacción
-                        <small>{% if isAlegation %}Ayuda a redactar tu respuesta{% else %}Ayuda a redactar tu reclamación{% endif %}</small>
-                    </div>
-                </div>
-                <button type="button"
-                        class="chatbot-close"
-                        @click="closeChat()"
-                        aria-label="Cerrar asistente">
-                    <i data-lucide="x" class="w-4 h-4"></i>
-                </button>
-            </header>
+            {# Hidden fields the assistant-chat controller appends to every turn's FormData.
+               The :before-send event handler above refreshes them with current Trix HTML
+               and selected document IDs right before serialization. #}
+            <input type="hidden" name="mode" value="{{ mode }}"
+                   data-assistant-chat-target="extra">
+            <input type="hidden" name="currentBodyHtml" value=""
+                   data-assistant-chat-target="extra"
+                   x-ref="assistantCurrentBodyHtml">
+            <input type="hidden" name="documentIds" value=""
+                   data-assistant-chat-target="extra"
+                   x-ref="assistantDocumentIds">
 
-            <div class="chatbot-history" x-ref="historyEl">
-                <template x-if="messages.length === 0 && !loading">
-                    <div class="chat-empty">
-                        <i data-lucide="info" class="w-4 h-4"></i>
-                        <span>
-                            <b>Pídeme que redacte el escrito</b> con «Generar», pulsa «Sugerir» para ver ideas concretas o pregúntame lo que quieras sobre el expediente.
-                        </span>
-                    </div>
-                </template>
+            <button type="button"
+                    class="chatbot-fab"
+                    data-assistant-chat-target="fab"
+                    data-action="assistant-chat#open"
+                    aria-label="Abrir asistente">
+                <i data-lucide="sparkles" class="w-5 h-5"></i>
+                <span class="chatbot-fab-dot"></span>
+            </button>
 
-                <template x-for="(msg, idx) in messages" :key="idx">
-                    {# Single root per iteration: Alpine x-for only processes the first child of its template. #}
-                    <div class="chat-message">
-                        <div x-show="msg.role === 'user'" class="chat-turn chat-turn-user" x-text="msg.content"></div>
-
-                        <div x-show="msg.role !== 'user' && msg.kind === 'suggestions'" class="chat-turn chat-turn-assistant">
-                            <div class="chat-suggest-grid">
-                                <template x-for="(s, sidx) in msg.items || []" :key="sidx">
-                                    <div class="chat-suggest-card">
-                                        <div class="chat-suggest-head">
-                                            <strong x-text="s.title"></strong>
-                                            <span x-show="s.source" class="chat-suggest-source" x-text="s.source"></span>
-                                        </div>
-                                        <p class="chat-suggest-body" x-text="s.body"></p>
-                                        <button type="button"
-                                                class="chat-suggest-insert"
-                                                :disabled="s.inserted"
-                                                @click="insertSuggestion(s, $event)">
-                                            <i data-lucide="plus" class="w-3 h-3"></i>
-                                            <span x-text="s.inserted ? 'Añadido' : 'Añadir al borrador'">Añadir al borrador</span>
-                                        </button>
-                                    </div>
-                                </template>
-                            </div>
+            <div class="chatbot-panel"
+                 data-assistant-chat-target="panel"
+                 role="dialog"
+                 aria-label="Asistente de redacción">
+                <header class="chatbot-head">
+                    <div class="chatbot-head-title">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        <div>
+                            Asistente de redacción
+                            <small>{% if isAlegation %}Pídeme redactar la respuesta o adjunta archivos{% else %}Pídeme redactar la reclamación o adjunta archivos{% endif %}</small>
                         </div>
-
-                        <div x-show="msg.role !== 'user' && msg.kind === 'system'"
-                             class="chat-turn chat-turn-error" x-text="msg.content"></div>
-
-                        <div x-show="msg.role !== 'user' && msg.kind !== 'suggestions' && msg.kind !== 'system'"
-                             class="chat-turn chat-turn-assistant"
-                             x-html="msg.allowsHtml ? msg.content : escapeHtml(msg.content)"></div>
                     </div>
-                </template>
+                    <button type="button"
+                            class="chatbot-close"
+                            data-action="assistant-chat#close"
+                            aria-label="Cerrar asistente">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </header>
 
-                <template x-if="loading">
-                    <div class="chat-turn chat-turn-assistant inline-flex items-center gap-2">
-                        <span class="typing-dots"><span></span><span></span><span></span></span>
-                        <span x-text="loadingLabel"></span>
-                    </div>
-                </template>
+                <div class="chatbot-history" data-assistant-chat-target="history">
+                    {% for msg in chatHistory|default([]) %}
+                        {% if msg.role == 'user' %}
+                            <div class="chat-turn chat-turn-user">
+                                <div class="chat-bubble-text">{{ msg.content|default('')|nl2br }}</div>
+                            </div>
+                        {% elseif msg.role != 'user' and msg.kind != 'suggestions' and msg.kind != 'system' %}
+                            <div class="chat-turn chat-turn-assistant">
+                                <div class="chat-bubble-text">
+                                    {% if msg.allowsHtml|default(false) %}{{ msg.content|raw }}{% else %}{{ msg.content|default('')|nl2br }}{% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+
+                <div data-assistant-chat-target="attachChips" class="composer-chips"></div>
+
+                <form class="chatbot-input-row" data-action="submit->assistant-chat#sendMessage">
+                    <label class="composer-attach" title="Adjuntar archivo (no se guarda)">
+                        <input type="file"
+                               class="hidden"
+                               multiple
+                               accept=".pdf,.csv,.txt,.md,.png,.jpg,.jpeg"
+                               data-assistant-chat-target="attachInput"
+                               data-action="change->assistant-chat#onAttach">
+                        <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+                    </label>
+                    <textarea rows="1"
+                              class="composer-input composer-input-multiline"
+                              placeholder="Escribe un mensaje, pega texto o adjunta archivos…"
+                              data-assistant-chat-target="input"
+                              data-action="keydown->assistant-chat#onKeydown input->assistant-chat#onInput"></textarea>
+                    <button type="submit"
+                            class="composer-send"
+                            data-assistant-chat-target="sendButton"
+                            aria-label="Enviar">
+                        <i data-lucide="send" class="w-3 h-3"></i>
+                    </button>
+                </form>
+                <p class="composer-disclaimer">Los archivos se usan solo en esta conversación y no se guardan.</p>
             </div>
-
-            <div class="chatbot-toolbar">
-                <button type="button"
-                        class="composer-quick is-primary"
-                        @click="generateFirst()"
-                        :disabled="loading || charCount > 0"
-                        :title="charCount > 0 ? 'Ya hay un borrador. Usa «Reescribir» para modificarlo.' : ''">
-                    <i data-lucide="sparkles" class="w-3 h-3"></i> Generar
-                </button>
-                <button type="button"
-                        class="composer-quick"
-                        @click="rewriteOnly()"
-                        :disabled="loading || charCount === 0">
-                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Reescribir
-                </button>
-                <button type="button"
-                        class="composer-quick"
-                        @click="suggestIdeas()"
-                        :disabled="loading">
-                    <i data-lucide="lightbulb" class="w-3 h-3"></i> Sugerir
-                </button>
-            </div>
-
-            <form class="chatbot-input-row" @submit.prevent="sendFreeChat()">
-                <input type="text"
-                       class="composer-input"
-                       :placeholder="editorReady
-                           ? 'Pide ajustes: «cita la Resolución X», «más conciso»…'
-                           : 'Pregúntame qué reclamar, cómo formularlo…'"
-                       x-model="userInput"
-                       x-ref="chatInput">
-                <span class="composer-status" x-text="loading ? loadingLabel : ''"></span>
-                <button type="submit"
-                        class="composer-send"
-                        :disabled="!userInput.trim() || loading"
-                        aria-label="Enviar">
-                    <i data-lucide="send" class="w-3 h-3"></i>
-                </button>
-            </form>
         </div>
 
         </div>

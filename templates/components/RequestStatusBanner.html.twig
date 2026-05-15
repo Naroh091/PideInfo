@@ -45,10 +45,12 @@
 {% endif %}
 
 {# Pending — request created but not yet sent. Offer to complete the dispatch
-   via the agent if the public body is reachable through the Portal de
-   Transparencia (only routable channel in v1). #}
+   via the agent if the public body is reachable through any agent channel:
+   Portal de Transparencia (AGE) or REG / RED SARA when a destination unit
+   was already picked. #}
 {% if request.status == 'pending' %}
-    {% set canRouteViaAgent = request.publicBody.transparencyPortalUrl is not empty %}
+    {% set canRouteViaAgent = request.publicBody.transparencyPortalUrl is not empty
+        or request.regDestination is not null %}
     <aside class="dossier-notice is-sky mb-6">
         <div class="dossier-notice-body">
             <div class="dossier-notice-icon">
@@ -69,9 +71,15 @@
                 </h3>
                 <div class="dossier-notice-prose">
                     {% if canRouteViaAgent %}
-                        <p>
-                            <strong>{{ request.publicBody.name }}</strong> acepta solicitudes a través del Portal de Transparencia. PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
-                        </p>
+                        {% if request.regDestination is not null %}
+                            <p>
+                                <strong>{{ request.regDestination.name }}</strong> acepta solicitudes vía Registro Electrónico Común (REG / RED SARA). PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
+                            </p>
+                        {% else %}
+                            <p>
+                                <strong>{{ request.publicBody.name }}</strong> acepta solicitudes a través del Portal de Transparencia. PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
+                            </p>
+                        {% endif %}
                     {% else %}
                         <p>
                             Este organismo no soporta envío automático todavía. Cuando lo presentes por tu cuenta, edita la solicitud para actualizar el estado a "Enviada" e introduce el número de expediente si lo tienes.

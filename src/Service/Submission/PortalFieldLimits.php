@@ -35,11 +35,12 @@ final class PortalFieldLimits
 
     /**
      * REG step 2 ("Datos de solicitud") splits the body into two textareas
-     * of max 4000 characters each (EXPONE / SOLICITA). The asunto limit is
-     * a conservative estimate pending in-flow confirmation by the agent.
+     * of max 4000 characters each (EXPONE / SOLICITA). The asunto field of
+     * the REG portal caps at 80 characters — going over silently truncates
+     * on submission, so we enforce it upstream.
      */
     public const REDSARA_REC = [
-        'title' => 255,
+        'title' => 80,
         'expone' => 4000,
         'solicita' => 4000,
     ];

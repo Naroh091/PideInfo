@@ -31,15 +31,18 @@ export default class extends Controller {
         this._onInput = this._onInput.bind(this);
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onTitleInput = this._onTitleInput.bind(this);
+        this._onBodyInput = this._onBodyInput.bind(this);
         if (this.hasTitleTarget) {
             this.titleTarget.addEventListener('input', this._onInput);
             this.titleTarget.addEventListener('input', this._onTitleInput);
             // Initial grow for prefilled drafts.
             requestAnimationFrame(() => this._growTitle());
         }
-        if (this.hasBodyTarget) this.bodyTarget.addEventListener('input', this._onInput);
-        if (this.hasExponeTarget) this.exponeTarget.addEventListener('input', this._onInput);
-        if (this.hasSolicitaTarget) this.solicitaTarget.addEventListener('input', this._onInput);
+        for (const el of this._bodyTargets()) {
+            el.addEventListener('input', this._onInput);
+            el.addEventListener('input', this._onBodyInput);
+            requestAnimationFrame(() => this._growBody(el));
+        }
         document.addEventListener('keydown', this._onKeyDown);
 
         this._renderStatus();
@@ -62,14 +65,33 @@ export default class extends Controller {
         el.style.height = el.scrollHeight + 'px';
     }
 
+    _bodyTargets() {
+        const list = [];
+        if (this.hasBodyTarget) list.push(this.bodyTarget);
+        if (this.hasExponeTarget) list.push(this.exponeTarget);
+        if (this.hasSolicitaTarget) list.push(this.solicitaTarget);
+        return list;
+    }
+
+    _growBody(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    }
+
+    _onBodyInput(event) {
+        this._growBody(event.currentTarget);
+    }
+
     disconnect() {
         if (this.hasTitleTarget) {
             this.titleTarget.removeEventListener('input', this._onInput);
             this.titleTarget.removeEventListener('input', this._onTitleInput);
         }
-        if (this.hasBodyTarget) this.bodyTarget.removeEventListener('input', this._onInput);
-        if (this.hasExponeTarget) this.exponeTarget.removeEventListener('input', this._onInput);
-        if (this.hasSolicitaTarget) this.solicitaTarget.removeEventListener('input', this._onInput);
+        for (const el of this._bodyTargets()) {
+            el.removeEventListener('input', this._onInput);
+            el.removeEventListener('input', this._onBodyInput);
+        }
         document.removeEventListener('keydown', this._onKeyDown);
         if (this._saveTimer) clearTimeout(this._saveTimer);
         if (this._settleTimer) clearTimeout(this._settleTimer);
@@ -159,8 +181,14 @@ export default class extends Controller {
                 const intervalMs = 14;
                 const ticks = Math.max(1, Math.floor(targetMs / intervalMs));
                 const chunk = Math.max(1, Math.ceil(text.length / ticks));
-                await this._typeInto(el, text, { chunk, intervalMs, isAborted: () => aborted });
+                await this._typeInto(el, text, {
+                    chunk,
+                    intervalMs,
+                    isAborted: () => aborted,
+                    onTick: () => this._growBody(el),
+                });
                 if (aborted) el.value = text;
+                this._growBody(el);
             };
 
             if (this.hasBodyTarget && plainBody.length > 0) await typeBlock(this.bodyTarget, plainBody);
