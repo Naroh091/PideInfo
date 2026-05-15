@@ -589,7 +589,10 @@ class AccessRequestController extends AbstractController
                 }
                 $regDest = $ar->getRegDestination();
                 $body = $ar->getRegBody();
-                $this->logger->warning('Dispatch blocked: REG preconditions failed', [
+                // error-level so monolog's fingers_crossed handler flushes the
+                // buffer to stderr — at warning level it would stay buffered
+                // (action_level: error) and we'd never see it in prod logs.
+                $this->logger->error('Dispatch blocked: REG preconditions failed', [
                     'access_request_id' => $arId,
                     'batch_id' => $batchId,
                     'blockers' => $errs,
