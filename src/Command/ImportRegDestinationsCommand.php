@@ -81,6 +81,8 @@ class ImportRegDestinationsCommand extends Command
         'principado de asturias' => 'Principado de Asturias',
         'murcia' => 'Región de Murcia',
         'region de murcia' => 'Región de Murcia',
+        'ciudad autonoma de ceuta' => 'Ceuta',
+        'ciudad autonoma de melilla' => 'Melilla',
     ];
 
     public function __construct(
@@ -197,6 +199,7 @@ class ImportRegDestinationsCommand extends Command
             $unit = Dir3Parser::parse($get('unidad'));
             $raiz = Dir3Parser::parse($get('raiz'));
             $org = Dir3Parser::parse($get('organismo'));
+            $oficina = Dir3Parser::parse($get('oficina'));
 
             if ($unit === null || $raiz === null) {
                 $stats['rows_skipped']++;
@@ -263,6 +266,8 @@ class ImportRegDestinationsCommand extends Command
                 $destination
                     ->setIntermediateOrganismDir3($intermediateCode)
                     ->setIntermediateOrganismName($intermediateName)
+                    ->setOficinaDir3($oficina['code'] ?? null)
+                    ->setOficinaName($oficina['name'] ?? null)
                     ->setComunidad($comunidad)
                     ->setProvincia($provincia)
                     ->setNivelAdministracion($nivel)
@@ -275,6 +280,8 @@ class ImportRegDestinationsCommand extends Command
                     $destination->getPublicBody()->getId()->toRfc4122(),
                     $destination->getIntermediateOrganismDir3(),
                     $destination->getIntermediateOrganismName(),
+                    $destination->getOficinaDir3(),
+                    $destination->getOficinaName(),
                     $destination->getComunidad(),
                     $destination->getProvincia(),
                     $destination->getNivelAdministracion(),
@@ -286,6 +293,8 @@ class ImportRegDestinationsCommand extends Command
                     ->setPublicBody($body)
                     ->setIntermediateOrganismDir3($intermediateCode)
                     ->setIntermediateOrganismName($intermediateName)
+                    ->setOficinaDir3($oficina['code'] ?? null)
+                    ->setOficinaName($oficina['name'] ?? null)
                     ->setComunidad($comunidad)
                     ->setProvincia($provincia)
                     ->setNivelAdministracion($nivel)
@@ -296,6 +305,8 @@ class ImportRegDestinationsCommand extends Command
                     $destination->getPublicBody()->getId()->toRfc4122(),
                     $destination->getIntermediateOrganismDir3(),
                     $destination->getIntermediateOrganismName(),
+                    $destination->getOficinaDir3(),
+                    $destination->getOficinaName(),
                     $destination->getComunidad(),
                     $destination->getProvincia(),
                     $destination->getNivelAdministracion(),

@@ -83,7 +83,7 @@
 
         .picker-option { padding: .15rem 0; }
         .picker-option-row {
-            display: flex; align-items: center; justify-content: space-between; gap: .65rem;
+            display: flex; align-items: baseline; gap: .5rem;
         }
         .picker-option-name {
             font-family: 'DM Sans', sans-serif;
@@ -94,6 +94,44 @@
             font-family: 'Inter', sans-serif;
             font-size: .74rem; color: rgb(100 116 139);
             margin-top: .15rem;
+        }
+
+        /* Three-line hierarchy: Unidad (bold) / Oficina / Raíz. */
+        .picker-option-tree { padding: .25rem 0; line-height: 1.35; }
+        .picker-option-line { display: flex; align-items: baseline; gap: .5rem; }
+        .picker-option-line + .picker-option-line { margin-top: .15rem; }
+        /* When the line carries a meta chip (e.g. provincia on the Raíz row),
+           keep it at the line's end instead of breaking onto a new row. */
+        .picker-option-line .picker-option-meta {
+            display: inline-block;
+            margin-top: 0;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+        .picker-option-line-unit .picker-option-name {
+            font-weight: 600; color: rgb(15 23 42);
+        }
+        .picker-option-line-oficina,
+        .picker-option-line-raiz {
+            font-size: .78rem;
+        }
+        .picker-option-line-oficina .picker-option-name,
+        .picker-option-line-raiz .picker-option-name {
+            font-weight: 400; color: rgb(71 85 105);
+        }
+        .picker-option-dir3 {
+            font-family: 'JetBrains Mono', 'SF Mono', monospace;
+            font-size: .72rem;
+            color: rgb(100 116 139);
+            background: rgb(241 245 249);
+            padding: .05rem .35rem;
+            border-radius: .25rem;
+            flex-shrink: 0;
+        }
+        .picker-option-line-unit .picker-option-dir3 {
+            font-size: .74rem;
+            color: rgb(15 23 42);
+            background: rgb(224 242 254);
         }
 
         /* Channel badges — match the dossier-status palette */

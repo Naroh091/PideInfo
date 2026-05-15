@@ -81,18 +81,34 @@ final class CustomModelClient
             $messages[] = ['role' => 'system', 'content' => $req->systemPrompt];
         }
 
-        if ($req->userParts !== null) {
-            $messages[] = ['role' => 'user', 'content' => $this->renderParts($req->userParts)];
-        } elseif ($req->userText !== null) {
-            $messages[] = ['role' => 'user', 'content' => $req->userText];
-        } elseif (!empty($req->messages)) {
+        // History first so multi-turn callers (the unified chat assistant)
+        // see the conversation that led to this turn. Legacy callers that
+        // bake the current turn into `$req->messages` (ComplaintGenerator)
+        // simply leave userParts/userText null and still work as before.
+        $hasHistory = false;
+        if (!empty($req->messages)) {
             foreach ($req->messages as $m) {
                 $messages[] = [
                     'role' => $m->role === 'user' ? 'user' : 'assistant',
                     'content' => $m->content,
                 ];
             }
-        } else {
+            $hasHistory = true;
+        }
+
+        $hasCurrentTurn = false;
+        if ($req->userParts !== null) {
+            $messages[] = ['role' => 'user', 'content' => $this->renderParts($req->userParts)];
+            $hasCurrentTurn = true;
+        } elseif ($req->userText !== null) {
+            $messages[] = ['role' => 'user', 'content' => $req->userText];
+            $hasCurrentTurn = true;
+        }
+
+        // Only synthesise a boilerplate user turn when truly nothing else
+        // is present — otherwise we'd inject "procede ahora…" on top of a
+        // legitimate history-only call (e.g. ComplaintGenerator).
+        if (!$hasHistory && !$hasCurrentTurn) {
             $messages[] = [
                 'role' => 'user',
                 'content' => 'Procede ahora siguiendo las instrucciones del sistema.',

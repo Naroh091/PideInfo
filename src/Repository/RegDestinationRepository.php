@@ -94,4 +94,26 @@ class RegDestinationRepository extends ServiceEntityRepository
 
         return array_map(fn(array $r) => $r['provincia'], $rows);
     }
+
+    /**
+     * Distinct comunidades for the body's REG destinations (active or not —
+     * we want to derive territorial scope even from disabled units when the
+     * parent PublicBody isn't anchored). Used by ApplicableLawResolver as a
+     * fallback when PublicBody.autonomousCommunity is missing.
+     *
+     * @return list<string>
+     */
+    public function findDistinctComunidades(PublicBody $body): array
+    {
+        $rows = $this->createQueryBuilder('rd')
+            ->select('DISTINCT rd.comunidad')
+            ->where('rd.publicBody = :body')
+            ->andWhere('rd.comunidad IS NOT NULL')
+            ->setParameter('body', $body)
+            ->orderBy('rd.comunidad', 'ASC')
+            ->getQuery()
+            ->getScalarResult();
+
+        return array_map(fn(array $r) => $r['comunidad'], $rows);
+    }
 }
