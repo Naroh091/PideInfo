@@ -193,7 +193,7 @@ class AccessRequest
 
     /** @var Collection<int, StatusHistory> */
     #[ORM\OneToMany(targetEntity: StatusHistory::class, mappedBy: 'accessRequest', cascade: ['persist', 'remove'])]
-    #[ORM\OrderBy(['createdAt' => 'DESC'])]
+    #[ORM\OrderBy(['createdAt' => 'DESC', 'id' => 'DESC'])]
     private Collection $statusHistory;
 
     /** @var Collection<int, DeadlineHistory> */
