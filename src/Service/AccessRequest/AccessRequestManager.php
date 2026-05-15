@@ -101,7 +101,11 @@ class AccessRequestManager
             $request->getSentAt()->format('d/m/Y'),
             $request->getDeadlineAt()->format('d/m/Y')
         ));
-        $history->setCreatedAt($request->getSentAt());
+        // Sentinel: shift 1s before sentAt so this event always sorts strictly
+        // older than any subsequent event whose timestamp is the request's day at 00:00
+        // (e.g. an acuse whose documentDate parses to the same midnight). The template
+        // displays request.sentAt for creation events, so this shift is sort-only.
+        $history->setCreatedAt($request->getSentAt()->modify('-1 second'));
         $request->addStatusHistory($history);
     }
 

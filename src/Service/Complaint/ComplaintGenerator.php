@@ -340,6 +340,51 @@ final class ComplaintGenerator
         return $document;
     }
 
+    /**
+     * Build the system prompt that the unified chat assistant feeds the LLM.
+     *
+     * Wraps {@see buildPrompt}/{@see buildAlegationResponsePrompt} so the chat
+     * flow gets the same legal scaffolding (criteria + resolutions + silence
+     * directives) as the one-shot generators, without duplicating the RAG
+     * lookups or the prompt template selection here.
+     *
+     * The caller is responsible for prepending the decision-marker policy on
+     * top (see {@see \App\Service\AI\Chat\Composer\ComplaintPromptComposer}).
+     *
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    public function composeChatScaffolding(AccessRequest $accessRequest, string $mode, array $documentContents = []): string
+    {
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
+
+        if ($mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
+            $alegacionesContent = $this->getAlegacionesContent($accessRequest);
+            $alegationPoints = $this->getAlegationPoints($accessRequest);
+            return $this->buildAlegationResponsePrompt(
+                $accessRequest,
+                $transparencyCouncil,
+                $applicableLawName,
+                $criteria,
+                $resolutions,
+                $alegacionesContent,
+                $alegationPoints,
+                $documentContents,
+            );
+        }
+
+        return $this->buildPrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $documentContents,
+            $this->hasResponseDocument($accessRequest),
+        );
+    }
+
     public function canGenerateComplaint(AccessRequest $accessRequest): bool
     {
         if (in_array($accessRequest->getStatus(), [AccessRequest::STATUS_DENIED, AccessRequest::STATUS_DELAYED], true)) {

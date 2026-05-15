@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Service\Submission;
 
+use App\Entity\AccessRequest;
 use App\Entity\AgentTask;
 use App\Entity\PublicBody;
+use App\Entity\User;
 
 /**
  * Decides which agent task type (= submission channel) a PublicBody is
@@ -47,5 +49,34 @@ final class ChannelResolver
             $seen[$type] = true;
         }
         return array_keys($seen);
+    }
+
+    /**
+     * Diagnoses everything that prevents an AccessRequest from being handed to
+     * the agent — channel-specific preconditions only (the controller still
+     * runs its own validations for title/description not being empty etc.).
+     *
+     * Returns a list of machine-readable error codes (empty list = OK). The
+     * controller turns them into UI messages and decides whether to render
+     * the inline profile / unit picker, or fail the dispatch.
+     *
+     * @return list<string>
+     */
+    public function diagnoseDispatchPreconditions(AccessRequest $request, User $user): array
+    {
+        $errors = [];
+        if ($this->resolveTaskType($request->getPublicBody()) === AgentTask::TYPE_SUBMIT_REQUEST_REG) {
+            if ($request->getRegDestination() === null) {
+                $errors[] = 'reg_destination_required';
+            }
+            if (!$user->hasCompleteRegProfile()) {
+                $errors[] = 'reg_profile_incomplete';
+            }
+            $body = $request->getRegBody();
+            if ($body['expone'] === '' || $body['solicita'] === '') {
+                $errors[] = 'reg_body_required';
+            }
+        }
+        return $errors;
     }
 }

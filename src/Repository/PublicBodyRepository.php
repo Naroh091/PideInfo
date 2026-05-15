@@ -53,16 +53,19 @@ class PublicBodyRepository extends ServiceEntityRepository
     }
 
     /**
-     * Routable through the agent's "realizar" flow: bodies that have a
-     * Portal de Transparencia URL registered. REG-only bodies are excluded
-     * until that handler ships. Optionally narrows by name substring.
+     * Routable through the agent's "realizar" flow: bodies that the agent can
+     * actually submit to. Today that means either an AGE Portal de Transparencia
+     * URL is registered OR the body has at least one active REG destination
+     * imported from the DIR3 catalogue. Optionally narrows by name substring.
      *
      * @return PublicBody[]
      */
     public function searchSubmittableByName(string $query = '', int $limit = 20): array
     {
         $qb = $this->createQueryBuilder('pb')
-            ->where('pb.transparencyPortalUrl IS NOT NULL')
+            ->leftJoin('pb.regDestinations', 'rd', 'WITH', 'rd.disabledAt IS NULL')
+            ->where('pb.transparencyPortalUrl IS NOT NULL OR rd.id IS NOT NULL')
+            ->groupBy('pb.id')
             ->orderBy('pb.name', 'ASC')
             ->setMaxResults($limit);
 

@@ -16,18 +16,20 @@ use App\Repository\AccessRequestListRepository;
 use App\Repository\AccessRequestRepository;
 use App\Repository\CustomDeadlineRepository;
 use App\Repository\PublicBodyRepository;
+use App\Repository\RegDestinationRepository;
 use App\Repository\StatusHistoryRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AccessRequest\DeadlineCalculator;
-use App\Service\AccessRequest\AccessRequestDraftGenerator;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
+use App\Service\Submission\RegPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -49,6 +51,7 @@ class AccessRequestController extends AbstractController
         private AccessRequestListRepository $accessRequestListRepository,
         private EntityManagerInterface $entityManager,
         private DataTableFactory $dataTableFactory,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -132,6 +135,7 @@ class AccessRequestController extends AbstractController
         PublicBodyRepository $publicBodyRepository,
         ChannelResolver $channelResolver,
         ApplicableLawResolver $applicableLawResolver,
+        RegDestinationRepository $regDestinationRepository,
     ): JsonResponse {
         $q = trim((string) $request->query->get('q', ''));
         $limit = max(1, min(50, (int) $request->query->get('limit', 20)));
@@ -141,14 +145,17 @@ class AccessRequestController extends AbstractController
         $items = [];
         foreach ($bodies as $body) {
             $law = $applicableLawResolver->resolveFor($body);
+            $channel = $channelResolver->resolveTaskType($body);
             $items[] = [
                 'id' => $body->getId()->toRfc4122(),
                 'name' => $body->getName(),
                 'level' => $body->getLevel(),
                 'levelLabel' => $body->getLevelLabel(),
                 'autonomousCommunity' => $body->getAutonomousCommunity()?->getName(),
-                'channel' => $channelResolver->resolveTaskType($body),
+                'channel' => $channel,
                 'channelLabel' => $channelResolver->badgeLabel($body),
+                'requiresRegDestination' => $channel === AgentTask::TYPE_SUBMIT_REQUEST_REG
+                    && $regDestinationRepository->bodyHasActiveDestinations($body),
                 'applicableLaw' => $law === null ? null : [
                     'id' => $law->getId()->toRfc4122(),
                     'name' => $law->getName(),
@@ -161,10 +168,44 @@ class AccessRequestController extends AbstractController
         return new JsonResponse(['bodies' => $items, 'count' => count($items)]);
     }
 
+    #[Route('/nueva/realizar/organismos/{publicBody}/unidades.json', name: 'app_solicitudes_realizar_units_json', methods: ['GET'])]
+    public function regDestinationsForBodyJson(
+        Request $request,
+        PublicBody $publicBody,
+        RegDestinationRepository $regDestinationRepository,
+    ): JsonResponse {
+        $q = trim((string) $request->query->get('q', ''));
+        $provincia = $request->query->get('provincia') ?: null;
+        $limit = max(1, min(100, (int) $request->query->get('limit', 50)));
+
+        $units = $regDestinationRepository->searchActiveForBody($publicBody, $provincia, $q, $limit);
+        $items = array_map(fn($u) => [
+            'id' => $u->getId()->toRfc4122(),
+            'dir3' => $u->getDir3Code(),
+            'name' => $u->getName(),
+            'displayLabel' => $u->getDisplayLabel(),
+            'provincia' => $u->getProvincia(),
+            'comunidad' => $u->getComunidad(),
+            // Full DIR3 chain so the picker can render Unidad / Oficina / Raíz.
+            'oficinaDir3' => $u->getOficinaDir3(),
+            'oficinaName' => $u->getOficinaName(),
+            'raizDir3' => $u->getPublicBody()->getDir3Code(),
+            'raizName' => $u->getPublicBody()->getName(),
+        ], $units);
+
+        return new JsonResponse([
+            'units' => $items,
+            'count' => count($items),
+            'provincias' => $regDestinationRepository->findDistinctProvincias($publicBody),
+        ]);
+    }
+
     #[Route('/nueva/realizar/iniciar', name: 'app_solicitudes_realizar_initiate', methods: ['POST'])]
     public function initiateDrafts(
         Request $request,
         PublicBodyRepository $publicBodyRepository,
+        RegDestinationRepository $regDestinationRepository,
+        ChannelResolver $channelResolver,
         ApplicableLawResolver $applicableLawResolver,
         DeadlineCalculator $deadlineCalculator,
     ): Response {
@@ -172,23 +213,71 @@ class AccessRequestController extends AbstractController
         $user = $this->getUser();
 
         $payload = json_decode($request->getContent(), true) ?? [];
-        $rawIds = $payload['publicBodyIds'] ?? [];
-        if (!is_array($rawIds) || $rawIds === []) {
+
+        // Two payload shapes supported:
+        //   - legacy: { publicBodyIds: [uuid, ...] }                                 (AGE only)
+        //   - new:    { targets: [{publicBodyId, regDestinationId?}, ...] }          (mixed)
+        $targets = [];
+        if (isset($payload['targets']) && is_array($payload['targets'])) {
+            $targets = $payload['targets'];
+        } elseif (isset($payload['publicBodyIds']) && is_array($payload['publicBodyIds'])) {
+            foreach ($payload['publicBodyIds'] as $id) {
+                $targets[] = ['publicBodyId' => $id];
+            }
+        }
+        if ($targets === []) {
             return new JsonResponse(['error' => 'no_public_bodies'], Response::HTTP_BAD_REQUEST);
         }
 
-        $bodies = [];
-        foreach ($rawIds as $rawId) {
+        /** @var list<array{body: PublicBody, regDestination: ?\App\Entity\RegDestination}> $resolved */
+        $resolved = [];
+        foreach ($targets as $target) {
             try {
-                $uuid = Uuid::fromString((string) $rawId);
+                $bodyUuid = Uuid::fromString((string) ($target['publicBodyId'] ?? ''));
             } catch (\InvalidArgumentException) {
                 return new JsonResponse(['error' => 'invalid_public_body_id'], Response::HTTP_BAD_REQUEST);
             }
-            $body = $publicBodyRepository->find($uuid);
-            if ($body === null || $body->getTransparencyPortalUrl() === null) {
-                return new JsonResponse(['error' => 'unknown_or_unsubmittable_body'], Response::HTTP_BAD_REQUEST);
+            $body = $publicBodyRepository->find($bodyUuid);
+            if ($body === null) {
+                return new JsonResponse(['error' => 'unknown_public_body'], Response::HTTP_BAD_REQUEST);
             }
-            $bodies[] = $body;
+
+            $channel = $channelResolver->resolveTaskType($body);
+            $regDestination = null;
+            if ($channel === AgentTask::TYPE_SUBMIT_REQUEST_REG) {
+                if (!$regDestinationRepository->bodyHasActiveDestinations($body)) {
+                    return new JsonResponse([
+                        'error' => 'unsubmittable_body',
+                        'publicBodyId' => $body->getId()->toRfc4122(),
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+                $regDestId = $target['regDestinationId'] ?? null;
+                if ($regDestId === null) {
+                    return new JsonResponse([
+                        'error' => 'reg_destination_required',
+                        'publicBodyId' => $body->getId()->toRfc4122(),
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+                try {
+                    $regUuid = Uuid::fromString((string) $regDestId);
+                } catch (\InvalidArgumentException) {
+                    return new JsonResponse(['error' => 'invalid_reg_destination_id'], Response::HTTP_BAD_REQUEST);
+                }
+                $regDestination = $regDestinationRepository->find($regUuid);
+                if ($regDestination === null
+                    || $regDestination->getPublicBody()->getId()->compare($body->getId()) !== 0
+                    || $regDestination->isDisabled()
+                ) {
+                    return new JsonResponse(['error' => 'unknown_reg_destination'], Response::HTTP_BAD_REQUEST);
+                }
+            } elseif ($body->getTransparencyPortalUrl() === null) {
+                return new JsonResponse([
+                    'error' => 'unsubmittable_body',
+                    'publicBodyId' => $body->getId()->toRfc4122(),
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $resolved[] = ['body' => $body, 'regDestination' => $regDestination];
         }
 
         $batchId = Uuid::v7()->toRfc4122();
@@ -197,7 +286,8 @@ class AccessRequestController extends AbstractController
         $created = [];
         $this->entityManager->beginTransaction();
         try {
-            foreach ($bodies as $body) {
+            foreach ($resolved as $entry) {
+                $body = $entry['body'];
                 $law = $applicableLawResolver->resolveFor($body);
                 if ($law === null) {
                     throw new \RuntimeException('No applicable law could be resolved for ' . $body->getName());
@@ -209,6 +299,7 @@ class AccessRequestController extends AbstractController
                 $accessRequest->setTitle('');
                 $accessRequest->setDescription('');
                 $accessRequest->setPublicBody($body);
+                $accessRequest->setRegDestination($entry['regDestination']);
                 $accessRequest->setApplicableLaw($law);
                 $accessRequest->setSentAt($tentativeSentAt);
                 $tentativeDeadline = $deadlineCalculator->calculate($tentativeSentAt, $law);
@@ -281,8 +372,12 @@ class AccessRequestController extends AbstractController
         }
 
         $payload = json_decode($request->getContent(), true) ?? [];
-        $title = isset($payload['title']) ? mb_substr((string) $payload['title'], 0, 255) : null;
+        // REG asunto caps at 80 (portal silently truncates); other channels keep 255.
+        $titleLimit = $accessRequest->getRegDestination() !== null ? 80 : 255;
+        $title = isset($payload['title']) ? mb_substr((string) $payload['title'], 0, $titleLimit) : null;
         $description = isset($payload['description']) ? mb_substr((string) $payload['description'], 0, 3000) : null;
+        $expone = isset($payload['expone']) ? mb_substr((string) $payload['expone'], 0, 4000) : null;
+        $solicita = isset($payload['solicita']) ? mb_substr((string) $payload['solicita'], 0, 4000) : null;
 
         if ($title !== null) {
             $accessRequest->setTitle($title);
@@ -290,125 +385,32 @@ class AccessRequestController extends AbstractController
         if ($description !== null) {
             $accessRequest->setDescription($description);
         }
+        if ($expone !== null) {
+            $accessRequest->setExpone($expone);
+        }
+        if ($solicita !== null) {
+            $accessRequest->setSolicita($solicita);
+        }
+
+        // REG-bound drafts: keep `description` in sync with the structured pair
+        // so the dispatch-time "description not empty" gate still works and any
+        // status / show page that prints description still reads a meaningful
+        // concatenation.
+        if ($accessRequest->getRegDestination() !== null
+            && ($expone !== null || $solicita !== null)
+        ) {
+            $e = $accessRequest->getExpone() ?? '';
+            $s = $accessRequest->getSolicita() ?? '';
+            $accessRequest->setDescription(mb_substr(
+                trim("EXPONE:\n" . $e . "\n\nSOLICITA:\n" . $s),
+                0,
+                8500
+            ));
+        }
+
         $this->entityManager->flush();
 
         return new JsonResponse(['savedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
-    }
-
-    #[Route('/nueva/realizar/redactar/{id}/asistente', name: 'app_solicitudes_realizar_chat', methods: ['POST'])]
-    #[IsGranted('edit', 'accessRequest')]
-    public function chat(
-        Request $request,
-        AccessRequest $accessRequest,
-        AccessRequestDraftGenerator $draftGenerator,
-        EmbeddingGenerator $embeddingGenerator,
-        ResolutionRetriever $resolutionRetriever,
-    ): JsonResponse {
-        if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
-            return new JsonResponse(['error' => 'not_a_draft'], Response::HTTP_CONFLICT);
-        }
-
-        $payload = json_decode($request->getContent(), true) ?? [];
-        $action = (string) ($payload['action'] ?? 'free_chat');
-        $userMessage = isset($payload['message']) ? trim((string) $payload['message']) : '';
-        $directions = $userMessage !== '' ? $userMessage : null;
-
-        // Pull resolutions similar to the current draft + organism. The same
-        // set populates the sidebar — passing it into the prompt keeps both
-        // the user and the model looking at the same precedents.
-        $similar = $this->loadSimilarResolutions($accessRequest, $embeddingGenerator, $resolutionRetriever, 3);
-
-        try {
-            $result = match ($action) {
-                'generate_first_draft' => $draftGenerator->generateFirstDraft($accessRequest, $directions, $similar),
-                'rewrite' => $draftGenerator->rewriteDraft($accessRequest, $directions, $similar),
-                'suggest_ideas' => $draftGenerator->suggestIdeas($accessRequest, $directions, $similar),
-                'free_chat' => $draftGenerator->freeChat($accessRequest, $userMessage !== '' ? $userMessage : '¿Por dónde empiezo?', $similar),
-                default => throw new \InvalidArgumentException('unknown_action'),
-            };
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
-        } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'llm_failure', 'detail' => mb_substr($e->getMessage(), 0, 240)], Response::HTTP_BAD_GATEWAY);
-        }
-
-        // Persist canvas-replacing actions immediately so the autosave timeline
-        // stays consistent with what the chat just produced.
-        if ($action === 'generate_first_draft' || $action === 'rewrite') {
-            $accessRequest->setTitle(mb_substr($result['title'], 0, 255));
-            $accessRequest->setDescription(mb_substr($this->htmlToPlain($result['body_html']), 0, 3000));
-        }
-
-        // Append this round to the persisted chat history so the conversation
-        // survives page reloads. We store user prompts and the user-facing
-        // response (text replies, suggestions, or the assistant's chat_reply
-        // accompanying a canvas replacement) — we don't persist the regenerated
-        // body itself: the canvas already keeps that.
-        $turns = [];
-        $now = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
-
-        $userLabel = $userMessage !== '' ? $userMessage : match ($action) {
-            'generate_first_draft' => 'Generar primer borrador',
-            'rewrite' => 'Reescribir el borrador',
-            'suggest_ideas' => 'Sugerir mejoras',
-            default => '',
-        };
-        if ($userLabel !== '') {
-            $turns[] = ['role' => 'user', 'kind' => 'text', 'content' => $userLabel, 'ts' => $now];
-        }
-
-        if ($action === 'suggest_ideas') {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'suggestions',
-                'items' => $result['suggestions'] ?? [],
-                'ts' => $now,
-            ];
-        } elseif ($action === 'free_chat') {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'text',
-                'content' => $result['reply'] ?? '',
-                'allowsHtml' => true,
-                'ts' => $now,
-            ];
-        } elseif (in_array($action, ['generate_first_draft', 'rewrite'], true)) {
-            $turns[] = [
-                'role' => 'assistant',
-                'kind' => 'text',
-                'content' => $result['chat_reply'] ?? 'Borrador actualizado.',
-                'ts' => $now,
-            ];
-        }
-
-        $this->appendChatHistory($accessRequest, $turns);
-
-        $this->entityManager->flush();
-
-        return new JsonResponse([
-            'action' => $action,
-            'result' => $result,
-            'replacesCanvas' => in_array($action, ['generate_first_draft', 'rewrite'], true),
-        ]);
-    }
-
-    /**
-     * @param list<array<string, mixed>> $newTurns
-     */
-    private function appendChatHistory(AccessRequest $ar, array $newTurns): void
-    {
-        if ($newTurns === []) {
-            return;
-        }
-        $current = $ar->getMetadataValue(self::CHAT_HISTORY_KEY);
-        $history = is_array($current) ? $current : [];
-        foreach ($newTurns as $turn) {
-            $history[] = $turn;
-        }
-        if (count($history) > self::CHAT_HISTORY_CAP) {
-            $history = array_slice($history, -self::CHAT_HISTORY_CAP);
-        }
-        $ar->setMetadataValue(self::CHAT_HISTORY_KEY, $history);
     }
 
     #[Route('/nueva/realizar/redactar/{id}/resoluciones-similares.json', name: 'app_solicitudes_realizar_similar', methods: ['GET'])]
@@ -515,12 +517,6 @@ class AccessRequestController extends AbstractController
         }
     }
 
-    private function htmlToPlain(string $html): string
-    {
-        $with_breaks = str_replace(['</p>', '<br>', '<br/>', '<br />'], "\n", $html);
-        return trim(strip_tags($with_breaks));
-    }
-
     #[Route('/nueva/realizar/redactar/{id}/descargar-pdf', name: 'app_solicitudes_realizar_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function downloadDraftPdf(AccessRequest $accessRequest, PdfGenerator $pdfGenerator): Response
@@ -558,6 +554,7 @@ class AccessRequestController extends AbstractController
         Request $request,
         string $batchId,
         ChannelResolver $channelResolver,
+        RegPayloadBuilder $regPayloadBuilder,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
@@ -565,6 +562,68 @@ class AccessRequestController extends AbstractController
         $drafts = $this->accessRequestRepository->findByDraftBatch($batchId, $user);
         if ($drafts === []) {
             throw $this->createNotFoundException('batch_not_found');
+        }
+
+        // Channel-specific preflight: gather every blocker before opening a
+        // transaction so we can either bounce the user to /perfil/datos-personales
+        // (REG profile missing) or surface a single error per AccessRequest.
+        $blockers = [];
+        foreach ($drafts as $accessRequest) {
+            if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
+                continue;
+            }
+            $errors = $channelResolver->diagnoseDispatchPreconditions($accessRequest, $user);
+            if ($errors !== []) {
+                $blockers[$accessRequest->getId()->toRfc4122()] = $errors;
+            }
+        }
+        if ($blockers !== []) {
+            // Snapshot the actual entity state so we can debug why blockers
+            // fired in prod (typical cause: dispatch raced ahead of autosave
+            // / chat onDecision flush, so the row was empty when read here
+            // even though it looks complete in psql moments later).
+            foreach ($blockers as $arId => $errs) {
+                $ar = $this->findInDrafts($drafts, $arId);
+                if ($ar === null) {
+                    continue;
+                }
+                $regDest = $ar->getRegDestination();
+                $body = $ar->getRegBody();
+                $this->logger->warning('Dispatch blocked: REG preconditions failed', [
+                    'access_request_id' => $arId,
+                    'batch_id' => $batchId,
+                    'blockers' => $errs,
+                    'status' => $ar->getStatus(),
+                    'reg_destination_id' => $regDest?->getId()->toRfc4122(),
+                    'reg_destination_dir3' => $regDest?->getDir3Code(),
+                    'public_body_id' => $ar->getPublicBody()->getId()->toRfc4122(),
+                    'public_body_name' => $ar->getPublicBody()->getName(),
+                    'title_len' => mb_strlen((string) $ar->getTitle()),
+                    'expone_len' => mb_strlen($body['expone']),
+                    'solicita_len' => mb_strlen($body['solicita']),
+                    'description_len' => mb_strlen((string) $ar->getDescription()),
+                    'updated_at' => $ar->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+                    'user_email' => $user->getEmail(),
+                ]);
+            }
+
+            // The profile gate is the most common case — surface it first so
+            // the user lands on the form rather than reading a list of codes.
+            $needsProfile = false;
+            foreach ($blockers as $errs) {
+                if (in_array('reg_profile_incomplete', $errs, true)) {
+                    $needsProfile = true;
+                    break;
+                }
+            }
+            if ($needsProfile) {
+                $this->addFlash('error', 'Antes de enviar al REG necesitamos tus datos personales para identificarte.');
+                return $this->redirectToRoute('app_user_personal_data', ['retry' => $batchId]);
+            }
+            return new JsonResponse([
+                'error' => 'reg_preconditions_failed',
+                'blockers' => $blockers,
+            ], Response::HTTP_BAD_REQUEST);
         }
 
         $dispatched = 0;
@@ -582,27 +641,49 @@ class AccessRequestController extends AbstractController
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
+                // REG asunto hard-caps at 80 chars (portal truncates silently);
+                // reject before the agent even gets the task.
+                if ($accessRequest->getRegDestination() !== null
+                    && mb_strlen($accessRequest->getTitle()) > 80
+                ) {
+                    $this->entityManager->rollback();
+                    return new JsonResponse([
+                        'error' => 'title_too_long_for_reg',
+                        'accessRequestId' => $accessRequest->getId()->toRfc4122(),
+                        'limit' => 80,
+                        'actualLength' => mb_strlen($accessRequest->getTitle()),
+                    ], Response::HTTP_BAD_REQUEST);
+                }
+
                 $body = $accessRequest->getPublicBody();
-                $task = new AgentTask($user, $channelResolver->resolveTaskType($body));
+                $channel = $channelResolver->resolveTaskType($body);
+                $task = new AgentTask($user, $channel);
                 $task->setAccessRequest($accessRequest);
                 $task->setMode(AgentTask::MODE_AUTO);
-                $task->setPayload([
-                    'access_request_id' => $accessRequest->getId()->toRfc4122(),
-                    'public_body_id' => $body->getId()->toRfc4122(),
-                    'public_body_name' => $body->getName(),
-                    'transparency_portal_url' => $body->getTransparencyPortalUrl(),
-                    'transparency_portal_amb_id' => $body->getTransparencyPortalAmbId(),
-                    'title' => $accessRequest->getTitle(),
-                    'description' => $accessRequest->getDescription(),
-                    'applicable_law' => $accessRequest->getApplicableLaw()->getId()->toRfc4122(),
-                    // Mínimo para que el wizard PT supere su validación de
-                    // contacto. El resto de campos (provincia, municipio,
-                    // CP, dirección) se rellenan a mano en el primer envío
-                    // y el perfil persistente de Firefox los recuerda.
-                    'solicitante' => [
-                        'email' => $user->getEmail(),
-                    ],
-                ]);
+
+                if ($channel === AgentTask::TYPE_SUBMIT_REQUEST_REG) {
+                    /** @var \App\Entity\RegDestination $destination */
+                    $destination = $accessRequest->getRegDestination();
+                    $task->setPayload($regPayloadBuilder->build($accessRequest, $user, $destination));
+                } else {
+                    $task->setPayload([
+                        'access_request_id' => $accessRequest->getId()->toRfc4122(),
+                        'public_body_id' => $body->getId()->toRfc4122(),
+                        'public_body_name' => $body->getName(),
+                        'transparency_portal_url' => $body->getTransparencyPortalUrl(),
+                        'transparency_portal_amb_id' => $body->getTransparencyPortalAmbId(),
+                        'title' => $accessRequest->getTitle(),
+                        'description' => $accessRequest->getDescription(),
+                        'applicable_law' => $accessRequest->getApplicableLaw()->getId()->toRfc4122(),
+                        // Mínimo para que el wizard PT supere su validación de
+                        // contacto. El resto de campos (provincia, municipio,
+                        // CP, dirección) se rellenan a mano en el primer envío
+                        // y el perfil persistente de Firefox los recuerda.
+                        'solicitante' => [
+                            'email' => $user->getEmail(),
+                        ],
+                    ]);
+                }
                 $this->entityManager->persist($task);
                 $dispatched++;
             }
@@ -971,5 +1052,18 @@ class AccessRequestController extends AbstractController
 
         $this->addFlash('success', 'Estado actualizado correctamente');
         return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    /**
+     * @param list<AccessRequest> $drafts
+     */
+    private function findInDrafts(array $drafts, string $arId): ?AccessRequest
+    {
+        foreach ($drafts as $draft) {
+            if ($draft->getId()->toRfc4122() === $arId) {
+                return $draft;
+            }
+        }
+        return null;
     }
 }

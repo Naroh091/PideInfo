@@ -2,10 +2,15 @@
     {# Title #}
     <span class="font-medium text-slate-800">{{ row.title }}</span>
 
-    {# Organism #}
+    {# Organism — prefer the picked REG destination unit when available,
+       falling back to the parent public body. Tooltip carries both. #}
+    {% set displayedAdmin = row.regDestination ? row.regDestination.displayLabel : row.publicBody.name %}
+    {% set adminTitle = row.regDestination
+        ? row.regDestination.displayLabel ~ ' · ' ~ row.publicBody.name
+        : row.publicBody.name %}
     <div class="flex items-center gap-1 mt-0.5 text-xs text-slate-500">
         <i data-lucide="building-2" class="w-3 h-3 flex-shrink-0"></i>
-        <span class="truncate">{{ row.publicBody.name }}</span>
+        <span class="truncate" title="{{ adminTitle }}">{{ displayedAdmin }}</span>
     </div>
 
     {# IDs — one per line #}

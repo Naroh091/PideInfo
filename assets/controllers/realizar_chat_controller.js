@@ -130,6 +130,15 @@ export default class extends Controller {
     async _handleResponse(json) {
         const { action, result, replacesCanvas } = json;
 
+        // REG drafts replace the canvas with a (expone, solicita) pair instead
+        // of body_html.
+        if (replacesCanvas && result && (result.expone !== undefined || result.solicita !== undefined)) {
+            this._appendAssistantText(result.chat_reply || 'Borrador actualizado.');
+            await this._writeRegToCanvas(result.title || '', result.expone || '', result.solicita || '');
+            this.dispatch('canvas-replaced', { detail: result });
+            return;
+        }
+
         if (replacesCanvas && result?.body_html !== undefined) {
             // Show the chat reply first so the user has something to read while
             // the typewriter runs in the canvas.
@@ -182,6 +191,32 @@ export default class extends Controller {
         if (bodyInput) {
             bodyInput.value = this._htmlToPlain(bodyHtml).slice(0, 3000);
             bodyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    async _writeRegToCanvas(title, expone, solicita) {
+        const canvasEl = document.querySelector('[data-controller~="realizar-canvas"]');
+        const canvas = canvasEl
+            ? this.application.getControllerForElementAndIdentifier(canvasEl, 'realizar-canvas')
+            : null;
+        if (canvas && typeof canvas.replaceContent === 'function') {
+            await canvas.replaceContent({ title, expone, solicita });
+            return;
+        }
+        const titleInput = document.querySelector(this.titleSelectorValue);
+        if (titleInput) {
+            titleInput.value = (title || '').slice(0, 255);
+            titleInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const exponeEl = document.querySelector('#draft-expone-input');
+        if (exponeEl) {
+            exponeEl.value = (expone || '').slice(0, 4000);
+            exponeEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        const solicitaEl = document.querySelector('#draft-solicita-input');
+        if (solicitaEl) {
+            solicitaEl.value = (solicita || '').slice(0, 4000);
+            solicitaEl.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }
 

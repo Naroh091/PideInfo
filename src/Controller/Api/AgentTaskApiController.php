@@ -105,8 +105,11 @@ class AgentTaskApiController extends AbstractController
             $task->setErrorMessage(mb_substr($data['error'], 0, 2000));
         }
 
-        if ($success && $task->getType() === AgentTask::TYPE_SUBMIT_REQUEST_PORTAL) {
-            $this->applyTransparenciaSubmissionResult($task, $data['result'] ?? []);
+        if ($success && in_array($task->getType(), [
+            AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
+            AgentTask::TYPE_SUBMIT_REQUEST_REG,
+        ], true)) {
+            $this->applySubmissionResult($task, $data['result'] ?? []);
         }
 
         $this->em->flush();
@@ -115,13 +118,14 @@ class AgentTaskApiController extends AbstractController
 
     /**
      * Promotes a pending AccessRequest to "sent" once the agent confirms a
-     * successful Portal de Transparencia submission. Expects $result to carry
-     * the portal's expediente reference and the timestamp of the actual send,
-     * so we can recompute the deadline against the right anchor date.
+     * successful submission — either Portal de Transparencia (AGE) or REG /
+     * RED SARA. Expects `$result` to carry the channel's expediente reference
+     * and the timestamp of the actual send, so we can recompute the deadline
+     * against the right anchor date.
      *
      * @param array<string,mixed> $result
      */
-    private function applyTransparenciaSubmissionResult(AgentTask $task, array $result): void
+    private function applySubmissionResult(AgentTask $task, array $result): void
     {
         $request = $task->getAccessRequest();
         if ($request === null) {
@@ -154,12 +158,17 @@ class AgentTaskApiController extends AbstractController
         }
 
         if ($request->getStatus() !== AccessRequest::STATUS_SENT) {
+            $isReg = $task->getType() === AgentTask::TYPE_SUBMIT_REQUEST_REG;
+            $note = $isReg
+                ? '[agent/submit_request_reg] enviada al Registro Electrónico Común'
+                    . ($externalId !== null ? sprintf(' (REGAGE %s)', $externalId) : '')
+                : '[agent/submit_request_transparencia] enviada al Portal de Transparencia'
+                    . ($externalId !== null ? sprintf(' (expediente %s)', $externalId) : '');
             $this->accessRequestManager->changeStatus(
                 $request,
                 StatusHistory::TYPE_STATUS,
                 AccessRequest::STATUS_SENT,
-                '[agent/submit_request_transparencia] enviada al Portal de Transparencia'
-                    . ($externalId !== null ? sprintf(' (expediente %s)', $externalId) : '')
+                $note
             );
         }
     }

@@ -116,6 +116,36 @@
             background: var(--color-accent-50); color: var(--color-accent-700);
             border-color: var(--color-accent-200);
         }
+        .meta-pill-reg {
+            background: rgb(241 245 249); color: rgb(51 65 85);
+            border-color: rgb(203 213 225);
+        }
+        .meta-pill-unit {
+            background: #fff; color: rgb(71 85 105);
+            border-color: rgb(203 213 225);
+            text-transform: none; letter-spacing: 0;
+            max-width: 24rem;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            display: inline-block;
+        }
+
+        .draft-section-label {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-family: 'Inter', sans-serif;
+            font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+            font-weight: 700;
+            color: var(--color-primary-700, #0369a1);
+            margin-top: 1.6rem; margin-bottom: .35rem;
+        }
+        .draft-section-hint {
+            font-weight: 500; letter-spacing: .04em;
+            color: rgb(148 163 184); text-transform: none;
+            font-size: .68rem;
+        }
+        .draft-section-label + .draft-body-input {
+            margin-top: 0;
+            min-height: min(34vh, 22rem);
+        }
 
         /* Title — textarea so it wraps over multiple lines instead of truncating. */
         .draft-title-input {
@@ -142,18 +172,20 @@
         .draft-body-input {
             position: relative;
             width: 100%;
-            min-height: min(60vh, 38rem);
+            min-height: 18rem;
             margin-top: 1.4rem;
             font-family: 'Source Serif 4', 'DM Serif Display', Georgia, 'Times New Roman', serif;
             font-size: 1.05rem;
             line-height: 1.75;
             color: rgb(15 23 42);
-            border: none; outline: none; resize: vertical;
+            border: none; outline: none; resize: none;
             background: transparent;
             padding: 0;
             text-align: justify;
             hyphens: auto;
             transition: background-color .35s ease;
+            overflow: hidden;
+            field-sizing: content; /* moderna; el JS hace de fallback */
         }
         .draft-body-input::placeholder { color: rgb(203 213 225); font-style: italic; }
         .draft-title-input.canvas-typing,
@@ -623,11 +655,132 @@
             font-size: .65rem; color: rgb(148 163 184);
             align-self: center; margin-right: .15rem;
         }
+
+        /* ── Multi-line composer + adjuntos + system bubbles ── */
+        .composer-input-multiline {
+            resize: none;
+            min-height: 2.4rem;
+            max-height: 14rem;
+            overflow-y: auto;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            font-family: 'Inter', sans-serif;
+        }
+        .composer-attach {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0 .55rem; cursor: pointer;
+            color: rgb(100 116 139);
+            border: 1px solid rgb(203 213 225);
+            border-radius: .45rem; background: #ffffff;
+        }
+        .composer-attach:hover { color: var(--color-primary-600); border-color: var(--color-primary-300); }
+        .composer-attach .hidden { display: none !important; }
+        .composer-chips {
+            display: flex; flex-wrap: wrap; gap: .35rem;
+            padding: 0 .75rem .35rem;
+        }
+        .composer-chips:empty { padding: 0; }
+        .composer-chip {
+            display: inline-flex; align-items: center; gap: .25rem;
+            padding: .15rem .4rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem;
+            color: rgb(51 65 85);
+            background: rgb(241 245 249);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+        }
+        .composer-chip-name { font-weight: 500; }
+        .composer-chip-size { color: rgb(100 116 139); font-variant-numeric: tabular-nums; }
+        .composer-chip button {
+            margin-left: .15rem;
+            border: none; background: transparent; cursor: pointer;
+            color: rgb(100 116 139); font-size: .85rem; line-height: 1;
+        }
+        .composer-chip button:hover { color: rgb(220 38 38); }
+        .composer-disclaimer {
+            margin: 0; padding: 0 .85rem .65rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .65rem; color: rgb(148 163 184);
+        }
+        .chat-bubble-text { white-space: pre-wrap; word-break: break-word; }
+        .chat-bubble-attachments {
+            margin-top: .25rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem;
+            color: rgb(100 116 139);
+        }
+        .chat-turn-system {
+            align-self: center;
+            display: inline-flex; align-items: center; gap: .5rem;
+            padding: .35rem .7rem;
+            font-family: 'Inter', sans-serif; font-size: .72rem; font-weight: 500;
+            color: rgb(71 85 105);
+            background: rgb(241 245 249);
+            border-radius: 999px;
+        }
+        .chat-bubble-diff-btn {
+            padding: .15rem .55rem;
+            font-family: 'Inter', sans-serif; font-size: .68rem; font-weight: 600;
+            color: var(--color-primary-700);
+            background: #ffffff;
+            border: 1px solid var(--color-primary-200);
+            border-radius: 999px;
+            cursor: pointer;
+        }
+        .chat-bubble-diff-btn:hover { background: var(--color-primary-50); }
+
+        /* ── Diff modal ── */
+        .diff-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+            padding: 1.5rem;
+        }
+        .diff-modal-card {
+            width: min(960px, 100%); max-height: 90vh;
+            display: flex; flex-direction: column;
+            background: #ffffff; border-radius: .85rem;
+            box-shadow: 0 25px 60px -10px rgba(15, 23, 42, .4);
+            overflow: hidden;
+        }
+        .diff-modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: .85rem 1.1rem;
+            border-bottom: 1px solid rgb(226 232 240);
+            font-family: 'Inter', sans-serif;
+        }
+        .diff-modal-close {
+            border: none; background: transparent; cursor: pointer;
+            font-size: 1.4rem; color: rgb(100 116 139);
+        }
+        .diff-modal-body {
+            padding: 1rem 1.1rem; overflow-y: auto;
+            font-family: 'Inter', sans-serif;
+        }
+        .diff-modal-section { margin-bottom: 1.1rem; }
+        .diff-modal-section-title {
+            font-size: .8rem; text-transform: uppercase;
+            color: rgb(100 116 139); margin: 0 0 .4rem;
+        }
+        .diff-modal-fallback {
+            font-family: 'Source Code Pro', monospace;
+            font-size: .82rem; line-height: 1.5;
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: .45rem;
+            padding: .65rem .8rem;
+            white-space: pre-wrap; word-break: break-word;
+            margin: 0;
+        }
+        .diff-line { padding: .05rem .25rem; }
+        .diff-line-add { background: rgba(34, 197, 94, .12); color: rgb(22 101 52); }
+        .diff-line-del { background: rgba(239, 68, 68, .12); color: rgb(153 27 27); }
     </style>
 {% endblock %}
 
 {% block content %}
-<div data-controller="realizar-canvas realizar-sidebar-rag"
+<div id="draft-canvas"
+     data-controller="realizar-canvas realizar-sidebar-rag"
      data-realizar-canvas-autosave-url-value="{{ path('app_solicitudes_realizar_autosave', {id: request.id}) }}"
      data-realizar-sidebar-rag-similar-url-value="{{ path('app_solicitudes_realizar_similar', {id: request.id}) }}"
      data-realizar-sidebar-rag-probability-url-value="{{ path('app_solicitudes_realizar_probability', {id: request.id}) }}"
@@ -668,31 +821,71 @@
     <div class="draft-grid">
         {# ── Canvas (2/3) ── #}
         <article class="draft-card">
+            {% set isRegDraft = request.regDestination is not null %}
+
             <div class="draft-meta-row">
-                <span class="meta-pill meta-pill-portal">Portal Transparencia</span>
+                {% if isRegDraft %}
+                    <span class="meta-pill meta-pill-reg">REG / RED SARA</span>
+                {% else %}
+                    <span class="meta-pill meta-pill-portal">Portal Transparencia</span>
+                {% endif %}
                 <span class="meta-pill">{{ request.publicBody.getLevelLabel() }}</span>
                 {% if request.applicableLaw %}
                     <span class="meta-pill meta-pill-law">{{ request.applicableLaw.shortCode ?? request.applicableLaw.name }}</span>
                 {% endif %}
+                {% if isRegDraft %}
+                    <span class="meta-pill meta-pill-unit" title="Unidad DIR3 de destino">
+                        {{ request.regDestination.displayLabel }}
+                    </span>
+                {% endif %}
             </div>
 
+            {# REG/RED SARA caps the asunto at 80 chars (silent truncation in
+               portal); other channels use the AGE Portal limit of 255. #}
+            {% set titleMaxLength = isRegDraft ? 80 : 255 %}
             <textarea class="draft-title-input"
                       placeholder="Asunto de la solicitud..."
-                      maxlength="255"
+                      maxlength="{{ titleMaxLength }}"
                       rows="1"
                       data-realizar-canvas-target="title"
                       id="draft-title-input">{{ request.title }}</textarea>
 
-            <textarea class="draft-body-input"
-                      placeholder="Describe con detalle qué información solicitas. Cuanto más concreto, más fácil será que la administración te responda."
-                      maxlength="3000"
-                      data-realizar-canvas-target="body"
-                      id="draft-body-input">{{ request.description }}</textarea>
+            {% if isRegDraft %}
+                <label for="draft-expone-input" class="draft-section-label">
+                    <span>EXPONE</span><span class="draft-section-hint">Hechos y motivación · máx. 4.000 caracteres</span>
+                </label>
+                <textarea class="draft-body-input"
+                          placeholder="Hechos, contexto y motivación de la solicitud. Describe la información que pides y por qué."
+                          maxlength="4000"
+                          data-realizar-canvas-target="expone"
+                          id="draft-expone-input">{{ request.expone }}</textarea>
 
-            <div class="draft-counters">
-                <span>Asunto · máx. 255 caracteres</span>
-                <span>Información · máx. 3.000 caracteres</span>
-            </div>
+                <label for="draft-solicita-input" class="draft-section-label">
+                    <span>SOLICITA</span><span class="draft-section-hint">Petición concreta · máx. 4.000 caracteres</span>
+                </label>
+                <textarea class="draft-body-input"
+                          placeholder="Petición concreta amparada en la Ley 19/2013 de Transparencia, Acceso a la Información Pública y Buen Gobierno."
+                          maxlength="4000"
+                          data-realizar-canvas-target="solicita"
+                          id="draft-solicita-input">{{ request.solicita }}</textarea>
+
+                <div class="draft-counters">
+                    <span>Asunto · máx. 80 caracteres</span>
+                    <span>EXPONE · máx. 4.000 caracteres</span>
+                    <span>SOLICITA · máx. 4.000 caracteres</span>
+                </div>
+            {% else %}
+                <textarea class="draft-body-input"
+                          placeholder="Describe con detalle qué información solicitas. Cuanto más concreto, más fácil será que la administración te responda."
+                          maxlength="3000"
+                          data-realizar-canvas-target="body"
+                          id="draft-body-input">{{ request.description }}</textarea>
+
+                <div class="draft-counters">
+                    <span>Asunto · máx. 255 caracteres</span>
+                    <span>Información · máx. 3.000 caracteres</span>
+                </div>
+            {% endif %}
 
             <div class="draft-cta-row">
                 <div class="draft-cta-group">
@@ -707,9 +900,15 @@
                     </a>
                 </div>
                 {% if batchId %}
+                    {# Submit goes through realizar-canvas#dispatchSubmit so we
+                       (a) confirm, (b) block while assistant-chat is mid-stream,
+                       (c) force-flush any pending autosave before POSTing.
+                       Avoids the prod race that surfaces as reg_body_required
+                       / reg_destination_required blockers on rows that look
+                       complete in psql a few seconds later. #}
                     <form method="post"
                           action="{{ path('app_solicitudes_realizar_dispatch', {batchId: batchId}) }}"
-                          onsubmit="return confirm('¿Enviar la solicitud al organismo? El agente local empezará a procesarla y no podrás editarla más.');">
+                          data-action="submit->realizar-canvas#dispatchSubmit">
                         <button type="submit" class="btn btn-primary">
                             <i data-lucide="send" class="w-4 h-4 mr-2"></i>
                             {% if isMultiOrganism %}
@@ -758,23 +957,23 @@
     </div>
 </div>
 
-{# ── Floating chatbot (bottom-right) ── #}
-<div data-controller="realizar-chat"
-     data-realizar-chat-chat-url-value="{{ path('app_solicitudes_realizar_chat', {id: request.id}) }}"
-     data-realizar-chat-title-selector-value="#draft-title-input"
-     data-realizar-chat-body-selector-value="#draft-body-input">
+{# ── Floating chatbot (bottom-right) — unified assistant-chat controller ── #}
+<div data-controller="assistant-chat"
+     data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_request', {id: request.id}) }}"
+     data-assistant-chat-is-reg-value="{{ isRegDraft ? 'true' : 'false' }}"
+     data-assistant-chat-canvas-outlet-selector-value="#draft-canvas">
 
     <button type="button"
             class="chatbot-fab"
-            data-realizar-chat-target="fab"
-            data-action="realizar-chat#open"
+            data-assistant-chat-target="fab"
+            data-action="assistant-chat#open"
             aria-label="Abrir asistente">
         <i data-lucide="sparkles" class="w-5 h-5"></i>
         <span class="chatbot-fab-dot"></span>
     </button>
 
     <div class="chatbot-panel"
-         data-realizar-chat-target="panel"
+         data-assistant-chat-target="panel"
          role="dialog"
          aria-label="Asistente de redacción">
         <header class="chatbot-head">
@@ -782,83 +981,59 @@
                 <i data-lucide="sparkles" class="w-4 h-4"></i>
                 <div>
                     Asistente de redacción
-                    <small>Ayuda a redactar tu solicitud</small>
+                    <small>Pídeme lo que necesites o adjunta archivos</small>
                 </div>
             </div>
             <button type="button"
                     class="chatbot-close"
-                    data-action="realizar-chat#close"
+                    data-action="assistant-chat#close"
                     aria-label="Cerrar asistente">
                 <i data-lucide="x" class="w-4 h-4"></i>
             </button>
         </header>
 
-        <div class="chatbot-history" data-realizar-chat-target="history">
+        <div class="chatbot-history" data-assistant-chat-target="history">
             {% for turn in chatHistory|default([]) %}
                 {% if turn.role == 'user' %}
-                    <div class="chat-turn chat-turn-user">{{ turn.content|nl2br }}</div>
-                {% elseif turn.role == 'assistant' and turn.kind == 'suggestions' %}
-                    <div class="chat-turn chat-turn-assistant">
-                        <div class="chat-suggest-grid">
-                            {% for s in turn.items|default([]) %}
-                                <div class="chat-suggest-card">
-                                    <div class="chat-suggest-head">
-                                        <strong>{{ s.title|default('') }}</strong>
-                                        {% if s.source %}<span class="chat-suggest-source">{{ s.source }}</span>{% endif %}
-                                    </div>
-                                    <p class="chat-suggest-body">{{ s.body|default('') }}</p>
-                                    <button type="button"
-                                            class="chat-suggest-insert"
-                                            data-action="realizar-chat#insertSuggestion"
-                                            data-suggestion-text="{{ s.body|default('')|e('html_attr') }}">
-                                        <i data-lucide="plus" class="w-3 h-3"></i> Añadir al borrador
-                                    </button>
-                                </div>
-                            {% endfor %}
-                        </div>
+                    <div class="chat-turn chat-turn-user">
+                        <div class="chat-bubble-text">{{ turn.content|nl2br }}</div>
                     </div>
                 {% elseif turn.role == 'assistant' %}
                     {% set rawHtml = turn.content|default('') %}
-                    {% if turn.allowsHtml|default(false) %}
-                        <div class="chat-turn chat-turn-assistant">{{ rawHtml|raw }}</div>
-                    {% else %}
-                        <div class="chat-turn chat-turn-assistant">{{ rawHtml|nl2br }}</div>
-                    {% endif %}
+                    <div class="chat-turn chat-turn-assistant">
+                        <div class="chat-bubble-text">
+                            {% if turn.allowsHtml|default(false) %}{{ rawHtml|raw }}{% else %}{{ rawHtml|nl2br }}{% endif %}
+                        </div>
+                    </div>
                 {% endif %}
             {% endfor %}
         </div>
 
-        <div class="chatbot-toolbar">
-            <button type="button"
-                    class="composer-quick is-primary"
-                    data-realizar-chat-target="generateBtn"
-                    data-action="realizar-chat#generateFirst">
-                <i data-lucide="sparkles" class="w-3 h-3"></i> Generar
-            </button>
-            <button type="button"
-                    class="composer-quick"
-                    data-realizar-chat-target="rewriteBtn"
-                    data-action="realizar-chat#rewrite">
-                <i data-lucide="refresh-cw" class="w-3 h-3"></i> Reescribir
-            </button>
-            <button type="button"
-                    class="composer-quick"
-                    data-realizar-chat-target="suggestBtn"
-                    data-action="realizar-chat#suggest">
-                <i data-lucide="lightbulb" class="w-3 h-3"></i> Sugerir
-            </button>
-        </div>
+        <div data-assistant-chat-target="attachChips" class="composer-chips"></div>
 
-        <form class="chatbot-input-row" data-action="submit->realizar-chat#sendMessage">
-            <input type="text"
-                   class="composer-input"
-                   placeholder="Pregúntame qué pedir, cómo formularlo…"
-                   data-realizar-chat-target="input">
-            <span class="composer-status" data-realizar-chat-target="status"></span>
-            <button type="submit" class="composer-send" aria-label="Enviar">
+        <form class="chatbot-input-row" data-action="submit->assistant-chat#sendMessage">
+            <label class="composer-attach" title="Adjuntar archivo (no se guarda)">
+                <input type="file"
+                       class="hidden"
+                       multiple
+                       accept=".pdf,.csv,.txt,.md,.png,.jpg,.jpeg"
+                       data-assistant-chat-target="attachInput"
+                       data-action="change->assistant-chat#onAttach">
+                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+            </label>
+            <textarea rows="1"
+                      class="composer-input composer-input-multiline"
+                      placeholder="Escribe un mensaje, pega texto o adjunta archivos…"
+                      data-assistant-chat-target="input"
+                      data-action="keydown->assistant-chat#onKeydown input->assistant-chat#onInput"></textarea>
+            <button type="submit"
+                    class="composer-send"
+                    data-assistant-chat-target="sendButton"
+                    aria-label="Enviar">
                 <i data-lucide="send" class="w-3 h-3"></i>
             </button>
         </form>
+        <p class="composer-disclaimer">Los archivos se usan solo en esta conversación y no se guardan.</p>
     </div>
 </div>
 {% endblock %}

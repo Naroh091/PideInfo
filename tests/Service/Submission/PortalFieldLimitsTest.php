@@ -19,9 +19,13 @@ final class PortalFieldLimitsTest extends TestCase
         $this->assertSame(50, $limits['address_line']);
     }
 
-    public function testRegLimitsAreEmptyUntilDiscovery(): void
+    public function testRegLimitsMatchDiscovery(): void
     {
-        $this->assertSame([], PortalFieldLimits::forChannel(AgentTask::TYPE_SUBMIT_REQUEST_REG));
+        $limits = PortalFieldLimits::forChannel(AgentTask::TYPE_SUBMIT_REQUEST_REG);
+
+        $this->assertSame(255, $limits['title']);
+        $this->assertSame(4000, $limits['expone']);
+        $this->assertSame(4000, $limits['solicita']);
     }
 
     public function testUnknownChannelReturnsEmpty(): void

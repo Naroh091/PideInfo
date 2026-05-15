@@ -20,9 +20,20 @@ An access request moves through these primary statuses:
 
 ### 1. Creation
 
-A request can be created in two ways:
+A request can be created in three ways:
 
 **Manual creation.** The user fills out a form with title, description, public body, applicable law, date sent, and optional external reference number. The system calculates the response deadline from the sent date and applicable law.
+
+**Agent-driven creation.** "Realizar" lets the user redact and dispatch a brand-new request to the agent. The picker auto-detects which submission channel applies (`ChannelResolver`):
+
+- **AGE Portal de Transparencia** when `PublicBody.transparencyPortalUrl !== null`.
+- **REG / RED SARA** when the body has at least one active `RegDestination` imported from DIR3 (see `docs/redsara_reg_submission.md`). REG drafts collect `expone` and `solicita` (max 4000 chars each) instead of a single description, and require the user's postal address + phone (`/perfil/datos-personales`) before dispatch.
+
+**Drafting assistant.** The "Realizar" canvas hosts a single chat-driven assistant (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; Stimulus `assistant-chat` controller). The model **auto-decides** in each turn whether to reply with a question or to act on the canvas:
+- The system prompt encodes a three-action policy and asks the model to emit the conversational reply, then a literal `===DECISION===` marker, then a JSON block `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.
+- `App\Service\AI\StreamingDecisionSplitter` separates the LLM stream around the marker so chat tokens can be flushed live while the JSON is accumulated and parsed at the end.
+- The composer is a multi-line textarea (Enter to send, Shift+Enter for newline) and accepts file attachments (PDF/PNG/JPG/CSV/TXT/MD; ≤4 MB/file, ≤5 MB total) that travel as `ContentPart`s for that turn only — they are not persisted to S3.
+- After every `rewrite`, the system bubble carries a "Ver cambios" button (`diff-modal` controller) that opens a modal with an inline line-by-line diff of title + EXPONE/SOLICITA (or single body) against the previous snapshot. No version history is stored; the snapshot lives in the chat bubble's data attributes for that session only.
 
 **Automatic creation from documents.** When a user uploads a document classified as a request (`DocumentType::Request`) or receipt (`DocumentType::Receipt`), and no matching request is found, the system creates one automatically. The AI extracts the title, description, public body, applicable law, and sent date from the document.
 
