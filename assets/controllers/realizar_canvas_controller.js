@@ -377,11 +377,55 @@ export default class extends Controller {
             await this.flush();
         } catch (err) {
             console.error('flush before dispatch failed', err);
-            // Still submit — the server will refuse with a precise blocker if
-            // the autosave never landed, which is more honest than silently
-            // sending nothing.
+            // Still submit — we'll also pin the current canvas state into the
+            // form below so the server has the authoritative content.
         }
 
+        // Atomic canvas snapshot in the same POST: even if autosave didn't
+        // land, the dispatch endpoint now writes whatever we send here as the
+        // source of truth before running its preflight. Removes the race
+        // entirely (we kept hitting REG blockers in prod on rows that looked
+        // populated in psql — debouncing was lying to us).
+        this._pinCanvasSnapshotToForm(form);
+
         form.submit();
+    }
+
+    /**
+     * Injects hidden inputs into the dispatch form carrying the current
+     * canvas content keyed by AccessRequest id, so the dispatch controller
+     * writes them atomically before its preflight runs.
+     *
+     * Form name shape: drafts[<UUID>][title|expone|solicita|description]
+     */
+    _pinCanvasSnapshotToForm(form) {
+        const arId = this._accessRequestIdFromForm(form);
+        if (!arId) return;
+
+        const payload = this._currentPayload();
+        const inject = (field, value) => {
+            if (value === undefined || value === null) return;
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = `drafts[${arId}][${field}]`;
+            input.value = String(value);
+            form.appendChild(input);
+        };
+        inject('title', payload.title ?? '');
+        if (payload.expone !== undefined) inject('expone', payload.expone);
+        if (payload.solicita !== undefined) inject('solicita', payload.solicita);
+        if (payload.description !== undefined) inject('description', payload.description);
+    }
+
+    /**
+     * Pulls the AR UUID from the dispatch form's action URL. The route is
+     * /nueva/realizar/enviar/{batchId} but we keyed snapshots by AR id (not
+     * batch), so derive AR from the canvas controller's own autosave URL —
+     * which IS /nueva/realizar/redactar/{id}/autoguardar.
+     */
+    _accessRequestIdFromForm(/* form */) {
+        if (!this.hasAutosaveUrlValue) return null;
+        const m = this.autosaveUrlValue.match(/\/redactar\/([0-9a-fA-F-]{36})\//);
+        return m ? m[1] : null;
     }
 }

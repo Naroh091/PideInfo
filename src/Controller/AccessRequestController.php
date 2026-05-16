@@ -564,6 +564,50 @@ class AccessRequestController extends AbstractController
             throw $this->createNotFoundException('batch_not_found');
         }
 
+        // Atomic canvas-snapshot write: the dispatch button POSTs the current
+        // canvas state in the SAME request, keyed by AR id. Whatever the user
+        // sees on screen becomes the source of truth — no dependency on a
+        // prior debounced autosave landing in time. This is what killed the
+        // race we couldn't reproduce locally.
+        //
+        // Payload shape (form-encoded or JSON):
+        //   drafts[<AR-id>][title]
+        //   drafts[<AR-id>][expone]
+        //   drafts[<AR-id>][solicita]
+        //   drafts[<AR-id>][description]
+        $postedDrafts = $this->extractPostedCanvasSnapshot($request);
+        if ($postedDrafts !== []) {
+            foreach ($drafts as $accessRequest) {
+                $arId = $accessRequest->getId()->toRfc4122();
+                $snap = $postedDrafts[$arId] ?? null;
+                if (!is_array($snap)) {
+                    continue;
+                }
+                if (isset($snap['title'])) {
+                    $accessRequest->setTitle(mb_substr((string) $snap['title'], 0, $accessRequest->getRegDestination() !== null ? 80 : 255));
+                }
+                if (isset($snap['expone'])) {
+                    $accessRequest->setExpone(mb_substr((string) $snap['expone'], 0, 4000));
+                }
+                if (isset($snap['solicita'])) {
+                    $accessRequest->setSolicita(mb_substr((string) $snap['solicita'], 0, 4000));
+                }
+                if (isset($snap['description'])) {
+                    $accessRequest->setDescription(mb_substr((string) $snap['description'], 0, 8500));
+                }
+                if ($accessRequest->getRegDestination() !== null
+                    && ($accessRequest->getExpone() !== null || $accessRequest->getSolicita() !== null)
+                ) {
+                    $accessRequest->setDescription(mb_substr(
+                        trim("EXPONE:\n" . ($accessRequest->getExpone() ?? '') . "\n\nSOLICITA:\n" . ($accessRequest->getSolicita() ?? '')),
+                        0,
+                        8500,
+                    ));
+                }
+            }
+            $this->entityManager->flush();
+        }
+
         // Channel-specific preflight: gather every blocker before opening a
         // transaction so we can either bounce the user to /perfil/datos-personales
         // (REG profile missing) or surface a single error per AccessRequest.
@@ -1068,5 +1112,48 @@ class AccessRequestController extends AbstractController
             }
         }
         return null;
+    }
+
+    /**
+     * Extracts the per-AR canvas snapshot from a dispatch POST. Accepts either
+     * a JSON body with shape `{drafts: {<UUID>: {title, expone, solicita, description}}}`
+     * or a form-encoded equivalent (`drafts[<UUID>][title]=…`).
+     *
+     * @return array<string, array<string, string>>
+     */
+    private function extractPostedCanvasSnapshot(Request $request): array
+    {
+        $contentType = (string) $request->headers->get('Content-Type');
+        $raw = null;
+        if (str_contains($contentType, 'application/json')) {
+            $decoded = json_decode($request->getContent(), true);
+            if (is_array($decoded) && isset($decoded['drafts']) && is_array($decoded['drafts'])) {
+                $raw = $decoded['drafts'];
+            }
+        } else {
+            $formDrafts = $request->request->all('drafts');
+            if (is_array($formDrafts)) {
+                $raw = $formDrafts;
+            }
+        }
+        if (!is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $key => $value) {
+            if (!is_string($key) || !is_array($value)) {
+                continue;
+            }
+            $entry = [];
+            foreach (['title', 'expone', 'solicita', 'description'] as $field) {
+                if (isset($value[$field]) && is_string($value[$field])) {
+                    $entry[$field] = $value[$field];
+                }
+            }
+            if ($entry !== []) {
+                $out[$key] = $entry;
+            }
+        }
+        return $out;
     }
 }
