@@ -619,6 +619,10 @@ class AccessRequestController extends AbstractController
         // loaded via findByDraftBatch, despite reg_destination_id being set
         // in BD and the row being reachable via find() in the same SAPI.
         $this->entityManager->clear();
+        // After clear() the Security user is detached too — re-attach via a
+        // managed reference so subsequent `new AgentTask($user, …)` doesn't
+        // trip the "new entity through relationship" cascade-persist error.
+        $user = $this->entityManager->getReference(\App\Entity\User::class, $user->getId());
         $blockers = [];
         $freshDrafts = [];
         foreach ($drafts as $stale) {
