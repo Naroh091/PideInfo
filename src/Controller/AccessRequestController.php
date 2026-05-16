@@ -611,16 +611,34 @@ class AccessRequestController extends AbstractController
         // Channel-specific preflight: gather every blocker before opening a
         // transaction so we can either bounce the user to /perfil/datos-personales
         // (REG profile missing) or surface a single error per AccessRequest.
+        //
+        // Force a clear+refind cycle so the entity we diagnose is a clean
+        // hydrate from BD — no stale Doctrine state, no lazy-ghost half-init,
+        // no identity-map ghost from an earlier load this request. We hit a
+        // bug in prod where `getRegDestination()` returned null on entities
+        // loaded via findByDraftBatch, despite reg_destination_id being set
+        // in BD and the row being reachable via find() in the same SAPI.
+        $this->entityManager->clear();
         $blockers = [];
-        foreach ($drafts as $accessRequest) {
-            if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
+        $freshDrafts = [];
+        foreach ($drafts as $stale) {
+            $fresh = $this->accessRequestRepository->find($stale->getId());
+            if ($fresh === null) {
                 continue;
             }
-            $errors = $channelResolver->diagnoseDispatchPreconditions($accessRequest, $user);
+            $freshDrafts[] = $fresh;
+            if ($fresh->getStatus() !== AccessRequest::STATUS_PENDING) {
+                continue;
+            }
+            // Force-hydrate the lazy relation by accessing one property of
+            // the target — proxies need a hard touch under lazy-ghost mode.
+            $fresh->getRegDestination()?->getId();
+            $errors = $channelResolver->diagnoseDispatchPreconditions($fresh, $user);
             if ($errors !== []) {
-                $blockers[$accessRequest->getId()->toRfc4122()] = $errors;
+                $blockers[$fresh->getId()->toRfc4122()] = $errors;
             }
         }
+        $drafts = $freshDrafts;
         if ($blockers !== []) {
             // Snapshot the actual entity state so we can debug why blockers
             // fired in prod (typical cause: dispatch raced ahead of autosave
