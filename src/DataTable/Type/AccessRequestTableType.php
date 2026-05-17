@@ -55,7 +55,8 @@ class AccessRequestTableType implements DataTableTypeInterface
                         ->select('ar')
                         ->from(AccessRequest::class, 'ar')
                         ->join('ar.publicBody', 'pb')
-                        ->join('ar.user', 'u');
+                        ->join('ar.user', 'u')
+                        ->leftJoin('ar.complaint', 'c');
 
                     // Build ownership condition (user's own OR organization's requests)
                     if ($user->getOrganization() !== null) {
@@ -77,9 +78,9 @@ class AccessRequestTableType implements DataTableTypeInterface
                     // Filter by status if provided
                     if ($status !== null && $status !== '') {
                         if ($status === 'reclaimed') {
-                            // Special case: filter by complaint status
+                            // Special case: filter by complaint status (uses the
+                            // LEFT JOIN above — the WHERE turns it effectively INNER)
                             $builder
-                                ->join('ar.complaint', 'c')
                                 ->andWhere('c.status = :complaintStatus')
                                 ->setParameter('complaintStatus', AccessRequestComplaint::STATUS_RECLAIMED);
                         } else {
@@ -89,10 +90,23 @@ class AccessRequestTableType implements DataTableTypeInterface
                         }
                     }
 
-                    // Free text search (case & accent insensitive)
+                    // Free text search (case & accent insensitive). Covers the
+                    // request's own fields plus historical refs in
+                    // ar.alternativeReferences and the associated complaint's
+                    // current + historical expediente numbers (c.externalId,
+                    // c.externalIds). JSON/JSONB columns are matched via
+                    // CAST AS TEXT — the same pattern findByExternalId uses.
                     if ($search !== null && $search !== '') {
                         $builder
-                            ->andWhere('unaccent(LOWER(ar.title)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(ar.description)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(ar.externalId)) LIKE unaccent(LOWER(:search)) OR unaccent(LOWER(pb.name)) LIKE unaccent(LOWER(:search))')
+                            ->andWhere(
+                                'unaccent(LOWER(ar.title)) LIKE unaccent(LOWER(:search))'
+                                . ' OR unaccent(LOWER(ar.description)) LIKE unaccent(LOWER(:search))'
+                                . ' OR unaccent(LOWER(ar.externalId)) LIKE unaccent(LOWER(:search))'
+                                . ' OR LOWER(CAST(ar.alternativeReferences AS TEXT)) LIKE LOWER(:search)'
+                                . ' OR unaccent(LOWER(pb.name)) LIKE unaccent(LOWER(:search))'
+                                . ' OR unaccent(LOWER(c.externalId)) LIKE unaccent(LOWER(:search))'
+                                . ' OR LOWER(CAST(c.externalIds AS TEXT)) LIKE LOWER(:search)'
+                            )
                             ->setParameter('search', '%' . $search . '%');
                     }
 
