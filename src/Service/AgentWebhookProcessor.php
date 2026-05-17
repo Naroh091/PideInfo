@@ -442,6 +442,34 @@ class AgentWebhookProcessor
         }
     }
 
+    /**
+     * Collapse logically-identical pending notifications coming from the same
+     * agent report. The portal can list the same notification under multiple
+     * IDs (e.g. one row per destinatario), so we key by tipo|concepto when
+     * available — same key as the read-time dedup in
+     * AccessRequestRepository::findWithPendingPortalNotifications().
+     *
+     * @param list<array<string, mixed>> $notifications
+     * @return list<array<string, mixed>>
+     */
+    private static function dedupePendingNotifications(array $notifications): array
+    {
+        $seen = [];
+        $unique = [];
+        foreach ($notifications as $n) {
+            $concepto = $n['concepto'] ?? '';
+            $key = $concepto !== ''
+                ? ($n['tipo'] ?? '') . '|' . $concepto
+                : ($n['notificationId'] ?? ($n['tipo'] ?? '') . '|' . ($n['fechaEmision'] ?? ''));
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $unique[] = $n;
+        }
+        return $unique;
+    }
+
     private static function reasonText(string $reasonCode): string
     {
         return match ($reasonCode) {
@@ -495,7 +523,7 @@ class AgentWebhookProcessor
                     static fn(array $n) => $n + ['reportedAt' => $reportedAt, 'source' => $source],
                     $pendingNotifications
                 );
-                $accessRequest->setPendingPortalNotifications($enriched);
+                $accessRequest->setPendingPortalNotifications(self::dedupePendingNotifications($enriched));
             }
             $this->entityManager->flush();
         }
