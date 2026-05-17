@@ -787,6 +787,8 @@
      data-realizar-sidebar-rag-multi-organism-value="{{ isMultiOrganism ? 'true' : 'false' }}"
      data-action="realizar-canvas:settled->realizar-sidebar-rag#onSettled realizar-chat:canvas-replaced->realizar-sidebar-rag#onCanvasReplaced">
 
+    {% include '_partials/agent_required_banner.html.twig' %}
+
     <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3"
          style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
         <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>

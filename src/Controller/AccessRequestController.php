@@ -280,6 +280,25 @@ class AccessRequestController extends AbstractController
             $resolved[] = ['body' => $body, 'regDestination' => $regDestination];
         }
 
+        // REG gate: if any target requires the REG channel and the user's
+        // personal data is incomplete, surface it BEFORE creating drafts so
+        // the picker can pop the form modal and re-submit cleanly. Otherwise
+        // the user would land on the draft and only discover the gap when
+        // pressing "Enviar".
+        $needsRegProfile = false;
+        foreach ($resolved as $entry) {
+            if ($entry['regDestination'] !== null) {
+                $needsRegProfile = true;
+                break;
+            }
+        }
+        if ($needsRegProfile && !$user->hasCompleteRegProfile()) {
+            return new JsonResponse([
+                'error' => 'needs_profile',
+                'profileFormUrl' => $this->generateUrl('app_user_personal_data', ['_fragment' => 1]),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $batchId = Uuid::v7()->toRfc4122();
         $tentativeSentAt = new \DateTimeImmutable('today');
 

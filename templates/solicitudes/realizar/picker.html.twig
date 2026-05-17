@@ -283,10 +283,77 @@
             border-top: 1px dashed rgb(226 232 240);
         }
         .preview-card-unit .ts-control { font-family: 'DM Sans', sans-serif; }
+
+        /* ── Profile-data modal (REG personal data gate) ── */
+        .profile-modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(15, 23, 42, .55);
+            display: flex; align-items: flex-start; justify-content: center;
+            padding: 2.5rem 1rem;
+            z-index: 60;
+            overflow-y: auto;
+        }
+        .profile-modal {
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 30px 60px -20px rgba(15, 23, 42, .35);
+            width: 100%;
+            max-width: 46rem;
+            padding: 1.75rem 1.85rem 1.85rem;
+            position: relative;
+        }
+        .profile-modal-head {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 1rem; margin-bottom: 1.25rem;
+        }
+        .profile-modal-eyebrow {
+            font-family: 'Inter', sans-serif;
+            font-size: .68rem; font-weight: 700;
+            letter-spacing: .08em; text-transform: uppercase;
+            color: var(--color-primary-700, #0369a1);
+            margin-bottom: .35rem;
+        }
+        .profile-modal-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            font-size: clamp(1.35rem, 2.4vw, 1.65rem);
+            line-height: 1.15;
+            color: rgb(15 23 42);
+            margin: 0 0 .4rem;
+        }
+        .profile-modal-sub {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .9rem; color: rgb(100 116 139);
+            line-height: 1.5; max-width: 34rem;
+        }
+        .profile-modal-close {
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 999px;
+            width: 2.2rem; height: 2.2rem;
+            display: inline-flex; align-items: center; justify-content: center;
+            color: rgb(71 85 105);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .profile-modal-close:hover { background: rgb(241 245 249); color: rgb(15 23 42); }
+        .profile-modal-body { font-family: 'DM Sans', sans-serif; }
+        .profile-modal-error {
+            margin-top: 1rem;
+            padding: .65rem .85rem;
+            border-radius: .55rem;
+            background: rgb(254 242 242);
+            border: 1px solid rgb(254 202 202);
+            color: rgb(153 27 27);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem;
+        }
     </style>
 {% endblock %}
 
 {% block content %}
+{% include '_partials/agent_required_banner.html.twig' %}
+
 {# Breadcrumb — same pattern as solicitudes/show.html.twig #}
 <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3"
      style="font-family:'Inter',sans-serif;letter-spacing:.04em;">

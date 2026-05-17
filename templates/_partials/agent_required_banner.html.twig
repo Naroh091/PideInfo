@@ -1,0 +1,76 @@
+{# Banner mostrado en las páginas que ofrecen tramitación automática (envío
+   de solicitudes al Portal de Transparencia o al REG, presentación de
+   reclamaciones). Recuerda al usuario que la firma y el envío los realiza
+   el Agente local de PideInfo, instalable desde la guía pública. #}
+<aside class="agent-banner" role="note">
+    <div class="agent-banner-icon" aria-hidden="true">
+        <i data-lucide="bot" class="w-5 h-5"></i>
+    </div>
+    <div class="agent-banner-body">
+        <p class="agent-banner-title">Para la tramitación automática necesitas el Agente de PideInfo</p>
+        <p class="agent-banner-text">
+            El Agente local es quien firma con tu certificado y envía el formulario
+            en tu nombre. Sin él no podemos completar el envío de la solicitud ni
+            presentar reclamaciones.
+        </p>
+    </div>
+    <a href="https://pideinfo.es/guias/agente"
+       target="_blank"
+       rel="noopener noreferrer"
+       class="agent-banner-cta">
+        <span>Instalar el Agente</span>
+        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+    </a>
+</aside>
+
+<style>
+    .agent-banner {
+        display: flex; align-items: flex-start; gap: 1rem;
+        padding: .9rem 1.1rem;
+        margin: 0 0 1.25rem;
+        border-radius: .85rem;
+        border: 1px solid rgb(186 230 253);
+        background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+    }
+    .agent-banner-icon {
+        flex-shrink: 0;
+        width: 2.4rem; height: 2.4rem;
+        border-radius: 999px;
+        background: #ffffff;
+        border: 1px solid rgb(186 230 253);
+        color: var(--color-primary-700, #0369a1);
+        display: inline-flex; align-items: center; justify-content: center;
+    }
+    .agent-banner-body { flex: 1; min-width: 0; }
+    .agent-banner-title {
+        font-family: 'Inter', sans-serif;
+        font-size: .85rem; font-weight: 600;
+        color: rgb(15 23 42);
+        margin: 0 0 .15rem;
+    }
+    .agent-banner-text {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .82rem; color: rgb(71 85 105);
+        line-height: 1.45;
+        margin: 0;
+    }
+    .agent-banner-cta {
+        flex-shrink: 0;
+        align-self: center;
+        display: inline-flex; align-items: center; gap: .35rem;
+        font-family: 'Inter', sans-serif;
+        font-size: .78rem; font-weight: 600;
+        padding: .5rem .85rem;
+        border-radius: 999px;
+        background: var(--color-primary-600, #0284c7);
+        color: #ffffff;
+        text-decoration: none;
+        transition: background-color .15s ease;
+    }
+    .agent-banner-cta:hover { background: var(--color-primary-700, #0369a1); }
+    @media (max-width: 640px) {
+        .agent-banner { flex-direction: column; align-items: stretch; gap: .65rem; }
+        .agent-banner-cta { align-self: flex-start; }
+    }
+</style>

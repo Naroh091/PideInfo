@@ -291,21 +291,166 @@ export default class extends Controller {
         this.continueButtonTarget.innerHTML = 'Preparando borradores…';
 
         try {
-            const response = await fetch(this.initiateUrlValue, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targets }),
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const json = await response.json();
+            const json = await this._postInitiate(targets);
             window.location.href = json.firstDraftUrl;
         } catch (err) {
+            if (err && err.code === 'needs_profile') {
+                // Pause the flow, collect the missing REG personal data via a
+                // modal, then retry the initiate POST without making the user
+                // re-select the organisms.
+                await this._handleNeedsProfile(err.profileFormUrl, targets);
+                return;
+            }
             console.error(err);
             this.continueButtonTarget.disabled = false;
             this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
             alert('No se ha podido iniciar el borrador. Inténtalo de nuevo.');
         }
+    }
+
+    async _postInitiate(targets) {
+        const response = await fetch(this.initiateUrlValue, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ targets }),
+        });
+        if (response.status === 422) {
+            const data = await response.json().catch(() => ({}));
+            if (data && data.error === 'needs_profile') {
+                const e = new Error('needs_profile');
+                e.code = 'needs_profile';
+                e.profileFormUrl = data.profileFormUrl;
+                throw e;
+            }
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+    }
+
+    async _handleNeedsProfile(profileFormUrl, targets) {
+        try {
+            const html = await fetch(profileFormUrl, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'text/html' },
+            }).then((r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.text();
+            });
+
+            const modal = this._openProfileModal(html);
+            const submitted = await modal.waitForSubmit();
+            modal.close();
+
+            if (!submitted) {
+                // User dismissed the modal — re-enable the continue button.
+                this.continueButtonTarget.disabled = false;
+                this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
+                return;
+            }
+
+            this.continueButtonTarget.innerHTML = 'Preparando borradores…';
+            const json = await this._postInitiate(targets);
+            window.location.href = json.firstDraftUrl;
+        } catch (err) {
+            console.error(err);
+            this.continueButtonTarget.disabled = false;
+            this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
+            alert('No se ha podido guardar tus datos personales. Inténtalo de nuevo.');
+        }
+    }
+
+    _openProfileModal(formHtml) {
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+            <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+                <header class="profile-modal-head">
+                    <div>
+                        <p class="profile-modal-eyebrow">Antes de continuar</p>
+                        <h2 class="profile-modal-title" id="profile-modal-title">Necesitamos tus datos para el REG</h2>
+                        <p class="profile-modal-sub">El Registro Electrónico Común exige estos datos para identificarte como solicitante. Se guardan en tu perfil y no tendrás que volver a introducirlos.</p>
+                    </div>
+                    <button type="button" class="profile-modal-close" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </header>
+                <div class="profile-modal-body"></div>
+                <div class="profile-modal-error" role="alert" hidden></div>
+            </div>`;
+
+        overlay.querySelector('.profile-modal-body').innerHTML = formHtml;
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+
+        // Re-trigger Stimulus on the injected form so the reg-address-form
+        // controller mounts its Tom-Select pickers. The Stimulus application
+        // observes the DOM, but injected nodes need a tick to be picked up;
+        // we just rely on the MutationObserver here.
+
+        const form = overlay.querySelector('form');
+        const errorBox = overlay.querySelector('.profile-modal-error');
+        const closeBtn = overlay.querySelector('.profile-modal-close');
+
+        let resolveSubmit;
+        const waitForSubmit = new Promise((resolve) => { resolveSubmit = resolve; });
+
+        const close = () => {
+            document.body.style.overflow = '';
+            overlay.remove();
+        };
+
+        closeBtn.addEventListener('click', () => resolveSubmit(false));
+        overlay.addEventListener('click', (ev) => {
+            if (ev.target === overlay) resolveSubmit(false);
+        });
+
+        form.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            errorBox.hidden = true;
+            errorBox.textContent = '';
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const action = form.getAttribute('action') || window.location.pathname;
+                const formData = new FormData(form);
+                const response = await fetch(action, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData,
+                });
+
+                if (response.ok) {
+                    resolveSubmit(true);
+                    return;
+                }
+
+                const data = await response.json().catch(() => ({}));
+                const messages = [];
+                if (data && data.errors) {
+                    Object.values(data.errors).forEach((arr) => arr.forEach((m) => messages.push(m)));
+                }
+                errorBox.textContent = messages.length > 0
+                    ? messages.join(' · ')
+                    : 'No se han podido guardar los datos. Revisa los campos.';
+                errorBox.hidden = false;
+            } catch (err) {
+                console.error(err);
+                errorBox.textContent = 'Error de red al guardar los datos. Inténtalo de nuevo.';
+                errorBox.hidden = false;
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+
+        return { waitForSubmit: () => waitForSubmit, close };
     }
 
     _escape(s) {
