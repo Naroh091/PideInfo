@@ -1,6 +1,6 @@
-# MCP server (HTTP transport + OAuth2)
+# Servidor MCP (transporte HTTP + OAuth2)
 
-PideInfo expone un servidor [Model Context Protocol](https://modelcontextprotocol.io/) por HTTP en `/mcp` para que clientes IA (Claude.ai, ChatGPT, Cursor, MCP Inspector, etc.) puedan conectarse a la cuenta de un usuario y operar sobre sus solicitudes de transparencia.
+PideInfo expone un servidor [Model Context Protocol](https://modelcontextprotocol.io/) por HTTP en `/mcp` para que clientes IA (Claude, ChatGPT, Hermes, MCP Inspector, etc.) puedan conectarse a la cuenta de un usuario y operar sobre sus solicitudes de transparencia.
 
 ## Endpoints
 

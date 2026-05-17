@@ -331,6 +331,72 @@ php bin/console app:ctpda:load-resolutions --async
 
 ---
 
+### `app:ctn:load-resolutions`
+
+Importa resoluciones del Consejo de Transparencia de Navarra (CTN) a partir de un export JSON, las inserta/actualiza en BD y opcionalmente descarga PDFs, analiza con IA y vectoriza.
+
+```bash
+php bin/console app:ctn:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--url=URL` | Sobrescribir la URL del JSON de origen |
+| `--pdf-path=PATH` | Directorio local con los PDFs (evita la descarga HTTP) |
+
+**Particularidades:**
+- A diferencia del resto, `--update` corta tras una racha de **10** resoluciones ya existentes (no 50–100).
+- Útil cuando se dispone de un volcado offline: combinando `--url` y `--pdf-path` el importador no toca la red.
+
+---
+
+### `app:ctpd:load-resolutions`
+
+Scrapea resoluciones del Consejo de Transparencia y Protección de Datos (CTPD) de la Comunidad de Madrid, las inserta/actualiza en BD y opcionalmente descarga PDFs, analiza con IA y vectoriza.
+
+```bash
+php bin/console app:ctpd:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin `sourceUrl` en BD |
+| `--legacy` | Usar el scraper antiguo de `asambleamadrid.es` (la fuente actual está en el portal del CTPD) |
+
+---
+
+### `app:cvt:load-resolutions`
+
+Scrapea resoluciones del Consell de Transparència (CVT) de la Comunidad Valenciana desde conselltransparencia.gva.es, las inserta/actualiza en BD y opcionalmente descarga PDFs, analiza con IA y vectoriza.
+
+```bash
+php bin/console app:cvt:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--only-missing-url` | Solo procesar resoluciones sin `sourceUrl` en BD |
+
+---
+
 ## Procesamiento batch con Gemini
 
 El procesamiento batch usa la [Gemini Batch API](https://ai.google.dev/gemini-api/docs/batch-api) para procesar grandes volúmenes a mitad de precio. Los resultados se entregan de forma asíncrona (normalmente en menos de 24 h).
@@ -445,6 +511,27 @@ php bin/console app:resolutions:analyze [opciones]
 
 ---
 
+### `app:resolutions:clean-text`
+
+Limpia el texto de las resoluciones aplicando los normalizadores configurados (artefactos crudos de PDF y/o URLs de notas a pie + bloques de metadatos de HTML). Útil para reaplicar limpieza tras tocar un cleaner sin reanalizar con IA.
+
+```bash
+php bin/console app:resolutions:clean-text [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--source=X` | Filtrar por fuente (`GAIP`, `CTBG`, `CTBG_LOCAL`, `CTPDA`, …) |
+| `--source-only` | Reaplicar el cleaner específico de la fuente (registrado en `CleanResolutionTextCommand::cleanForSource()`) |
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--reference=X` | Limpiar una resolución concreta por referencia |
+| `--dry-run` | Previsualizar el diff sin guardar |
+| `--force` | Reaplicar limpieza aunque el texto ya esté limpio |
+
+> Cuando añadas un nuevo importador con limpieza específica, recuerda registrar su cleaner en `CleanResolutionTextCommand::cleanForSource()` para que `--source-only` funcione (ver CLAUDE.md).
+
+---
+
 ## Arreglo de fechas
 
 ### `app:ctbg:extract-dates`
@@ -461,6 +548,150 @@ php bin/console app:ctbg:extract-dates [opciones]
 | `--limit=N` | Máximo de resoluciones a procesar |
 | `--dry-run` | Previsualizar sin guardar |
 | `--force` | Re-procesar aunque ya tengan fecha |
+
+---
+
+## Criterios interpretativos del CTBG
+
+### `app:ctbg:import-criteria-pdfs`
+
+Importa criterios interpretativos del CTBG desde los PDFs depositados en `var/storage/data/*.pdf` a la tabla `criterion`. Pensado como paso previo a `app:ctbg:load-criteria`.
+
+```bash
+php bin/console app:ctbg:import-criteria-pdfs
+```
+
+---
+
+### `app:ctbg:load-criteria`
+
+Vectoriza los criterios interpretativos almacenados en BD y los inserta en el vector store de PostgreSQL para que `CriteriaRetriever` pueda recuperarlos durante la generación de reclamaciones.
+
+```bash
+php bin/console app:ctbg:load-criteria
+```
+
+---
+
+## Documentos
+
+### `app:documents:backfill-content-hash`
+
+Calcula el `contentHash` SHA-256 para los documentos que aún no lo tienen, de manera que futuras subidas puedan deduplicar contra ellos.
+
+```bash
+php bin/console app:documents:backfill-content-hash
+```
+
+---
+
+### `app:documents:backfill-embeddings`
+
+Despacha `GenerateDocumentEmbeddingsMessage` para todo `Document` que aún no tenga filas en pgvector. Procesamiento asíncrono vía Messenger.
+
+```bash
+php bin/console app:documents:backfill-embeddings
+```
+
+---
+
+### `app:documents:reprocess-shortcut`
+
+Reanaliza los documentos marcados como `processed=true` que nunca pasaron por `DocumentAnalyzer` (regresión heredada del shortcut antiguo del agente). Los devuelve a la cola normal de análisis.
+
+```bash
+php bin/console app:documents:reprocess-shortcut
+```
+
+---
+
+### `app:documents:cleanup-bad-ctbg-notifications`
+
+Borra documentos de "notificación" del CTBG que en realidad son páginas HTML guardadas como PDF (regresión de la ruta de descarga del inbox del agente).
+
+```bash
+php bin/console app:documents:cleanup-bad-ctbg-notifications
+```
+
+---
+
+### `app:rematch-orphaned-documents`
+
+Intenta vincular documentos huérfanos (sin solicitud asociada) a solicitudes existentes utilizando la heurística del normalizer y los `externalId` extraídos por la IA.
+
+```bash
+php bin/console app:rematch-orphaned-documents
+```
+
+---
+
+## Solicitudes y plazos
+
+### `app:requests:update-expired`
+
+Cambia a `delayed` el estado de las solicitudes cuyo plazo ya ha vencido y no han recibido respuesta. Pensado para ejecutarse a diario por cron.
+
+```bash
+php bin/console app:requests:update-expired
+```
+
+---
+
+### `app:requests:notify-expiring`
+
+Envía emails de aviso a las personas usuarias cuyas solicitudes vencen hoy. Pensado para ejecutarse a diario por cron, antes de `app:requests:update-expired`.
+
+```bash
+php bin/console app:requests:notify-expiring
+```
+
+---
+
+## Public bodies y canales de envío
+
+### `app:public-bodies:assign-portal-amb`
+
+Asigna a cada `PublicBody` conocido su `idAmb` del wizard del Portal de Transparencia de la AGE (idAmb 101503–101527, capturado por discovery con Chrome MCP). Idempotente.
+
+```bash
+php bin/console app:public-bodies:assign-portal-amb
+```
+
+> Fuente de verdad del mapeo: `docs/documentacion-procesos-envio/transparencia_age.md`.
+
+---
+
+### `app:reg:import-destinations`
+
+Importa las unidades de destino DIR3 del REG (RED SARA) desde el export oficial Excel/CSV. Habilita el canal REG en el `ChannelResolver` para los organismos que tengan al menos un `RegDestination` activo.
+
+```bash
+php bin/console app:reg:import-destinations
+```
+
+> Detalle de los campos y del canal en `docs/documentacion-procesos-envio/redsara_reg.md`.
+
+---
+
+## OAuth2 y MCP
+
+### `app:oauth:backfill-refresh-grant`
+
+Concede `refresh_token` + `offline_access` a los clientes OAuth2 dinámicos que no los tengan. Migración puntual tras introducir el grant de refresh; idempotente.
+
+```bash
+php bin/console app:oauth:backfill-refresh-grant
+```
+
+---
+
+### `app:mcp:e2e-test`
+
+Genera un access token OAuth2 para un usuario y ejercita el endpoint `/mcp` (handshake `initialize`, `tools/list`, `tools/call`). Útil para validar el servidor MCP de extremo a extremo sin necesidad de Claude Desktop u otro cliente.
+
+```bash
+php bin/console app:mcp:e2e-test
+```
 
 ---
 
@@ -482,4 +713,46 @@ Genera slugs para las entidades `ComplaintOrganism` y `PublicBody` que aún no l
 
 ```bash
 php bin/console app:generate-slugs
+```
+
+---
+
+### `app:migrate-to-public-body`
+
+Crea las filas de `PublicBody` que falten a partir de los datos de resoluciones, genera slugs y enlaza las resoluciones por FK. Migración puntual de la antigua arquitectura basada en strings a la actual basada en entidad.
+
+```bash
+php bin/console app:migrate-to-public-body
+```
+
+---
+
+### `app:rename-complaint-status`
+
+Renombra valores del estado de reclamación de `reclaim_*` a `complaint_*` en `access_request_complaint`. Migración puntual del cambio de nomenclatura del workflow (mantener disponible mientras existan bases de datos antiguas).
+
+```bash
+php bin/console app:rename-complaint-status
+```
+
+---
+
+## Diagnóstico y desarrollo
+
+### `app:debug:document-analysis`
+
+Analiza un documento con el LLM activo (`USE_CUSTOM_MODEL` decide entre Gemini y modelo propio) y muestra la cadena de razonamiento. Pensado para depurar prompts y outputs.
+
+```bash
+php bin/console app:debug:document-analysis
+```
+
+---
+
+### `app:langfuse:sync-prompts`
+
+Sube cada plantilla de prompt empaquetada en `config/prompts/` a Langfuse como una nueva versión "production". Útil tras editar prompts en el repo para reflejarlos en la consola de Langfuse.
+
+```bash
+php bin/console app:langfuse:sync-prompts
 ```

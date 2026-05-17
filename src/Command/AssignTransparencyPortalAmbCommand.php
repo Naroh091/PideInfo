@@ -17,7 +17,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Maps the 25 AGE "ámbitos" of the Portal de Transparencia wizard
  * (idAmb 101503-101527) onto their PublicBody rows by name.
  *
- * Source of truth for the mapping: app/docs/transparencia_age_submission.md
+ * Source of truth for the mapping: app/docs/documentacion-procesos-envio/transparencia_age.md
  * (captured via Chrome MCP discovery on 2026-05-02). The wizard URL pattern is
  *   /procedimiento/formulario?idProc=133628&idAmb={ID}
  *

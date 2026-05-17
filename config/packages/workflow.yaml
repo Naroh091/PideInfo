@@ -1,3 +1,27 @@
+# Symfony Workflow declarations for AccessRequest.
+#
+# IMPORTANTE: el `status` de una solicitud refleja DÓNDE está dentro del
+# procedimiento (envío, en trámite, silencio, concedida y completada, …),
+# NO necesariamente la respuesta administrativa obtenida — esa vive en
+# `AccessRequest::$resolutionResult` (granted | partially_granted | denied |
+# inadmitted | silence | NULL) y puede no coincidir con el `status`. Por
+# ejemplo, una solicitud puede acabar en `granted_completed` (el ciudadano
+# recibió la información) conservando `resolutionResult = partially_granted`
+# si la concesión original fue parcial.
+#
+# Las máquinas de estado siguientes son ortogonales entre sí:
+#   - access_request_status     → AccessRequest::$status
+#   - access_request_complaint  → AccessRequestComplaint::$status
+#                                 (cuelga de la entidad de la reclamación,
+#                                 1:1 opcional con AccessRequest::$complaint;
+#                                 cuando no existe entidad no hay flujo —
+#                                 ver AccessRequest::getComplaintStatus() para
+#                                 la vista derivada con `COMPLAINT_NONE`)
+#   - access_request_court      → AccessRequest::$courtStatus
+#
+# Detalle del modelo y resultados en docs/request-workflow.md y
+# docs/complaint-workflow.md ("Status vs. result — two orthogonal axes").
+
 framework:
     workflows:
         access_request_status:
@@ -9,68 +33,98 @@ framework:
                 property: status
             supports:
                 - App\Entity\AccessRequest
-            initial_marking: sent
+            initial_marking: pending
             places:
-                - sent
-                - processing
-                - granted
-                - denied
-                - delayed
-                - pending
+                - pending             # Borrador creado, aún no despachado al organismo
+                - sent                # Enviada, pendiente de acuse
+                - processing          # En trámite (acuse recibido)
+                - granted             # Concedida (pendiente de recibir la información)
+                - granted_completed   # Concedida y la información ya recibida (terminal)
+                - partially_granted   # Estimación parcial (terminal a efectos de flujo)
+                - inadmitted          # Inadmitida a trámite (terminal)
+                - denied              # Denegada explícitamente (terminal)
+                - delayed             # Silencio administrativo (puede aún resolverse)
             transitions:
+                dispatch:
+                    from: pending
+                    to: sent
+                    metadata:
+                        label: Enviar al organismo
                 acknowledge:
                     from: sent
                     to: processing
                     metadata:
                         label: Acusar recibo
                 grant:
-                    from: [processing, delayed, pending]
+                    from: [sent, processing, delayed]
                     to: granted
                     metadata:
                         label: Conceder acceso
+                grant_partially:
+                    from: [sent, processing, delayed]
+                    to: partially_granted
+                    metadata:
+                        label: Conceder parcialmente
                 deny:
-                    from: [processing, delayed]
+                    from: [sent, processing, delayed]
                     to: denied
                     metadata:
                         label: Denegar acceso
+                inadmit:
+                    from: [sent, processing]
+                    to: inadmitted
+                    metadata:
+                        label: Inadmitir a trámite
                 delay:
                     from: [sent, processing]
                     to: delayed
                     metadata:
-                        label: Marcar como silencio
-                mark_pending:
-                    from: [processing, delayed]
-                    to: pending
+                        label: Marcar como silencio administrativo
+                confirm_reception:
+                    from: granted
+                    to: granted_completed
                     metadata:
-                        label: Marcar como pendiente
-                receive_info:
-                    from: pending
-                    to: granted
-                    metadata:
-                        label: Información recibida
+                        label: Confirmar recepción de la información
 
+        # Reclamación ante el consejo de transparencia.
+        #
+        # Cuelga directamente de AccessRequestComplaint (relación 1:1 opcional
+        # con AccessRequest::$complaint). La entidad solo existe cuando ya hay
+        # reclamación presentada, por eso `initial_marking` es `reclaimed`
+        # (coincide con el default de AccessRequestComplaint::$status) y no
+        # hay transición `file_complaint`: la creación de la entidad ES la
+        # entrada en el flujo. El acto de "presentar reclamación" se hace en
+        # AccessRequestManager (changeStatus + alta de la entidad) y queda
+        # registrado en StatusHistory con statusType = 'complaint'.
+        #
+        # Es ortogonal al `access_request_status` de la solicitud: la
+        # solicitud puede estar en `delayed` / `denied` / `partially_granted`
+        # / `inadmitted` / `granted_completed` y tener simultáneamente una
+        # reclamación viva o resuelta. El RESULTADO del consejo (estimada
+        # total/parcial, desestimada, inadmitida, archivada) se guarda
+        # aparte en AccessRequestComplaint::$complaintResult — la posición
+        # en el flujo no es la decisión administrativa, igual que pasa con
+        # la solicitud (ver cabecera de este fichero).
+        #
+        # Para «¿esta solicitud tiene reclamación y en qué estado?» desde la
+        # solicitud, usar AccessRequest::getComplaintStatus(), que devuelve
+        # AccessRequest::COMPLAINT_NONE cuando aún no se ha presentado.
         access_request_complaint:
             type: state_machine
             audit_trail:
                 enabled: true
             marking_store:
                 type: method
-                property: complaintStatus
+                property: status
             supports:
-                - App\Entity\AccessRequest
-            initial_marking: none
+                - App\Entity\AccessRequestComplaint
+            initial_marking: reclaimed
             places:
-                - none
-                - reclaimed
-                - complaint_granted
-                - complaint_denied
-                - complaint_archived
+                - reclaimed            # Reclamación presentada, en tramitación
+                - complaint_granted    # Reclamación estimada (total o parcial)
+                - complaint_denied     # Reclamación desestimada
+                - complaint_archived   # Reclamación archivada
             transitions:
-                file_complaint:
-                    from: none
-                    to: reclaimed
-                    metadata:
-                        label: Presentar reclamación
                 complaint_granted:
                     from: reclaimed
                     to: complaint_granted

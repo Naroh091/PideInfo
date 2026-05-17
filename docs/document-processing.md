@@ -1,8 +1,8 @@
-# Document processing
+# Procesamiento de documentos
 
-How uploaded documents are analyzed by AI and automatically linked to access requests.
+Cómo los documentos subidos son analizados por IA y enlazados automáticamente a las solicitudes de acceso.
 
-## Upload flow
+## Flujo de subida
 
 ```
 User drags file onto dropzone (or clicks to select)
@@ -22,7 +22,7 @@ Symfony Messenger consumes message
         │
         ▼
 ProcessDocumentHandler::__invoke()
-  ├── DocumentAnalyzer::analyze()  ← Gemini API call
+  ├── DocumentAnalyzer::analyze()  ← el modelo API call
   ├── Find or create AccessRequest
   ├── Update request state from document
   ├── Mark document as processed
@@ -36,90 +36,82 @@ GenerateDocumentEmbeddingsHandler::__invoke()
   └── PostgresStore (ai.store.postgres.documents) ← halfvec(3072) + metadata
 ```
 
-The embedding step is fire-and-forget from the document handlers' perspective: failures don't roll back the document persistence. Pre-computed embeddings are consumed lazily by `SuccessAnalyzer` and `ComplaintGenerator` via `DocumentEmbeddingsRetriever::loadVectorsForRequest()`; when no vectors are stored yet (recently uploaded, queue pending, no extracted text) both services fall back to the inline string-based query path (`buildContextQuery`), so correctness is preserved during the gap.
+El paso de embeddings es "dispara y olvida" desde el punto de vista de los handlers de documentos: los fallos no revierten la persistencia del documento. Los embeddings precomputados son consumidos de forma perezosa por `SuccessAnalyzer` y `ComplaintGenerator` a través de `DocumentEmbeddingsRetriever::loadVectorsForRequest()`; cuando aún no hay vectores almacenados (subida reciente, cola pendiente, sin texto extraído) ambos servicios recurren a la ruta inline de consulta basada en cadenas (`buildContextQuery`), por lo que la corrección se mantiene durante el intervalo.
 
-To backfill embeddings for existing documents (after the rollout, or after a corpus wipe):
+Para hacer un backfill de embeddings de documentos existentes (tras el despliegue, o tras un borrado del corpus):
 
 ```bash
 php bin/console app:documents:backfill-embeddings [--limit N] [--source upload|email|portal] [--type Response] [--force] [--sync] [--dry-run]
 ```
 
-By default the command dispatches `GenerateDocumentEmbeddingsMessage` to the `analysis` transport (workers handle it asynchronously). `--sync` runs the handler inline, `--force` re-embeds documents that already have rows, and `--dry-run` reports without doing anything.
+Por defecto, el comando despacha `GenerateDocumentEmbeddingsMessage` al transporte `analysis` (los workers lo procesan de forma asíncrona). `--sync` ejecuta el handler en línea, `--force` vuelve a generar embeddings de documentos que ya tienen filas, y `--dry-run` informa sin hacer nada.
 
-Hash-based deduplication is now uniform across all ingestion paths: manual upload (`DocumentController::upload`), agent webhook (`AgentWebhookProcessor`), and inbound email (`InboundEmailController`). All key on `(uploadedBy, contentHash)`, so the same file uploaded through any combination of channels lands as a single `Document`.
+La deduplicación basada en hash es uniforme en todas las rutas de ingesta: subida manual (`DocumentController::upload`), webhook del agente (`AgentWebhookProcessor`) y email entrante (`InboundEmailController`). Todas se basan en `(uploadedBy, contentHash)`, por lo que el mismo archivo subido a través de cualquier combinación de canales acaba como un único `Document`.
 
-Documents created before the manual-upload deduplication landed have `contentHash = NULL` and so won't dedupe against new uploads until backfilled. The backfill command streams each existing file from storage and computes its SHA-256:
+## Tipos de archivo soportados
 
-```bash
-php bin/console app:documents:backfill-content-hash [--dry-run] [--limit N] [--batch-size 50] [--list-duplicates]
-```
-
-`--list-duplicates` reports `(uploadedBy, contentHash)` groups with more than one document — useful to surface pre-existing duplicates that the new check would have prevented. The command does not delete duplicates; cleanup is intentionally manual.
-
-## Supported file types
-
-| Format | MIME types |
+| Formato | Tipos MIME |
 |--------|-----------|
 | PDF | `application/pdf` |
 | Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/msword` |
-| Images | `image/jpeg`, `image/png`, `image/gif` |
-| ZIP | `application/zip` (contents extracted and processed individually) |
+| Imágenes | `image/jpeg`, `image/png`, `image/gif` |
+| ZIP | `application/zip` (el contenido se extrae y procesa individualmente) |
 
-Maximum file size: 50 MB.
+Tamaño máximo de archivo: 50 MB.
 
-## AI analysis with Gemini
+## Análisis con IA 
 
-### DocumentAnalyzer service
+### Servicio DocumentAnalyzer
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-The analyzer reads the document from S3, encodes it to base64, and sends it through `LlmClient`, which routes to either Gemini (default) or an OpenAI-compatible custom backend depending on `USE_CUSTOM_MODEL`. It uses the smaller Gemini model configured via `GEMINI_MID_MODEL` for fast, cost-effective analysis on the Gemini path.
+El analizador lee el documento desde S3, lo codifica en base64 y lo envía a través de `LlmClient`, que enruta al cliente compatible con OpenAI según `USE_CUSTOM_MODEL`. Hay presente un modelo el modelo más pequeño configurado mediante `el modelo_MID_MODEL` para un análisis rápido y rentable en la ruta de el modelo.
 
-**PDF handling on the custom backend.** OpenAI-compatible chat APIs only accept images via `image_url`, so PDFs cannot be forwarded as-is (the upstream image decoder fails to identify the bytes). When `USE_CUSTOM_MODEL=true` and the document is a PDF, `DocumentAnalyzer` first tries `PdfTextExtractor::extractFullTextFromContent` and decides which payload to send based on whether the extracted text is usable:
+**Tratamiento de PDF en el backend personalizado.** Las APIs de chat compatibles con OpenAI solo aceptan imágenes vía `image_url`, por lo que los PDF no pueden reenviarse tal cual (el decodificador de imágenes upstream no consigue identificar los bytes). Cuando `USE_CUSTOM_MODEL=true` y el documento es un PDF, `DocumentAnalyzer` intenta primero `PdfTextExtractor::extractFullTextFromContent` y decide qué payload enviar en función de si el texto extraído es utilizable:
 
-- **Selectable-text PDFs** (extraction returns at least 200 characters and an alphanumeric/non-space ratio ≥ 0.5): only the extracted text is sent. Rasterization is skipped to keep the payload small.
-- **Scanned or image-only PDFs** (extraction empty, too short, or mostly garbage glyphs): the first 30 pages are rasterized to PNG via `PdfRasterizer` (shells out to `pdftoppm` from `poppler-utils`) and attached as `image_url` parts, alongside any partial text that came out of the extractor.
+- **PDFs con texto seleccionable** (la extracción devuelve al menos 200 caracteres y un ratio alfanumérico/no-espacio ≥ 0.5): se envía únicamente el texto extraído. Se omite la rasterización para mantener el payload pequeño.
+- **PDFs escaneados o solo imagen** (extracción vacía, demasiado corta o mayoritariamente glifos basura): las primeras 30 páginas se rasterizan a PNG mediante `PdfRasterizer` (que ejecuta `pdftoppm` de `poppler-utils`) y se adjuntan como partes `image_url`, junto con cualquier texto parcial que haya salido del extractor.
 
-The "is the extracted text useful?" check lives in `DocumentAnalyzer::isExtractedTextUseful()`. Gemini receives the original `application/pdf` inline data unchanged — its backend rasterizes natively. Plain images and `text/plain` documents are unaffected by this branch.
+La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isExtractedTextUseful()`. el modelo recibe los datos inline originales `application/pdf` sin cambios — su backend rasteriza de forma nativa. Las imágenes simples y los documentos `text/plain` no se ven afectados por esta rama.
 
-**API call structure:**
-- Model: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- Temperature: 0.1 (near-deterministic for consistent classification)
-- Response format: JSON
-- Timeout: 120 seconds (documents can be large)
+**Estructura de la llamada a la API:**
+- Modelo: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
+- Temperatura: 0.1 (casi determinista para una clasificación consistente)
+- Formato de respuesta: JSON
+- Timeout: 120 segundos (los documentos pueden ser grandes)
 
-### What the AI extracts
+### Qué extrae la IA
 
-The prompt instructs Gemini to return a JSON object with:
+El prompt instruye al modelo a devolver un objeto JSON con:
 
-| Field | Type | Description |
+| Campo | Tipo | Descripción |
 |-------|------|-------------|
-| `documentType` | string | One of the recognized types (see below) |
-| `referenceNumber` | string | Government file/reference number |
-| `publicBodyName` | string | Name of the public body |
-| `autonomousCommunityCode` | string | CCAA code (AND, AST, CAT, etc.) |
-| `applicableLaw` | string | Name of the applicable transparency law |
-| `documentDate` | string | Date from the document |
-| `status` | string | Extracted resolution status if applicable |
-| `summary` | string | Brief summary of the document content |
-| `requestTitle` | string | Title of the FOIA request |
-| `requestDescription` | string | Description of what was requested |
-| `isExtension` | boolean | Whether this is a deadline extension notice |
-| `newDeadlineDate` | string | Explicit new deadline if mentioned |
-| `extensionDays` | integer | Number of extension days |
-| `denialReason` | string | Reason for denial |
-| `isRedirection` | boolean | Whether the request was redirected |
-| `redirectedToPublicBody` | string | Name of the new public body |
-| `isThirdPartyRights` | boolean | Whether third-party rights are affected |
-| `processingStartDate` | string | Date processing formally began |
-| `alegationPoints` | array | Key arguments from administration allegations |
-| `keyPoints` | array | Key points of the document (for responses, complaints, complaint resolutions, and alegation responses) |
+| `documentType` | string | Uno de los tipos reconocidos (ver abajo) |
+| `referenceNumber` | string | Número de expediente/referencia gubernamental |
+| `publicBodyName` | string | Nombre del organismo público |
+| `autonomousCommunityCode` | string | Código de CCAA (AND, AST, CAT, etc.) |
+| `applicableLaw` | string | Nombre de la ley de transparencia aplicable |
+| `documentDate` | string | Fecha del documento |
+| `status` | string | Estado de la resolución extraído si aplica |
+| `summary` | string | Resumen breve del contenido del documento |
+| `requestTitle` | string | Título de la solicitud de acceso |
+| `requestDescription` | string | Descripción de lo que se solicitó |
+| `isExtension` | boolean | Si se trata de un aviso de ampliación de plazo |
+| `newDeadlineDate` | string | Nuevo plazo explícito si se menciona |
+| `extensionDays` | integer | Número de días de ampliación |
+| `denialReason` | string | Motivo de la denegación |
+| `isRedirection` | boolean | Si la solicitud fue redirigida |
+| `redirectedToPublicBody` | string | Nombre del nuevo organismo público |
+| `isThirdPartyRights` | boolean | Si se ven afectados derechos de terceros |
+| `processingStartDate` | string | Fecha en que comenzó formalmente la tramitación |
+| `alegationPoints` | array | Argumentos clave de las alegaciones de la administración |
+| `keyPoints` | array | Puntos clave del documento (para respuestas, reclamaciones, resoluciones de reclamación y respuestas a alegaciones) |
 
-### Document type classification
+### Clasificación de tipos de documento
 
-The AI classifies documents into these types:
+La IA clasifica los documentos en estos tipos:
 
-| AI value | DocumentType enum | Label |
+| Valor IA | Enum DocumentType | Etiqueta |
 |----------|------------------|-------|
 | `solicitud` | Request | Solicitud |
 | `acuse_recibo` | Receipt | Acuse de recibo |
@@ -144,99 +136,99 @@ The AI classifies documents into these types:
 
 > Los labels `inadmitida` y `parcialmente_concedida` clasifican el sentido de la resolución (no son tipos de documento aparte). El normalizer en `DocumentAnalyzer::normalizeDocumentAnalysis` mapea ambos a `DocumentType::Response` y expone un `accessRequestStatus` extra que `ProcessDocumentHandler` aplica al `AccessRequest` (ver `AccessRequest::STATUS_INADMITTED` / `STATUS_PARTIALLY_GRANTED`).
 
-### Batch analysis
+### Análisis por lotes
 
-When multiple files are uploaded together (e.g., a ZIP file's contents), `ProcessDocumentBatchHandler` sends them all to `DocumentAnalyzer::analyzeMultiple()` in a single Gemini call. This gives the AI more context to correctly classify related documents and extract consistent metadata.
+Cuando se suben varios archivos juntos (por ejemplo, el contenido de un ZIP), `ProcessDocumentBatchHandler` los envía todos a `DocumentAnalyzer::analyzeMultiple()` en una única llamada al modelo. Esto le da a la IA más contexto para clasificar correctamente documentos relacionados y extraer metadatos consistentes.
 
-## Request matching
+## Emparejamiento con solicitudes
 
-After analysis, the handler tries to link the document to an existing access request using three strategies, in order:
+Tras el análisis, el handler intenta enlazar el documento con una solicitud de acceso existente usando tres estrategias, por orden:
 
-### 1. Reference number matching
+### 1. Emparejamiento por número de referencia
 
-The handler searches for an existing request by reference number. It checks both the AI-extracted `referenceNumber` and the `expedienteRef` from the document's `sourceMetadata` (set by the agent webhook):
+El handler busca una solicitud existente por número de referencia. Comprueba tanto el `referenceNumber` extraído por la IA como el `expedienteRef` del `sourceMetadata` del documento (establecido por el webhook del agente):
 
 ```php
 $referenceNumber = $analysis['referenceNumber'] ?? null;
 $sourceRef = $document->getSourceMetadata()['expedienteRef'] ?? null;
 ```
 
-Both are tried against `findByExternalId()`, which also searches the `alternativeReferences` JSON field.
+Ambos se prueban contra `findByExternalId()`, que también busca en el campo JSON `alternativeReferences`.
 
-Match method recorded: `Document::MATCH_REFERENCE`
+Método de emparejamiento registrado: `Document::MATCH_REFERENCE`
 
-### 2. Keyword matching
+### 2. Emparejamiento por palabras clave
 
-If no reference number match is found, the handler extracts keywords from the analysis — contract identifiers, platform codes, expedition numbers, NIF/CIF references — and searches for requests whose title or description contains them:
+Si no se encuentra coincidencia por número de referencia, el handler extrae palabras clave del análisis — identificadores de contrato, códigos de plataforma, números de expediente, referencias de NIF/CIF — y busca solicitudes cuyo título o descripción las contenga:
 
 ```php
 $existing = $this->accessRequestRepository->findByKeywords($keywords, $user);
 ```
 
-Keyword patterns extracted:
-- Contract numbers: `2020/011739`
-- Route codes: `VCM-036`, `DIV-123`
-- Expedition numbers: `AYTOZAM-SEIS-4420/2025`
+Patrones de palabras clave extraídos:
+- Números de contrato: `2020/011739`
+- Códigos de ruta: `VCM-036`, `DIV-123`
+- Números de expediente: `AYTOZAM-SEIS-4420/2025`
 - NIF/CIF: `A12345678`
 
-Match method recorded: `Document::MATCH_KEYWORDS`
+Método de emparejamiento registrado: `Document::MATCH_KEYWORDS`
 
-### 3. Auto-creation
+### 3. Creación automática
 
-If the document is a request (`DocumentType::Request`) or receipt (`DocumentType::Receipt`) and no existing request matches, the handler creates a new `AccessRequest`:
+Si el documento es una solicitud (`DocumentType::Request`) o un acuse de recibo (`DocumentType::Receipt`) y ninguna solicitud existente coincide, el handler crea una nueva `AccessRequest`:
 
-1. Finds or creates the `PublicBody` from the AI-extracted name
-2. Determines the `ApplicableLaw` — first by autonomous community, then by law name, falling back to the state law
-3. Extracts the sent date from the document date
-4. Creates the request via `AccessRequestManager::create()`
+1. Busca o crea el `PublicBody` a partir del nombre extraído por la IA
+2. Determina la `ApplicableLaw` — primero por comunidad autónoma, luego por nombre de ley, recurriendo a la ley estatal como último recurso
+3. Extrae la fecha de envío a partir de la fecha del documento
+4. Crea la solicitud vía `AccessRequestManager::create()`
 
-Match method recorded: `Document::MATCH_CREATED`
+Método de emparejamiento registrado: `Document::MATCH_CREATED`
 
-If the document type is anything else and no match is found, the document remains **orphaned** (no access request linked). The user can later link it manually via the "Importar documento sin asignar" modal on any request's detail page.
+Si el tipo de documento es cualquier otro y no se encuentra coincidencia, el documento queda **huérfano** (sin solicitud de acceso enlazada). El usuario puede enlazarlo más tarde manualmente a través del modal "Importar documento sin asignar" en la página de detalle de cualquier solicitud.
 
-## State updates from documents
+## Actualizaciones de estado desde documentos
 
-Once a document is linked to a request, the handler updates the request based on the document type:
+Una vez que un documento se enlaza a una solicitud, el handler actualiza la solicitud según el tipo de documento:
 
-| Document type | State change |
+| Tipo de documento | Cambio de estado |
 |---------------|-------------|
-| Receipt | Status → `processing`, set `acknowledgedAt` |
-| Response | Status → `granted`/`denied` based on AI analysis, set `resolvedAt` |
-| Extension | Extend deadline by law period, increment extension count |
-| ProcessingStart | Recalculate deadline from processing start date |
-| Redirection | Update public body, record original, set `redirectedAt` |
-| ThirdPartyRights | Suspend deadline, set 15-day allegation period |
-| Complaint | Create `AccessRequestComplaint`, set 3-month deadline |
-| ComplaintReceipt | Ensure complaint exists, recalculate deadline from receipt date |
-| ComplaintProcessingStart | Ensure complaint exists, recalculate deadline from processing date |
-| ComplaintResolution | Set complaint status to granted/denied based on AI analysis |
-| Alegaciones | Ensure complaint exists, extract alegation points |
-| Subsanacion | Ensure complaint exists, record timeline entry |
-| SubsanacionResponse | Ensure complaint exists, record timeline entry |
-| Audiencia | Ensure complaint exists, record timeline entry |
-| ComplaintExtension | Ensure complaint exists, record timeline entry |
+| Receipt | Status → `processing`, establece `acknowledgedAt` |
+| Response | Status → `granted`/`denied` según el análisis de IA, establece `resolvedAt` |
+| Extension | Amplía el plazo según el periodo legal, incrementa el contador de ampliaciones |
+| ProcessingStart | Recalcula el plazo a partir de la fecha de inicio de tramitación |
+| Redirection | Actualiza el organismo público, registra el original, establece `redirectedAt` |
+| ThirdPartyRights | Suspende el plazo, establece periodo de alegaciones de 15 días |
+| Complaint | Crea `AccessRequestComplaint`, establece plazo de 3 meses |
+| ComplaintReceipt | Asegura que existe la reclamación, recalcula el plazo desde la fecha del acuse |
+| ComplaintProcessingStart | Asegura que existe la reclamación, recalcula el plazo desde la fecha de tramitación |
+| ComplaintResolution | Establece el estado de la reclamación a granted/denied según el análisis de IA |
+| Alegaciones | Asegura que existe la reclamación, extrae los puntos de alegación |
+| Subsanacion | Asegura que existe la reclamación, registra entrada en el timeline |
+| SubsanacionResponse | Asegura que existe la reclamación, registra entrada en el timeline |
+| Audiencia | Asegura que existe la reclamación, registra entrada en el timeline |
+| ComplaintExtension | Asegura que existe la reclamación, registra entrada en el timeline |
 
-All state changes create `StatusHistory` entries. Deadline changes create `DeadlineHistory` entries.
+Todos los cambios de estado crean entradas en `StatusHistory`. Los cambios de plazo crean entradas en `DeadlineHistory`.
 
-## Reprocessing
+## Reprocesamiento
 
-Documents can be reprocessed by clicking the refresh button on the request detail page. This dispatches a new `ProcessDocumentMessage` for the document. The handler re-runs the AI analysis and re-applies state updates.
+Los documentos se pueden reprocesar haciendo clic en el botón de refrescar en la página de detalle de la solicitud. Esto despacha un nuevo `ProcessDocumentMessage` para el documento. El handler vuelve a ejecutar el análisis de IA y reaplica las actualizaciones de estado.
 
-## Orphan document management
+## Gestión de documentos huérfanos
 
-Documents uploaded without being linked to a request (or that the AI couldn't match) are available in the "Importar documento sin asignar" modal. The modal shows:
-- Document name and type
-- Upload date
-- Detected public body name
-- AI summary
+Los documentos subidos sin estar enlazados a una solicitud (o que la IA no ha podido emparejar) están disponibles en el modal "Importar documento sin asignar". El modal muestra:
+- Nombre y tipo del documento
+- Fecha de subida
+- Nombre del organismo público detectado
+- Resumen de la IA
 
-The user clicks "Enlazar" to link an orphan document to the current request via `POST /documentos/{id}/link`.
+El usuario hace clic en "Enlazar" para enlazar un documento huérfano a la solicitud actual a través de `POST /documentos/{id}/link`.
 
-## Inbound email processing
+## Procesamiento de email entrante
 
-Users can receive a virtual email address (e.g., `usuario-df49302da@pideinfo.es`) that they provide to public administrations. Emails sent to this address are automatically processed and their attachments fed into the document pipeline.
+Los usuarios pueden recibir una dirección de email virtual (por ejemplo, `usuario-df49302da@pideinfo.es`) que proporcionan a las administraciones públicas. Los correos enviados a esta dirección se procesan automáticamente y sus adjuntos entran en el pipeline de documentos.
 
-### Architecture
+### Arquitectura
 
 ```
 Email arrives at usuario-xxx@pideinfo.es
@@ -263,27 +255,27 @@ InboundEmailController
 Existing AI pipeline (same as manual uploads)
 ```
 
-### Virtual email generation
+### Generación de email virtual
 
-- Each user can generate one virtual email address on demand via the dashboard
-- Format: `usuario-{10-char hex token}@pideinfo.es`
-- Generated by `VirtualEmailManager` service
-- Stored in `User.virtualEmail` (unique, nullable)
-- Only verified users can generate an address
+- Cada usuario puede generar una dirección de email virtual bajo demanda desde el dashboard
+- Formato: `usuario-{token hex de 10 caracteres}@pideinfo.es`
+- Generado por el servicio `VirtualEmailManager`
+- Almacenado en `User.virtualEmail` (único, nullable)
+- Solo los usuarios verificados pueden generar una dirección
 
-### Email document handling
+### Tratamiento de documentos de email
 
-- Email body is stored as a `text/plain` document and analyzed by Gemini for reference numbers and context
-- Attachments are filtered by allowed MIME types (PDF, images, Word)
-- All documents from the same email share an `emailGroupId` in their `sourceMetadata` JSON field
-- `Document.sourceType` is set to `'email'` to distinguish from manual uploads and portal sync
-- `Document.sourceMetadata` stores: `{from, subject, date, emailGroupId, emailHash}` for emails, or portal-specific metadata for portal-synced documents
-- `Document.contentHash` stores SHA-256 of file content for cross-source deduplication
-- Duplicate detection for emails uses a hash of `from + date + subject + attachment count`
+- El cuerpo del email se almacena como documento `text/plain` y es analizado por el modelo para extraer números de referencia y contexto
+- Los adjuntos se filtran por tipos MIME permitidos (PDF, imágenes, Word)
+- Todos los documentos del mismo email comparten un `emailGroupId` en su campo JSON `sourceMetadata`
+- `Document.sourceType` se establece a `'email'` para distinguirlo de subidas manuales y de la sincronización del portal
+- `Document.sourceMetadata` almacena: `{from, subject, date, emailGroupId, emailHash}` para emails, o metadatos específicos del portal para documentos sincronizados desde el portal
+- `Document.contentHash` almacena el SHA-256 del contenido del archivo para deduplicación entre fuentes
+- La detección de duplicados para emails utiliza un hash de `from + date + subject + número de adjuntos`
 
 ### Cloudflare Worker
 
-Located at `pideinfo-worker/`. TypeScript project deployed with Wrangler:
+Ubicado en `pideinfo-worker/`. Proyecto TypeScript desplegado con Wrangler:
 
 ```bash
 cd pideinfo-worker
@@ -292,24 +284,24 @@ wrangler secret put WEBHOOK_SECRET
 wrangler deploy
 ```
 
-The `WEBHOOK_URL` is configured in `wrangler.jsonc` vars. `WEBHOOK_SECRET` must be set as a Wrangler secret (not committed to source).
+La `WEBHOOK_URL` se configura en las vars de `wrangler.jsonc`. `WEBHOOK_SECRET` debe establecerse como secret de Wrangler (no se commitea al código fuente).
 
-### Security
+### Seguridad
 
-- Webhook authenticated via shared secret (`INBOUND_EMAIL_WEBHOOK_SECRET`)
-- Rate limited: 30 requests/minute per IP
-- Route excluded from Symfony firewall auth (`/webhook/` path)
-- Unknown addresses return 200 silently (no information leakage)
+- Webhook autenticado mediante secret compartido (`INBOUND_EMAIL_WEBHOOK_SECRET`)
+- Rate limit: 30 peticiones/minuto por IP
+- Ruta excluida de la autenticación del firewall de Symfony (path `/webhook/`)
+- Las direcciones desconocidas devuelven 200 silenciosamente (sin fuga de información)
 
-## Error handling
+## Gestión de errores
 
-If Gemini analysis fails:
-- The error message is stored in `document.processingError`
-- The document is marked as not processed
-- The document remains accessible for manual classification
-- The user can retry via the reprocess button
+Si el análisis de el modelo falla:
+- El mensaje de error se almacena en `document.processingError`
+- El documento se marca como no procesado
+- El documento sigue accesible para clasificación manual
+- El usuario puede reintentar mediante el botón de reprocesar
 
-If request matching fails:
-- The document is left as an orphan
-- No state changes are applied
-- The user can manually link it later
+Si falla el emparejamiento con una solicitud:
+- El documento se deja como huérfano
+- No se aplica ningún cambio de estado
+- El usuario puede enlazarlo manualmente más tarde

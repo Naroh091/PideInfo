@@ -1,101 +1,204 @@
-# Request workflow
+# Workflow de solicitudes
 
-The full lifecycle of an access request from submission through resolution.
+Ciclo de vida completo de una solicitud de acceso desde su presentación hasta la resolución.
 
-## States
+## Estados
 
-An access request moves through these primary statuses:
+Una solicitud de acceso transita por estos estados principales (consulta `AccessRequest::STATUS_*` y `config/packages/workflow.yaml`):
 
-| Status | Label | Meaning |
-|--------|-------|---------|
-| `pending` | Pendiente de recepción | Created but not yet confirmed as sent |
-| `sent` | Enviada | Submitted to the public body, awaiting response |
-| `processing` | En trámite | Public body has acknowledged receipt and is processing |
-| `granted` | Concedida (pendiente de recepción) | Request approved — waiting for information to be delivered |
-| `granted_completed` | Concedida y completada | Request approved and information received |
-| `denied` | Denegada | Request explicitly denied |
-| `delayed` | Silencio administrativo | Response deadline passed with no answer (administrative silence = implicit denial) |
+| Estado | Etiqueta | Significado |
+|--------|----------|-------------|
+| `pending` | Pendiente de recepción | Creada pero aún no confirmada como enviada (borrador previo al envío) |
+| `sent` | Enviada | Presentada ante el organismo público, a la espera de respuesta |
+| `processing` | En trámite | El organismo público ha acusado recibo y está tramitando |
+| `granted` | Concedida (pendiente de recepción) | Solicitud aprobada — a la espera de que se entregue la información |
+| `granted_completed` | Concedida y completada | Solicitud aprobada e información recibida |
+| `partially_granted` | Estimación parcial | El organismo público ha concedido parte de la solicitud |
+| `inadmitted` | Inadmitida a trámite | El organismo público se ha negado a admitir la solicitud |
+| `denied` | Denegada | Solicitud denegada de forma expresa |
+| `delayed` | Silencio administrativo | Vencido el plazo de respuesta sin contestación (silencio administrativo = denegación implícita) |
 
-## Lifecycle
+### Estado vs. resultado — la posición en el workflow no es la decisión administrativa
 
-### 1. Creation
+`status` describe **en qué punto del procedimiento se encuentra la solicitud**; no es un registro fiable de lo que la administración ha decidido realmente. La decisión vive en `AccessRequest::$resolutionResult` (`granted | partially_granted | denied | inadmitted | silence | NULL`) y ambos evolucionan de forma independiente:
 
-A request can be created in three ways:
+- Una solicitud puede permanecer en `granted_completed` (el ciudadano ha recibido la documentación) mientras `resolutionResult = partially_granted` — la concesión original fue parcial y una transición posterior del workflow no sobrescribe ese hecho.
+- Una solicitud marcada como `granted` puede no corresponderse con lo que se entregó realmente; el ciudadano puede presentar una reclamación sin que el resultado vuelva a `denied`.
+- `delayed` es una posición del workflow (silencio detectado); `resolutionResult = silence` es el equivalente a la decisión registrado para consumidores aguas abajo (p. ej., el mapeo de motivos de reclamación).
 
-**Manual creation.** The user fills out a form with title, description, public body, applicable law, date sent, and optional external reference number. The system calculates the response deadline from the sent date and applicable law.
+La misma ortogonalidad se aplica al lado de las reclamaciones — véase `docs/complaint-workflow.md`.
 
-**Agent-driven creation.** "Realizar" lets the user redact and dispatch a brand-new request to the agent. The picker auto-detects which submission channel applies (`ChannelResolver`):
+## Diagrama del ciclo de vida
 
-- **AGE Portal de Transparencia** when `PublicBody.transparencyPortalUrl !== null`.
-- **REG / RED SARA** when the body has at least one active `RegDestination` imported from DIR3 (see `docs/redsara_reg_submission.md`). REG drafts collect `expone` and `solicita` (max 4000 chars each) instead of a single description, and require the user's postal address + phone (`/perfil/datos-personales`) before dispatch.
+Generado a partir de `config/packages/workflow.yaml`. Las tres máquinas de estado son ortogonales: la solicitud (`AccessRequest::$status`) avanza por la principal, y la reclamación (`AccessRequestComplaint::$status`) y la vía judicial (`AccessRequest::$courtStatus`) corren en paralelo cuando aplican.
 
-**Drafting assistant.** The "Realizar" canvas hosts a single chat-driven assistant (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; Stimulus `assistant-chat` controller). The model **auto-decides** in each turn whether to reply with a question or to act on the canvas:
-- The system prompt encodes a three-action policy and asks the model to emit the conversational reply, then a literal `===DECISION===` marker, then a JSON block `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.
-- `App\Service\AI\StreamingDecisionSplitter` separates the LLM stream around the marker so chat tokens can be flushed live while the JSON is accumulated and parsed at the end.
-- The composer is a multi-line textarea (Enter to send, Shift+Enter for newline) and accepts file attachments (PDF/PNG/JPG/CSV/TXT/MD; ≤4 MB/file, ≤5 MB total) that travel as `ContentPart`s for that turn only — they are not persisted to S3.
-- After every `rewrite`, the system bubble carries a "Ver cambios" button (`diff-modal` controller) that opens a modal with an inline line-by-line diff of title + EXPONE/SOLICITA (or single body) against the previous snapshot. No version history is stored; the snapshot lives in the chat bubble's data attributes for that session only.
+```mermaid
+stateDiagram-v2
+    direction LR
 
-**Automatic creation from documents.** When a user uploads a document classified as a request (`DocumentType::Request`) or receipt (`DocumentType::Receipt`), and no matching request is found, the system creates one automatically. The AI extracts the title, description, public body, applicable law, and sent date from the document.
+    state "AccessRequest::$status" as Solicitud {
+        [*] --> pending: creación
+        pending --> sent: dispatch
 
-On creation:
-- `DeadlineCalculator::calculate()` computes the initial deadline
-- A `DeadlineHistory` entry is created with reason `initial`
-- Status is set to `sent`
+        sent --> processing: acknowledge\n(acuse de recibo)
+        sent --> granted: grant
+        sent --> partially_granted: grant_partially
+        sent --> denied: deny
+        sent --> inadmitted: inadmit
+        sent --> delayed: delay\n(silencio)
 
-### 2. Acknowledgment
+        processing --> granted: grant
+        processing --> partially_granted: grant_partially
+        processing --> denied: deny
+        processing --> inadmitted: inadmit
+        processing --> delayed: delay
 
-When the public body sends a receipt (*acuse de recibo*), the request moves to `processing`. This can happen via:
-- Uploading a receipt document (auto-detected by AI)
-- Manually changing status
+        delayed --> granted: grant\n(respuesta tardía)
+        delayed --> partially_granted: grant_partially
+        delayed --> denied: deny
 
-If a processing start document is received (art. 20.1 Ley 19/2013), the deadline is **recalculated** from the processing start date, because the 1-month clock starts from when the body formally begins processing.
+        granted --> granted_completed: confirm_reception\n(banner "Confirmar recepción")
 
-### 3. Deadline tracking
+        granted_completed --> [*]
+        partially_granted --> [*]
+        inadmitted --> [*]
+        denied --> [*]
+    }
 
-The response deadline is the most critical date. It depends on the applicable law:
+    state "AccessRequestComplaint::$status" as Reclamacion {
+        [*] --> reclaimed: alta de la entidad\n(initial_marking)
+        reclaimed --> complaint_granted: complaint_granted
+        reclaimed --> complaint_denied: complaint_denied
+        reclaimed --> complaint_archived: complaint_archived
+        complaint_granted --> [*]
+        complaint_denied --> [*]
+        complaint_archived --> [*]
+    }
 
-| Law | Deadline | Unit |
-|-----|----------|------|
-| Ley 19/2013 (state) | 1 month | Calendar |
-| Regional laws | Varies (15-30 days) | Business days or calendar |
+    state "AccessRequest::$courtStatus" as Judicial {
+        [*] --> none
+        none --> in_court: go_to_court
+        in_court --> court_granted: court_wins
+        in_court --> court_denied: court_loses
+        court_granted --> [*]
+        court_denied --> [*]
+    }
+```
 
-#### Extensions
+### Disparadores de la creación de cada flujo paralelo
 
-Public bodies can extend the deadline once (art. 20.1 Ley 19/2013). When an extension document is uploaded:
-- `AccessRequestManager::extendDeadlineByLaw()` calculates the new deadline
-- Both `DeadlineHistory` (reason: `extension`) and `StatusHistory` entries are created
-- The extension count is incremented
+```mermaid
+flowchart LR
+    classDef terminal fill:#e8e8e8,stroke:#888;
+    classDef trigger fill:#fff3bf,stroke:#c79b00;
 
-#### Third-party rights suspension
+    delayed[delayed]:::terminal
+    denied[denied]:::terminal
+    partially_granted[partially_granted]:::terminal
+    inadmitted[inadmitted]:::terminal
+    grantedExpired["granted / granted_completed<br/>(con plazo vencido)"]:::terminal
 
-If the requested information affects third parties (art. 19.3 Ley 19/2013), the deadline is suspended for 15 business days:
-1. `suspendForThirdPartyAllegations()` — records days remaining, suspends deadline
-2. Third-party status set to `pending`
-3. After allegations are received (or the 15-day period expires): `resumeFromThirdPartyAllegations()` — adds remaining days from the resume date
+    canComplain{{"canGenerateComplaint()<br/>devuelve true"}}:::trigger
+    fileComplaint["AccessRequestComplaint creada<br/>(status = reclaimed)"]
+    complaintDenied["complaint = complaint_denied<br/>o silencio del consejo"]:::terminal
+    goCourt["courtStatus = in_court"]
 
-#### Redirections
+    delayed --> canComplain
+    denied --> canComplain
+    partially_granted --> canComplain
+    inadmitted --> canComplain
+    grantedExpired --> canComplain
+    canComplain --> fileComplaint
 
-If the public body doesn't hold the information, it redirects (*traslado*) the request to the competent body:
-- Original public body is preserved in `originalPublicBody`
-- New public body is set
-- Redirection date is recorded
-- A timeline entry notes the redirect
+    complaintDenied --> goCourt
+```
 
-### 4. Resolution
+> Los terminales del diagrama de estados son terminales **del workflow principal**, no del expediente: la solicitud puede seguir generando actividad vía reclamación o vía judicial sin que `$status` cambie. La sección [Relación con `AccessRequestComplaint`](#relación-con-accessrequestcomplaint) detalla la ortogonalidad y cómo los terminales conviven con los flujos paralelos.
 
-The request resolves in one of three ways:
+## Ciclo de vida
 
-**Granted** (`granted`) — The public body approves the request. `resolvedAt` is set. The request enters a "pending reception" state — the administration has said yes, but the information may not have been delivered yet. A banner on the request detail page prompts the user to confirm reception.
+### 1. Creación
 
-**Granted and completed** (`granted_completed`) — The user confirms the requested information has been received. This is the true terminal state for successful requests. Transition from `granted` via the banner or status dropdown.
+Una solicitud puede crearse de tres maneras:
 
-**Denied** (`denied`) — The public body explicitly refuses. The denial reason is stored in `resolutionNotes`. This opens the possibility of filing a complaint. `resolvedAt` is set.
+**Creación manual.** La persona usuaria rellena un formulario con título, descripción, organismo público, ley aplicable, fecha de envío y, opcionalmente, un número de referencia externo. El sistema calcula el plazo de respuesta a partir de la fecha de envío y la ley aplicable.
 
-**Administrative silence** (`delayed`) — The deadline passes with no response. Under Spanish law, this is equivalent to a denial. The system detects this via the `isDeadlinePassed()` check. The user can file a complaint against the silence.
+**Creación a través del agente.** "Realizar" permite redactar y despachar una solicitud nueva al agente. El selector detecta automáticamente qué canal de presentación corresponde (`ChannelResolver`):
 
-### 5. Post-resolution paths
+- **AGE Portal de Transparencia** cuando `PublicBody.transparencyPortalUrl !== null`.
+- **REG / RED SARA** cuando el organismo tiene al menos un `RegDestination` activo importado desde DIR3 (véase `docs/documentacion-procesos-envio/redsara_reg.md`). Los borradores REG recogen `expone` y `solicita` (máx. 4000 caracteres cada uno) en lugar de una única descripción, y requieren la dirección postal y el teléfono de la persona usuaria (`/perfil/datos-personales`) antes del envío.
 
-After resolution, the request can enter additional phases:
+**Asistente de redacción.** El canvas "Realizar" alberga un único asistente conversacional (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; controlador Stimulus `assistant-chat`). El modelo **decide automáticamente** en cada turno si responder con una pregunta o actuar sobre el canvas:
+- El system prompt codifica una política de tres acciones y pide al modelo que emita la respuesta conversacional, después un marcador literal `===DECISION===` y luego un bloque JSON `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.
+- `App\Service\AI\StreamingDecisionSplitter` separa el stream del LLM en torno al marcador, de modo que los tokens del chat pueden enviarse en vivo mientras el JSON se acumula y se parsea al final.
+- El composer es un textarea multilínea (Enter para enviar, Shift+Enter para salto de línea) y acepta adjuntos (PDF/PNG/JPG/CSV/TXT/MD; ≤4 MB/archivo, ≤5 MB total) que viajan como `ContentPart`s solo en ese turno — no se persisten en S3.
+- Después de cada `rewrite`, la burbuja del sistema incluye un botón "Ver cambios" (controlador `diff-modal`) que abre un modal con un diff línea a línea del título + EXPONE/SOLICITA (o cuerpo único) frente al snapshot anterior. No se almacena historial de versiones; el snapshot vive en los data-attributes de la burbuja del chat solo durante esa sesión.
+
+**Creación automática a partir de documentos.** Cuando una persona usuaria sube un documento clasificado como solicitud (`DocumentType::Request`) o acuse de recibo (`DocumentType::Receipt`), y no se encuentra ninguna solicitud que coincida, el sistema la crea automáticamente. La IA extrae el título, la descripción, el organismo público, la ley aplicable y la fecha de envío a partir del documento.
+
+En el momento de la creación:
+- `DeadlineCalculator::calculate()` computa el plazo inicial
+- Se crea una entrada en `DeadlineHistory` con motivo `initial`
+- El estado se establece en `sent`
+
+### 2. Acuse de recibo
+
+Cuando el organismo público envía un acuse de recibo, la solicitud pasa a `processing`. Esto puede ocurrir mediante:
+- La subida de un documento de acuse de recibo (detectado automáticamente por la IA)
+- El cambio manual de estado
+
+Si se recibe un documento de inicio de tramitación (art. 20.1 Ley 19/2013), el plazo se **recalcula** a partir de la fecha de inicio de tramitación, ya que el cómputo de 1 mes empieza desde que el organismo inicia formalmente la tramitación.
+
+### 3. Seguimiento de plazos
+
+El plazo de respuesta es la fecha más crítica. Depende de la ley aplicable:
+
+| Ley | Plazo | Unidad |
+|-----|-------|--------|
+| Ley 19/2013 (estatal) | 1 mes | Calendario |
+| Leyes autonómicas | Varía (15-30 días) | Hábiles o calendario |
+
+#### Ampliaciones
+
+Los organismos públicos pueden ampliar el plazo una vez (art. 20.1 Ley 19/2013). Cuando se sube un documento de ampliación:
+- `AccessRequestManager::extendDeadlineByLaw()` calcula el nuevo plazo
+- Se crean entradas tanto en `DeadlineHistory` (motivo: `extension`) como en `StatusHistory`
+- Se incrementa el contador de ampliaciones
+
+#### Suspensión por derechos de terceros
+
+Si la información solicitada afecta a terceras personas (art. 19.3 Ley 19/2013), el plazo se suspende durante 15 días hábiles:
+1. `suspendForThirdPartyAllegations()` — registra los días restantes y suspende el plazo
+2. El estado de terceros se fija en `pending`
+3. Tras recibir las alegaciones (o al expirar el periodo de 15 días): `resumeFromThirdPartyAllegations()` — suma los días restantes desde la fecha de reanudación
+
+#### Traslados
+
+Si el organismo público no dispone de la información, traslada la solicitud al organismo competente:
+- El organismo público original se conserva en `originalPublicBody`
+- Se establece el nuevo organismo público
+- Se registra la fecha del traslado
+- Una entrada en el timeline anota el traslado
+
+### 4. Resolución
+
+La solicitud se resuelve de una de estas maneras:
+
+**Concedida** (`granted`) — El organismo público aprueba la solicitud. Se fija `resolvedAt`. La solicitud entra en un estado de "pendiente de recepción" — la administración ha dicho que sí, pero la información puede no haberse entregado todavía. Un banner en la página de detalle de la solicitud invita a la persona usuaria a confirmar la recepción.
+
+**Concedida y completada** (`granted_completed`) — La persona usuaria confirma que ha recibido la información solicitada. Este es el verdadero estado terminal para las solicitudes con éxito. La transición desde `granted` se hace mediante el banner o el desplegable de estado.
+
+**Estimación parcial** (`partially_granted`) — El organismo público concede parte de la información solicitada. Se fija `resolvedAt`. La persona usuaria puede presentar una reclamación por la parte no facilitada; `ComplaintGenerator` adapta el prompt en consecuencia cuando `resolutionResult = partially_granted`.
+
+**Inadmitida** (`inadmitted`) — El organismo público se niega a admitir la solicitud a trámite (p. ej., por causas del art. 18 Ley 19/2013). Se fija `resolvedAt`. También está disponible la posibilidad de presentar una reclamación.
+
+**Denegada** (`denied`) — El organismo público deniega de forma expresa. El motivo de la denegación se guarda en `resolutionNotes`. Esto abre la posibilidad de presentar una reclamación. Se fija `resolvedAt`.
+
+**Silencio administrativo** (`delayed`) — El plazo vence sin respuesta. Conforme a la legislación española, esto equivale a una denegación. El sistema lo detecta mediante la comprobación `isDeadlinePassed()`. La persona usuaria puede reclamar frente al silencio.
+
+### 5. Vías posteriores a la resolución
+
+Tras la resolución, la solicitud puede entrar en fases adicionales:
 
 ```
 granted
@@ -116,44 +219,76 @@ denied / delayed
               └──► court_denied
 ```
 
-## Deadline calculation
+## Cálculo de plazos
 
-The `DeadlineCalculator` service handles all date arithmetic:
+El servicio `DeadlineCalculator` se encarga de toda la aritmética de fechas:
 
-### Calendar months
-- Jan 15 + 1 month = Feb 15
-- Jan 31 + 1 month = Feb 28 (capped to end of month)
+### Meses naturales
+- 15 ene + 1 mes = 15 feb
+- 31 ene + 1 mes = 28 feb (limitado al final de mes)
 
-### Business days
-- Weekends (Saturday, Sunday) are excluded
-- Spanish national holidays are excluded:
-  - Fixed: Jan 1, Jan 6, May 1, Aug 15, Oct 12, Nov 1, Dec 6, Dec 8, Dec 25
-  - Dynamic: Maundy Thursday (*Jueves Santo*), Good Friday (*Viernes Santo*) — calculated from Easter
+### Días hábiles
+- Se excluyen los fines de semana (sábado y domingo)
+- Se excluyen los festivos nacionales españoles:
+  - Fijos: 1 ene, 6 ene, 1 may, 15 ago, 12 oct, 1 nov, 6 dic, 8 dic, 25 dic
+  - Variables: Jueves Santo, Viernes Santo — calculados a partir de la Pascua
 
-### The `isActive()` check
+### La comprobación `isActive()`
 
-A request is considered active if:
-- Its primary status is not `granted`, `granted_completed`, or `denied`, OR
-- It has an active complaint (status = `reclaimed`), OR
-- It's in court proceedings (courtStatus = `in_court`)
+Una solicitud se considera activa si:
+- Su estado principal no es `granted`, `granted_completed` ni `denied` (nota: `partially_granted` e `inadmitted` también se tratan como resueltos por `hasReceivedResponse()`), O
+- Tiene una reclamación activa (estado = `reclaimed`), O
+- Está en sede judicial (courtStatus = `in_court`)
 
-This drives dashboard filtering and deadline alert logic.
+Esto rige el filtrado del dashboard y la lógica de alertas de plazos.
 
-## Status change tracking
+## Trazabilidad de cambios de estado
 
-Every status change — whether triggered by a user, admin, or document upload — goes through `AccessRequestManager::changeStatus()`, which:
+Cada cambio de estado — ya lo dispare una persona usuaria, un administrador o la subida de un documento — pasa por `AccessRequestManager::changeStatus()`, que:
 
-1. Validates the new status value
-2. Applies the transition
-3. Handles side effects (complaint creation, deadline updates, resolvedAt)
-4. Creates a `StatusHistory` record with the old value, new value, notes, and optional trigger document
+1. Valida el nuevo valor de estado
+2. Aplica la transición
+3. Gestiona los efectos colaterales (creación de la reclamación, actualización de plazos, `resolvedAt`)
+4. Crea un registro en `StatusHistory` con el valor antiguo, el nuevo, las notas y, opcionalmente, el documento que disparó el cambio
 
-The timeline on the request detail page renders these records chronologically, with color-coded icons for different event types (redirection, third-party, processing start, extension, resolution).
+El timeline en la página de detalle de la solicitud renderiza estos registros de forma cronológica, con iconos codificados por color para los distintos tipos de evento (traslado, terceros, inicio de tramitación, ampliación, resolución).
 
-## Request ownership
+## Relación con `AccessRequestComplaint`
 
-Requests are owned by a user. If the user belongs to an organization, all organization members can see each other's requests. This is implemented via `createQueryBuilderForUser()` in the repository, which adds an OR condition for the user's organization.
+Una reclamación se modela como una entidad separada (`AccessRequestComplaint`) con una relación **1:1 opcional** con `AccessRequest` (`AccessRequest::$complaint`, `inversedBy: 'complaint'`). La relación es ortogonal al workflow principal de la solicitud — la solicitud y la reclamación avanzan en máquinas de estado independientes:
 
-## Custom lists
+```
+AccessRequest                    AccessRequestComplaint
+  $status (workflow position)       $status (workflow position)
+  $resolutionResult (decision)      $complaintResult (decision)
+       │                                  ▲
+       │  resolves to denied/delayed/     │  1:1 optional
+       │  inadmitted/partially_granted    │
+       └─────────► creates ───────────────┘
+```
 
-Requests can be organized into `AccessRequestList` collections via the `AccessRequestListItem` bridge entity (which adds ordering). Lists have a name, color, and visibility setting. The DataTable list view supports filtering by list.
+**Acoplamiento del ciclo de vida.** Una reclamación solo puede existir una vez que la solicitud ha alcanzado un estado que lo permite (`denied`, `delayed`, `partially_granted`, `inadmitted`, o un `granted`/`granted_completed` con plazo vencido — véase `ComplaintGenerator::canGenerateComplaint()`). Una vez creada, la reclamación avanza por su cuenta — el `status` de la solicitud NO cambia para reflejar la actividad de la reclamación (una solicitud puede permanecer en `granted_completed` mientras la reclamación está en `reclaimed`).
+
+**Dónde vive cada estado.**
+
+| Concepto | Campo | Workflow (config/packages/workflow.yaml) | Valores posibles |
+|---|---|---|---|
+| Posición en el workflow de la solicitud | `AccessRequest::$status` | `access_request_status` (supports `AccessRequest`) | `pending`, `sent`, `processing`, `granted`, `granted_completed`, `partially_granted`, `inadmitted`, `denied`, `delayed` |
+| Decisión administrativa de la solicitud | `AccessRequest::$resolutionResult` | — | `granted`, `partially_granted`, `denied`, `inadmitted`, `silence`, `NULL` |
+| Posición en el workflow de la reclamación | `AccessRequestComplaint::$status` | `access_request_complaint` (supports `AccessRequestComplaint`) | `reclaimed`, `complaint_granted`, `complaint_denied`, `complaint_archived` |
+| Decisión administrativa de la reclamación | `AccessRequestComplaint::$complaintResult` | — | `upheld`, `partially_upheld`, `dismissed`, `inadmitted`, `archived`, `NULL` |
+| Fase judicial | `AccessRequest::$courtStatus` | `access_request_court` (supports `AccessRequest`) | `none`, `in_court`, `court_granted`, `court_denied` |
+
+**Accesor de conveniencia.** Desde una solicitud, `AccessRequest::getComplaintStatus()` devuelve el estado de la reclamación o `AccessRequest::COMPLAINT_NONE` cuando todavía no existe ninguna reclamación — útil para plantillas y comprobaciones de `isActive()`, pero NO es un place del workflow (el workflow `access_request_complaint` no modela un estado `none` porque, en ese caso, la entidad simplemente no existe).
+
+**Vías de creación.** Una reclamación se materializa cuando la persona usuaria pasa por el flujo `/redactar?mode=complaint` y la presenta (manualmente o vía el agente), cuando se establece el estado a `reclaimed` desde el desplegable, o automáticamente cuando se sube un documento clasificado como `DocumentType::Complaint` / `ComplaintReceipt` / `Alegaciones`. En todos los casos la entidad se construye con `status = reclaimed` (el `initial_marking` del workflow) y se añade al timeline unificado una entrada en `StatusHistory` con `statusType = 'complaint'`.
+
+Para el procedimiento completo de reclamación (acuse de recibo, inicio de tramitación, subsanación, alegaciones, audiencia, ampliación, resolución, acción judicial) véase `docs/complaint-workflow.md`.
+
+## Titularidad de las solicitudes
+
+Las solicitudes tienen una persona propietaria. Si esa persona pertenece a una organización, todos los miembros de la organización pueden ver las solicitudes de las demás. Esto se implementa mediante `createQueryBuilderForUser()` en el repositorio, que añade una condición OR para la organización de la persona usuaria.
+
+## Listas personalizadas
+
+Las solicitudes pueden organizarse en colecciones `AccessRequestList` mediante la entidad puente `AccessRequestListItem` (que añade ordenación). Las listas tienen nombre, color y configuración de visibilidad. La vista de DataTable admite filtrado por lista.

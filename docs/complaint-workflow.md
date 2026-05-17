@@ -1,8 +1,8 @@
-# Complaint workflow
+# Flujo de reclamaciones
 
-When an access request is denied or goes unanswered, the citizen can file a complaint (*reclamación*) with the corresponding transparency council. This document describes the full complaint lifecycle as modeled in PideInfo.
+Cuando se deniega una solicitud de acceso o esta queda sin respuesta, el ciudadano puede presentar una reclamación ante el consejo de transparencia correspondiente. Este documento describe el ciclo de vida completo de la reclamación tal como está modelado en PideInfo.
 
-## Overview
+## Visión general
 
 ```
 Request denied / unanswered
@@ -43,103 +43,103 @@ Request denied / unanswered
   └─────────────────────────────────────────────────────────────┘
 ```
 
-## The AccessRequestComplaint entity
+## La entidad AccessRequestComplaint
 
-When a complaint is filed, an `AccessRequestComplaint` entity is created with a OneToOne relationship to the `AccessRequest`. This entity holds:
+Cuando se presenta una reclamación, se crea una entidad `AccessRequestComplaint` con una relación OneToOne con `AccessRequest`. Esta entidad guarda:
 
-| Field | Description |
+| Campo | Descripción |
 |-------|-------------|
-| `externalId` | The transparency council's reference number (e.g., `R/0123/2025`) |
-| `status` | Current complaint workflow position (see below) |
-| `complaintResult` | What the council actually decided (see below). NULL until resolved |
-| `deadlineAt` | Deadline for the council to resolve (typically 3 months) |
-| `complianceDeadlineAt` | If complaint granted, deadline for the administration to comply |
-| `filedAt` | Date the complaint was submitted |
+| `externalId` | El número de referencia del consejo de transparencia (p. ej., `R/0123/2025`) |
+| `status` | Posición actual en el flujo de la reclamación (ver más abajo) |
+| `complaintResult` | Lo que el consejo decidió realmente (ver más abajo). NULL hasta que se resuelva |
+| `deadlineAt` | Plazo del consejo para resolver (normalmente 3 meses) |
+| `complianceDeadlineAt` | Si la reclamación se estima, plazo para que la administración cumpla |
+| `filedAt` | Fecha en que se presentó la reclamación |
 
-### Status vs. result — two orthogonal axes
+### Estado vs. resultado — dos ejes ortogonales
 
-Both `AccessRequest` and `AccessRequestComplaint` separate **workflow position** (`status`) from **administrative decision** (`resolutionResult` / `complaintResult`). The status describes where we are in the procedure (`processing`, `granted_completed`, `reclaimed`, …); the result captures what the administration or council decided.
+Tanto `AccessRequest` como `AccessRequestComplaint` separan **posición en el flujo** (`status`) de **decisión administrativa** (`resolutionResult` / `complaintResult`). El estado describe en qué punto del procedimiento estamos (`processing`, `granted_completed`, `reclaimed`, …); el resultado refleja lo que la administración o el consejo decidieron.
 
-This split exists because the two evolve independently:
+Esta separación existe porque ambos evolucionan de forma independiente:
 
-- A request marked `granted_completed` (citizen received the documentation) may still carry `resolutionResult = partially_granted` if the original resolution was a partial concession. A later workflow transition no longer overwrites the original decision.
-- A resolution marked nominally as `granted` may not match what the citizen actually received — they can still file a complaint without flipping the result back to `denied`.
-- `complaint_granted` (the council estimated the complaint) coexists with `complaintResult = upheld` or `partially_upheld` to capture whether the relief was total or partial.
+- Una solicitud marcada como `granted_completed` (el ciudadano recibió la documentación) puede seguir teniendo `resolutionResult = partially_granted` si la resolución original fue una concesión parcial. Una transición posterior del flujo ya no sobrescribe la decisión original.
+- Una resolución marcada nominalmente como `granted` puede no coincidir con lo que el ciudadano recibió realmente — todavía puede presentar una reclamación sin que el resultado vuelva a `denied`.
+- `complaint_granted` (el consejo estimó la reclamación) coexiste con `complaintResult = upheld` o `partially_upheld` para reflejar si la estimación fue total o parcial.
 
-### Complaint statuses (workflow)
+### Estados de la reclamación (flujo)
 
-| Status | Label | Meaning |
+| Estado | Etiqueta | Significado |
 |--------|-------|---------|
-| `reclaimed` | Reclamada | Complaint filed and pending resolution |
-| `complaint_granted` | Reclamación estimada | Council ruled in citizen's favor (total or partial — see `complaintResult`) |
-| `complaint_denied` | Reclamación desestimada | Council ruled against the citizen |
-| `complaint_archived` | Reclamación archivada | Complaint archived (withdrawn or procedural closure) |
+| `reclaimed` | Reclamada | Reclamación presentada y pendiente de resolución |
+| `complaint_granted` | Reclamación estimada | El consejo falló a favor del ciudadano (total o parcial — ver `complaintResult`) |
+| `complaint_denied` | Reclamación desestimada | El consejo falló en contra del ciudadano |
+| `complaint_archived` | Reclamación archivada | Reclamación archivada (desistimiento o cierre procedimental) |
 
-### Complaint results (decision)
+### Resultados de la reclamación (decisión)
 
-| Result | Label | Meaning |
+| Resultado | Etiqueta | Significado |
 |--------|-------|---------|
-| `upheld` | Estimada | Council upheld the complaint in full |
-| `partially_upheld` | Estimada parcialmente | Council upheld part of the complaint |
-| `dismissed` | Desestimada | Council rejected the complaint |
-| `inadmitted` | Inadmitida | Council refused to admit the complaint |
-| `archived` | Archivada | Complaint archived |
-| `NULL` | — | Not yet resolved |
+| `upheld` | Estimada | El consejo estimó la reclamación íntegramente |
+| `partially_upheld` | Estimada parcialmente | El consejo estimó parte de la reclamación |
+| `dismissed` | Desestimada | El consejo rechazó la reclamación |
+| `inadmitted` | Inadmitida | El consejo no admitió a trámite la reclamación |
+| `archived` | Archivada | Reclamación archivada |
+| `NULL` | — | Aún no resuelta |
 
-### AccessRequest results (decision)
+### Resultados de la AccessRequest (decisión)
 
-| Result | Label | Meaning |
+| Resultado | Etiqueta | Significado |
 |--------|-------|---------|
-| `granted` | Concesión total | Administration granted everything requested |
-| `partially_granted` | Concesión parcial | Administration granted part of what was requested |
-| `denied` | Denegación | Administration refused the request |
-| `inadmitted` | Inadmisión | Administration refused to admit the request |
-| `silence` | Silencio administrativo | No express resolution within the legal deadline |
-| `NULL` | — | Not yet resolved |
+| `granted` | Concesión total | La administración concedió todo lo solicitado |
+| `partially_granted` | Concesión parcial | La administración concedió parte de lo solicitado |
+| `denied` | Denegación | La administración rechazó la solicitud |
+| `inadmitted` | Inadmisión | La administración no admitió a trámite la solicitud |
+| `silence` | Silencio administrativo | Sin resolución expresa dentro del plazo legal |
+| `NULL` | — | Aún no resuelta |
 
-## Stages of the complaint process
+## Etapas del proceso de reclamación
 
-### 1. Filing the complaint
+### 1. Presentación de la reclamación
 
-The complaint is available when the request is in workflow status `denied` or `delayed`, **or** when its `resolutionResult` is one of `partially_granted`, `denied`, `inadmitted`, `silence`, **or** when the legal deadline has passed without a `granted`/`granted_completed` resolution. See `ComplaintGenerator::canGenerateComplaint()`. The prompt adapts to the case: when `resolutionResult = partially_granted`, the draft is framed against the information NOT facilitated rather than as a total denial.
+La reclamación está disponible cuando la solicitud está en estado de flujo `denied` o `delayed`, **o** cuando su `resolutionResult` es uno de `partially_granted`, `denied`, `inadmitted`, `silence`, **o** cuando ha transcurrido el plazo legal sin una resolución `granted`/`granted_completed`. Ver `ComplaintGenerator::canGenerateComplaint()`. El prompt se adapta al caso: cuando `resolutionResult = partially_granted`, el borrador se plantea contra la información NO facilitada en lugar de como una denegación total.
 
-**Entry point — single CTA.** From the request detail page (`templates/components/RequestStatusBanner.html.twig`), the citizen sees one button — "Reclamar a {{ council }}" — that routes to `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). If a draft `Document` of type `Complaint` already exists, the label switches to "Continuar reclamación" and the same chooser surfaces the in-progress draft on top.
+**Punto de entrada — CTA único.** Desde la página de detalle de la solicitud (`templates/components/RequestStatusBanner.html.twig`), el ciudadano ve un solo botón — "Reclamar a {{ council }}" — que enruta a `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). Si ya existe un `Document` borrador de tipo `Complaint`, la etiqueta cambia a "Continuar reclamación" y el mismo selector muestra arriba el borrador en curso.
 
-**Chooser screen** (`templates/complaint/start.html.twig`). Three convergent paths:
+**Pantalla del selector** (`templates/complaint/start.html.twig`). Tres rutas convergentes:
 
-1. **Generar con IA** → 301 → `app_complaint_redactar` (`/solicitudes/{id}/redactar?mode=complaint`). Unified canvas + chat view described below.
-2. **Ya tengo el texto** → 301 → same `app_complaint_redactar`. The user lands on the same canvas; ignoring the chat and pasting into the Trix editor is functionally equivalent to the old "manual" path. Saves still mark `aiMetadata.origin === 'external'` for unmodified pastes.
-3. **Hacerlo manualmente en la sede** → external link to `ComplaintOrganism.complaintFormUrl`. The citizen presents directly on the council's e-office, bypassing PideInfo.
+1. **Generar con IA** → 301 → `app_complaint_redactar` (`/solicitudes/{id}/redactar?mode=complaint`). Vista unificada de lienzo + chat descrita más abajo.
+2. **Ya tengo el texto** → 301 → mismo `app_complaint_redactar`. El usuario aterriza en el mismo lienzo; ignorar el chat y pegar en el editor Trix es funcionalmente equivalente al antiguo flujo "manual". Los guardados siguen marcando `aiMetadata.origin === 'external'` para pegados sin modificar.
+3. **Hacerlo manualmente en la sede** → enlace externo a `ComplaintOrganism.complaintFormUrl`. El ciudadano presenta directamente en la sede electrónica del consejo, sin pasar por PideInfo.
 
-The first two paths converge on a saved `Document(type=Complaint)` and a unified post-save panel in `templates/solicitudes/show.html.twig` that offers **"Iniciar presentación"** (opens the council e-office in a new tab + downloads the PDF), plus PDF/Word download and a link back to the editor.
+Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en un panel post-guardado unificado en `templates/solicitudes/show.html.twig` que ofrece **"Iniciar presentación"** (abre la sede electrónica del consejo en una nueva pestaña + descarga el PDF), además de la descarga en PDF/Word y un enlace de vuelta al editor.
 
-`Document.aiMetadata.origin` is set to `'ai'` for assistant-generated complaints and `'external'` for pasted ones. The "Continuar / Editar" link points to `/redactar` regardless of origin.
+`Document.aiMetadata.origin` se establece a `'ai'` para reclamaciones generadas por el asistente y a `'external'` para las pegadas. El enlace "Continuar / Editar" apunta a `/redactar` independientemente del origen.
 
-**Manual status filing.** Independently of the editor flow, the user can change the complaint status dropdown on the request detail page to "Reclamada". The system creates an `AccessRequestComplaint` entity, sets a 3-month resolution deadline, and records the transition in `StatusHistory`.
+**Cambio de estado manual.** Independientemente del flujo del editor, el usuario puede cambiar el desplegable de estado de la reclamación en la página de detalle de la solicitud a "Reclamada". El sistema crea una entidad `AccessRequestComplaint`, fija un plazo de resolución de 3 meses y registra la transición en `StatusHistory`.
 
-**Unified `/redactar` view** (`templates/complaint/redactar.html.twig`, served by `App\Controller\ComplaintRedactController`). Single canvas + chat workspace that handles both reclamación and respuesta a alegaciones authoring:
+**Vista unificada `/redactar`** (`templates/complaint/redactar.html.twig`, servida por `App\Controller\ComplaintRedactController`). Un único espacio de trabajo de lienzo + chat que gestiona tanto la redacción de la reclamación como la respuesta a alegaciones:
 
-- **Mode selection** — entering `/solicitudes/{id}/redactar` without `?mode=` shows two CTAs ("Redactar reclamación" / "Responder a alegaciones"). The user picks explicitly; auto-detection from request state is intentionally avoided so the citizen knows which document they are producing.
-- **Modes** — `?mode=complaint` or `?mode=alegation_response`. Once chosen, the URL keeps the mode for the rest of the session.
-- **Multiple drafts in alegation mode** — alegation responses can have several rounds, so `?draft=<docId>` selects which saved draft to load. The header shows a list of saved alegation drafts plus a "Nuevo borrador" link. Complaint mode is single-draft per request: `getComplaintDraftDocument()` autoloads.
-- **Four chat actions** (`POST /solicitudes/{id}/redactar/asistente`, dispatched by `action`):
-  1. `free_chat` → JSON, `{reply}`. Free-form Q&A; doesn't touch the canvas.
-  2. `suggest_ideas` → JSON, `{suggestions: [{title, body, source}]}`. 2-4 concrete ideas the user can adopt by hand.
-  3. `generate_first_draft` → SSE. Streams a fresh draft into the canvas with a typewriter effect. **Disabled in the UI when the canvas already has content** — once there is a draft, the user is funnelled through "Reescribir" so the existing body is preserved.
-  4. `rewrite` → SSE. Same shape as `generate_first_draft` but the prompt receives the current canvas HTML and is told to preserve everything not asked to change. When the user fires a canvas action with an empty composer, the **last real user message** from the chat history is promoted to `### INDICACIÓN DE ESTE TURNO` (synthetic markers like "Reescribir borrador" are skipped) so a precision typed in chat actually drives the rewrite instead of staying buried as context.
-- **Persistence.** Chat history lives in two places depending on draft state:
-  - Before any save (scratch) → `AccessRequest.metadata.complaint_scratch_chat` or `alegation_response_scratch_chat`.
-  - After save → `Document.aiMetadata.chat_history`.
-  - First save migrates the scratch slot into the new document and clears it.
-- **Save.** `POST /redactar/guardar` delegates to the existing `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()` so downstream consumers (PDF, Word, present-via-agent) are unchanged.
+- **Selección de modo** — entrar en `/solicitudes/{id}/redactar` sin `?mode=` muestra dos CTAs ("Redactar reclamación" / "Responder a alegaciones"). El usuario elige explícitamente; se evita intencionadamente la autodetección a partir del estado de la solicitud para que el ciudadano sepa qué documento está produciendo.
+- **Modos** — `?mode=complaint` o `?mode=alegation_response`. Una vez elegido, la URL mantiene el modo durante el resto de la sesión.
+- **Varios borradores en modo alegación** — las respuestas a alegaciones pueden tener varias rondas, así que `?draft=<docId>` selecciona qué borrador guardado cargar. La cabecera muestra una lista de los borradores de alegación guardados más un enlace "Nuevo borrador". El modo reclamación es de borrador único por solicitud: `getComplaintDraftDocument()` autocarga.
+- **Cuatro acciones de chat** (`POST /solicitudes/{id}/redactar/asistente`, despachadas por `action`):
+  1. `free_chat` → JSON, `{reply}`. P&R en formato libre; no toca el lienzo.
+  2. `suggest_ideas` → JSON, `{suggestions: [{title, body, source}]}`. 2-4 ideas concretas que el usuario puede adoptar a mano.
+  3. `generate_first_draft` → SSE. Hace streaming de un borrador nuevo hacia el lienzo con efecto de máquina de escribir. **Deshabilitado en la UI cuando el lienzo ya tiene contenido** — una vez que hay un borrador, al usuario se le canaliza por "Reescribir" para preservar el cuerpo existente.
+  4. `rewrite` → SSE. Misma forma que `generate_first_draft` pero el prompt recibe el HTML actual del lienzo y se le indica que preserve todo lo que no se le pida cambiar. Cuando el usuario dispara una acción de lienzo con el compositor vacío, el **último mensaje real del usuario** del historial de chat se promociona a `### INDICACIÓN DE ESTE TURNO` (se ignoran marcadores sintéticos como "Reescribir borrador") para que una precisión tecleada en el chat realmente dirija la reescritura en lugar de quedarse enterrada como contexto.
+- **Persistencia.** El historial de chat vive en dos sitios según el estado del borrador:
+  - Antes de cualquier guardado (scratch) → `AccessRequest.metadata.complaint_scratch_chat` o `alegation_response_scratch_chat`.
+  - Tras guardar → `Document.aiMetadata.chat_history`.
+  - El primer guardado migra el slot scratch al nuevo documento y lo limpia.
+- **Guardado.** `POST /redactar/guardar` delega en el existente `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()` para que los consumidores aguas abajo (PDF, Word, presentar-vía-agente) no cambien.
 
-**`ComplaintDraftGenerator` service** (`src/Service/Complaint/`) owns chat-flow concerns: building the conversation preamble (history + this turn's directions + current draft for `rewrite`) and dispatching to `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()` with that preamble injected as `userDirections`. The legal scaffolding (sections, citations, RAG retrieval) stays in `ComplaintGenerator` — the new class is a thin orchestrator. `suggest_ideas` and `free_chat` use four new prompts under `config/prompts/complaint/draft-*.md` and `config/prompts/alegation/draft-*.md`.
+**Servicio `ComplaintDraftGenerator`** (`src/Service/Complaint/`) se encarga de lo relativo al flujo de chat: construir el preámbulo de la conversación (historial + indicaciones de este turno + borrador actual para `rewrite`) y despachar a `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()` con ese preámbulo inyectado como `userDirections`. El andamiaje jurídico (secciones, citas, recuperación RAG) sigue en `ComplaintGenerator` — la nueva clase es un orquestador ligero. `suggest_ideas` y `free_chat` usan cuatro prompts nuevos en `config/prompts/complaint/draft-*.md` y `config/prompts/alegation/draft-*.md`.
 
-**Streaming pipeline.** SSE follows the same shape as `app_complaint_create_stream`: `chunk`, `done`, `error` events; requires `USE_CUSTOM_MODEL=true` (Gemini path doesn't support streaming). The legacy non-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) and its SSE sibling remain for MCP tools and the agent.
+**Pipeline de streaming.** SSE sigue la misma forma que `app_complaint_create_stream`: eventos `chunk`, `done`, `error`; requiere `USE_CUSTOM_MODEL=true` (la ruta de Gemini no soporta streaming). El legado no-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) y su hermano SSE se mantienen para las tools MCP y el agente.
 
-**Legacy routes.** `/reclamacion/asistente` (`app_complaint_assistant`) and `/reclamacion/redactar` (`app_complaint_draft`) now return 301 to the unified view. Their templates (`interactive.html.twig`, `draft.html.twig`) are unused and kept only for reference until the first cleanup pass.
+**Rutas legadas.** `/reclamacion/asistente` (`app_complaint_assistant`) y `/reclamacion/redactar` (`app_complaint_draft`) ahora devuelven 301 a la vista unificada. Sus plantillas (`interactive.html.twig`, `draft.html.twig`) no se usan y se conservan solo como referencia hasta la primera pasada de limpieza.
 
-**Automatic detection.** When a document classified as `DocumentType::Complaint` is uploaded, the system automatically creates the complaint entity and records a timeline entry.
+**Detección automática.** Cuando se sube un documento clasificado como `DocumentType::Complaint`, el sistema crea automáticamente la entidad de reclamación y registra una entrada en la línea temporal.
 
 ### 1bis. Presentación vía agente (fase 2a)
 
@@ -151,139 +151,139 @@ Una vez la reclamación está guardada como `Document(type=Complaint)`, dos punt
 Flujo:
 
 1. El usuario elige modo **auto** o **supervisado**. La distinción se persiste en `AgentTask.mode`.
-2. `POST /solicitudes/{id}/reclamacion/presentar` (`app_complaint_present_via_agent`) **valida primero** que la solicitud está en estado reclamable (status ∈ {`delayed`, `inadmitted`, `denied`, `partially_granted`, `granted`, `granted_completed`}) y que existen los Documents necesarios (siempre `Request`; en branch=yes también `Response` y `Notification`). Si falta algo devuelve `409 Conflict` con `{error:'missing_documents'|'request_not_complainable', missing:[...]}`. Si todo está bien crea un `AgentTask(type='present_complaint')` con el payload extendido descrito en `docs/CTBG_RECLAMACIONES.md` (incluye `public_body_name`, `complaint_branch`, `complaint_reason`, `resolution_result`, `notification_date`, `complaint_body` y URLs absolutas a `/api/agent/documents/<id>/download` para los PDFs adjuntos). El `resolution_result` (uno de `granted | partially_granted | denied | inadmitted | silence | null`) es el tipo concreto de respuesta de la administración y determina la opción que el agente debe seleccionar en el desplegable «RAZONES DE LA RECLAMACIÓN» del CTBG; se mapea contra `AccessRequest.resolutionResult`, no contra el `status` del flujo (que puede haber evolucionado a `granted_completed` y haber perdido el matiz "parcial").
+2. `POST /solicitudes/{id}/reclamacion/presentar` (`app_complaint_present_via_agent`) **valida primero** que la solicitud está en estado reclamable (status ∈ {`delayed`, `inadmitted`, `denied`, `partially_granted`, `granted`, `granted_completed`}) y que existen los Documents necesarios (siempre `Request`; en branch=yes también `Response` y `Notification`). Si falta algo devuelve `409 Conflict` con `{error:'missing_documents'|'request_not_complainable', missing:[...]}`. Si todo está bien crea un `AgentTask(type='present_complaint')` con el payload extendido descrito en `docs/documentacion-procesos-envio/ctbg_presentacion_reclamaciones.md` (incluye `public_body_name`, `complaint_branch`, `complaint_reason`, `resolution_result`, `notification_date`, `complaint_body` y URLs absolutas a `/api/agent/documents/<id>/download` para los PDFs adjuntos). El `resolution_result` (uno de `granted | partially_granted | denied | inadmitted | silence | null`) es el tipo concreto de respuesta de la administración y determina la opción que el agente debe seleccionar en el desplegable «RAZONES DE LA RECLAMACIÓN» del CTBG; se mapea contra `AccessRequest.resolutionResult`, no contra el `status` del flujo (que puede haber evolucionado a `granted_completed` y haber perdido el matiz "parcial").
 3. El agente periódicamente drena la cola (`drain_tasks_job` cada 60 s en `agent/main.py`), claims la tarea y la dispatcha a `tasks/present_complaint.py:handle()`.
 4. El handler descarga todos los PDFs vía JWT, lanza Firefox visible reutilizando el `firefox-profile` autenticado y conduce el wizard CTBG paso 1 → 4 (`CtbgComplaintFiller`). Marca la tarea `done` con `result.status='awaiting_signature'` y deja el navegador abierto en el paso 5 (Firmar).
 5. **Tanto auto como supervisado** se quedan en el paso 5 hoy: la firma electrónica (paso 5) y el acuse de recibo (paso 6) son trabajo pendiente. El usuario firma a mano vía noVNC (dev) o su navegador local (producción) y la solicitud pasa al CTBG.
 
-### 2. Receipt confirmation
+### 2. Confirmación del acuse de recibo
 
-The transparency council acknowledges receipt of the complaint.
+El consejo de transparencia acusa recibo de la reclamación.
 
-**Document type:** `DocumentType::ComplaintReceipt`
+**Tipo de documento:** `DocumentType::ComplaintReceipt`
 
-When this document is uploaded:
-- The complaint entity is created if it doesn't exist
-- The 3-month resolution deadline is (re)calculated from the receipt date
-- A timeline entry is recorded
+Cuando se sube este documento:
+- Se crea la entidad de reclamación si no existe
+- El plazo de resolución de 3 meses se (re)calcula desde la fecha del acuse de recibo
+- Se registra una entrada en la línea temporal
 
-This is important because the 3-month clock starts from when the council formally receives the complaint, not from when the citizen sends it.
+Esto es importante porque el reloj de los 3 meses arranca desde que el consejo recibe formalmente la reclamación, no desde que el ciudadano la envía.
 
-### 3. Processing start
+### 3. Inicio de tramitación
 
-The council notifies that it has formally begun processing the complaint.
+El consejo notifica que ha iniciado formalmente la tramitación de la reclamación.
 
-**Document type:** `DocumentType::ComplaintProcessingStart`
+**Tipo de documento:** `DocumentType::ComplaintProcessingStart`
 
-When uploaded:
-- The 3-month deadline is recalculated from the processing start date
-- A timeline entry is recorded
+Al subirlo:
+- El plazo de 3 meses se recalcula desde la fecha de inicio de tramitación
+- Se registra una entrada en la línea temporal
 
-### 4. Subsanación (correction)
+### 4. Subsanación
 
-The transparency council may ask the citizen to correct or complete the complaint.
+El consejo de transparencia puede pedir al ciudadano que corrija o complete la reclamación.
 
-**Document type (request):** `DocumentType::Subsanacion` — The council's correction request
+**Tipo de documento (requerimiento):** `DocumentType::Subsanacion` — La solicitud de subsanación del consejo
 
-**Document type (response):** `DocumentType::SubsanacionResponse` — The citizen's corrected submission
+**Tipo de documento (respuesta):** `DocumentType::SubsanacionResponse` — La subsanación corregida del ciudadano
 
-Both generate timeline entries. The complaint remains in `reclaimed` status throughout.
+Ambos generan entradas en la línea temporal. La reclamación permanece en estado `reclaimed` durante todo el proceso.
 
-### 5. Administration's allegations
+### 5. Alegaciones de la administración
 
-The council asks the public body that denied the request to present its arguments (*alegaciones*). The administration submits a document defending its decision.
+El consejo pide al organismo público que denegó la solicitud que presente sus argumentos (*alegaciones*). La administración entrega un documento defendiendo su decisión.
 
-**Document type:** `DocumentType::Alegaciones`
+**Tipo de documento:** `DocumentType::Alegaciones`
 
-When uploaded:
-- If no complaint exists, one is created (the existence of allegations implies a complaint is in progress)
-- The AI extracts the administration's key arguments (`alegationPoints` in metadata)
-- These points are displayed on the request detail page as a numbered list
-- A timeline entry is recorded
+Al subirlo:
+- Si no existe reclamación, se crea una (la existencia de alegaciones implica que hay una reclamación en curso)
+- La IA extrae los argumentos clave de la administración (`alegationPoints` en metadatos)
+- Estos puntos se muestran en la página de detalle de la solicitud como una lista numerada
+- Se registra una entrada en la línea temporal
 
-### 6. Audience and citizen response
+### 6. Audiencia y respuesta del ciudadano
 
-The council gives the citizen a deadline to review the administration's allegations and respond.
+El consejo da al ciudadano un plazo para revisar las alegaciones de la administración y responder.
 
-**Document type (notification):** `DocumentType::Audiencia` — The council's notification of the audience period, typically sent together with the administration's allegations
+**Tipo de documento (notificación):** `DocumentType::Audiencia` — La notificación del consejo del periodo de audiencia, que normalmente se envía junto con las alegaciones de la administración
 
-**Generating a response.** When the complaint status is `reclaimed`, the user can click "Responder a alegaciones" and lands on `/solicitudes/{id}/redactar?mode=alegation_response`. From there the same chat-driven flow as for reclamaciones applies — `free_chat`, `suggest_ideas`, `generate_first_draft`, `rewrite`. Internally `ComplaintDraftGenerator` delegates the canvas-replacing actions to `ComplaintGenerator::generateAlegationResponseStream()`, which:
-1. Reads the administration's allegations document and its extracted `alegationPoints`.
-2. Retrieves fresh resolutions and criteria relevant to the arguments.
-3. Receives the chat preamble (conversation context + current draft body + this turn's directions) injected as `userDirections`.
-4. Streams a structured response that, on save, becomes a new `DocumentType::AlegationResponse` (multiple rounds → multiple drafts, switchable via `?draft=`).
+**Generar una respuesta.** Cuando el estado de la reclamación es `reclaimed`, el usuario puede pulsar "Responder a alegaciones" y aterriza en `/solicitudes/{id}/redactar?mode=alegation_response`. A partir de ahí aplica el mismo flujo conversacional que para las reclamaciones — `free_chat`, `suggest_ideas`, `generate_first_draft`, `rewrite`. Internamente, `ComplaintDraftGenerator` delega las acciones que reemplazan el lienzo a `ComplaintGenerator::generateAlegationResponseStream()`, que:
+1. Lee el documento de alegaciones de la administración y sus `alegationPoints` extraídos.
+2. Recupera resoluciones y criterios actualizados relevantes para los argumentos.
+3. Recibe el preámbulo del chat (contexto de la conversación + cuerpo actual del borrador + indicaciones de este turno) inyectado como `userDirections`.
+4. Hace streaming de una respuesta estructurada que, al guardarla, se convierte en un nuevo `DocumentType::AlegationResponse` (varias rondas → varios borradores, intercambiables vía `?draft=`).
 
-### 7. Complaint extension
+### 7. Ampliación de la reclamación
 
-At any point during the process, the citizen can unilaterally send additional documents to the transparency council — for example, new communications from the administration, or supplementary evidence.
+En cualquier momento del proceso, el ciudadano puede enviar unilateralmente documentos adicionales al consejo de transparencia — por ejemplo, nuevas comunicaciones de la administración o pruebas complementarias.
 
-**Document type:** `DocumentType::ComplaintExtension`
+**Tipo de documento:** `DocumentType::ComplaintExtension`
 
-These generate timeline entries and keep the full record of the complaint's documentary evidence.
+Estos generan entradas en la línea temporal y mantienen el registro completo de la prueba documental de la reclamación.
 
-### 8. Resolution
+### 8. Resolución
 
-The transparency council issues its final resolution.
+El consejo de transparencia dicta su resolución final.
 
-**Document type:** `DocumentType::ComplaintResolution`
+**Tipo de documento:** `DocumentType::ComplaintResolution`
 
-The AI analyzes the resolution document to determine the outcome:
-- `complaint_granted` — The council orders the public body to provide the information
-- `complaint_denied` — The council upholds the denial
-- `complaint_archived` — The complaint is closed procedurally
+La IA analiza el documento de resolución para determinar el resultado:
+- `complaint_granted` — El consejo ordena al organismo público que facilite la información
+- `complaint_denied` — El consejo mantiene la denegación
+- `complaint_archived` — La reclamación se cierra por motivos procedimentales
 
-When the complaint is granted:
-- `resolvedAt` is set on the access request
-- A compliance deadline (`complianceDeadlineAt`) can be set, typically 10 business days from the resolution
+Cuando se estima la reclamación:
+- Se fija `resolvedAt` en la solicitud de acceso
+- Puede fijarse un plazo de cumplimiento (`complianceDeadlineAt`), normalmente 10 días hábiles desde la resolución
 
-When the complaint is denied:
-- `resolvedAt` is set
-- The citizen can pursue court action (`courtStatus` → `in_court`)
+Cuando se desestima la reclamación:
+- Se fija `resolvedAt`
+- El ciudadano puede acudir a la vía judicial (`courtStatus` → `in_court`)
 
-## Complaint deadlines
+## Plazos de la reclamación
 
-| Deadline | Duration | Trigger |
+| Plazo | Duración | Disparador |
 |----------|----------|---------|
-| Filing deadline | 30 days (configurable per law) | From denial/silence date |
-| Resolution deadline | 3 months | From council's receipt/processing start |
-| Compliance deadline | 10 business days (configurable per law) | From resolution date if granted |
+| Plazo de presentación | 30 días (configurable por ley) | Desde la fecha de denegación/silencio |
+| Plazo de resolución | 3 meses | Desde el acuse/inicio de tramitación del consejo |
+| Plazo de cumplimiento | 10 días hábiles (configurable por ley) | Desde la fecha de resolución si se estima |
 
-Deadlines are tracked in `DeadlineHistory` with types `TYPE_COMPLAINT` and `TYPE_COMPLIANCE`.
+Los plazos se registran en `DeadlineHistory` con los tipos `TYPE_COMPLAINT` y `TYPE_COMPLIANCE`.
 
-## Complaint organisms
+## Organismos de reclamación
 
-Each `ApplicableLaw` maps to a `ComplaintOrganism` — the transparency council that handles complaints for that jurisdiction:
+Cada `ApplicableLaw` se mapea a un `ComplaintOrganism` — el consejo de transparencia que tramita las reclamaciones para esa jurisdicción:
 
-| Code | Council |
+| Código | Consejo |
 |------|---------|
 | ES | Consejo de Transparencia y Buen Gobierno (CTBG) |
 | AN | Consejo de Transparencia y Protección de Datos de Andalucía |
 | CT | Comissió de Garantia del Dret d'Accés a la Informació Pública |
 | MD | Consejo de Transparencia y Participación de la Comunidad de Madrid |
 | PV | Comisión Vasca de Acceso a la Información Pública |
-| ... | (17 autonomous communities + state level) |
+| ... | (17 comunidades autónomas + ámbito estatal) |
 
-The `ComplaintOrganism` entity stores the organism's name, short name, website, complaint form URL, email, and address.
+La entidad `ComplaintOrganism` guarda el nombre del organismo, el nombre corto, la web, la URL del formulario de reclamación, el email y la dirección.
 
-## Timeline integration
+## Integración con la línea temporal
 
-Every complaint event creates a `StatusHistory` entry with `statusType = 'complaint'`. These appear in the unified timeline on the request detail page alongside primary status changes and court actions.
+Cada evento de reclamación crea una entrada en `StatusHistory` con `statusType = 'complaint'`. Estas aparecen en la línea temporal unificada de la página de detalle de la solicitud junto con los cambios de estado principales y las acciones judiciales.
 
-The timeline uses icon and color coding:
-- Complaint events show the "Reclamación" label with status transitions
-- Notes provide context (e.g., "Reclamación presentada el 15/03/2026 ante CTBG")
-- Trigger documents are linked when available
+La línea temporal usa codificación por icono y color:
+- Los eventos de reclamación muestran la etiqueta "Reclamación" con las transiciones de estado
+- Las notas aportan contexto (p. ej., "Reclamación presentada el 15/03/2026 ante CTBG")
+- Cuando están disponibles, se enlazan los documentos disparadores
 
-## Editing complaint details
+## Edición de los detalles de la reclamación
 
-On the request detail page, when a complaint exists, the user can:
-- Change the complaint status via a dropdown (same mechanism as primary status)
-- Edit the complaint's external reference number (*nº expediente reclamación*)
-- Set the complaint filing date
+En la página de detalle de la solicitud, cuando existe una reclamación, el usuario puede:
+- Cambiar el estado de la reclamación mediante un desplegable (mismo mecanismo que el estado principal)
+- Editar el número de referencia externo de la reclamación (*nº expediente reclamación*)
+- Fijar la fecha de presentación de la reclamación
 
-These inline fields submit to `AccessRequestController::editComplaint()`.
+Estos campos en línea envían a `AccessRequestController::editComplaint()`.
 
-## MCP integration
+## Integración MCP
 
 Clientes MCP pueden cubrir el ciclo completo de la reclamación con tres tools (`docs/mcp.md`):
 

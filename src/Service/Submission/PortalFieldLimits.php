@@ -14,7 +14,7 @@ use App\Entity\AgentTask;
  * Validation runs on the server (via Length constraints) and on the client
  * (via the character_counter Stimulus controller using attr.maxlength).
  *
- * Discovery details for each channel live in app/docs/transparencia_age_submission.md.
+ * Discovery details for each channel live in app/docs/documentacion-procesos-envio/transparencia_age.md.
  */
 final class PortalFieldLimits
 {

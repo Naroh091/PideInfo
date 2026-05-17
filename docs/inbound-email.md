@@ -1,8 +1,8 @@
-# Inbound email processing
+# Procesamiento de correo entrante
 
-PideInfo provides each user with a unique virtual email address that they can give to public administrations. Emails sent to this address are automatically ingested: the body and attachments are stored, analyzed by AI, and linked to the appropriate access request — the same pipeline used for manual uploads and portal sync.
+PideInfo proporciona a cada usuario una dirección de correo electrónico virtual única que puede facilitar a las administraciones públicas. Los correos enviados a esa dirección se ingieren automáticamente: el cuerpo y los adjuntos se almacenan, se analizan mediante IA y se vinculan a la solicitud de acceso correspondiente — el mismo pipeline que se utiliza para las subidas manuales y para la sincronización del portal.
 
-## Architecture
+## Arquitectura
 
 ```
 Email to usuario-xxx@pideinfo.es
@@ -36,42 +36,42 @@ AI pipeline (same as manual uploads)
   └── Timeline entries recorded
 ```
 
-## Virtual email addresses
+## Direcciones de correo virtuales
 
-Each user can generate one virtual email address from the dashboard. The address format is:
+Cada usuario puede generar una dirección de correo virtual desde el panel. El formato de la dirección es:
 
 ```
 usuario-{10-character hex token}@pideinfo.es
 ```
 
-The token is cryptographically random (`bin2hex(random_bytes(5))`). Once generated, the address is permanent and stored in `User.virtualEmail` (unique, nullable column).
+El token es criptográficamente aleatorio (`bin2hex(random_bytes(5))`). Una vez generada, la dirección es permanente y se guarda en `User.virtualEmail` (columna única y anulable).
 
-### Generation
+### Generación
 
-- Service: `VirtualEmailManager` (`src/Service/Email/VirtualEmailManager.php`)
+- Servicio: `VirtualEmailManager` (`src/Service/Email/VirtualEmailManager.php`)
 - Endpoint: `POST /perfil/email-virtual/generar`
-- Requires: verified user (`isVerified`)
-- Idempotent: returns the existing address if already generated
-- Domain configured via `VIRTUAL_EMAIL_DOMAIN` environment variable
+- Requiere: usuario verificado (`isVerified`)
+- Idempotente: devuelve la dirección existente si ya se había generado
+- Dominio configurado mediante la variable de entorno `VIRTUAL_EMAIL_DOMAIN`
 
-### Usage
+### Uso
 
-The user provides this address to public administrations in their FOIA requests, either as the contact email or as a CC address. When the administration sends a response, extension notice, or any other communication, it arrives at this address and is automatically processed.
+El usuario facilita esta dirección a las administraciones públicas en sus solicitudes de acceso a información, ya sea como correo de contacto o como dirección en copia. Cuando la administración envía una respuesta, una notificación de prórroga o cualquier otra comunicación, llega a esta dirección y se procesa automáticamente.
 
 ## Cloudflare Email Worker
 
-Located at `pideinfo-worker/`. A TypeScript Cloudflare Worker that receives emails via Cloudflare Email Routing and forwards them as JSON to PideInfo's webhook.
+Ubicado en `pideinfo-worker/`. Un Cloudflare Worker en TypeScript que recibe correos a través de Cloudflare Email Routing y los reenvía como JSON al webhook de PideInfo.
 
-### How it works
+### Cómo funciona
 
-1. Cloudflare Email Routing is configured as a catch-all on the `pideinfo.es` domain
-2. All incoming emails are routed to the Worker
-3. The Worker filters by prefix: only `usuario-*` addresses are processed, everything else is silently dropped
-4. The Worker parses the raw MIME message using `postal-mime`
-5. Attachments are base64-encoded
-6. A JSON payload is POSTed to the webhook URL
+1. Cloudflare Email Routing está configurado como catch-all en el dominio `pideinfo.es`
+2. Todos los correos entrantes se dirigen al Worker
+3. El Worker filtra por prefijo: solo se procesan las direcciones `usuario-*`; el resto se descarta silenciosamente
+4. El Worker parsea el mensaje MIME en bruto usando `postal-mime`
+5. Los adjuntos se codifican en base64
+6. Se envía un payload JSON por POST a la URL del webhook
 
-### Payload format
+### Formato del payload
 
 ```json
 {
@@ -91,7 +91,7 @@ Located at `pideinfo-worker/`. A TypeScript Cloudflare Worker that receives emai
 }
 ```
 
-### Deployment
+### Despliegue
 
 ```bash
 cd pideinfo-worker
@@ -100,46 +100,46 @@ wrangler secret put WEBHOOK_SECRET    # shared secret for authentication
 wrangler deploy
 ```
 
-The `WEBHOOK_URL` is configured in `wrangler.jsonc` vars (default: `https://pideinfo.es/webhook/inbound-email`). `WEBHOOK_SECRET` must be set as a Wrangler secret — it is never committed to source.
+La `WEBHOOK_URL` se configura en las vars de `wrangler.jsonc` (por defecto: `https://pideinfo.es/webhook/inbound-email`). `WEBHOOK_SECRET` debe definirse como secret de Wrangler — nunca se commitea al repositorio.
 
-### Configuration
+### Configuración
 
-| Setting | Location | Description |
+| Ajuste | Ubicación | Descripción |
 |---------|----------|-------------|
-| `WEBHOOK_URL` | `wrangler.jsonc` vars | PideInfo webhook endpoint |
-| `WEBHOOK_SECRET` | Wrangler secret | Shared authentication secret |
-| Email Routing | Cloudflare dashboard | Catch-all → route to this Worker |
+| `WEBHOOK_URL` | vars de `wrangler.jsonc` | Endpoint del webhook de PideInfo |
+| `WEBHOOK_SECRET` | Secret de Wrangler | Secreto compartido de autenticación |
+| Email Routing | Panel de Cloudflare | Catch-all → enrutar a este Worker |
 
-## Webhook controller
+## Controlador del webhook
 
 `src/Controller/Webhook/InboundEmailController.php`
 
-Route: `POST /webhook/inbound-email`
+Ruta: `POST /webhook/inbound-email`
 
-### Authentication
+### Autenticación
 
-- Header: `X-Webhook-Secret` (compared with `INBOUND_EMAIL_WEBHOOK_SECRET` env var using constant-time `hash_equals()`)
-- Route excluded from Symfony firewall auth (`/webhook/` is `PUBLIC_ACCESS` in `security.yaml`)
+- Cabecera: `X-Webhook-Secret` (comparada con la variable de entorno `INBOUND_EMAIL_WEBHOOK_SECRET` mediante `hash_equals()` en tiempo constante)
+- Ruta excluida de la autenticación del firewall de Symfony (`/webhook/` está como `PUBLIC_ACCESS` en `security.yaml`)
 
-### Rate limiting
+### Limitación de tasa
 
-- 30 requests/minute per IP (`limiter.inbound_email` in `config/packages/rate_limiter.yaml`)
-- Maximum payload size: 50 MB
+- 30 peticiones/minuto por IP (`limiter.inbound_email` en `config/packages/rate_limiter.yaml`)
+- Tamaño máximo de payload: 50 MB
 
-### Processing steps
+### Pasos de procesamiento
 
-1. **Validate** — check secret, rate limit, payload size, JSON parsing
-2. **Look up user** — find user by virtual email address. If no user matches, return 200 silently (no information leakage about valid addresses)
-3. **Skip empty emails** — if no body text and no attachments, skip
-4. **Deduplicate** — hash `from + date + subject + attachment count` with SHA-256. If a document with the same `emailHash` already exists for the user, skip as duplicate
-5. **Store email body** — if the email has body text, store it as a `text/plain` document in S3. The filename is `Email: {subject}` (truncated to 200 characters)
-6. **Store attachments** — each attachment is filtered by allowed MIME types, base64-decoded, and stored in S3
-7. **Create Document entities** — each stored file becomes a `Document` with `sourceType: 'email'` and shared `sourceMetadata`
-8. **Dispatch processing** — single document → `ProcessDocumentMessage`, multiple → `ProcessDocumentBatchMessage`
+1. **Validar** — comprobar el secret, el rate limit, el tamaño del payload y el parseo del JSON
+2. **Buscar el usuario** — localizar al usuario por la dirección de correo virtual. Si ningún usuario coincide, devolver 200 silenciosamente (sin filtrar información sobre qué direcciones son válidas)
+3. **Omitir correos vacíos** — si no hay texto en el cuerpo ni adjuntos, se omite
+4. **Deduplicar** — hash de `from + date + subject + attachment count` con SHA-256. Si ya existe un documento con el mismo `emailHash` para el usuario, se omite como duplicado
+5. **Almacenar el cuerpo del correo** — si el correo tiene texto, se guarda como documento `text/plain` en S3. El nombre del fichero es `Email: {subject}` (truncado a 200 caracteres)
+6. **Almacenar adjuntos** — cada adjunto se filtra por los tipos MIME permitidos, se decodifica desde base64 y se guarda en S3
+7. **Crear entidades Document** — cada fichero almacenado se convierte en un `Document` con `sourceType: 'email'` y `sourceMetadata` compartido
+8. **Despachar el procesamiento** — un único documento → `ProcessDocumentMessage`; varios → `ProcessDocumentBatchMessage`
 
-### Source metadata
+### Metadatos de origen
 
-All documents from the same email share a `sourceMetadata` JSON object:
+Todos los documentos procedentes del mismo correo comparten un objeto JSON `sourceMetadata`:
 
 ```json
 {
@@ -151,11 +151,11 @@ All documents from the same email share a `sourceMetadata` JSON object:
 }
 ```
 
-The `emailGroupId` (UUID v7) groups all documents from the same email. The `emailHash` is used for deduplication.
+El `emailGroupId` (UUID v7) agrupa todos los documentos del mismo correo. El `emailHash` se utiliza para la deduplicación.
 
-### Allowed attachment types
+### Tipos de adjunto permitidos
 
-| Format | MIME type |
+| Formato | Tipo MIME |
 |--------|-----------|
 | PDF | `application/pdf` |
 | JPEG | `image/jpeg` |
@@ -164,34 +164,34 @@ The `emailGroupId` (UUID v7) groups all documents from the same email. The `emai
 | Word (.doc) | `application/msword` |
 | Word (.docx) | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
 
-Attachments with other MIME types are silently skipped.
+Los adjuntos con otros tipos MIME se descartan silenciosamente.
 
-## What happens after ingestion
+## Qué ocurre tras la ingesta
 
-Once documents are created and dispatched to the async queue, they follow the standard document processing pipeline (see [document-processing.md](document-processing.md)):
+Una vez creados los documentos y despachados a la cola asíncrona, siguen el pipeline estándar de procesamiento de documentos (ver [document-processing.md](document-processing.md)):
 
-1. **AI analysis** — Gemini extracts document type, reference number, public body, dates, status
-2. **Request matching** — by reference number, then by keyword matching
-3. **State updates** — receipt → mark as processing, resolution → mark as granted/denied, etc.
-4. **Timeline recording** — all changes create `StatusHistory` and `DeadlineHistory` entries
+1. **Análisis con IA** — Gemini extrae tipo de documento, número de referencia, organismo público, fechas y estado
+2. **Emparejamiento con la solicitud** — primero por número de referencia y, después, por coincidencia de palabras clave
+3. **Actualizaciones de estado** — acuse de recibo → marcar como en tramitación; resolución → marcar como estimada/desestimada, etc.
+4. **Registro en el timeline** — todos los cambios crean entradas `StatusHistory` y `DeadlineHistory`
 
-The email body text document is particularly useful for AI matching: administration emails often include the reference number and context that help Gemini identify which access request the attached documents belong to.
+El documento con el texto del cuerpo del correo es especialmente útil para el emparejamiento por IA: los correos de las administraciones suelen incluir el número de referencia y el contexto que ayudan a Gemini a identificar a qué solicitud de acceso pertenecen los documentos adjuntos.
 
-## Security considerations
+## Consideraciones de seguridad
 
-- Virtual email addresses use cryptographic randomness — they cannot be guessed
-- The webhook secret prevents unauthorized submissions
-- Unknown addresses return 200 silently — no information leakage about which addresses exist
-- Rate limiting prevents abuse (30 req/min per IP)
-- Attachment MIME type filtering prevents storage of unexpected file types
-- Payload size limited to 50 MB
+- Las direcciones de correo virtuales utilizan aleatoriedad criptográfica — no se pueden adivinar
+- El secret del webhook impide envíos no autorizados
+- Las direcciones desconocidas devuelven 200 silenciosamente — sin filtrar información sobre qué direcciones existen
+- La limitación de tasa previene abusos (30 peticiones/min por IP)
+- El filtrado por tipo MIME de los adjuntos evita almacenar tipos de fichero inesperados
+- Tamaño de payload limitado a 50 MB
 
-## Key files
+## Ficheros clave
 
-| File | Purpose |
+| Fichero | Propósito |
 |------|---------|
-| `src/Controller/Webhook/InboundEmailController.php` | Webhook endpoint |
-| `src/Service/Email/VirtualEmailManager.php` | Virtual email generation |
+| `src/Controller/Webhook/InboundEmailController.php` | Endpoint del webhook |
+| `src/Service/Email/VirtualEmailManager.php` | Generación de correo virtual |
 | `pideinfo-worker/src/index.ts` | Cloudflare Email Worker |
-| `pideinfo-worker/wrangler.jsonc` | Worker configuration |
-| `config/packages/rate_limiter.yaml` | Rate limiting rules |
+| `pideinfo-worker/wrangler.jsonc` | Configuración del Worker |
+| `config/packages/rate_limiter.yaml` | Reglas de limitación de tasa |

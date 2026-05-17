@@ -1,104 +1,108 @@
 # PideInfo
 
-PideInfo is a web application that helps citizens in Spain manage **freedom of information requests** (*solicitudes de acceso a información pública*) submitted to public administrations under Spain's transparency laws.
+PideInfo es una aplicación web que ayuda a la ciudadanía española a gestionar **solicitudes de acceso a información pública** presentadas ante las administraciones públicas al amparo de la legislación española de transparencia.
 
-It tracks every request from submission through resolution — and when the administration denies access or simply doesn't respond, PideInfo helps generate legally-grounded complaints to the corresponding transparency council.
+Hace seguimiento de cada solicitud desde su presentación hasta su resolución — y, cuando la administración deniega el acceso o simplemente no responde, PideInfo ayuda a generar reclamaciones jurídicamente fundamentadas ante el consejo de transparencia correspondiente.
 
-## What it does
+## Qué hace
 
-**Request lifecycle management.** Register requests sent to any Spanish public body (state, autonomous community, or local). PideInfo calculates legal deadlines based on the applicable transparency law, tracks extensions, redirections, third-party allegation periods, and deadline suspensions — all with a full audit trail.
+**Gestión del ciclo de vida de la solicitud.** Permite registrar solicitudes enviadas a cualquier organismo público español (estatal, autonómico o local). PideInfo calcula los plazos legales en función de la ley de transparencia aplicable, registra ampliaciones, traslados, periodos de alegaciones de terceros y suspensiones de plazo — todo con un rastro de auditoría completo.
 
-**AI-powered document processing.** Upload PDFs, Word documents, or images — even drag-and-drop a ZIP of an entire case file. PideInfo uses Google Gemini to analyze each document, classify its type (receipt, resolution, extension notice, complaint filing, etc.), extract reference numbers, and automatically link it to the correct request. New requests can be created directly from uploaded documents.
+**Procesamiento documental con IA.** Sube PDFs, documentos de Word o imágenes — incluso arrastra y suelta un ZIP con un expediente entero. PideInfo usa un LLM (a través de `LlmClient`, que enruta a Google Gemini o a un modelo autoalojado compatible con OpenAI) para analizar cada documento, clasificar su tipo (acuse de recibo, resolución, prórroga, escrito de reclamación, etc.), extraer números de referencia y enlazarlo automáticamente con la solicitud correcta. Pueden crearse nuevas solicitudes directamente desde documentos subidos.
 
-**Complaint generation.** When a request is denied or goes unanswered, PideInfo retrieves relevant CTBG resolutions and interpretive criteria via vector search, then uses Gemini to draft a legally-structured complaint (*reclamación*) ready for submission to the appropriate transparency council. The same system generates responses to the administration's counter-arguments (*alegaciones*).
+**Generación de reclamaciones.** Cuando una solicitud es denegada o queda sin respuesta, PideInfo recupera resoluciones del CTBG y criterios interpretativos relevantes mediante búsqueda vectorial, y a continuación usa el LLM para redactar una *reclamación* jurídicamente estructurada lista para presentarla ante el consejo de transparencia competente. El mismo sistema genera respuestas a las *alegaciones* de la administración.
 
-**Deadline alerts.** A dashboard shows approaching deadlines, expired requests, and complaint resolution timelines. Custom reminders can be set for any request. Email notifications are sent for approaching deadlines.
+**Alertas de plazos.** Un dashboard muestra los plazos próximos a vencer, las solicitudes con plazo expirado y los plazos de resolución de las reclamaciones. Pueden configurarse recordatorios personalizados para cualquier solicitud. Se envían notificaciones por correo electrónico cuando los plazos están próximos a vencer.
 
-**Collaborative tracking.** Users within an organization can share request visibility. Requests can be organized into custom lists for case management.
+**Seguimiento colaborativo.** Las personas usuarias dentro de una organización pueden compartir la visibilidad de las solicitudes. Las solicitudes pueden organizarse en listas personalizadas para la gestión de expedientes.
 
-## Technology stack
+**Sincronización con las plataformas del Estado.** La sincronización bidireccional con las plataformas oficiales (Portal de Transparencia AGE, REG/RED SARA, sede electrónica del CTBG…) requiere tener instalado el [**PideInfo Agent**](https://github.com/Naroh091/PideInfo-Agent), una aplicación de escritorio independiente que gestiona la autenticación con Cl@ve y certificado digital, descarga expedientes y notificaciones, y automatiza la presentación de reclamaciones. El agente se autentica frente a PideInfo mediante un token JWT generado desde la interfaz web.
 
-| Layer | Technology |
+## Stack tecnológico
+
+| Capa | Tecnología |
 |-------|-----------|
 | Framework | Symfony 7.4 |
-| Database | PostgreSQL with pgvector |
+| Base de datos | PostgreSQL con pgvector |
 | ORM | Doctrine ORM 3.6 |
-| Storage | AWS S3 via Flysystem |
-| AI | Google Gemini API |
-| Vector search | Symfony AI Store + pgvector |
+| Almacenamiento | AWS S3 vía Flysystem |
+| IA | `LlmClient` → Google Gemini o modelo autoalojado compatible con OpenAI (vLLM/llama.cpp) |
+| Búsqueda vectorial | Symfony AI Store + pgvector |
 | Frontend | Twig, Tailwind CSS, Stimulus.js, Symfony UX LiveComponent |
-| Real-time | Mercure |
-| Message queue | Symfony Messenger (Doctrine transport) |
-| Admin panel | EasyAdmin 4 |
-| Document generation | DOMPDF, PHPWord |
-| Email | Amazon SES |
+| Tiempo real | Mercure |
+| Cola de mensajes | Symfony Messenger (transporte Doctrine) |
+| Panel de administración | EasyAdmin 4 |
+| Generación de documentos | DOMPDF, PHPWord |
+| Correo electrónico | Amazon SES |
 
-## Project structure
+## Estructura del proyecto
 
 ```
 src/
-  Command/          Console commands (deadline checks, data imports)
-  Controller/       HTTP controllers + EasyAdmin CRUD controllers
-  DataTable/        DataTables configuration for list views
-  DTO/              Data transfer objects (complaint drafts, chat messages)
-  Entity/           Doctrine entities (15 domain entities)
-  Enum/             PHP enums (DocumentType)
-  Form/             Symfony form types
-  Message/          Messenger messages (async document processing)
-  MessageHandler/   Handlers for async messages
-  Repository/       Doctrine repositories
-  Service/          Business logic
-    AccessRequest/    Deadline calculation, request management
-    AI/               Document analysis, resolution/criteria retrieval
-    Complaint/        Complaint generation, success analysis
-    Document/         PDF and Word generation
-  Twig/             LiveComponent classes (dashboard widgets)
+  Command/          Comandos de consola (chequeos de plazos, imports de datos)
+  Controller/       Controladores HTTP + controladores CRUD de EasyAdmin
+  DataTable/        Configuración de DataTables para las vistas de listado
+  DTO/              Objetos de transferencia de datos (borradores de reclamación, mensajes de chat)
+  Entity/           Entidades Doctrine (15 entidades de dominio)
+  Enum/             Enums PHP (DocumentType)
+  Form/             Form types de Symfony
+  Message/          Mensajes de Messenger (procesamiento asíncrono de documentos)
+  MessageHandler/   Handlers para mensajes asíncronos
+  Repository/       Repositorios Doctrine
+  Service/          Lógica de negocio
+    AccessRequest/    Cálculo de plazos, gestión de solicitudes
+    AI/               Análisis de documentos, recuperación de resoluciones/criterios
+    Complaint/        Generación de reclamaciones, análisis de éxito
+    Document/         Generación de PDF y Word
+  Twig/             Clases LiveComponent (widgets del dashboard)
 
 templates/
-  solicitudes/      Request views (list, show, edit, create)
-  complaint/        Complaint generation interface
-  datatable/        DataTable column templates
-  components/       Twig component templates
-  layouts/          Base layout
+  solicitudes/      Vistas de solicitudes (listado, detalle, edición, alta)
+  complaint/        Interfaz de generación de reclamaciones
+  datatable/        Plantillas de columnas de DataTable
+  components/       Plantillas de Twig components
+  layouts/          Layout base
 
-migrations/         Doctrine migrations
-docs/               Technical documentation
+migrations/         Migraciones de Doctrine
+docs/               Documentación técnica
 ```
 
-## Key concepts
+## Conceptos clave
 
-- **AccessRequest** — A submitted FOIA request to a public body, tracking its full lifecycle from submission to resolution.
-- **AccessRequestComplaint** — A complaint filed with a transparency council when a request is denied or unanswered. Tracks its own status, deadlines, and external reference number.
-- **Document** — Any file uploaded to the system. AI-analyzed to extract metadata and automatically classified into one of 20 document types.
-- **ApplicableLaw** — A transparency law (state or regional) that determines response deadlines, extension rules, and which complaint organism handles appeals.
-- **StatusHistory / DeadlineHistory** — Dual audit trail recording every status change and deadline modification with timestamps, reasons, and trigger documents.
+- **AccessRequest** — Una solicitud de acceso a información presentada ante un organismo público, con seguimiento de todo su ciclo de vida, desde el envío hasta la resolución.
+- **AccessRequestComplaint** — Una reclamación presentada ante un consejo de transparencia cuando una solicitud es denegada o no recibe respuesta. Lleva su propio estado, plazos y número de referencia externo.
+- **Document** — Cualquier archivo subido al sistema. Es analizado por IA para extraer metadatos y se clasifica automáticamente en uno de los 20 tipos de documento.
+- **ApplicableLaw** — Una ley de transparencia (estatal o autonómica) que determina los plazos de respuesta, las reglas de prórroga y qué organismo de reclamación tramita los recursos.
+- **StatusHistory / DeadlineHistory** — Doble rastro de auditoría que registra cada cambio de estado y cada modificación de plazo, con marcas de tiempo, motivos y documento que disparó el cambio.
 
-## Documentation
+## Documentación
 
-Detailed technical documentation is available in the [`docs/`](docs/) directory:
+La documentación técnica detallada está disponible en el directorio [`docs/`](docs/):
 
-- [Architecture](docs/architecture.md) — Entity relationships, service layer design, the dual-history audit pattern
-- [Request workflow](docs/request-workflow.md) — The full access request lifecycle
-- [Complaint workflow](docs/complaint-workflow.md) — The complaint lifecycle from filing through resolution
-- [Document processing](docs/document-processing.md) — How uploaded documents are analyzed by AI and auto-linked
+- [Arquitectura](docs/architecture.md) — Relaciones entre entidades, diseño de la capa de servicios, el patrón de auditoría con doble historial
+- [Flujo de solicitudes](docs/request-workflow.md) — Ciclo de vida completo de la solicitud de acceso
+- [Flujo de reclamaciones](docs/complaint-workflow.md) — Ciclo de vida de la reclamación desde la presentación hasta la resolución
+- [Procesamiento de documentos](docs/document-processing.md) — Cómo los documentos subidos son analizados por IA y enlazados automáticamente
+- [Correo entrante](docs/inbound-email.md) — Pipeline de email entrante (Cloudflare Email Routing → webhook)
+- [Servidor MCP](docs/mcp.md) — Endpoint MCP con transporte HTTP y OAuth2
 
-## Setup
+## Instalación
 
 ```bash
 composer install
 npm install && npm run build
 
-# Configure .env.local with:
-# DATABASE_URL, AWS credentials, GEMINI_API_KEY, MERCURE_URL
+# Configura .env.local con:
+# DATABASE_URL, credenciales de AWS, GEMINI_API_KEY, MERCURE_URL
 
 php bin/console doctrine:migrations:migrate
-php bin/console messenger:consume async  # for document processing
+php bin/console messenger:consume async  # para el procesamiento de documentos
 ```
 
-## Legal context
+## Contexto legal
 
-The application operates within the framework of Spanish transparency law:
+La aplicación opera dentro del marco de la legislación española de transparencia:
 
-- **Ley 19/2013** — State-level right of access to public information (1-month response deadline, extendable once)
-- **Regional transparency laws** — Each autonomous community has its own law with potentially different deadlines and procedures
-- **Complaint bodies** — The CTBG (state level) and regional equivalents resolve complaints within 3 months
+- **Ley 19/2013** — Derecho de acceso a la información pública a nivel estatal (plazo de respuesta de 1 mes, prorrogable una vez)
+- **Leyes autonómicas de transparencia** — Cada comunidad autónoma cuenta con su propia ley, con plazos y procedimientos potencialmente diferentes
+- **Órganos de reclamación** — El CTBG (estatal) y sus equivalentes autonómicos resuelven las reclamaciones en un plazo de 3 meses

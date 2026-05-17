@@ -1,8 +1,8 @@
-# Architecture
+# Arquitectura
 
-## Entity relationships
+## Relaciones entre entidades
 
-The domain model centers on `AccessRequest` — a submitted FOIA request — with related entities branching out to cover complaints, documents, audit history, deadlines, and organizational structure.
+El modelo de dominio se centra en `AccessRequest` — una solicitud FOIA presentada — con entidades relacionadas que se ramifican para cubrir reclamaciones, documentos, historial de auditoría, plazos y estructura organizativa.
 
 ```
 User ──────────┐
@@ -28,157 +28,157 @@ Organization ──┤ (optional)
                └── AccessRequestListItem[] ── AccessRequestList
 ```
 
-### Core entities
+### Entidades principales
 
-**AccessRequest** is the central entity. It holds the request's title, description, current status, response deadline, and references to the public body and applicable law. It has a OneToOne relationship with `AccessRequestComplaint` (created when a complaint is filed) and OneToMany relationships with documents, history records, and custom deadlines. A free-form `metadata` JSON column caches lightweight AI artifacts; `success_analysis` (the cached `SuccessAnalyzer` output, fingerprinted by status + document IDs) is the first reserved key.
+**AccessRequest** es la entidad central. Contiene el título de la solicitud, la descripción, el estado actual, el plazo de respuesta y las referencias al organismo público y a la ley aplicable. Tiene una relación OneToOne con `AccessRequestComplaint` (creada cuando se presenta una reclamación) y relaciones OneToMany con documentos, registros de historial y plazos personalizados. Una columna JSON `metadata` de formato libre cachea artefactos ligeros de IA; `success_analysis` (la salida cacheada de `SuccessAnalyzer`, identificada por estado + IDs de documento) es la primera clave reservada.
 
-**AccessRequestComplaint** holds the state of a complaint filed with a transparency council. It has its own `externalId` (the organism's reference number), `status`, `deadlineAt` (3-month resolution deadline), `complianceDeadlineAt`, and `filedAt`. Status values: `reclaimed`, `complaint_granted`, `complaint_denied`, `complaint_archived`.
+**AccessRequestComplaint** contiene el estado de una reclamación presentada ante un consejo de transparencia. Tiene su propio `externalId` (el número de referencia del organismo), `status`, `deadlineAt` (plazo de resolución de 3 meses), `complianceDeadlineAt` y `filedAt`. Valores de estado: `reclaimed`, `complaint_granted`, `complaint_denied`, `complaint_archived`.
 
-**Document** represents any uploaded file. Each document has a `type` (from the `DocumentType` enum — 20 possible types covering the request and complaint lifecycle), extracted text, AI metadata (JSON), and processing status. Documents are stored in S3 and analyzed asynchronously.
+**Document** representa cualquier archivo subido. Cada documento tiene un `type` (del enum `DocumentType` — 20 tipos posibles que cubren el ciclo de vida de la solicitud y la reclamación), texto extraído, metadatos de IA (JSON) y estado de procesamiento. Los documentos se almacenan en S3 y se analizan de forma asíncrona.
 
-**ApplicableLaw** defines a transparency law's rules: response deadline (duration and unit — months, days, or business days), maximum extensions, complaint deadline days, and which `ComplaintOrganism` handles appeals. Each law optionally belongs to an `AutonomousCommunity`.
+**ApplicableLaw** define las reglas de una ley de transparencia: plazo de respuesta (duración y unidad — meses, días o días hábiles), máximo de prórrogas, días de plazo para reclamar y qué `ComplaintOrganism` resuelve las apelaciones. Cada ley pertenece opcionalmente a una `AutonomousCommunity`.
 
-**PublicBody** represents a government entity. It has a name, administrative level (state, autonomous, local, other), and optional autonomous community.
+**PublicBody** representa una entidad gubernamental. Tiene un nombre, nivel administrativo (estatal, autonómico, local, otro) y comunidad autónoma opcional.
 
-### Relationship patterns
+### Patrones de relación
 
-- **UUID v7 primary keys** throughout. All entities use `Symfony\Component\Uid\Uuid::v7()` for time-ordered, globally unique identifiers.
-- **Immutable datetimes.** All date/time fields use `\DateTimeImmutable` to prevent accidental mutation.
-- **Cascade persist/remove** on parent-owned collections (documents, history, custom deadlines). Orphan removal is enabled where appropriate.
-- **Soft ownership via Organization.** Users belong to an organization; queries return both personal requests and organization-wide requests.
+- **Claves primarias UUID v7** en todas partes. Todas las entidades usan `Symfony\Component\Uid\Uuid::v7()` para identificadores únicos globalmente y ordenados en el tiempo.
+- **Fechas inmutables.** Todos los campos de fecha/hora usan `\DateTimeImmutable` para evitar mutaciones accidentales.
+- **Cascade persist/remove** en las colecciones propiedad del padre (documentos, historial, plazos personalizados). La eliminación de huérfanos está habilitada cuando procede.
+- **Propiedad blanda vía Organization.** Los usuarios pertenecen a una organización; las consultas devuelven tanto las solicitudes personales como las de toda la organización.
 
-## Service layer design
+## Diseño de la capa de servicios
 
-Business logic lives in services, not in entities or controllers. The key services:
+La lógica de negocio vive en servicios, no en entidades ni en controladores. Los servicios clave:
 
 ### AccessRequestManager
 
 `src/Service/AccessRequest/AccessRequestManager.php`
 
-The central orchestrator for request state changes. All status transitions, deadline modifications, and complaint creation go through this service to ensure history is always recorded.
+El orquestador central de los cambios de estado de la solicitud. Todas las transiciones de estado, las modificaciones de plazos y la creación de reclamaciones pasan por este servicio para garantizar que el historial siempre quede registrado.
 
-Key responsibilities:
-- **Creating requests** — calculates initial deadline from applicable law, records initial deadline history
-- **Status changes** — validates transitions, records in StatusHistory, handles side effects (e.g., creating a complaint entity when status changes to "reclaimed", setting resolvedAt for terminal statuses)
-- **Deadline management** — extensions, processing start recalculation, third-party suspension/resumption, law change recalculation
-- **Complaint lifecycle** — creates/removes `AccessRequestComplaint` entities, sets complaint deadlines, manages compliance deadlines
+Responsabilidades clave:
+- **Crear solicitudes** — calcula el plazo inicial a partir de la ley aplicable, registra el historial de plazo inicial
+- **Cambios de estado** — valida transiciones, registra en StatusHistory, gestiona efectos colaterales (p. ej., crear una entidad de reclamación cuando el estado cambia a "reclaimed", establecer resolvedAt para estados terminales)
+- **Gestión de plazos** — prórrogas, recálculo de inicio de tramitación, suspensión/reanudación por terceros, recálculo por cambio de ley
+- **Ciclo de vida de la reclamación** — crea/elimina entidades `AccessRequestComplaint`, establece plazos de reclamación, gestiona los plazos de cumplimiento
 
 ### DeadlineCalculator
 
 `src/Service/AccessRequest/DeadlineCalculator.php`
 
-Pure calculation service with no side effects. Handles:
-- Calendar month arithmetic (Jan 31 + 1 month = Feb 28)
-- Business day counting (excludes weekends and Spanish national holidays)
-- Dynamic holiday calculation (Easter-based: Maundy Thursday, Good Friday)
-- Law-specific deadline rules (some laws use calendar days, others use business days)
+Servicio de cálculo puro sin efectos colaterales. Maneja:
+- Aritmética de meses naturales (31 ene + 1 mes = 28 feb)
+- Cómputo de días hábiles (excluye fines de semana y festivos nacionales españoles)
+- Cálculo dinámico de festivos (basados en la Pascua: Jueves Santo, Viernes Santo)
+- Reglas de plazo específicas por ley (algunas leyes usan días naturales, otras días hábiles)
 
 ### AssistantChatController + AssistantChatStreamer
 
 `src/Controller/AssistantChatController.php` + `src/Service/AI/Chat/AssistantChatStreamer.php`
 
-Unified chat-driven drafting assistant for the "Realizar" flow. One SSE endpoint per supported flow (today: `POST /asistente/request/{id}`; complaint is on the roadmap and still served by the legacy SSE endpoint in `ComplaintRedactController`).
+Asistente unificado de redacción guiado por chat para el flujo "Realizar". Un endpoint SSE por flujo soportado (hoy: `POST /asistente/request/{id}`; la reclamación está en la hoja de ruta y todavía la sirve el endpoint SSE heredado en `ComplaintRedactController`).
 
-- The system prompt (`App\Service\AI\Chat\Composer\RequestPromptComposer` for solicitudes) embeds an **auto-decision policy**: the model emits a conversational reply, then a literal `===DECISION===` marker, then a JSON `{action, draft?}` where `action ∈ {"reply", "generate", "rewrite"}`.
-- `App\Service\AI\StreamingDecisionSplitter` reads the token stream, flushes everything before the marker as `chat_token` events and accumulates the post-marker JSON to emit a single `decision` event at the end.
-- Attachments uploaded in the chat composer are parsed by `App\Service\AI\Chat\ChatAttachmentParser` into `ContentPart[]` (PDF/PNG/JPG inline as base64; CSV/TXT/MD inline as text) and travel as part of the user turn. They are **not** persisted to S3; the parser is a pure transform.
-- The controller captures a `previousDraft` snapshot before the LLM call and passes it back in the `decision` event for the optional client-side diff modal.
+- El system prompt (`App\Service\AI\Chat\Composer\RequestPromptComposer` para solicitudes) incrusta una **política de autodecisión**: el modelo emite una respuesta conversacional, luego un marcador literal `===DECISION===`, y después un JSON `{action, draft?}` donde `action ∈ {"reply", "generate", "rewrite"}`.
+- `App\Service\AI\StreamingDecisionSplitter` lee el flujo de tokens, vacía todo lo anterior al marcador como eventos `chat_token` y acumula el JSON posterior al marcador para emitir un único evento `decision` al final.
+- Los adjuntos subidos en el compositor del chat se parsean mediante `App\Service\AI\Chat\ChatAttachmentParser` a `ContentPart[]` (PDF/PNG/JPG en línea como base64; CSV/TXT/MD en línea como texto) y viajan como parte del turno del usuario. **No** se persisten en S3; el parser es una transformación pura.
+- El controlador captura una instantánea `previousDraft` antes de la llamada al LLM y la devuelve en el evento `decision` para el modal de diff opcional en cliente.
 
 ### ComplaintGenerator
 
 `src/Service/Complaint/ComplaintGenerator.php`
 
-Generates legally-structured complaint documents through `LlmClient` (Gemini or custom model, depending on `USE_CUSTOM_MODEL`):
-1. Retrieves similar favorable resolutions via vector search (`ResolutionRetriever`)
-2. Retrieves relevant interpretive criteria (`CriteriaRetriever`)
-3. Builds a detailed prompt with request context, timeline, legal framework, and retrieved references
-4. Calls `LlmClient::chat()` with `ModelSize::Big` (supports multi-turn conversation for refinement)
-5. Extracts cited resolutions and criteria from the generated text
+Genera documentos de reclamación legalmente estructurados a través de `LlmClient` (Gemini o modelo personalizado, según `USE_CUSTOM_MODEL`):
+1. Recupera resoluciones favorables similares mediante búsqueda vectorial (`ResolutionRetriever`)
+2. Recupera criterios interpretativos relevantes (`CriteriaRetriever`)
+3. Construye un prompt detallado con el contexto de la solicitud, la cronología, el marco legal y las referencias recuperadas
+4. Llama a `LlmClient::chat()` con `ModelSize::Big` (soporta conversación multi-turno para refinamiento)
+5. Extrae las resoluciones y criterios citados del texto generado
 
-Also generates responses to administration allegations (*alegaciones*) using a similar flow.
+También genera respuestas a las alegaciones de la administración (*alegaciones*) usando un flujo similar.
 
 ### DocumentAnalyzer
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-Analyzes uploaded documents through `LlmClient` (multimodal, `ModelSize::Mid`):
-- Reads file content from S3, encodes to base64
-- Builds `ContentPart[]` (text + `inline_data`) and calls `LlmClient::chatJson()`; the facade translates to either Gemini's native `inline_data` parts or OpenAI-style `image_url` data URIs depending on `USE_CUSTOM_MODEL`
-- Extracts: document type, reference number, public body, applicable law, dates, status, denial reasons, redirection targets, third-party rights flags
-- Supports both single-document and multi-document (batch) analysis
+Analiza los documentos subidos a través de `LlmClient` (multimodal, `ModelSize::Mid`):
+- Lee el contenido del archivo desde S3, lo codifica a base64
+- Construye `ContentPart[]` (texto + `inline_data`) y llama a `LlmClient::chatJson()`; la fachada traduce a partes nativas `inline_data` de Gemini o a data URIs `image_url` al estilo OpenAI según `USE_CUSTOM_MODEL`
+- Extrae: tipo de documento, número de referencia, organismo público, ley aplicable, fechas, estado, motivos de denegación, destinos de redirección, indicadores de derechos de terceros
+- Soporta análisis de un único documento y de varios documentos (por lotes)
 
 ### ProcessDocumentHandler / ProcessDocumentBatchHandler
 
 `src/MessageHandler/ProcessDocumentHandler.php`
 
-Asynchronous message handlers that:
-1. Invoke `DocumentAnalyzer` to get AI analysis
-2. Attempt to link the document to an existing request (by reference number, then by keyword matching)
-3. Optionally create a new `AccessRequest` if the document is a request or receipt
-4. Update request state based on document type (e.g., receipt → mark as processing, resolution → update status, complaint → create complaint entity)
-5. Record timeline entries for all state changes
-6. Dispatch `GenerateDocumentEmbeddingsMessage` so the document's `extractedText` is chunked and pre-embedded into `ai_documents` (used by `SuccessAnalyzer` and `ComplaintGenerator` as the RAG query vector instead of an inline-embedded title/description)
+Handlers de mensajes asíncronos que:
+1. Invocan a `DocumentAnalyzer` para obtener el análisis de IA
+2. Intentan vincular el documento a una solicitud existente (por número de referencia, luego por coincidencia de palabras clave)
+3. Opcionalmente crean una nueva `AccessRequest` si el documento es una solicitud o un acuse de recibo
+4. Actualizan el estado de la solicitud según el tipo de documento (p. ej., acuse → marcar como en tramitación, resolución → actualizar estado, reclamación → crear entidad de reclamación)
+5. Registran entradas de la cronología para todos los cambios de estado
+6. Despachan `GenerateDocumentEmbeddingsMessage` para que el `extractedText` del documento se trocee y se pre-embeba en `ai_documents` (usado por `SuccessAnalyzer` y `ComplaintGenerator` como vector de consulta RAG en lugar de un título/descripción embebido en línea)
 
 ### GenerateDocumentEmbeddingsHandler
 
 `src/MessageHandler/GenerateDocumentEmbeddingsHandler.php`
 
-Splits a Document's `extractedText` via `PdfTextExtractor::chunkText()`, generates an embedding per chunk through `EmbeddingGenerator`, and stores `(documentId, accessRequestId, documentType, chunkIndex)` rows in the `ai_documents` pgvector store. Idempotent: previous rows for the same `documentId` are deleted before inserting, so reprocessing a document does not accumulate duplicates. Triggered from `ProcessDocumentHandler`, `ProcessDocumentBatchHandler`, the manual link path in `DocumentController`, and the backfill command `app:documents:backfill-embeddings`.
+Divide el `extractedText` de un Document mediante `PdfTextExtractor::chunkText()`, genera un embedding por chunk a través de `EmbeddingGenerator` y almacena filas `(documentId, accessRequestId, documentType, chunkIndex)` en el almacén pgvector `ai_documents`. Idempotente: las filas previas del mismo `documentId` se eliminan antes de insertar, de modo que reprocesar un documento no acumula duplicados. Se dispara desde `ProcessDocumentHandler`, `ProcessDocumentBatchHandler`, la ruta de vinculación manual en `DocumentController` y el comando de backfill `app:documents:backfill-embeddings`.
 
-## The dual-history audit pattern
+## El patrón de auditoría con doble historial
 
-Every meaningful change to an access request is recorded in two complementary history tables:
+Cada cambio relevante en una solicitud de acceso se registra en dos tablas de historial complementarias:
 
 ### StatusHistory
 
-Records **state transitions** — who/what changed the status and when.
+Registra **transiciones de estado** — quién/qué cambió el estado y cuándo.
 
-| Field | Purpose |
+| Campo | Propósito |
 |-------|---------|
-| `statusType` | Which status changed: `status` (primary), `complaint`, `courtStatus` |
-| `fromStatus` | Previous value |
-| `toStatus` | New value |
-| `notes` | Human-readable context (e.g., "Prórroga según LTAIBG") |
-| `triggerDocument` | Document that caused the change (nullable) |
-| `createdAt` | When the change occurred |
+| `statusType` | Qué estado cambió: `status` (principal), `complaint`, `courtStatus` |
+| `fromStatus` | Valor anterior |
+| `toStatus` | Nuevo valor |
+| `notes` | Contexto legible por humanos (p. ej., "Prórroga según LTAIBG") |
+| `triggerDocument` | Documento que provocó el cambio (nullable) |
+| `createdAt` | Cuándo ocurrió el cambio |
 
-This table powers the **timeline view** on the request detail page. Entries are displayed chronologically with icons and color coding based on the event type. Special formatting is applied for extensions, redirections, third-party allegations, and processing starts.
+Esta tabla alimenta la **vista de cronología** en la página de detalle de la solicitud. Las entradas se muestran cronológicamente con iconos y código de color según el tipo de evento. Se aplica un formato especial para prórrogas, redirecciones, alegaciones de terceros e inicios de tramitación.
 
 ### DeadlineHistory
 
-Records **deadline changes** — why a deadline moved and by how much.
+Registra **cambios de plazo** — por qué se movió un plazo y en qué medida.
 
-| Field | Purpose |
+| Campo | Propósito |
 |-------|---------|
-| `deadlineType` | Which deadline changed: `response`, `complaint`, `compliance`, `third_party_allegations` |
-| `previousDeadline` | Old date (null for initial) |
-| `newDeadline` | New date |
-| `reason` | Why it changed: `initial`, `extension`, `complaint_resolution`, `third_party_suspension`, `third_party_resumed`, `processing_start`, `law_change`, `manual` |
-| `notes` | Detailed explanation |
-| `triggerDocument` | Document that caused the change (nullable) |
-| `createdAt` | When the change occurred |
+| `deadlineType` | Qué plazo cambió: `response`, `complaint`, `compliance`, `third_party_allegations` |
+| `previousDeadline` | Fecha anterior (null para el inicial) |
+| `newDeadline` | Fecha nueva |
+| `reason` | Por qué cambió: `initial`, `extension`, `complaint_resolution`, `third_party_suspension`, `third_party_resumed`, `processing_start`, `law_change`, `manual` |
+| `notes` | Explicación detallada |
+| `triggerDocument` | Documento que provocó el cambio (nullable) |
+| `createdAt` | Cuándo ocurrió el cambio |
 
-### Why two tables instead of one
+### Por qué dos tablas en lugar de una
 
-Status changes and deadline changes are orthogonal concerns:
-- A single event can trigger both (e.g., processing start changes status to "processing" AND recalculates the deadline)
-- A deadline can change without a status change (extension, manual adjustment)
-- A status can change without a deadline change (denied, granted)
+Los cambios de estado y los cambios de plazo son preocupaciones ortogonales:
+- Un único evento puede disparar ambos (p. ej., el inicio de tramitación cambia el estado a "processing" Y recalcula el plazo)
+- Un plazo puede cambiar sin un cambio de estado (prórroga, ajuste manual)
+- Un estado puede cambiar sin un cambio de plazo (denegado, concedido)
 
-Separating them keeps each table focused and queryable. Both are indexed on `(access_request_id, created_at)` for efficient timeline reconstruction.
+Separarlos mantiene cada tabla enfocada y consultable. Ambas están indexadas en `(access_request_id, created_at)` para una reconstrucción eficiente de la cronología.
 
-### How history is recorded
+### Cómo se registra el historial
 
-History is **never** written directly by controllers or templates. All paths go through:
-- `AccessRequestManager::changeStatus()` — creates StatusHistory + optional DeadlineHistory
-- `AccessRequestManager::extendDeadline()` / `startProcessing()` / etc. — create DeadlineHistory + optional StatusHistory
-- `ProcessDocumentHandler` — creates StatusHistory via `recordStatusChange()` when documents trigger state changes
+El historial **nunca** lo escriben directamente los controladores ni las plantillas. Todas las rutas pasan por:
+- `AccessRequestManager::changeStatus()` — crea StatusHistory + DeadlineHistory opcional
+- `AccessRequestManager::extendDeadline()` / `startProcessing()` / etc. — crean DeadlineHistory + StatusHistory opcional
+- `ProcessDocumentHandler` — crea StatusHistory vía `recordStatusChange()` cuando los documentos disparan cambios de estado
 
-This ensures the audit trail is complete regardless of how a change is initiated (UI, admin panel, document upload, API).
+Esto garantiza que el rastro de auditoría sea completo independientemente de cómo se inicie un cambio (UI, panel de administración, subida de documento, API).
 
-## Data flow overview
+## Visión general del flujo de datos
 
-### Manual upload
+### Subida manual
 
 ```
 User uploads document
@@ -202,7 +202,7 @@ User sees updated request with
 timeline, documents, and deadlines
 ```
 
-### Inbound email
+### Correo entrante
 
 ```
 Email to usuario-xxx@pideinfo.es
@@ -227,7 +227,7 @@ InboundEmailController
 Same processing pipeline as manual uploads
 ```
 
-### Portal de Transparencia sync (agent)
+### Sincronización con el Portal de Transparencia (agente)
 
 ```
 PideInfo Agent (Python, local)
@@ -254,13 +254,13 @@ PideInfo Agent (Python, local)
         Same processing pipeline as manual uploads
 ```
 
-The agent authenticates with PideInfo using a JWT token generated by the user from the web interface (see [agent.md](agent.md) for details). The token is long-lived (1 year) and stored in the agent's local preferences.
+El agente se autentica frente a PideInfo mediante un token JWT generado por el usuario desde la interfaz web (ver [agent.md](agent.md) para más detalles). El token es de larga duración (1 año) y se almacena en las preferencias locales del agente.
 
-The agent lives in `agent/` as a standalone Python project. It handles authentication, scraping, and document download. All document intelligence (AI classification, request matching, state transitions) stays in PideInfo's existing PHP pipeline.
+El agente vive en `agent/` como un proyecto Python autónomo. Se encarga de la autenticación, el scraping y la descarga de documentos. Toda la inteligencia documental (clasificación con IA, vinculación con solicitudes, transiciones de estado) se queda en el pipeline PHP existente de PideInfo.
 
-Key design: the agent is thin — it only downloads and forwards. PideInfo is the source of truth for document processing and request state.
+Diseño clave: el agente es delgado — solo descarga y reenvía. PideInfo es la fuente de verdad para el procesamiento de documentos y el estado de las solicitudes.
 
-### Web → agent (presentación de reclamaciones, fase 2a)
+### Web → agente (presentación de reclamaciones, fase 2a)
 
 Además del flujo agent→web descrito arriba, existe un canal **inverso** para tareas iniciadas desde la web:
 
@@ -269,19 +269,19 @@ Además del flujo agent→web descrito arriba, existe un canal **inverso** para 
 - Wake-up vía esquema URL custom `pideinfo://<action>/<task_id>` registrado en el SO (`agent/protocol/registration.py`). Single-instance + relay vía socket Unix / named pipe (`agent/protocol/single_instance.py`).
 - Dispatcher por tipo en `agent/tasks/`. Hoy solo `present_complaint`: descarga el PDF y abre la sede del CTBG. Fase 2b sustituirá esa acción por automatización Playwright completa.
 
-Detalle del flujo en [docs/complaint-workflow.md § 1bis](complaint-workflow.md) y de la mecánica del agente en [docs/agent.md § Recepción de tareas](agent.md).
+Detalle del flujo en [docs/complaint-workflow.md § 1bis](complaint-workflow.md).
 
-## Configuration and infrastructure
+## Configuración e infraestructura
 
-- **Database**: PostgreSQL with pgvector extension for vector similarity search
-- **Storage**: AWS S3 via Flysystem (three buckets: default, documents, and resolutions)
-- **Message queue**: Symfony Messenger with Doctrine transport (async document processing)
-- **Real-time**: Mercure hub for live dashboard updates
-- **AI models**: All chat/completion calls go through `App\Service\AI\Llm\LlmClient`, a facade that routes to either Google Gemini or an OpenAI-compatible self-hosted model (vLLM/llama.cpp). Toggled by `USE_CUSTOM_MODEL`. When using Gemini, callers pick a model "size" (`Big`/`Mid`/`Small`/`Free`) which maps to `GEMINI_BIG_MODEL` (complaint generation), `GEMINI_MID_MODEL` (document & resolution analysis), `GEMINI_SMALL_MODEL` (text formatting), or `GEMINI_FREE_MODEL`. When `USE_CUSTOM_MODEL=true`, the size is ignored and every call hits the single `CUSTOM_MODEL`. Embeddings are independent: `EmbeddingGenerator` dispatches to `GeminiEmbedder` or `QwenEmbedder` based on `USE_CUSTOM_EMBEDDING_MODEL` (default: Gemini, 3072 dims). `QwenEmbedder` reuses `CUSTOM_MODEL_ENDPOINT`/`CUSTOM_MODEL_API_KEY` by default, but `CUSTOM_EMBEDDING_ENDPOINT` and `CUSTOM_EMBEDDING_API_KEY` can override them when the embedding backend lives at a different URL. Switching the embedder requires re-vectorizing the corpus. Async batch resolution analysis still goes through `GeminiBatchService` (Gemini-only).
-- **Vector stores**: Three pgvector stores — `ai_resolutions` (resolutions from CTBG national + local/autonomous, GAIP, CTG, CVAIP, CTAR, CTCYL, CTPD, CTPDA, CRT, CVT, CTCAN, CTN — autowired as `ai.store.postgres.resolutions`), `ai_ctbg_criteria` (interpretive criteria), and `ai_documents` (per-document precomputed chunk embeddings — autowired as `ai.store.postgres.documents`). Resolution chunks store `{resolution_id, outcome, source, chunkIndex, type}` in metadata; `ResolutionRetriever` resolves `resolution_id` (UUID) via `ResolutionRepository::findByIds()` to get the authoritative summary/keypoints/fullText. Document chunks store `{documentId, accessRequestId, documentType, chunkIndex, totalChunks}` in metadata so `DocumentEmbeddingsRetriever::loadVectorsForRequest()` can surface every chunk that belongs to a given expediente without hitting the embeddings API. `SuccessAnalyzer` and `ComplaintGenerator` use those vectors as the query against `ai_resolutions` / `ai_ctbg_criteria` (via `*->retrieveByVectors()`); when they're empty (e.g. recently uploaded document, queue still pending) both fall back to the inline string-based query path.
-- **Resolution pipeline**: `app:ctbg:load-resolutions` downloads CTBG Excel files (national + local/autonomous), extracts metadata + PDF hyperlinks, downloads PDFs to S3 (`resolutions.storage`), extracts text, runs Gemini analysis (summary, keypoints, resolution/claim dates), and vectorizes full text + keypoints. Sources: `CTBG` (national, 2019+), `CTBG_LOCAL` (autonomous/local, 2021+), `GAIP` (Catalonia), `CTG` (Galicia), `CVAIP` (País Vasco — Word .docx parsed with PhpWord), `CTAR` (Aragón — metadata from listing pages, PDFs for full text), `CTCYL` (Castilla y León — Excel files for 2019-2025 + web scraping for detail pages and older years)
-- **Inbound email**: Cloudflare Email Routing on `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook at `/webhook/inbound-email` (see [inbound-email.md](inbound-email.md))
-- **Portal sync agent**: Python agent (`agent/`) using Playwright for Cl@ve auth + httpx for scraping → JWT-authenticated API at `/api/agent/webhook` (see [agent.md](agent.md))
-- **Prompt management (Langfuse)**: All hardcoded LLM prompts have been extracted to `config/prompts/<area>/<name>.md` and pushed to Langfuse as text-typed prompts under dash-only names like `pideinfo-document-analyze-single`, `pideinfo-resolution-extract-analysis`, `pideinfo-complaint-generate-complaint` (full list in `App\Prompt\PromptCatalog`). The dash convention is required because the Langfuse instance sits behind a Cloudflare WAF that blocks URL paths containing encoded slashes (`%2F`); names with slashes can't be fetched at runtime. `BundledPromptLoader` maps each dashed name to the on-disk file by stripping the `pideinfo-` prefix and splitting on the first remaining dash (`pideinfo-{namespace}-{rest}` → `config/prompts/{namespace}/{rest}.md`); the legacy `pideinfo/{ns}/{rest}` slash form is kept as a fallback. At runtime `App\Prompt\PromptStore::compile($name, $vars)` fetches the active version (label configurable via `LANGFUSE_PROMPT_LABEL`, default `production`) from Langfuse via `LangfuseAdminClient::fetchPrompt`. When Langfuse is unreachable, the credentials are missing, or the version returns 404, `PromptStore` falls back to the bundled `.md` template. Templates use Langfuse `{{var}}` placeholders; dynamic blocks (e.g. resolution outcome enums, JSON-mode suffix for the custom backend) are pre-rendered in PHP and passed as variables. Push or refresh prompts with `bin/console app:langfuse:sync-prompts` (`--dry-run`, `--only=<substring>`, `--skip-existing` supported).
-- **Observability (Langfuse via OpenTelemetry)**: All chat completions and embeddings emit Langfuse-compatible OpenTelemetry spans via OTLP/HTTP to `{LANGFUSE_BASE_URL}/api/public/otel/v1/traces`, authenticated with Basic auth (`LANGFUSE_PUBLIC_KEY`:`LANGFUSE_SECRET_KEY`). When any of those three env vars is empty, `App\Observability\TracerFactory` returns a noop provider so the app degrades silently. Instrumentation is concentrated in three places: a Symfony decorator on `LlmClient` (`TracingLlmClient`) emits one `gen_ai chat` span per attempt — including each `chatJson` retry — with input/output, model, temperature, and token usage from `ChatResult`; a decorator on `EmbeddingGenerator` (`TracingEmbeddingGenerator`) emits one span per embedding call; `App\Messenger\TracingMiddleware` wraps every consumed Messenger envelope (so `ProcessDocumentHandler`, `ProcessDocumentBatchHandler`, `ProcessResolutionHandler` get a root trace named after the message class without per-handler edits). User attribution travels with the envelope: `App\Messenger\UserContextMiddleware` reads `Security::getUser()` at dispatch time and stamps the envelope with `App\Messenger\Stamp\UserContextStamp`, which `TracingMiddleware` then projects onto the root trace as `langfuse.user.id` so the resulting trace is linked to the dispatching user even on the worker side. For HTTP-driven flows, `ComplaintGenerator::generate()` and `::generateAlegationResponse()` open their own root spans tagged with the user's email (`langfuse.user.id`) and the access-request UUID (`langfuse.session.id`); the `TracingLlmClient` and `TracingEmbeddingGenerator` decorators also pull the active `Security` user and add `langfuse.user.id` to every generation span as a fallback (e.g. direct controller-driven LLM calls without their own root trace). `ResolutionAnalyzer::formatText()` / `extractAnalysis()` and the embedding loop in `ProcessResolutionHandler::vectorizeResolution()` add `Tracer::span` wrappers so chunked LLM/embedding calls group under semantic branches (`resolution.formatText`, `resolution.vectorize`). Tokens are captured by widening `LlmClient::chat()` to return a `ChatResult` value object that exposes `promptTokens` / `completionTokens` / `modelId` / `finishReason` from the OpenAI streaming `usage` chunk (custom backend) and Gemini's `usageMetadata` (Gemini backend). `BatchSpanProcessor` exports asynchronously; `TraceFlushListener` force-flushes on `kernel.terminate` (HTTP) and the messenger middleware force-flushes per handler (workers) so spans appear in Langfuse promptly.
-- **MCP server**: HTTP-transport MCP endpoint at `/mcp`, protected by an OAuth2 Authorization Server (`league/oauth2-server-bundle`) with PKCE and Dynamic Client Registration so AI clients (Claude.ai, ChatGPT, MCP Inspector) can connect to user accounts. Tools live in `src/Mcp/Tool/` and delegate to existing services. See [mcp.md](mcp.md). Firewalls layered in this order: `dev`, `oauth_token`, `oauth_register`, `oauth_well_known`, `api` (Python agent JWT, unchanged), `mcp` (stateless bearer via `App\Security\OAuth2\OAuth2TokenHandler`), `main` (form login). Users manage authorized integrations from `/perfil/aplicaciones-conectadas` — both OAuth2 client tokens and the agent JWT can be revoked there. Agent revocation works without a JTI blacklist by storing `User.agentTokensInvalidatedAt` and rejecting tokens with `iat` older than that mark via `App\Security\AgentJwtListener`.
+- **Base de datos**: PostgreSQL con la extensión pgvector para búsqueda por similitud vectorial
+- **Almacenamiento**: AWS S3 vía Flysystem (tres buckets: por defecto, documentos y resoluciones)
+- **Cola de mensajes**: Symfony Messenger con transporte Doctrine (procesamiento asíncrono de documentos)
+- **Tiempo real**: hub Mercure para actualizaciones en vivo del dashboard
+- **Modelos de IA**: todas las llamadas de chat/completion pasan por `App\Service\AI\Llm\LlmClient`, una fachada que enruta a Google Gemini o a un modelo autoalojado compatible con OpenAI (vLLM/llama.cpp). Se conmuta con `USE_CUSTOM_MODEL`. Al usar Gemini, los llamantes eligen un "tamaño" de modelo (`Big`/`Mid`/`Small`/`Free`) que mapea a `GEMINI_BIG_MODEL` (generación de reclamaciones), `GEMINI_MID_MODEL` (análisis de documentos y resoluciones), `GEMINI_SMALL_MODEL` (formateo de texto) o `GEMINI_FREE_MODEL`. Cuando `USE_CUSTOM_MODEL=true`, el tamaño se ignora y todas las llamadas van al único `CUSTOM_MODEL`. Los embeddings son independientes: `EmbeddingGenerator` despacha a `GeminiEmbedder` o `QwenEmbedder` según `USE_CUSTOM_EMBEDDING_MODEL` (por defecto: Gemini, 3072 dimensiones). `QwenEmbedder` reutiliza `CUSTOM_MODEL_ENDPOINT`/`CUSTOM_MODEL_API_KEY` por defecto, pero `CUSTOM_EMBEDDING_ENDPOINT` y `CUSTOM_EMBEDDING_API_KEY` pueden sobreescribirlos cuando el backend de embeddings vive en una URL distinta. Cambiar el embedder requiere re-vectorizar el corpus. El análisis por lotes asíncrono de resoluciones sigue pasando por `GeminiBatchService` (solo Gemini).
+- **Almacenes vectoriales**: tres almacenes pgvector — `ai_resolutions` (resoluciones de CTBG nacional + local/autonómico, GAIP, CTG, CVAIP, CTAR, CTCYL, CTPD, CTPDA, CRT, CVT, CTCAN, CTN — autowired como `ai.store.postgres.resolutions`), `ai_ctbg_criteria` (criterios interpretativos) y `ai_documents` (embeddings precomputados por chunk de cada documento — autowired como `ai.store.postgres.documents`). Los chunks de resolución almacenan `{resolution_id, outcome, source, chunkIndex, type}` en los metadatos; `ResolutionRetriever` resuelve `resolution_id` (UUID) vía `ResolutionRepository::findByIds()` para obtener el resumen/keypoints/texto completo autoritativos. Los chunks de documento almacenan `{documentId, accessRequestId, documentType, chunkIndex, totalChunks}` en los metadatos para que `DocumentEmbeddingsRetriever::loadVectorsForRequest()` pueda exponer todos los chunks que pertenecen a un expediente dado sin pegarle a la API de embeddings. `SuccessAnalyzer` y `ComplaintGenerator` usan esos vectores como consulta contra `ai_resolutions` / `ai_ctbg_criteria` (vía `*->retrieveByVectors()`); cuando están vacíos (p. ej., documento subido recientemente, cola aún pendiente) ambos hacen fallback a la ruta de consulta basada en string en línea.
+- **Pipeline de resoluciones**: `app:ctbg:load-resolutions` descarga los ficheros Excel del CTBG (nacional + local/autonómico), extrae metadatos + hipervínculos a PDFs, descarga los PDFs a S3 (`resolutions.storage`), extrae el texto, lanza el análisis con Gemini (resumen, keypoints, fechas de resolución/reclamación) y vectoriza el texto completo + keypoints. Fuentes: `CTBG` (nacional, 2019+), `CTBG_LOCAL` (autonómico/local, 2021+), `GAIP` (Cataluña), `CTG` (Galicia), `CVAIP` (País Vasco — Word .docx parseado con PhpWord), `CTAR` (Aragón — metadatos desde páginas de listado, PDFs para el texto completo), `CTCYL` (Castilla y León — ficheros Excel para 2019-2025 + scraping web para páginas de detalle y años anteriores)
+- **Correo entrante**: Cloudflare Email Routing en `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook en `/webhook/inbound-email` (ver [inbound-email.md](inbound-email.md))
+- **Agente de sincronización con el Portal**: agente Python (`agent/`) que usa Playwright para la autenticación Cl@ve + httpx para el scraping → API autenticada con JWT en `/api/agent/webhook` (ver [agent.md](agent.md))
+- **Gestión de prompts (Langfuse)**: todos los prompts del LLM previamente hardcodeados se han extraído a `config/prompts/<area>/<name>.md` y se han subido a Langfuse como prompts de tipo texto con nombres solo con guiones como `pideinfo-document-analyze-single`, `pideinfo-resolution-extract-analysis`, `pideinfo-complaint-generate-complaint` (lista completa en `App\Prompt\PromptCatalog`). La convención de guiones es obligatoria porque la instancia de Langfuse está detrás de un WAF de Cloudflare que bloquea las rutas URL que contienen barras codificadas (`%2F`); los nombres con barras no pueden recuperarse en tiempo de ejecución. `BundledPromptLoader` mapea cada nombre con guiones al fichero en disco quitando el prefijo `pideinfo-` y partiendo por el primer guion restante (`pideinfo-{namespace}-{rest}` → `config/prompts/{namespace}/{rest}.md`); la forma heredada con barra `pideinfo/{ns}/{rest}` se mantiene como fallback. En tiempo de ejecución `App\Prompt\PromptStore::compile($name, $vars)` recupera la versión activa (etiqueta configurable vía `LANGFUSE_PROMPT_LABEL`, por defecto `production`) desde Langfuse vía `LangfuseAdminClient::fetchPrompt`. Cuando Langfuse no es alcanzable, faltan las credenciales o la versión devuelve 404, `PromptStore` hace fallback a la plantilla `.md` empaquetada. Las plantillas usan los placeholders `{{var}}` de Langfuse; los bloques dinámicos (p. ej., enums de outcome de resolución, sufijo JSON-mode para el backend personalizado) se pre-renderizan en PHP y se pasan como variables. Sube o refresca prompts con `bin/console app:langfuse:sync-prompts` (soporta `--dry-run`, `--only=<substring>`, `--skip-existing`).
+- **Observabilidad (Langfuse vía OpenTelemetry)**: todas las completions de chat y los embeddings emiten spans de OpenTelemetry compatibles con Langfuse vía OTLP/HTTP a `{LANGFUSE_BASE_URL}/api/public/otel/v1/traces`, autenticados con Basic auth (`LANGFUSE_PUBLIC_KEY`:`LANGFUSE_SECRET_KEY`). Cuando cualquiera de esas tres variables de entorno está vacía, `App\Observability\TracerFactory` devuelve un provider noop para que la app se degrade silenciosamente. La instrumentación se concentra en tres lugares: un decorator de Symfony sobre `LlmClient` (`TracingLlmClient`) emite un span `gen_ai chat` por intento — incluyendo cada retry de `chatJson` — con input/output, modelo, temperatura y uso de tokens de `ChatResult`; un decorator sobre `EmbeddingGenerator` (`TracingEmbeddingGenerator`) emite un span por llamada de embedding; `App\Messenger\TracingMiddleware` envuelve cada envelope de Messenger consumido (para que `ProcessDocumentHandler`, `ProcessDocumentBatchHandler`, `ProcessResolutionHandler` obtengan una traza raíz con el nombre de la clase del mensaje sin ediciones por handler). La atribución al usuario viaja con el envelope: `App\Messenger\UserContextMiddleware` lee `Security::getUser()` en el momento del dispatch y estampa el envelope con `App\Messenger\Stamp\UserContextStamp`, que `TracingMiddleware` proyecta luego sobre la traza raíz como `langfuse.user.id` para que la traza resultante quede vinculada al usuario que despachó incluso en el lado del worker. Para flujos HTTP, `ComplaintGenerator::generate()` y `::generateAlegationResponse()` abren sus propios spans raíz etiquetados con el email del usuario (`langfuse.user.id`) y el UUID de la solicitud de acceso (`langfuse.session.id`); los decorators `TracingLlmClient` y `TracingEmbeddingGenerator` también extraen el usuario activo de `Security` y añaden `langfuse.user.id` a cada span de generación como fallback (p. ej., llamadas a LLM dirigidas directamente por controlador sin su propia traza raíz). `ResolutionAnalyzer::formatText()` / `extractAnalysis()` y el bucle de embeddings en `ProcessResolutionHandler::vectorizeResolution()` añaden wrappers `Tracer::span` para que las llamadas troceadas de LLM/embeddings se agrupen bajo ramas semánticas (`resolution.formatText`, `resolution.vectorize`). Los tokens se capturan ampliando `LlmClient::chat()` para que devuelva un value object `ChatResult` que expone `promptTokens` / `completionTokens` / `modelId` / `finishReason` desde el chunk `usage` del streaming de OpenAI (backend personalizado) y el `usageMetadata` de Gemini (backend Gemini). `BatchSpanProcessor` exporta de forma asíncrona; `TraceFlushListener` fuerza el flush en `kernel.terminate` (HTTP) y el middleware de messenger fuerza el flush por handler (workers) para que los spans aparezcan en Langfuse rápidamente.
+- **Servidor MCP**: endpoint MCP con transporte HTTP en `/mcp`, protegido por un Authorization Server OAuth2 (`league/oauth2-server-bundle`) con PKCE y Dynamic Client Registration para que los clientes de IA (Claude.ai, ChatGPT, MCP Inspector) puedan conectarse a las cuentas de los usuarios. Las herramientas viven en `src/Mcp/Tool/` y delegan en servicios existentes. Ver [mcp.md](mcp.md). Firewalls en capas en este orden: `dev`, `oauth_token`, `oauth_register`, `oauth_well_known`, `api` (JWT del agente Python, sin cambios), `mcp` (bearer stateless vía `App\Security\OAuth2\OAuth2TokenHandler`), `main` (login por formulario). Los usuarios gestionan las integraciones autorizadas desde `/perfil/aplicaciones-conectadas` — tanto los tokens de clientes OAuth2 como el JWT del agente se pueden revocar ahí. La revocación del agente funciona sin una lista negra de JTI almacenando `User.agentTokensInvalidatedAt` y rechazando tokens con `iat` anterior a esa marca vía `App\Security\AgentJwtListener`.
