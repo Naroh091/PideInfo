@@ -44,11 +44,13 @@ final class AssistantChatController extends AbstractController
     /** Number of recent turns sent to the LLM as context. */
     private const CHAT_HISTORY_LLM_WINDOW = 12;
     /**
-     * Per-turn character cap for persisted user content. Generous enough to
-     * keep small attachments (CSV/MD/short PDF text) intact so the next turn
-     * can still reason about them; binary attachments are stored as a stub.
+     * Per-turn character cap for persisted user content. Sized to comfortably
+     * hold the largest text attachment the parser accepts
+     * ({@see ChatAttachmentParser::MAX_TEXT_CHARS} = 200k) plus the typed
+     * message, so the next turn can still reason about the attachment.
+     * Binary attachments (image/PDF as inline_data) collapse to a short stub.
      */
-    private const CHAT_HISTORY_USER_TURN_CAP = 16_000;
+    private const CHAT_HISTORY_USER_TURN_CAP = 524_288;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
