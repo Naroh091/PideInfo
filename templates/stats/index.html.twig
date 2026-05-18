@@ -1,0 +1,397 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Estadísticas · PideInfo{% endblock %}
+
+{# ────────── Maps for labels and colours ────────── #}
+{% set statusLabels = {
+    sent: 'Enviada',
+    processing: 'En trámite',
+    granted: 'Concedida (pendiente)',
+    granted_completed: 'Concedida y completada',
+    partially_granted: 'Estimación parcial',
+    denied: 'Denegada',
+    inadmitted: 'Inadmitida',
+    delayed: 'Silencio',
+    pending: 'Pendiente de recepción',
+} %}
+{% set statusColors = {
+    sent: '#64748b',
+    processing: '#0ea5e9',
+    granted: '#10b981',
+    granted_completed: '#059669',
+    partially_granted: '#84cc16',
+    denied: '#ef4444',
+    inadmitted: '#f97316',
+    delayed: '#a855f7',
+    pending: '#94a3b8',
+} %}
+{% set resolutionLabels = {
+    granted: 'Concesión total',
+    partially_granted: 'Concesión parcial',
+    denied: 'Denegación',
+    inadmitted: 'Inadmisión',
+    silence: 'Silencio administrativo',
+} %}
+{% set resolutionColors = {
+    granted: '#10b981',
+    partially_granted: '#84cc16',
+    denied: '#ef4444',
+    inadmitted: '#f97316',
+    silence: '#a855f7',
+} %}
+{% set complaintStatusLabels = {
+    reclaimed: 'Reclamada',
+    complaint_granted: 'Estimada',
+    complaint_denied: 'Desestimada',
+    complaint_archived: 'Archivada',
+} %}
+{% set complaintStatusColors = {
+    reclaimed: '#0ea5e9',
+    complaint_granted: '#10b981',
+    complaint_denied: '#ef4444',
+    complaint_archived: '#94a3b8',
+} %}
+{% set complaintResultLabels = {
+    upheld: 'Estimada',
+    partially_upheld: 'Estimada parcialmente',
+    dismissed: 'Desestimada',
+    inadmitted: 'Inadmitida',
+    archived: 'Archivada',
+} %}
+{% set complaintResultColors = {
+    upheld: '#10b981',
+    partially_upheld: '#84cc16',
+    dismissed: '#ef4444',
+    inadmitted: '#f97316',
+    archived: '#94a3b8',
+} %}
+
+{# ────────── Derived KPIs ────────── #}
+{% set totalCount = stats.totalCount %}
+{% set respondedCount = 0 %}
+{% for _, c in stats.resolutionResultCounts %}{% set respondedCount = respondedCount + c %}{% endfor %}
+{% set complaintResolvedCount = 0 %}
+{% for _, c in stats.complaintResultCounts %}{% set complaintResolvedCount = complaintResolvedCount + c %}{% endfor %}
+{% set complaintUpheldCount = (stats.complaintResultCounts.upheld|default(0)) + (stats.complaintResultCounts.partially_upheld|default(0)) %}
+
+{% set pctResponded = totalCount > 0 ? (respondedCount * 100 / totalCount)|round : 0 %}
+{% set pctAppealed = totalCount > 0 ? (stats.complaintCount * 100 / totalCount)|round : 0 %}
+{% set pctUpheld = stats.complaintCount > 0 ? (complaintUpheldCount * 100 / stats.complaintCount)|round : 0 %}
+
+{# ────────── Chart configs ────────── #}
+{# Status donut #}
+{% set statusSeries = [] %}{% set statusKeys = [] %}{% set statusPalette = [] %}
+{% for k, c in stats.statusCounts %}
+    {% if c > 0 %}
+        {% set statusSeries = statusSeries|merge([c]) %}
+        {% set statusKeys = statusKeys|merge([statusLabels[k]|default(k)]) %}
+        {% set statusPalette = statusPalette|merge([statusColors[k]|default('#94a3b8')]) %}
+    {% endif %}
+{% endfor %}
+{% set statusConfig = {
+    series: statusSeries, labels: statusKeys, colors: statusPalette,
+    chart: {type: 'donut', height: 320, fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    legend: {position: 'bottom', fontSize: '12px', markers: {size: 6}},
+    stroke: {width: 0},
+    dataLabels: {enabled: false},
+    plotOptions: {pie: {donut: {size: '68%', labels: {show: true, total: {show: true, label: 'Total', color: '#64748b'}}}}},
+    noData: {text: 'Sin datos en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{# Resolution donut #}
+{% set resSeries = [] %}{% set resKeys = [] %}{% set resPalette = [] %}
+{% for k, c in stats.resolutionResultCounts %}
+    {% if c > 0 %}
+        {% set resSeries = resSeries|merge([c]) %}
+        {% set resKeys = resKeys|merge([resolutionLabels[k]|default(k)]) %}
+        {% set resPalette = resPalette|merge([resolutionColors[k]|default('#94a3b8')]) %}
+    {% endif %}
+{% endfor %}
+{% set resConfig = {
+    series: resSeries, labels: resKeys, colors: resPalette,
+    chart: {type: 'donut', height: 320, fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    legend: {position: 'bottom', fontSize: '12px', markers: {size: 6}},
+    stroke: {width: 0},
+    dataLabels: {enabled: false},
+    plotOptions: {pie: {donut: {size: '68%', labels: {show: true, total: {show: true, label: 'Con respuesta', color: '#64748b'}}}}},
+    noData: {text: 'Aún ninguna solicitud con respuesta en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{# Complaint status + result combined donut: prefer result if any; else status #}
+{% set useComplaintResults = complaintResolvedCount > 0 %}
+{% set cSeries = [] %}{% set cKeys = [] %}{% set cPalette = [] %}
+{% if useComplaintResults %}
+    {% for k, c in stats.complaintResultCounts %}
+        {% if c > 0 %}
+            {% set cSeries = cSeries|merge([c]) %}
+            {% set cKeys = cKeys|merge([complaintResultLabels[k]|default(k)]) %}
+            {% set cPalette = cPalette|merge([complaintResultColors[k]|default('#94a3b8')]) %}
+        {% endif %}
+    {% endfor %}
+{% else %}
+    {% for k, c in stats.complaintStatusCounts %}
+        {% if c > 0 %}
+            {% set cSeries = cSeries|merge([c]) %}
+            {% set cKeys = cKeys|merge([complaintStatusLabels[k]|default(k)]) %}
+            {% set cPalette = cPalette|merge([complaintStatusColors[k]|default('#94a3b8')]) %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
+{% set complaintConfig = {
+    series: cSeries, labels: cKeys, colors: cPalette,
+    chart: {type: 'donut', height: 320, fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    legend: {position: 'bottom', fontSize: '12px', markers: {size: 6}},
+    stroke: {width: 0},
+    dataLabels: {enabled: false},
+    plotOptions: {pie: {donut: {size: '68%', labels: {show: true, total: {show: true, label: useComplaintResults ? 'Resueltas' : 'Reclamaciones', color: '#64748b'}}}}},
+    noData: {text: 'Sin reclamaciones en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{# Public body bars (horizontal) #}
+{% set pbLabels = [] %}{% set pbData = [] %}
+{% for row in stats.byPublicBody %}
+    {% set pbLabels = pbLabels|merge([row.name]) %}
+    {% set pbData = pbData|merge([row.count]) %}
+{% endfor %}
+{% set pbConfig = {
+    series: [{name: 'Solicitudes', data: pbData}],
+    chart: {type: 'bar', height: 60 + (pbLabels|length * 32), fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    plotOptions: {bar: {horizontal: true, borderRadius: 4, barHeight: '70%', distributed: true}},
+    colors: ['#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#0ea5e9', '#06b6d4', '#14b8a6', '#10b981', '#84cc16', '#94a3b8'],
+    dataLabels: {enabled: true, textAnchor: 'start', style: {colors: ['#ffffff'], fontSize: '11px', fontWeight: 600}, offsetX: 8},
+    xaxis: {categories: pbLabels, labels: {style: {colors: '#64748b', fontSize: '11px'}}},
+    yaxis: {labels: {style: {colors: '#334155', fontSize: '12px'}, maxWidth: 220}},
+    legend: {show: false},
+    grid: {borderColor: '#e2e8f0', strokeDashArray: 3},
+    noData: {text: 'Sin solicitudes en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{# Response time histogram #}
+{% set bucketLabels = ['0-15 días', '16-30 días', '31-60 días', '61-90 días', '+90 días'] %}
+{% set bucketKeys = ['0-15', '16-30', '31-60', '61-90', '+90'] %}
+{% set respData = [] %}
+{% for k in bucketKeys %}{% set respData = respData|merge([stats.responseTimeBuckets[k]|default(0)]) %}{% endfor %}
+{% set respConfig = {
+    series: [{name: 'Solicitudes', data: respData}],
+    chart: {type: 'bar', height: 300, fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    plotOptions: {bar: {borderRadius: 6, columnWidth: '55%', distributed: false}},
+    colors: ['#0ea5e9'],
+    dataLabels: {enabled: false},
+    xaxis: {categories: bucketLabels, labels: {style: {colors: '#64748b', fontSize: '11px'}}},
+    yaxis: {labels: {style: {colors: '#64748b', fontSize: '11px'}}, forceNiceScale: true},
+    grid: {borderColor: '#e2e8f0', strokeDashArray: 3},
+    noData: {text: 'Aún ninguna solicitud resuelta en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{# Complaint time histogram #}
+{% set compData = [] %}
+{% for k in bucketKeys %}{% set compData = compData|merge([stats.complaintTimeBuckets[k]|default(0)]) %}{% endfor %}
+{% set compConfig = {
+    series: [{name: 'Reclamaciones', data: compData}],
+    chart: {type: 'bar', height: 300, fontFamily: 'DM Sans, sans-serif', toolbar: {show: false}},
+    plotOptions: {bar: {borderRadius: 6, columnWidth: '55%'}},
+    colors: ['#a855f7'],
+    dataLabels: {enabled: false},
+    xaxis: {categories: bucketLabels, labels: {style: {colors: '#64748b', fontSize: '11px'}}},
+    yaxis: {labels: {style: {colors: '#64748b', fontSize: '11px'}}, forceNiceScale: true},
+    grid: {borderColor: '#e2e8f0', strokeDashArray: 3},
+    noData: {text: 'Aún ninguna reclamación resuelta en este rango', style: {color: '#94a3b8', fontSize: '13px'}}
+} %}
+
+{% block content %}
+<div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+    <div class="min-w-0">
+        <h1 class="casebook-title text-3xl sm:text-[2.4rem]">Estadísticas</h1>
+        <p class="text-slate-500 mt-1 text-sm">
+            {% if preset == 'all' %}
+                Desde el principio
+            {% elseif preset == '30d' %}
+                Últimos 30 días
+            {% elseif preset == '90d' %}
+                Últimos 90 días
+            {% elseif preset == '12m' %}
+                Últimos 12 meses
+            {% elseif preset == 'custom' and from and to %}
+                Del {{ from|date('d/m/Y') }} al {{ to|date('d/m/Y') }}
+            {% elseif preset == 'custom' %}
+                Rango personalizado
+            {% endif %}
+            · Filtra por fecha de envío de la solicitud
+        </p>
+    </div>
+    <a href="{{ path('app_solicitudes_index') }}" class="btn">
+        <i data-lucide="arrow-left" class="w-4 h-4"></i>
+        Volver a solicitudes
+    </a>
+</div>
+
+{# ────────── Time-range filter ────────── #}
+<form method="get" action="{{ path('app_stats') }}" class="card mb-6"
+      x-data="{ preset: '{{ preset }}' }">
+    <div class="card-body !py-4 flex flex-col md:flex-row md:items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-1 flex-wrap" role="tablist" aria-label="Rango de fechas">
+            {% set presets = [
+                {key: '30d', label: '30 días'},
+                {key: '90d', label: '90 días'},
+                {key: '12m', label: '12 meses'},
+                {key: 'all', label: 'Todo'},
+                {key: 'custom', label: 'Personalizado'},
+            ] %}
+            {% for p in presets %}
+                <button type="submit" name="preset" value="{{ p.key }}"
+                        class="px-3 py-1.5 rounded-full text-sm font-medium border transition
+                               {{ preset == p.key
+                                  ? 'bg-primary-600 text-white border-primary-600'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900' }}"
+                        @click="preset = '{{ p.key }}'">
+                    {{ p.label }}
+                </button>
+            {% endfor %}
+        </div>
+
+        <div class="flex items-center gap-2 md:ml-auto"
+             x-show="preset === 'custom'"
+             x-transition.opacity>
+            <input type="hidden" name="preset" value="custom">
+            <label class="text-xs text-slate-500">Desde</label>
+            <input type="date" name="from"
+                   value="{{ from ? from|date('Y-m-d') : '' }}"
+                   class="text-sm rounded-lg border border-slate-200 px-2.5 py-1.5 focus:border-primary-400 focus:ring focus:ring-primary-100">
+            <label class="text-xs text-slate-500">Hasta</label>
+            <input type="date" name="to"
+                   value="{{ to ? to|date('Y-m-d') : '' }}"
+                   class="text-sm rounded-lg border border-slate-200 px-2.5 py-1.5 focus:border-primary-400 focus:ring focus:ring-primary-100">
+            <button type="submit" class="btn btn-primary">Aplicar</button>
+        </div>
+    </div>
+</form>
+
+{# ────────── KPI tiles ────────── #}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    <div class="card !rounded-2xl">
+        <div class="p-5">
+            <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Solicitudes</div>
+            <div class="text-3xl font-semibold text-slate-900">{{ totalCount }}</div>
+            <div class="text-xs text-slate-500 mt-1">en este rango</div>
+        </div>
+    </div>
+    <div class="card !rounded-2xl">
+        <div class="p-5">
+            <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Con respuesta</div>
+            <div class="text-3xl font-semibold text-slate-900">{{ respondedCount }}</div>
+            <div class="text-xs text-slate-500 mt-1">{{ pctResponded }}% del total</div>
+        </div>
+    </div>
+    <div class="card !rounded-2xl">
+        <div class="p-5">
+            <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Reclamadas</div>
+            <div class="text-3xl font-semibold text-slate-900">{{ stats.complaintCount }}</div>
+            <div class="text-xs text-slate-500 mt-1">{{ pctAppealed }}% del total</div>
+        </div>
+    </div>
+    <div class="card !rounded-2xl">
+        <div class="p-5">
+            <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">Reclamaciones estimadas</div>
+            <div class="text-3xl font-semibold text-slate-900">{{ complaintUpheldCount }}</div>
+            <div class="text-xs text-slate-500 mt-1">
+                {% if stats.complaintCount > 0 %}{{ pctUpheld }}% de las reclamaciones{% else %}—{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ────────── Chart grid ────────── #}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    {# Status #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5">
+            <h2 class="text-base font-semibold text-slate-900">Solicitudes por estado</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Estado actual en el flujo</p>
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ statusConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+
+    {# Resolution result #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5">
+            <h2 class="text-base font-semibold text-slate-900">Respuesta de la administración</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Qué decidió finalmente el organismo</p>
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ resConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+
+    {# Complaint #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5">
+            <h2 class="text-base font-semibold text-slate-900">
+                {{ useComplaintResults ? 'Respuesta a la reclamación' : 'Estado de las reclamaciones' }}
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+                {{ useComplaintResults ? 'Qué decidió el consejo de transparencia' : 'En qué punto del proceso están' }}
+            </p>
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ complaintConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+
+    {# Public body #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5">
+            <h2 class="text-base font-semibold text-slate-900">Por organismo destinatario</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Top 10 más solicitados · resto en «Otros»</p>
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ pbConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+
+    {# Response time #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5 flex items-start justify-between gap-2">
+            <div>
+                <h2 class="text-base font-semibold text-slate-900">Tiempo de respuesta</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Días desde el envío hasta la resolución</p>
+            </div>
+            {% if stats.responseTimeMedianDays is not null %}
+                <div class="text-right shrink-0">
+                    <div class="text-xs text-slate-500">Mediana</div>
+                    <div class="text-lg font-semibold text-slate-900">{{ stats.responseTimeMedianDays }} d</div>
+                </div>
+            {% endif %}
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ respConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+
+    {# Complaint time #}
+    <div class="card !rounded-2xl">
+        <div class="px-6 pt-5 flex items-start justify-between gap-2">
+            <div>
+                <h2 class="text-base font-semibold text-slate-900">Tiempo de resolución de la reclamación</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Días desde la presentación hasta el cierre</p>
+            </div>
+            {% if stats.complaintTimeMedianDays is not null %}
+                <div class="text-right shrink-0">
+                    <div class="text-xs text-slate-500">Mediana</div>
+                    <div class="text-lg font-semibold text-slate-900">{{ stats.complaintTimeMedianDays }} d</div>
+                </div>
+            {% endif %}
+        </div>
+        <div class="p-3">
+            <div data-controller="apex-chart"
+                 data-apex-chart-config-value="{{ compConfig|json_encode|e('html_attr') }}"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

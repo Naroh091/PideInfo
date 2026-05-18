@@ -292,6 +292,182 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
+     * Aggregate stats for the /stats page. All counts and distributions are
+     * scoped to the user (and their organization, via createQueryBuilderForUser)
+     * and optionally to a sentAt date range.
+     *
+     * @return array{
+     *     totalCount: int,
+     *     statusCounts: array<string,int>,
+     *     resolutionResultCounts: array<string,int>,
+     *     complaintCount: int,
+     *     complaintStatusCounts: array<string,int>,
+     *     complaintResultCounts: array<string,int>,
+     *     byPublicBody: list<array{name:string,count:int}>,
+     *     responseTimeBuckets: array<string,int>,
+     *     complaintTimeBuckets: array<string,int>,
+     *     responseTimeMedianDays: ?int,
+     *     complaintTimeMedianDays: ?int
+     * }
+     */
+    public function getStatsFor(
+        User $user,
+        ?\DateTimeImmutable $from = null,
+        ?\DateTimeImmutable $to = null
+    ): array {
+        $applyRange = function (QueryBuilder $qb) use ($from, $to): QueryBuilder {
+            if ($from !== null) {
+                $qb->andWhere('ar.sentAt >= :statsFrom')->setParameter('statsFrom', $from);
+            }
+            if ($to !== null) {
+                $qb->andWhere('ar.sentAt <= :statsTo')->setParameter('statsTo', $to);
+            }
+            return $qb;
+        };
+
+        // Status counts
+        $statusRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('ar.status, COUNT(ar.id) as count')
+            ->groupBy('ar.status')
+            ->getQuery()
+            ->getResult();
+        $statusCounts = [];
+        foreach ($statusRows as $row) {
+            $statusCounts[$row['status']] = (int) $row['count'];
+        }
+        $totalCount = array_sum($statusCounts);
+
+        // Resolution result counts (only non-null)
+        $resultRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('ar.resolutionResult, COUNT(ar.id) as count')
+            ->andWhere('ar.resolutionResult IS NOT NULL')
+            ->groupBy('ar.resolutionResult')
+            ->getQuery()
+            ->getResult();
+        $resolutionResultCounts = [];
+        foreach ($resultRows as $row) {
+            $resolutionResultCounts[$row['resolutionResult']] = (int) $row['count'];
+        }
+
+        // Complaint count + status/result breakdowns (joined to access_request so date filter applies)
+        $complaintStatusRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('c.status as status, COUNT(c.id) as count')
+            ->innerJoin('ar.complaint', 'c')
+            ->groupBy('c.status')
+            ->getQuery()
+            ->getResult();
+        $complaintStatusCounts = [];
+        foreach ($complaintStatusRows as $row) {
+            $complaintStatusCounts[$row['status']] = (int) $row['count'];
+        }
+        $complaintCount = array_sum($complaintStatusCounts);
+
+        $complaintResultRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('c.complaintResult as result, COUNT(c.id) as count')
+            ->innerJoin('ar.complaint', 'c')
+            ->andWhere('c.complaintResult IS NOT NULL')
+            ->groupBy('c.complaintResult')
+            ->getQuery()
+            ->getResult();
+        $complaintResultCounts = [];
+        foreach ($complaintResultRows as $row) {
+            $complaintResultCounts[$row['result']] = (int) $row['count'];
+        }
+
+        // Top 10 destinatarios + "Otros"
+        $publicBodyRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('pb.name as name, COUNT(ar.id) as count')
+            ->innerJoin('ar.publicBody', 'pb')
+            ->groupBy('pb.id, pb.name')
+            ->orderBy('count', 'DESC')
+            ->getQuery()
+            ->getResult();
+        $byPublicBody = [];
+        $otrosCount = 0;
+        foreach ($publicBodyRows as $i => $row) {
+            if ($i < 10) {
+                $byPublicBody[] = ['name' => $row['name'], 'count' => (int) $row['count']];
+            } else {
+                $otrosCount += (int) $row['count'];
+            }
+        }
+        if ($otrosCount > 0) {
+            $byPublicBody[] = ['name' => 'Otros', 'count' => $otrosCount];
+        }
+
+        // Response time distribution: sentAt → resolvedAt (resolved requests only)
+        $responsePairs = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('ar.sentAt as sentAt, ar.resolvedAt as resolvedAt')
+            ->andWhere('ar.resolvedAt IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+        [$responseTimeBuckets, $responseTimeMedianDays] = $this->bucketizeDateDeltas($responsePairs, 'sentAt', 'resolvedAt');
+
+        // Complaint resolution time: filedAt → fechaCierre (closed complaints only)
+        $complaintPairs = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('c.filedAt as filedAt, c.fechaCierre as fechaCierre')
+            ->innerJoin('ar.complaint', 'c')
+            ->andWhere('c.filedAt IS NOT NULL')
+            ->andWhere('c.fechaCierre IS NOT NULL')
+            ->getQuery()
+            ->getResult();
+        [$complaintTimeBuckets, $complaintTimeMedianDays] = $this->bucketizeDateDeltas($complaintPairs, 'filedAt', 'fechaCierre');
+
+        return [
+            'totalCount' => $totalCount,
+            'statusCounts' => $statusCounts,
+            'resolutionResultCounts' => $resolutionResultCounts,
+            'complaintCount' => $complaintCount,
+            'complaintStatusCounts' => $complaintStatusCounts,
+            'complaintResultCounts' => $complaintResultCounts,
+            'byPublicBody' => $byPublicBody,
+            'responseTimeBuckets' => $responseTimeBuckets,
+            'complaintTimeBuckets' => $complaintTimeBuckets,
+            'responseTimeMedianDays' => $responseTimeMedianDays,
+            'complaintTimeMedianDays' => $complaintTimeMedianDays,
+        ];
+    }
+
+    /**
+     * @param list<array<string,\DateTimeImmutable|null>> $rows
+     * @return array{0: array<string,int>, 1: ?int}
+     */
+    private function bucketizeDateDeltas(array $rows, string $startKey, string $endKey): array
+    {
+        $buckets = ['0-15' => 0, '16-30' => 0, '31-60' => 0, '61-90' => 0, '+90' => 0];
+        $deltas = [];
+        foreach ($rows as $row) {
+            $start = $row[$startKey] ?? null;
+            $end = $row[$endKey] ?? null;
+            if (!$start instanceof \DateTimeInterface || !$end instanceof \DateTimeInterface) {
+                continue;
+            }
+            $days = (int) $start->diff($end)->days;
+            $deltas[] = $days;
+            if ($days <= 15) {
+                $buckets['0-15']++;
+            } elseif ($days <= 30) {
+                $buckets['16-30']++;
+            } elseif ($days <= 60) {
+                $buckets['31-60']++;
+            } elseif ($days <= 90) {
+                $buckets['61-90']++;
+            } else {
+                $buckets['+90']++;
+            }
+        }
+        sort($deltas);
+        $median = null;
+        $n = count($deltas);
+        if ($n > 0) {
+            $median = $n % 2 === 1
+                ? $deltas[intdiv($n, 2)]
+                : (int) round(($deltas[$n / 2 - 1] + $deltas[$n / 2]) / 2);
+        }
+        return [$buckets, $median];
+    }
+
+    /**
      * Search access requests for the document linking UI.
      *
      * @return AccessRequest[]
