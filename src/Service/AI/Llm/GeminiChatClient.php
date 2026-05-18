@@ -120,7 +120,31 @@ final class GeminiChatClient
      */
     private function buildContents(ChatRequest $req): array
     {
-        if ($req->userParts !== null) {
+        $hasHistory = !empty($req->messages);
+        $hasUserParts = $req->userParts !== null;
+        $hasUserText = $req->userText !== null;
+
+        // Multi-turn callers (the unified chat assistant) send `messages`
+        // alongside `userParts`/`userText`: history is the prior turns, and
+        // the parts/text belong to the new user turn. Emit system as a
+        // user/model bootstrap pair, then the history, then the new turn.
+        if ($hasHistory && ($hasUserParts || $hasUserText)) {
+            $contents = [
+                ['role' => 'user', 'parts' => [['text' => $req->systemPrompt]]],
+                ['role' => 'model', 'parts' => [['text' => 'Entendido. Procedo según las instrucciones.']]],
+            ];
+            foreach ($req->messages as $message) {
+                $contents[] = $message->toGeminiFormat();
+            }
+            $finalParts = $hasUserParts
+                ? array_map(fn (ContentPart $p) => $this->renderPart($p), $req->userParts)
+                : [['text' => (string) $req->userText]];
+            $contents[] = ['role' => 'user', 'parts' => $finalParts];
+
+            return $contents;
+        }
+
+        if ($hasUserParts) {
             $parts = [];
             if ($req->systemPrompt !== '') {
                 $parts[] = ['text' => $req->systemPrompt];
@@ -132,7 +156,7 @@ final class GeminiChatClient
             return [['role' => 'user', 'parts' => $parts]];
         }
 
-        if ($req->userText !== null) {
+        if ($hasUserText) {
             $parts = [];
             if ($req->systemPrompt !== '') {
                 $parts[] = ['text' => $req->systemPrompt];
@@ -142,7 +166,7 @@ final class GeminiChatClient
             return [['role' => 'user', 'parts' => $parts]];
         }
 
-        if (!empty($req->messages)) {
+        if ($hasHistory) {
             $contents = [
                 ['role' => 'user', 'parts' => [['text' => $req->systemPrompt]]],
                 ['role' => 'model', 'parts' => [['text' => 'Entendido. Procedo a redactar el documento según las instrucciones proporcionadas.']]],

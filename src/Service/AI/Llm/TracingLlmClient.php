@@ -168,6 +168,17 @@ final class TracingLlmClient extends LlmClient
     {
         $payload = ['system' => $req->systemPrompt];
 
+        // History and current-turn parts are NOT mutually exclusive: the unified
+        // chat assistant sends both (messages = prior turns, userParts = new turn).
+        // Log every field that's populated so the trace mirrors what the backend
+        // actually receives in CustomModelClient::buildDispatchInput().
+        if (!empty($req->messages)) {
+            $payload['messages'] = array_map(
+                fn ($m) => ['role' => $m->role, 'content' => $m->content],
+                $req->messages,
+            );
+        }
+
         if ($req->userParts !== null) {
             $payload['user_parts'] = array_map(
                 fn (ContentPart $p) => $p->kind === 'text'
@@ -177,11 +188,6 @@ final class TracingLlmClient extends LlmClient
             );
         } elseif ($req->userText !== null) {
             $payload['user'] = $req->userText;
-        } elseif (!empty($req->messages)) {
-            $payload['messages'] = array_map(
-                fn ($m) => ['role' => $m->role, 'content' => $m->content],
-                $req->messages,
-            );
         }
 
         return json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';

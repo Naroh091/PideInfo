@@ -11,6 +11,7 @@ use App\Service\AI\Chat\ChatAttachmentParser;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\AI\Vector;
 use App\Service\Complaint\ComplaintDraftGenerator;
@@ -42,6 +43,12 @@ final class AssistantChatController extends AbstractController
     private const CHAT_HISTORY_CAP = 60;
     /** Number of recent turns sent to the LLM as context. */
     private const CHAT_HISTORY_LLM_WINDOW = 12;
+    /**
+     * Per-turn character cap for persisted user content. Generous enough to
+     * keep small attachments (CSV/MD/short PDF text) intact so the next turn
+     * can still reason about them; binary attachments are stored as a stub.
+     */
+    private const CHAT_HISTORY_USER_TURN_CAP = 16_000;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -82,6 +89,7 @@ final class AssistantChatController extends AbstractController
         $historyKey = self::CHAT_HISTORY_KEY_REQUEST;
         $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
         $previousDraft = $this->snapshotDraft($accessRequest);
+        $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
 
         $turn = new AssistantChatTurn(
             flow: 'request',
@@ -96,15 +104,15 @@ final class AssistantChatController extends AbstractController
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $previousDraft, $userMessage, $historyKey): ?array {
+            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $previousDraft, $persistedUserText, $historyKey): ?array {
                 if ($action === 'reply' || $draft === null) {
-                    $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
+                    $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                     $this->entityManager->flush();
                     return null;
                 }
 
                 $normalized = $this->applyRequestDraft($accessRequest, $draft);
-                $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
+                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();
 
                 return [
@@ -159,6 +167,7 @@ final class AssistantChatController extends AbstractController
         // into each other (different prompt, different flow).
         $historyKey = self::CHAT_HISTORY_KEY_COMPLAINT_PREFIX . $mode;
         $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
+        $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
 
         $turn = new AssistantChatTurn(
             flow: 'complaint',
@@ -173,8 +182,8 @@ final class AssistantChatController extends AbstractController
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $historyKey, $userMessage, $previousDraft): ?array {
-                $this->appendChatHistory($accessRequest, $historyKey, $userMessage, $action, $chatReply);
+            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $historyKey, $persistedUserText, $previousDraft): ?array {
+                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();
 
                 if ($action === 'reply' || $draft === null) {
@@ -320,6 +329,32 @@ final class AssistantChatController extends AbstractController
     }
 
     /**
+     * Builds the textual user turn to persist into chat history, folding the
+     * attached parts back into the message text. Without this, the next turn
+     * sees only the typed message ("Sí") and not the CSV/PDF/etc. it was
+     * referring to — the model loses the thread. Binary parts (images,
+     * PDF as inline_data) collapse to a short stub; text parts are inlined
+     * verbatim because they already carry the readable content.
+     *
+     * @param list<ContentPart> $attachments
+     */
+    private function buildPersistedUserContent(string $userMessage, array $attachments): string
+    {
+        $pieces = [];
+        if ($userMessage !== '') {
+            $pieces[] = $userMessage;
+        }
+        foreach ($attachments as $part) {
+            if ($part->kind === 'text') {
+                $pieces[] = $part->text;
+            } else {
+                $pieces[] = sprintf('[Adjunto multimedia recibido: %s]', $part->mimeType ?? 'desconocido');
+            }
+        }
+        return implode("\n\n", $pieces);
+    }
+
+    /**
      * Loads the recent chat turns under `$key` and converts them to the
      * ChatMessage DTOs the LLM client expects. Capped at the LLM context
      * window so old turns get rolled off as the conversation grows.
@@ -355,7 +390,7 @@ final class AssistantChatController extends AbstractController
             $turns[] = [
                 'role' => 'user',
                 'kind' => 'text',
-                'content' => mb_substr($userMessage, 0, 4000),
+                'content' => mb_substr($userMessage, 0, self::CHAT_HISTORY_USER_TURN_CAP),
                 'ts' => $now,
             ];
         }
