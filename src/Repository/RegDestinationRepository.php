@@ -25,9 +25,11 @@ class RegDestinationRepository extends ServiceEntityRepository
     }
 
     /**
-     * Active (non-disabled) units belonging to a given PublicBody, optionally
-     * filtered by provincia and / or name substring. Ordered alphabetically
-     * by name so the picker stays predictable.
+     * Active (non-disabled) units the picker should surface under a given
+     * PublicBody, optionally filtered by provincia and / or name substring.
+     * Filter is on `submissionTarget` — that's the "visible" body, which may
+     * be the Raíz, the Organismo intermedio, or even a Unidad-as-PublicBody
+     * depending on how the importer resolved the row.
      *
      * @return RegDestination[]
      */
@@ -38,7 +40,7 @@ class RegDestinationRepository extends ServiceEntityRepository
         int $limit = 50,
     ): array {
         $qb = $this->createQueryBuilder('rd')
-            ->where('rd.publicBody = :body')
+            ->where('rd.submissionTarget = :body')
             ->andWhere('rd.disabledAt IS NULL')
             ->setParameter('body', $body)
             ->orderBy('rd.name', 'ASC')
@@ -65,7 +67,7 @@ class RegDestinationRepository extends ServiceEntityRepository
     {
         $count = (int) $this->createQueryBuilder('rd')
             ->select('COUNT(rd.id)')
-            ->where('rd.publicBody = :body')
+            ->where('rd.submissionTarget = :body')
             ->andWhere('rd.disabledAt IS NULL')
             ->setParameter('body', $body)
             ->getQuery()
@@ -84,7 +86,7 @@ class RegDestinationRepository extends ServiceEntityRepository
     {
         $rows = $this->createQueryBuilder('rd')
             ->select('DISTINCT rd.provincia')
-            ->where('rd.publicBody = :body')
+            ->where('rd.submissionTarget = :body')
             ->andWhere('rd.disabledAt IS NULL')
             ->andWhere('rd.provincia IS NOT NULL')
             ->setParameter('body', $body)
@@ -107,7 +109,7 @@ class RegDestinationRepository extends ServiceEntityRepository
     {
         $rows = $this->createQueryBuilder('rd')
             ->select('DISTINCT rd.comunidad')
-            ->where('rd.publicBody = :body')
+            ->where('rd.submissionTarget = :body')
             ->andWhere('rd.comunidad IS NOT NULL')
             ->setParameter('body', $body)
             ->orderBy('rd.comunidad', 'ASC')

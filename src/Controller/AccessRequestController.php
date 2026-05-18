@@ -265,7 +265,7 @@ class AccessRequestController extends AbstractController
                 }
                 $regDestination = $regDestinationRepository->find($regUuid);
                 if ($regDestination === null
-                    || $regDestination->getPublicBody()->getId()->compare($body->getId()) !== 0
+                    || $regDestination->getSubmissionTarget()->getId()->compare($body->getId()) !== 0
                     || $regDestination->isDisabled()
                 ) {
                     return new JsonResponse(['error' => 'unknown_reg_destination'], Response::HTTP_BAD_REQUEST);

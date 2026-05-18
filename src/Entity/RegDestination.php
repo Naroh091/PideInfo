@@ -34,6 +34,17 @@ class RegDestination
     #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
     private PublicBody $publicBody;
 
+    /**
+     * The PublicBody the picker surfaces for this unit. Equals `publicBody`
+     * (the Raíz) when the row has no intermediate organism we could promote;
+     * otherwise points to the Organismo (or to a name-matched Unidad
+     * PublicBody when one already exists). See `ImportRegDestinationsCommand`
+     * for the resolution rules.
+     */
+    #[ORM\ManyToOne(targetEntity: PublicBody::class)]
+    #[ORM\JoinColumn(name: 'submission_target_id', nullable: false, onDelete: 'RESTRICT')]
+    private PublicBody $submissionTarget;
+
     #[ORM\Column(length: 12, unique: true)]
     private string $dir3Code;
 
@@ -69,10 +80,11 @@ class RegDestination
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $disabledAt = null;
 
-    public function __construct(PublicBody $publicBody, string $dir3Code, string $name)
+    public function __construct(PublicBody $publicBody, string $dir3Code, string $name, ?PublicBody $submissionTarget = null)
     {
         $this->id = Uuid::v7();
         $this->publicBody = $publicBody;
+        $this->submissionTarget = $submissionTarget ?? $publicBody;
         $this->dir3Code = $dir3Code;
         $this->name = $name;
     }
@@ -83,6 +95,13 @@ class RegDestination
     public function setPublicBody(PublicBody $publicBody): static
     {
         $this->publicBody = $publicBody;
+        return $this;
+    }
+
+    public function getSubmissionTarget(): PublicBody { return $this->submissionTarget; }
+    public function setSubmissionTarget(PublicBody $submissionTarget): static
+    {
+        $this->submissionTarget = $submissionTarget;
         return $this;
     }
 

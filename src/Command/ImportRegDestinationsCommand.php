@@ -161,6 +161,16 @@ class ImportRegDestinationsCommand extends Command
             'public_body_created' => 0,
             'public_body_matched_by_code' => 0,
             'public_body_matched_by_name' => 0,
+            // Submission-target promotion: Organismo intermedio gets its own
+            // PublicBody so the picker surfaces it instead of routing the user
+            // through the parent Raíz.
+            'organism_public_body_created' => 0,
+            'organism_public_body_matched_by_code' => 0,
+            'organism_public_body_matched_by_name' => 0,
+            // For Unidades we only enrich existing curated PublicBodies (no
+            // auto-create) — otherwise the picker would explode to 30k+ rows.
+            'unit_public_body_matched_by_code' => 0,
+            'unit_public_body_enriched_by_name' => 0,
             'destination_created' => 0,
             'destination_updated' => 0,
             'destination_unchanged' => 0,
@@ -242,15 +252,83 @@ class ImportRegDestinationsCommand extends Command
                 $bodyByDir3[$raiz['code']] = $body;
             }
 
-            // Aggregate observations for this Raíz. The actual level / CCAA
-            // assignment happens after the whole file has been read so we
-            // can detect "spans multiple CCAA" and refuse to anchor.
+            // Aggregate observations for this Raíz (and for the Organismo
+            // intermedio when distinct). The actual level / CCAA assignment
+            // happens after the whole file has been read so we can detect
+            // "spans multiple CCAA" and refuse to anchor.
+            $aggregationKeys = [$raiz['code']];
+            if ($org !== null && $org['code'] !== $raiz['code']) {
+                $aggregationKeys[] = $org['code'];
+            }
             if ($rowLevel !== null) {
-                $levelSetByDir3[$raiz['code']][$rowLevel] = true;
+                foreach ($aggregationKeys as $aggKey) {
+                    $levelSetByDir3[$aggKey][$rowLevel] = true;
+                }
             }
             if ($rowCommunity !== null) {
-                $ccaaSetByDir3[$raiz['code']][$rowCommunity->getId()->toRfc4122()] = true;
+                foreach ($aggregationKeys as $aggKey) {
+                    $ccaaSetByDir3[$aggKey][$rowCommunity->getId()->toRfc4122()] = true;
+                }
             }
+
+            // --- Resolve / promote Organismo intermedio (when distinct from Raíz) ---
+            // Goal: surface things like "Puertos del Estado" in the picker as
+            // their own PublicBody, instead of forcing the user to go through
+            // the parent Ministerio.
+            $orgBody = $body;
+            if ($org !== null && $org['code'] !== $raiz['code']) {
+                $orgBody = $bodyByDir3[$org['code']] ?? null;
+                if ($orgBody === null) {
+                    $orgBody = $this->publicBodyRepository->findOneBy(['dir3Code' => $org['code']]);
+                    if ($orgBody !== null) {
+                        $stats['organism_public_body_matched_by_code']++;
+                    } else {
+                        // Unique name match only — duplicates in the curated
+                        // catalogue (e.g. "X" + "X/Ministerio de…") should
+                        // stay unlinked rather than risk attaching DIR3 to
+                        // the wrong row.
+                        $orgBody = $this->publicBodyRepository->findUniqueByNameInsensitive($org['name']);
+                        if ($orgBody !== null && $orgBody->getDir3Code() === null) {
+                            $orgBody->setDir3Code($org['code']);
+                            $stats['organism_public_body_matched_by_name']++;
+                        } elseif ($orgBody === null) {
+                            $orgBody = (new PublicBody())
+                                ->setName($org['name'])
+                                ->setDir3Code($org['code'])
+                                ->setImportedFromReg(true)
+                                ->setLevel($rowLevel ?? $body->getLevel());
+                            $this->em->persist($orgBody);
+                            $stats['organism_public_body_created']++;
+                        }
+                    }
+                    $bodyByDir3[$org['code']] = $orgBody;
+                }
+            }
+
+            // --- Try to enrich an existing PublicBody for the Unidad ---
+            // We do NOT auto-create here — that would balloon the picker to
+            // every CORREOS office and tiny registro in the country. Only if
+            // a curated row already exists (by DIR3 or by unique name) do we
+            // promote the Unidad to its own submission target.
+            $unitBody = $bodyByDir3[$unit['code']] ?? null;
+            if ($unitBody === null) {
+                $unitBody = $this->publicBodyRepository->findOneBy(['dir3Code' => $unit['code']]);
+                if ($unitBody !== null) {
+                    $stats['unit_public_body_matched_by_code']++;
+                } else {
+                    $candidate = $this->publicBodyRepository->findUniqueByNameInsensitive($unit['name']);
+                    if ($candidate !== null && $candidate->getDir3Code() === null) {
+                        $candidate->setDir3Code($unit['code']);
+                        $unitBody = $candidate;
+                        $stats['unit_public_body_enriched_by_name']++;
+                    }
+                }
+                if ($unitBody !== null) {
+                    $bodyByDir3[$unit['code']] = $unitBody;
+                }
+            }
+
+            $submissionTarget = $unitBody ?? $orgBody;
 
             // --- Upsert RegDestination (Unidad) ---
             $intermediateCode = ($org !== null && $org['code'] !== $raiz['code']) ? $org['code'] : null;
@@ -262,7 +340,7 @@ class ImportRegDestinationsCommand extends Command
 
             $destination = $this->regDestinationRepository->findOneByDir3($unit['code']);
             if ($destination === null) {
-                $destination = new RegDestination($body, $unit['code'], $unit['name']);
+                $destination = new RegDestination($body, $unit['code'], $unit['name'], $submissionTarget);
                 $destination
                     ->setIntermediateOrganismDir3($intermediateCode)
                     ->setIntermediateOrganismName($intermediateName)
@@ -278,6 +356,7 @@ class ImportRegDestinationsCommand extends Command
                 $before = [
                     $destination->getName(),
                     $destination->getPublicBody()->getId()->toRfc4122(),
+                    $destination->getSubmissionTarget()->getId()->toRfc4122(),
                     $destination->getIntermediateOrganismDir3(),
                     $destination->getIntermediateOrganismName(),
                     $destination->getOficinaDir3(),
@@ -291,6 +370,7 @@ class ImportRegDestinationsCommand extends Command
                 $destination
                     ->setName($unit['name'])
                     ->setPublicBody($body)
+                    ->setSubmissionTarget($submissionTarget)
                     ->setIntermediateOrganismDir3($intermediateCode)
                     ->setIntermediateOrganismName($intermediateName)
                     ->setOficinaDir3($oficina['code'] ?? null)
@@ -303,6 +383,7 @@ class ImportRegDestinationsCommand extends Command
                 $after = [
                     $destination->getName(),
                     $destination->getPublicBody()->getId()->toRfc4122(),
+                    $destination->getSubmissionTarget()->getId()->toRfc4122(),
                     $destination->getIntermediateOrganismDir3(),
                     $destination->getIntermediateOrganismName(),
                     $destination->getOficinaDir3(),
