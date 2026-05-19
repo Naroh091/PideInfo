@@ -26,6 +26,13 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Index(columns: ['public_body_id'], name: 'idx_reg_destination_public_body')]
 class RegDestination
 {
+    /**
+     * `nivelAdministracion` value for state-level registry units. State bodies
+     * are governed by the state transparency law (Ley 19/2013) regardless of
+     * where their registry offices physically sit — see ApplicableLawResolver.
+     */
+    public const NIVEL_ESTADO = 'Administración del Estado';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;

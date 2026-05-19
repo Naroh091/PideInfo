@@ -76,9 +76,21 @@ final class ApplicableLawResolver
      * bodies). When every linked `RegDestination` resolves to the same
      * AutonomousCommunity we use it; if any unit disagrees we abstain so we
      * never mis-attribute a cross-territorial body.
+     *
+     * State bodies are excluded up front: a body reachable through a
+     * state-level registry unit is an `Administración del Estado` and is
+     * governed by the state-level Ley 19/2013 regardless of where its
+     * registry offices physically sit. `RegDestination.comunidad` records
+     * office geography, not legal jurisdiction — for a ministry headquartered
+     * in Madrid every unit would read "Comunidad de Madrid" and wrongly pull
+     * in the regional law. We abstain so the caller falls back to state law.
      */
     private function deriveCommunityFromRegDestinations(PublicBody $body): ?AutonomousCommunity
     {
+        if ($this->regDestinationRepository->bodyHasStateLevelDestination($body)) {
+            return null;
+        }
+
         $candidates = [];
         foreach ($this->regDestinationRepository->findDistinctComunidades($body) as $raw) {
             $resolved = $this->resolveCommunityName($raw);

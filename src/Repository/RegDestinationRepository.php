@@ -98,6 +98,26 @@ class RegDestinationRepository extends ServiceEntityRepository
     }
 
     /**
+     * True when the body has at least one state-level REG destination
+     * (`nivelAdministracion = Administración del Estado`). Such a body is a
+     * state administration, so ApplicableLawResolver must not derive a
+     * territorial scope from its registry offices' geography.
+     */
+    public function bodyHasStateLevelDestination(PublicBody $body): bool
+    {
+        $count = (int) $this->createQueryBuilder('rd')
+            ->select('COUNT(rd.id)')
+            ->where('rd.submissionTarget = :body')
+            ->andWhere('rd.nivelAdministracion = :nivel')
+            ->setParameter('body', $body)
+            ->setParameter('nivel', RegDestination::NIVEL_ESTADO)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return $count > 0;
+    }
+
+    /**
      * Distinct comunidades for the body's REG destinations (active or not —
      * we want to derive territorial scope even from disabled units when the
      * parent PublicBody isn't anchored). Used by ApplicableLawResolver as a

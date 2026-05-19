@@ -8,8 +8,10 @@ organismo no está en el Portal de Transparencia (AGE).
 
 `ChannelResolver::resolveTaskType()` (`src/Service/Submission/ChannelResolver.php`)
 elige REG cuando `PublicBody.transparencyPortalUrl === null`. Para que el organismo
-sea seleccionable en el picker, además, **debe** tener al menos una `RegDestination`
-activa importada del catálogo DIR3 (`PublicBodyRepository::searchSubmittableByName`).
+sea seleccionable en el picker, además, **debe** ser destino de envío de al menos
+una `RegDestination` activa importada del catálogo DIR3 — el join se hace por
+`RegDestination.submissionTarget`, no por la Raíz
+(`PublicBodyRepository::searchSubmittableByName`).
 
 ## Modelo de datos añadido
 
@@ -18,12 +20,14 @@ activa importada del catálogo DIR3 (`PublicBodyRepository::searchSubmittableByN
 | `User` | `addressStreetType`, `addressLine`, `addressCountry`, `addressProvinceCode`, `addressMunicipalityCode`, `addressPostalCode`, `contactPhone` | Datos personales que REG Paso 1 obliga a rellenar en cada envío. Se piden una sola vez y se reusan. |
 | `PublicBody` | `dir3Code` | DIR3 de la Raíz / Organismo principal. |
 | `PublicBody` | `importedFromReg` | `true` si la entidad la creó el comando de import; queda pendiente de curación. |
-| `RegDestination` *(nueva)* | `dir3Code`, `name`, `publicBody`, `intermediateOrganismDir3/Name`, `comunidad`, `provincia`, `nivelAdministracion`, `activatedAt`, `disabledAt` | Cada Unidad DIR3 a la que se puede dirigir un escrito. |
+| `RegDestination` *(nueva)* | `dir3Code`, `name`, `publicBody`, `submissionTarget`, `intermediateOrganismDir3/Name`, `oficinaDir3/Name`, `comunidad`, `provincia`, `nivelAdministracion`, `activatedAt`, `disabledAt` | Cada Unidad DIR3 a la que se puede dirigir un escrito. `publicBody` es siempre la Raíz; `submissionTarget` es el `PublicBody` que el picker muestra (Unidad > Organismo intermedio > Raíz). |
 | `AccessRequest` | `regDestination` | FK opcional a la Unidad elegida. |
 | `AccessRequest` | `title` | Asunto en REG: máx. **80 caracteres** (el portal trunca silenciosamente lo que sobre, así que se valida en cliente, autosave y `dispatchBatch`). |
 | `AccessRequest` | `expone`, `solicita` | Paso 2 del REG: dos textareas de ≤4000 caracteres. |
 
-Migración: `migrations/Version20260512120000.php` (idempotente).
+Migraciones: `migrations/Version20260512120000.php` (modelo inicial),
+`migrations/Version20260516130000.php` (columnas `oficina_*`) y
+`migrations/Version20260518120000.php` (`submission_target_id`). Todas idempotentes.
 
 ## Importación del catálogo DIR3
 
@@ -39,8 +43,38 @@ bin/console app:reg:import-destinations <ruta.csv> [--dry-run] [--no-disable] [-
 - Upsert por `dir3Code` de la Unidad. Si la Raíz no existe como `PublicBody`,
   primero se intenta match por nombre (case-insensitive); si tampoco, se crea
   un PublicBody nuevo con `importedFromReg=true` (revisar en `/admin`).
+- **Promoción del Organismo intermedio**: cuando la fila trae un Organismo
+  distinto de la Raíz (por ejemplo "Puertos del Estado" bajo "Ministerio de
+  Transportes y Movilidad Sostenible"), se resuelve a su propio `PublicBody`
+  (match por `dir3Code` → match por nombre único → creación con
+  `importedFromReg=true`) para que el picker lo muestre como destino directo.
+  `RegDestination.submissionTarget` apunta a ese organismo.
+- **Enriquecimiento de Unidad por nombre**: si ya existe un `PublicBody`
+  curado con el nombre exacto de la Unidad (p. ej. "Autoridad Portuaria de
+  Las Palmas"), se le asigna el `dir3Code` y la `RegDestination` apunta su
+  `submissionTarget` a ese cuerpo. **No se crean PublicBodies nuevos para
+  Unidades** — solo se enriquecen los existentes, para evitar inflar el
+  picker con miles de oficinas operativas.
 - Las unidades no presentes en la pasada actual se marcan `disabledAt = today`
   (salvo `--no-disable`).
+
+## Ley aplicable y ámbito territorial
+
+`ApplicableLawResolver` decide qué `ApplicableLaw` rige una solicitud. Si el
+`PublicBody` no tiene `autonomousCommunity` (≈27 % de los cuerpos `level=local`
+heredados), intenta derivarla de los `RegDestination` del cuerpo
+(`deriveCommunityFromRegDestinations`).
+
+Esa derivación **excluye los destinos estatales**: si el cuerpo tiene algún
+`RegDestination` con `nivelAdministracion = "Administración del Estado"`
+(`RegDestination::NIVEL_ESTADO`, comprobado por
+`RegDestinationRepository::bodyHasStateLevelDestination`), se aborta la
+derivación y se aplica la Ley 19/2013 estatal. Motivo: `RegDestination.comunidad`
+guarda la ubicación geográfica de la oficina de registro, no la jurisdicción
+legal; un ministerio con sede en Madrid tiene todas sus unidades en "Comunidad
+de Madrid" y, sin esta exclusión, heredaría por error la Ley 10/2019
+autonómica. Solo se deriva comunidad para destinos no estatales (locales o
+autonómicos), que es el caso para el que se diseñó el fallback.
 
 ## Flujo de UX
 
