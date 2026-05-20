@@ -26,8 +26,14 @@ class AgentTask
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_DONE = 'done';
     public const STATUS_FAILED = 'failed';
+    /**
+     * El agente perdió visibilidad después de iniciar la firma: no se puede
+     * descartar que la presentación llegara al portal. No es re-enviable a
+     * ciegas — ver SubmissionGuard.
+     */
+    public const STATUS_UNCERTAIN = 'uncertain';
 
-    public const TERMINAL_STATUSES = [self::STATUS_DONE, self::STATUS_FAILED];
+    public const TERMINAL_STATUSES = [self::STATUS_DONE, self::STATUS_FAILED, self::STATUS_UNCERTAIN];
 
     #[ORM\Id]
     #[ORM\Column(type: 'uuid', unique: true)]

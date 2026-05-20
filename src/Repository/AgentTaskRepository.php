@@ -49,6 +49,43 @@ class AgentTaskRepository extends ServiceEntityRepository
     }
 
     /**
+     * La AgentTask no terminal (pending/claimed/in_progress) más reciente para
+     * esta solicitud y tipo, o null. Usado por SubmissionGuard para impedir un
+     * segundo despacho mientras hay uno en vuelo.
+     */
+    public function findNonTerminalForRequest(\App\Entity\AccessRequest $request, string $type): ?AgentTask
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.accessRequest = :r')
+            ->andWhere('t.type = :type')
+            ->andWhere('t.status NOT IN (:terminal)')
+            ->setParameter('r', $request)
+            ->setParameter('type', $type)
+            ->setParameter('terminal', AgentTask::TERMINAL_STATUSES)
+            ->orderBy('t.createdAt', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    /**
+     * Todas las AgentTask de una solicitud, de la más reciente a la más
+     * antigua. Para la vista de detalle: dar visibilidad de los intentos de
+     * envío (fallidos, inciertos, en curso) al usuario.
+     *
+     * @return AgentTask[]
+     */
+    public function findByRequest(\App\Entity\AccessRequest $request): array
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.accessRequest = :r')
+            ->setParameter('r', $request)
+            ->orderBy('t.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Atomic claim: pending → claimed. Returns the refreshed entity if the caller won the race,
      * null if another worker already claimed it.
      */
