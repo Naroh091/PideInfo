@@ -93,4 +93,49 @@ class AgentTaskApiControllerTest extends WebTestCase
         $em->remove($em->find(AgentTask::class, $task->getId()));
         $em->flush();
     }
+
+    public function testCompleteUncertainSetsTaskUncertainAndFlagsRequest(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+        $user = $this->ensureUser($em);
+
+        $request = $em->getRepository(\App\Entity\AccessRequest::class)->findOneBy([]);
+        if ($request === null) {
+            self::markTestSkipped('No AccessRequest fixture available in the test DB.');
+        }
+        $request->setMetadata(null);
+
+        $task = new AgentTask($user, AgentTask::TYPE_SUBMIT_REQUEST_PORTAL);
+        $task->setAccessRequest($request);
+        $task->setStatus(AgentTask::STATUS_IN_PROGRESS);
+        $em->persist($task);
+        $em->flush();
+
+        $this->authenticate($client, $user);
+        $client->request(
+            'POST',
+            '/api/agent/tasks/' . $task->getId()->toRfc4122() . '/complete',
+            [], [], ['CONTENT_TYPE' => 'application/json'],
+            json_encode([
+                'outcome' => 'uncertain',
+                'error' => 'submission_uncertain:step3',
+                'result' => ['markers' => ['idBorr' => '999001']],
+            ])
+        );
+        self::assertResponseIsSuccessful();
+        $body = json_decode($client->getResponse()->getContent(), true);
+        self::assertSame(AgentTask::STATUS_UNCERTAIN, $body['status']);
+
+        $em->refresh($request);
+        $flag = $request->getMetadataValue('submission_uncertain');
+        self::assertIsArray($flag);
+        self::assertSame(AgentTask::TYPE_SUBMIT_REQUEST_PORTAL, $flag['channel']);
+        $markers = $request->getMetadataValue('portal_markers');
+        self::assertSame('999001', $markers[AgentTask::TYPE_SUBMIT_REQUEST_PORTAL]['idBorr']);
+
+        $em->remove($em->find(AgentTask::class, $task->getId()));
+        $request->setMetadata(null);
+        $em->flush();
+    }
 }
