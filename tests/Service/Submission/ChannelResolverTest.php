@@ -11,11 +11,11 @@ use PHPUnit\Framework\TestCase;
 
 final class ChannelResolverTest extends TestCase
 {
-    public function testResolvesToTransparenciaWhenPortalUrlIsSet(): void
+    public function testResolvesToTransparenciaWhenPortalAmbIdIsSet(): void
     {
         $body = (new PublicBody())
             ->setName('Ministerio de Cultura')
-            ->setTransparencyPortalUrl('https://transparencia.sede.gob.es');
+            ->setTransparencyPortalAmbId(101509);
 
         $this->assertSame(
             AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
@@ -23,9 +23,27 @@ final class ChannelResolverTest extends TestCase
         );
     }
 
-    public function testResolvesToRegWhenPortalUrlIsMissing(): void
+    public function testResolvesToRegWhenPortalAmbIdIsMissing(): void
     {
         $body = (new PublicBody())->setName('Ayuntamiento de Cuenca');
+
+        $this->assertSame(
+            AgentTask::TYPE_SUBMIT_REQUEST_REG,
+            (new ChannelResolver())->resolveTaskType($body)
+        );
+    }
+
+    /**
+     * Regression: a transparencyPortalUrl alone does NOT make a body
+     * submittable through the AGE wizard — the agent builds the formulario
+     * URL from the numeric idAmb, so without transparencyPortalAmbId the
+     * body must fall back to REG instead of a dead Portal route.
+     */
+    public function testResolvesToRegWhenPortalUrlSetButAmbIdMissing(): void
+    {
+        $body = (new PublicBody())
+            ->setName('Generalitat Valenciana')
+            ->setTransparencyPortalUrl('https://gvaoberta.gva.es');
 
         $this->assertSame(
             AgentTask::TYPE_SUBMIT_REQUEST_REG,
@@ -37,7 +55,7 @@ final class ChannelResolverTest extends TestCase
     {
         $resolver = new ChannelResolver();
 
-        $portal = (new PublicBody())->setName('A')->setTransparencyPortalUrl('https://x.example');
+        $portal = (new PublicBody())->setName('A')->setTransparencyPortalAmbId(101509);
         $reg = (new PublicBody())->setName('B');
 
         $this->assertSame(ChannelResolver::BADGE_PORTAL, $resolver->badgeLabel($portal));
@@ -48,9 +66,9 @@ final class ChannelResolverTest extends TestCase
     {
         $resolver = new ChannelResolver();
         $bodies = [
-            (new PublicBody())->setName('A')->setTransparencyPortalUrl('https://x.example'),
+            (new PublicBody())->setName('A')->setTransparencyPortalAmbId(101509),
             (new PublicBody())->setName('B'),
-            (new PublicBody())->setName('C')->setTransparencyPortalUrl('https://y.example'),
+            (new PublicBody())->setName('C')->setTransparencyPortalAmbId(101510),
         ];
 
         $this->assertSame(

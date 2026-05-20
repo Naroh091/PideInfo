@@ -56,8 +56,12 @@ class PublicBodyRepository extends ServiceEntityRepository
     /**
      * Routable through the agent's "realizar" flow: bodies that the agent can
      * actually submit to. Today that means either an AGE Portal de Transparencia
-     * URL is registered OR the body has at least one active REG destination
+     * idAmb is registered OR the body has at least one active REG destination
      * imported from the DIR3 catalogue. Optionally narrows by name substring.
+     *
+     * The portal criterion is `transparencyPortalAmbId`, not the informational
+     * `transparencyPortalUrl`: the agent builds the wizard URL from the idAmb,
+     * so a body without one is not actually submittable through the portal.
      *
      * @return PublicBody[]
      */
@@ -69,7 +73,7 @@ class PublicBodyRepository extends ServiceEntityRepository
         // bodies that merely happen to be the Raíz of a tree.
         $qb = $this->createQueryBuilder('pb')
             ->leftJoin(RegDestination::class, 'rd', 'WITH', 'rd.submissionTarget = pb AND rd.disabledAt IS NULL')
-            ->where('pb.transparencyPortalUrl IS NOT NULL OR rd.id IS NOT NULL')
+            ->where('pb.transparencyPortalAmbId IS NOT NULL OR rd.id IS NOT NULL')
             ->groupBy('pb.id')
             ->orderBy('pb.name', 'ASC')
             ->setMaxResults($limit);

@@ -49,7 +49,7 @@
    Portal de Transparencia (AGE) or REG / RED SARA when a destination unit
    was already picked. #}
 {% if request.status == 'pending' %}
-    {% set canRouteViaAgent = request.publicBody.transparencyPortalUrl is not empty
+    {% set canRouteViaAgent = request.publicBody.transparencyPortalAmbId is not null
         or request.regDestination is not null %}
     <aside class="dossier-notice is-sky mb-6">
         <div class="dossier-notice-body">

@@ -12,8 +12,13 @@ use App\Entity\User;
 /**
  * Decides which agent task type (= submission channel) a PublicBody is
  * reachable through. Implements the "prefer Portal de Transparencia over REG"
- * rule from the product spec: if the body has a transparency portal URL
- * registered, it goes by AGE; otherwise it falls back to Red SARA REC.
+ * rule from the product spec: if the body has an AGE Portal de Transparencia
+ * idAmb registered, it goes by AGE; otherwise it falls back to Red SARA REC.
+ *
+ * The criterion is the numeric `transparencyPortalAmbId`, not the informational
+ * `transparencyPortalUrl`: the agent builds the wizard URL
+ * (`/procedimiento/formulario?idProc=133628&idAmb={ID}`) from the idAmb, so a
+ * body without one cannot be submitted through the portal even if it has a URL.
  *
  * Centralising this in one service keeps the form, the controller fan-out
  * and the Twig badge consistent.
@@ -25,7 +30,7 @@ final class ChannelResolver
 
     public function resolveTaskType(PublicBody $body): string
     {
-        return $body->getTransparencyPortalUrl() !== null
+        return $body->getTransparencyPortalAmbId() !== null
             ? AgentTask::TYPE_SUBMIT_REQUEST_PORTAL
             : AgentTask::TYPE_SUBMIT_REQUEST_REG;
     }

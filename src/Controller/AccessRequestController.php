@@ -270,7 +270,7 @@ class AccessRequestController extends AbstractController
                 ) {
                     return new JsonResponse(['error' => 'unknown_reg_destination'], Response::HTTP_BAD_REQUEST);
                 }
-            } elseif ($body->getTransparencyPortalUrl() === null) {
+            } elseif ($body->getTransparencyPortalAmbId() === null) {
                 return new JsonResponse([
                     'error' => 'unsubmittable_body',
                     'publicBodyId' => $body->getId()->toRfc4122(),
