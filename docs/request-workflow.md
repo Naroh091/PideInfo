@@ -219,6 +219,43 @@ denied / delayed
               └──► court_denied
 ```
 
+## Despacho al agente y protección contra envíos duplicados
+
+Cuando una solicitud se presenta a través del agente (canal Transparencia AGE o REG/RED SARA) o cuando se presenta una reclamación vía agente (CTBG), el sistema crea una entidad `AgentTask` que el agente retira y ejecuta. Esta sección describe los mecanismos que evitan el doble registro.
+
+### El desenlace `uncertain` de `AgentTask`
+
+`AgentTask` tiene tres estados terminales: `done`, `failed` y **`uncertain`**.
+
+`uncertain` se emite cuando el agente pierde visibilidad *después* de pulsar el botón de firma — la "frontera de la firma". A partir de ese clic, el portal puede haber registrado la solicitud server-side aunque el agente no llegue a leer la confirmación. Reportar `failed` en ese punto invitaría a un reenvío a ciegas y a un duplicado; `uncertain` señala que el resultado es desconocido y que el canal requiere reconciliación manual antes de reintentar.
+
+El endpoint `POST /api/agent/tasks/{id}/complete` acepta el campo `outcome` con los valores `done | failed | uncertain`. Los agentes anteriores que no envíen `outcome` pueden seguir usando el booleano `success` como fallback.
+
+### `AccessRequest.metadata['submission_uncertain']`
+
+Cuando una tarea termina en `uncertain`, el endpoint almacena en `AccessRequest.metadata['submission_uncertain']` un objeto `{channel, taskId, at}` que identifica el canal afectado y el momento del fallo. Este flag se elimina automáticamente cuando:
+
+- Un envío posterior se confirma con `done` en ese mismo canal, o
+- La solicitud se vuelve a despachar pasando la confirmación explícita (`confirmUncertain`).
+
+### `AccessRequest.metadata['portal_markers']`
+
+Por cada tarea de envío completada (sea cual sea el desenlace), el endpoint guarda en `AccessRequest.metadata['portal_markers'][type]` los marcadores del portal capturados por el agente. Para el canal Transparencia AGE el marcador relevante es `idBorr` (el identificador del borrador en el portal). Este campo persiste independientemente del resultado y sirve de base para la reconciliación posterior.
+
+### `SubmissionGuard` — puerta fail-closed antes del despacho
+
+`src/Service/AccessRequest/SubmissionGuard.php` se ejecuta en `dispatchBatch` (canales Transparencia y REG) y en `ComplaintController` (canal CTBG) antes de crear cualquier `AgentTask` de presentación. Cierra dos vías independientes de duplicado:
+
+**V2 — Concurrencia.** Un índice único parcial en la tabla `agent_task` (`uniq_agent_task_active_per_request`, creado en `Version20260520120000`) garantiza como máximo una tarea no terminal (`pending | claimed | in_progress`) por par `(access_request_id, type)`. `SubmissionGuard` lo comprueba también a nivel de aplicación; si ya hay una tarea en vuelo, devuelve la razón `active_task` y el despacho se omite sin error visible.
+
+**V1 — Falso negativo.** Si la solicitud tiene un flag `submission_uncertain` activo en el canal en cuestión (REG o CTBG — canales sin borrador persistente), `SubmissionGuard` devuelve `uncertain_needs_confirmation` y el despacho responde con HTTP 409. El usuario debe verificar el portal y confirmar explícitamente (`confirmUncertain=1`) antes de que se admita un nuevo envío. Este bloqueo NO aplica al canal Transparencia, que se auto-reconcilia (véase abajo).
+
+### Auto-reconciliación de Transparencia AGE
+
+Cuando `SubmissionGuard` detecta un `idBorr` guardado en `portal_markers` para el canal Transparencia, lo inyecta en el payload de la nueva `AgentTask` como `reconcile_idBorr`. El agente, al recibir ese valor, navega directamente al borrador existente en el portal en vez de acuñar uno nuevo: si el borrador ya está registrado, captura el expediente; si no, reanuda la firma sobre ese mismo borrador. Como el portal de Transparencia solo permite registrar un borrador una vez, la deduplicación es estructural y no requiere intervención humana.
+
+La auto-reconciliación de REG y CTBG (canales sin borrador) queda como trabajo posterior; en la versión actual estos canales se reconcilian manualmente a través del flujo `uncertain_needs_confirmation` descrito arriba.
+
 ## Cálculo de plazos
 
 El servicio `DeadlineCalculator` se encarga de toda la aritmética de fechas:

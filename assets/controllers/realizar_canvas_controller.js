@@ -388,7 +388,106 @@ export default class extends Controller {
         // populated in psql — debouncing was lying to us).
         this._pinCanvasSnapshotToForm(form);
 
-        form.submit();
+        await this._submitDispatch(form, button);
+    }
+
+    /**
+     * Sends the dispatch form via fetch so we can intercept JSON responses
+     * (including the 409 uncertain_needs_confirmation flow) without a full
+     * page reload. On success, redirects to the URL the server returns.
+     *
+     * @param {HTMLFormElement} form
+     * @param {HTMLButtonElement|null} button
+     */
+    async _submitDispatch(form, button) {
+        const restoreButton = () => {
+            if (button) {
+                button.disabled = false;
+                button.dataset.dispatchInFlight = '';
+            }
+        };
+
+        const body = new FormData(form);
+        const url = form.action;
+
+        let response;
+        try {
+            response = await fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' },
+                body,
+            });
+        } catch (err) {
+            console.error('dispatch fetch failed', err);
+            restoreButton();
+            window.alert('No se ha podido enviar la solicitud. Comprueba tu conexión y vuelve a intentarlo.');
+            return;
+        }
+
+        let json = null;
+        try {
+            json = await response.json();
+        } catch (_) {
+            // Non-JSON response (e.g. redirect from server for profile gate).
+            // Fall back: if 3xx it won't reach here; if the server returned
+            // a redirect as a non-JSON 302, fetch follows it — treat non-JSON
+            // success as "go home".
+        }
+
+        if (response.status === 409 && json?.error === 'uncertain_needs_confirmation') {
+            const msg = (json.message || 'Una o más solicitudes podrían haberse presentado ya.')
+                + '\n\n¿Reenviar de todas formas?';
+            const confirmed = window.confirm(msg);
+            if (!confirmed) {
+                restoreButton();
+                return;
+            }
+            // Retry with confirmation flag.
+            body.append('confirmUncertain', '1');
+            let retryResponse;
+            try {
+                retryResponse = await fetch(url, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' },
+                    body,
+                });
+            } catch (err) {
+                console.error('dispatch retry fetch failed', err);
+                restoreButton();
+                window.alert('No se ha podido reenviar la solicitud. Comprueba tu conexión y vuelve a intentarlo.');
+                return;
+            }
+            let retryJson = null;
+            try { retryJson = await retryResponse.json(); } catch (_) {}
+            response = retryResponse;
+            json = retryJson;
+        }
+
+        // The server may answer with a 302 (e.g. the REG profile gate
+        // redirects to the personal-data form). fetch follows it silently;
+        // honour wherever it landed instead of dropping the user on home.
+        if (response.redirected && response.url) {
+            window.location.href = response.url;
+            return;
+        }
+
+        if (response.ok && json?.redirectUrl) {
+            window.location.href = json.redirectUrl;
+            return;
+        }
+
+        if (!response.ok) {
+            console.error('dispatch error', response.status, json);
+            restoreButton();
+            const errMsg = json?.error ? `Error: ${json.error}` : `Error HTTP ${response.status}`;
+            window.alert(`No se ha podido enviar la solicitud. ${errMsg}`);
+            return;
+        }
+
+        // Fallback: server returned ok without a redirectUrl (shouldn't happen).
+        window.location.href = '/';
     }
 
     /**

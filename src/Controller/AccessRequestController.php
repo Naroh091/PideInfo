@@ -574,6 +574,7 @@ class AccessRequestController extends AbstractController
         string $batchId,
         ChannelResolver $channelResolver,
         RegPayloadBuilder $regPayloadBuilder,
+        \App\Service\AccessRequest\SubmissionGuard $submissionGuard,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
@@ -714,6 +715,11 @@ class AccessRequestController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
+        // El front reenvía con confirmUncertain=1 cuando el usuario, tras
+        // comprobar el portal, confirma que quiere re-presentar una solicitud
+        // que quedó incierta en REG.
+        $confirmUncertain = $request->request->getBoolean('confirmUncertain');
+        $uncertainNeedsConfirm = [];
         $dispatched = 0;
         $this->entityManager->beginTransaction();
         try {
@@ -745,6 +751,14 @@ class AccessRequestController extends AbstractController
 
                 $body = $accessRequest->getPublicBody();
                 $channel = $channelResolver->resolveTaskType($body);
+                $decision = $submissionGuard->evaluate($accessRequest, $channel, $confirmUncertain);
+                if (!$decision->allowed) {
+                    if ($decision->reason === 'uncertain_needs_confirmation') {
+                        $uncertainNeedsConfirm[] = $accessRequest->getId()->toRfc4122();
+                    }
+                    // 'active_task' → ya hay un envío en vuelo: se omite en silencio.
+                    continue;
+                }
                 $task = new AgentTask($user, $channel);
                 $task->setAccessRequest($accessRequest);
                 $task->setMode(AgentTask::MODE_AUTO);
@@ -754,7 +768,7 @@ class AccessRequestController extends AbstractController
                     $destination = $accessRequest->getRegDestination();
                     $task->setPayload($regPayloadBuilder->build($accessRequest, $user, $destination));
                 } else {
-                    $task->setPayload([
+                    $ptPayload = [
                         'access_request_id' => $accessRequest->getId()->toRfc4122(),
                         'public_body_id' => $body->getId()->toRfc4122(),
                         'public_body_name' => $body->getName(),
@@ -770,10 +784,28 @@ class AccessRequestController extends AbstractController
                         'solicitante' => [
                             'email' => $user->getEmail(),
                         ],
-                    ]);
+                    ];
+                    // Reconciliación: si existe un borrador de un intento
+                    // anterior, el agente lo reutiliza en vez de acuñar otro.
+                    if ($decision->reconcileIdBorr !== null) {
+                        $ptPayload['reconcile_idBorr'] = $decision->reconcileIdBorr;
+                    }
+                    $task->setPayload($ptPayload);
                 }
                 $this->entityManager->persist($task);
                 $dispatched++;
+                // Un despacho nuevo supersede la incertidumbre anterior; se
+                // re-pondrá si este intento también queda incierto.
+                $accessRequest->setMetadataValue('submission_uncertain', null);
+            }
+            if ($uncertainNeedsConfirm !== []) {
+                $this->entityManager->rollback();
+                return new JsonResponse([
+                    'error' => 'uncertain_needs_confirmation',
+                    'accessRequestIds' => $uncertainNeedsConfirm,
+                    'message' => 'Una o más solicitudes podrían haberse presentado ya. '
+                        . 'Compruébalo en el portal antes de reenviar.',
+                ], Response::HTTP_CONFLICT);
             }
             $this->entityManager->flush();
             $this->entityManager->commit();
@@ -835,10 +867,13 @@ class AccessRequestController extends AbstractController
 
     #[Route('/{id}', name: 'app_solicitudes_show')]
     #[IsGranted('view', 'accessRequest')]
-    public function show(AccessRequest $accessRequest): Response
-    {
+    public function show(
+        AccessRequest $accessRequest,
+        \App\Repository\AgentTaskRepository $agentTasks,
+    ): Response {
         return $this->render('solicitudes/show.html.twig', [
             'request' => $accessRequest,
+            'agentTasks' => $agentTasks->findByRequest($accessRequest),
         ]);
     }
 

@@ -94,26 +94,91 @@ class AgentTaskApiController extends AbstractController
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
-        $success = (bool) ($data['success'] ?? false);
 
-        $task->setStatus($success ? AgentTask::STATUS_DONE : AgentTask::STATUS_FAILED);
-        $task->setCompletedAt(new \DateTimeImmutable());
-        if (isset($data['result']) && is_array($data['result'])) {
-            $task->setResult($data['result']);
+        // El agente manda 'outcome' (done|failed|uncertain). Fallback al
+        // antiguo booleano 'success' para callers que aún no lo envían.
+        $valid = [AgentTask::STATUS_DONE, AgentTask::STATUS_FAILED, AgentTask::STATUS_UNCERTAIN];
+        $outcome = $data['outcome'] ?? null;
+        if (!in_array($outcome, $valid, true)) {
+            $outcome = ((bool) ($data['success'] ?? false))
+                ? AgentTask::STATUS_DONE
+                : AgentTask::STATUS_FAILED;
         }
-        if (!$success && isset($data['error']) && is_string($data['error'])) {
+
+        $task->setStatus($outcome);
+        $task->setCompletedAt(new \DateTimeImmutable());
+
+        $result = (isset($data['result']) && is_array($data['result'])) ? $data['result'] : [];
+        if ($result !== []) {
+            $task->setResult($result);
+        }
+        if ($outcome !== AgentTask::STATUS_DONE && isset($data['error']) && is_string($data['error'])) {
             $task->setErrorMessage(mb_substr($data['error'], 0, 2000));
         }
 
-        if ($success && in_array($task->getType(), [
+        $isSubmission = in_array($task->getType(), [
             AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
             AgentTask::TYPE_SUBMIT_REQUEST_REG,
-        ], true)) {
-            $this->applySubmissionResult($task, $data['result'] ?? []);
+            AgentTask::TYPE_PRESENT_COMPLAINT,
+        ], true);
+
+        if ($isSubmission) {
+            // El marcador del portal (idBorr) se guarda pase lo que pase, para
+            // que un reintento posterior pueda reconciliar.
+            $this->persistPortalMarkers($task, $result);
+
+            if ($outcome === AgentTask::STATUS_DONE) {
+                // Un envío confirmado limpia cualquier incertidumbre previa.
+                $task->getAccessRequest()?->setMetadataValue('submission_uncertain', null);
+                if (in_array($task->getType(), [
+                    AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
+                    AgentTask::TYPE_SUBMIT_REQUEST_REG,
+                ], true)) {
+                    $this->applySubmissionResult($task, $result);
+                }
+            } elseif ($outcome === AgentTask::STATUS_UNCERTAIN) {
+                $this->flagUncertain($task);
+            }
         }
 
         $this->em->flush();
         return new JsonResponse($this->serialize($task));
+    }
+
+    /**
+     * Guarda los marcadores del portal capturados por el agente
+     * (transparencia: idBorr) en AccessRequest.metadata['portal_markers'][type].
+     *
+     * @param array<string,mixed> $result
+     */
+    private function persistPortalMarkers(AgentTask $task, array $result): void
+    {
+        $request = $task->getAccessRequest();
+        $markers = $result['markers'] ?? null;
+        if ($request === null || !is_array($markers) || $markers === []) {
+            return;
+        }
+        $all = $request->getMetadataValue('portal_markers');
+        $all = is_array($all) ? $all : [];
+        $existing = is_array($all[$task->getType()] ?? null) ? $all[$task->getType()] : [];
+        $all[$task->getType()] = array_merge($existing, $markers, [
+            'capturedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+        ]);
+        $request->setMetadataValue('portal_markers', $all);
+    }
+
+    /**
+     * Marca la solicitud como 'incierta' en este canal: la firma se inició
+     * pero no se pudo confirmar. SubmissionGuard la usa para no re-enviar a
+     * ciegas.
+     */
+    private function flagUncertain(AgentTask $task): void
+    {
+        $task->getAccessRequest()?->setMetadataValue('submission_uncertain', [
+            'channel' => $task->getType(),
+            'taskId' => $task->getId()->toRfc4122(),
+            'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+        ]);
     }
 
     /**

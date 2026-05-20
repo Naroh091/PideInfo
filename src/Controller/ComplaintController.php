@@ -476,6 +476,7 @@ class ComplaintController extends AbstractController
         Request $request,
         AccessRequest $accessRequest,
         \Doctrine\ORM\EntityManagerInterface $em,
+        \App\Service\AccessRequest\SubmissionGuard $submissionGuard,
     ): JsonResponse {
         $data = json_decode($request->getContent(), true) ?? [];
         $mode = $data['mode'] ?? null;
@@ -531,6 +532,27 @@ class ComplaintController extends AbstractController
             ], Response::HTTP_CONFLICT);
         }
 
+        $confirmUncertain = (bool) ($data['confirmUncertain'] ?? false);
+        $guardDecision = $submissionGuard->evaluate(
+            $accessRequest,
+            \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT,
+            $confirmUncertain,
+        );
+        if (!$guardDecision->allowed) {
+            if ($guardDecision->reason === 'uncertain_needs_confirmation') {
+                return new JsonResponse([
+                    'error' => 'uncertain_needs_confirmation',
+                    'message' => 'Esta reclamación podría haberse presentado ya en el CTBG. '
+                        . 'Compruébalo en la sede antes de reenviar.',
+                ], Response::HTTP_CONFLICT);
+            }
+            // 'active_task' — ya hay una presentación en vuelo.
+            return new JsonResponse([
+                'error' => 'submission_in_progress',
+                'message' => 'Ya hay una presentación de esta reclamación en curso.',
+            ], Response::HTTP_CONFLICT);
+        }
+
         $task = new \App\Entity\AgentTask($this->getUser(), \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT);
         $task->setAccessRequest($accessRequest);
         $task->setMode($mode);
@@ -556,6 +578,7 @@ class ComplaintController extends AbstractController
             'notificacion_pdf_url' => $notificationDoc ? $this->urlForAgentDocument($notificationDoc) : null,
         ]);
         $em->persist($task);
+        $accessRequest->setMetadataValue('submission_uncertain', null);
         $em->flush();
 
         return new JsonResponse([
