@@ -98,6 +98,55 @@
                         </div>
                     </div>
 
+                    {% if form.complaint is defined %}
+                        <div class="border-t border-slate-100 pt-6 space-y-6">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center">
+                                    <i data-lucide="gavel" class="w-4 h-4 text-amber-600"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-sm font-semibold text-slate-800">Datos de la reclamación</h2>
+                                    <p class="text-xs text-slate-500">Corrige número de referencia, fecha de presentación o estado de la reclamación.</p>
+                                </div>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="{{ form.complaint.externalId.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                        {{ form_label(form.complaint.externalId) }}
+                                    </label>
+                                    {{ form_widget(form.complaint.externalId, {'attr': {'class': 'input'}}) }}
+                                    <p class="text-xs text-slate-500 mt-1">{{ form_help(form.complaint.externalId) }}</p>
+                                    {{ form_errors(form.complaint.externalId) }}
+                                </div>
+                                <div>
+                                    <label for="{{ form.complaint.filedAt.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                        {{ form_label(form.complaint.filedAt) }}
+                                    </label>
+                                    {{ form_widget(form.complaint.filedAt, {'attr': {'class': 'input'}}) }}
+                                    {{ form_errors(form.complaint.filedAt) }}
+                                </div>
+                            </div>
+
+                            <div class="grid md:grid-cols-2 gap-6">
+                                <div>
+                                    <label for="{{ form.complaint.status.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                        {{ form_label(form.complaint.status) }}
+                                    </label>
+                                    {{ form_widget(form.complaint.status, {'attr': {'class': 'input'}}) }}
+                                    {{ form_errors(form.complaint.status) }}
+                                </div>
+                                <div>
+                                    <label for="{{ form.complaint.complaintResult.vars.id }}" class="block text-sm font-medium text-slate-700 mb-1.5">
+                                        {{ form_label(form.complaint.complaintResult) }}
+                                    </label>
+                                    {{ form_widget(form.complaint.complaintResult, {'attr': {'class': 'input'}}) }}
+                                    {{ form_errors(form.complaint.complaintResult) }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
                     <div class="border-t border-slate-100 pt-6 flex flex-col sm:flex-row justify-between gap-4">
                         <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="btn btn-secondary order-2 sm:order-1">
                             <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
