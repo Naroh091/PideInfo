@@ -925,9 +925,12 @@ class AccessRequestController extends AbstractController
     {
         $previousStatus = $accessRequest->getStatus();
         $previousDeadline = $accessRequest->getDeadlineAt();
+        $complaint = $accessRequest->getComplaint();
+        $previousComplaintStatus = $complaint?->getStatus();
 
         $form = $this->createForm(AccessRequestType::class, $accessRequest, [
             'include_status_fields' => true,
+            'include_complaint_fields' => $complaint !== null,
         ]);
         $form->handleRequest($request);
 
@@ -959,6 +962,21 @@ class AccessRequestController extends AbstractController
                 $deadlineHistory->setReason(DeadlineHistory::REASON_MANUAL);
                 $deadlineHistory->setNotes('Plazo modificado manualmente desde formulario de edición');
                 $accessRequest->addDeadlineHistory($deadlineHistory);
+            }
+
+            // Handle complaint status change via manager (records StatusHistory)
+            if ($complaint !== null) {
+                $newComplaintStatus = $complaint->getStatus();
+                if ($newComplaintStatus !== $previousComplaintStatus) {
+                    // Revert so the manager can perform the canonical transition
+                    $complaint->setStatus($previousComplaintStatus);
+                    $manager->changeStatus(
+                        $accessRequest,
+                        StatusHistory::TYPE_COMPLAINT,
+                        $newComplaintStatus,
+                        'Cambio manual desde formulario de edición',
+                    );
+                }
             }
 
             $this->entityManager->flush();
@@ -1093,40 +1111,6 @@ class AccessRequestController extends AbstractController
 
         $this->addFlash('success', sprintf('Solicitud "%s" eliminada correctamente.', $title));
         return $this->redirectToRoute('app_solicitudes_index');
-    }
-
-    #[Route('/{id}/reclamacion/editar', name: 'app_solicitudes_complaint_edit', methods: ['POST'])]
-    #[IsGranted('edit', 'accessRequest')]
-    public function editComplaint(Request $request, AccessRequest $accessRequest): Response
-    {
-        if (!$this->isCsrfTokenValid('complaint-edit-' . $accessRequest->getId(), $request->request->get('_token'))) {
-            $this->addFlash('error', 'Token CSRF inválido');
-            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-        }
-
-        $complaint = $accessRequest->getComplaint();
-        if ($complaint === null) {
-            $this->addFlash('error', 'Esta solicitud no tiene reclamación');
-            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
-        }
-
-        $externalId = $request->request->get('externalId');
-        $filedAtStr = $request->request->get('filedAt');
-
-        $complaint->setExternalId($externalId ?: null);
-
-        if ($filedAtStr) {
-            try {
-                $complaint->setFiledAt(new \DateTimeImmutable($filedAtStr));
-            } catch (\Exception) {}
-        } else {
-            $complaint->setFiledAt(null);
-        }
-
-        $this->entityManager->flush();
-
-        $this->addFlash('success', 'Datos de reclamación actualizados.');
-        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
     }
 
     #[Route('/{id}/estado', name: 'app_solicitudes_change_status', methods: ['POST'])]
