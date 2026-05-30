@@ -86,6 +86,12 @@ class AccessRequestType extends AbstractType
                 ])
             ;
         }
+
+        if ($options['include_complaint_fields']) {
+            $builder->add('complaint', AccessRequestComplaintType::class, [
+                'label' => false,
+            ]);
+        }
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -93,6 +99,7 @@ class AccessRequestType extends AbstractType
         $resolver->setDefaults([
             'data_class' => AccessRequest::class,
             'include_status_fields' => false,
+            'include_complaint_fields' => false,
         ]);
     }
 }
