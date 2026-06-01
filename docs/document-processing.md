@@ -210,6 +210,13 @@ Una vez que un documento se enlaza a una solicitud, el handler actualiza la soli
 
 Todos los cambios de estado crean entradas en `StatusHistory`. Los cambios de plazo crean entradas en `DeadlineHistory`.
 
+### Número de expediente (`externalId`)
+
+El `referenceNumber` extraído se guarda como `externalId` de la entidad correspondiente:
+
+- **Documentos de solicitud**: se escribe en `AccessRequest::externalId` solo si todavía está vacío (write-once); el expediente de la solicitud no cambia una vez asignado.
+- **Documentos de reclamación** (`Complaint`, `ComplaintReceipt`, `ComplaintProcessingStart`, `ComplaintResolution`, `Alegaciones`, `AlegationResponse`, `Subsanacion`, `SubsanacionResponse`, `Audiencia`, `ComplaintExtension`): se escribe en `AccessRequestComplaint::externalId` y **siempre se actualiza al más reciente**. El CTBG asigna o reemplaza el número de expediente a lo largo de las fases (acuse → inicio de tramitación → resolución), por lo que se refleja siempre el último. `AccessRequestComplaint::setExternalId()` conserva los valores anteriores en `externalIds[]` para mantener el histórico.
+
 ## Reprocesamiento
 
 Los documentos se pueden reprocesar haciendo clic en el botón de refrescar en la página de detalle de la solicitud. Esto despacha un nuevo `ProcessDocumentMessage` para el documento. El handler vuelve a ejecutar el análisis de IA y reaplica las actualizaciones de estado.
