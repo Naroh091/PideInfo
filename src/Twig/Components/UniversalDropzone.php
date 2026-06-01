@@ -77,6 +77,7 @@ final class UniversalDropzone extends AbstractController
             $document->setOriginalFilename($file->getClientOriginalName());
             $document->setMimeType($file->getMimeType() ?? 'application/octet-stream');
             $document->setFileSize($file->getSize());
+            $document->setContentHash(hash_file('sha256', $file->getPathname()));
             $document->setType(DocumentType::Unprocessed);
             $document->setProcessed(false);
 
