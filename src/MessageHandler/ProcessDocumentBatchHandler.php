@@ -397,9 +397,7 @@ final class ProcessDocumentBatchHandler
         if ($referenceNumber) {
             if ($isComplaintDocument) {
                 $complaint = $this->ensureComplaint($accessRequest);
-                if (!$complaint->getExternalId()) {
-                    $complaint->setExternalId($referenceNumber);
-                }
+                $complaint->setExternalId($referenceNumber);
             } else {
                 if (!$accessRequest->getExternalId()) {
                     $accessRequest->setExternalId($referenceNumber);

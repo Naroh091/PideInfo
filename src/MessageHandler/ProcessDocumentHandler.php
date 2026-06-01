@@ -354,11 +354,8 @@ final class ProcessDocumentHandler
 
         if ($referenceNumber) {
             if ($isComplaintDocument) {
-                // For complaint documents, the reference number is the complaint's file number
                 $complaint = $this->ensureComplaint($accessRequest);
-                if (!$complaint->getExternalId()) {
-                    $complaint->setExternalId($referenceNumber);
-                }
+                $complaint->setExternalId($referenceNumber);
             } else {
                 // For request documents, the reference number is the request's file number
                 if (!$accessRequest->getExternalId()) {
