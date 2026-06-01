@@ -230,6 +230,14 @@ class AgentWebhookProcessor
             $accessRequest->setPendingPortalNotifications(null);
         }
 
+        // Keep the expediente snapshot (estado, título, fechas) fresh on every
+        // batch — not only when promoteExternalId runs. Without this, a state
+        // change like "Resolución cumplida" or a fechaCierre never reaches the
+        // complaint once its ref already matches.
+        if ($complaint !== null) {
+            $this->syncExpedienteMetadata($complaint, $bodyMetadata);
+        }
+
         if (!empty($created) && $accessRequest !== null) {
             $this->notificationManager->notifyAgentDocumentDownloaded(
                 $user,
@@ -324,6 +332,29 @@ class AgentWebhookProcessor
 
         $complaint->setExternalId($newExternalId); // setter pushes into externalIds[]
 
+        $this->syncExpedienteMetadata($complaint, $expMeta);
+
+        if ($isNewRef) {
+            $this->logger->info('complaint.externalId.promoted', [
+                'complaintId' => (string) $complaint->getId(),
+                'userId' => (string) $complaint->getAccessRequest()->getUser()->getId(),
+                'from' => $oldExternalId,
+                'to' => $newExternalId,
+            ]);
+        }
+    }
+
+    /**
+     * Snapshot the CTBG expediente metadata (estado, título, fechas) onto the
+     * complaint. Called on EVERY consejo_ctbg batch once the complaint is
+     * resolved — by reference match or by hash promotion — so estado changes
+     * (e.g. the expediente being closed or reopened) keep flowing after the
+     * initial promotion.
+     *
+     * @param array<string, mixed> $expMeta
+     */
+    private function syncExpedienteMetadata(AccessRequestComplaint $complaint, array $expMeta): void
+    {
         if (isset($expMeta['expedienteEstado']) && '' !== $expMeta['expedienteEstado']) {
             $complaint->setExpedienteEstado((string) $expMeta['expedienteEstado']);
         }
@@ -339,15 +370,6 @@ class AgentWebhookProcessor
         if (isset($expMeta['fechaCierre'])) {
             $parsed = $this->parsePortalDate((string) $expMeta['fechaCierre']);
             $complaint->setFechaCierre($parsed); // null clears the field if expediente reopened
-        }
-
-        if ($isNewRef) {
-            $this->logger->info('complaint.externalId.promoted', [
-                'complaintId' => (string) $complaint->getId(),
-                'userId' => (string) $complaint->getAccessRequest()->getUser()->getId(),
-                'from' => $oldExternalId,
-                'to' => $newExternalId,
-            ]);
         }
     }
 
