@@ -23,6 +23,7 @@ final class PromptCatalog
             ['name' => 'pideinfo-resolution-extract-analysis', 'commitMessage' => 'Resolution analysis: summary, keypoints, dates, outcome'],
             ['name' => 'pideinfo-resolution-extract-analysis-batch', 'commitMessage' => 'Batch variant of resolution analysis (custom model)'],
             ['name' => 'pideinfo-resolution-extract-noncomplete', 'commitMessage' => 'Backfill analysis for resolutions missing fields'],
+            ['name' => 'pideinfo-request-analyze-success-probability', 'commitMessage' => 'Estimate likelihood of request success'],
             ['name' => 'pideinfo-complaint-analyze-success-probability', 'commitMessage' => 'Estimate likelihood of complaint success'],
             ['name' => 'pideinfo-complaint-generate-complaint', 'commitMessage' => 'Draft a transparency complaint (reclamacion)'],
             ['name' => 'pideinfo-complaint-generate-complaint-silence', 'commitMessage' => 'Compact prompt for silencio administrativo (positive or negative)'],
