@@ -322,6 +322,7 @@ final class ComplaintGenerator
 
         $document->setStoredFilename($filename);
         $document->setFileSize(strlen($draft->content));
+        $document->setContentHash(hash('sha256', $draft->content));
         $document->setAiMetadata(array_merge([
             'origin' => 'ai',
             'transparencyCouncil' => $draft->transparencyCouncil,
@@ -891,6 +892,7 @@ GRANTED_PENDING;
         $document->setStoredFilename($filename);
         $document->setMimeType('text/plain');
         $document->setFileSize(strlen($draft->content));
+        $document->setContentHash(hash('sha256', $draft->content));
         $document->setType(DocumentType::AlegationResponse);
         $document->setAccessRequest($accessRequest);
         $document->setUploadedBy($accessRequest->getUser());
