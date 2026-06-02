@@ -123,6 +123,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $contactPhone = null;
 
+    /**
+     * Ids (string UUID) of the UsageHint announcements this user has dismissed
+     * from the dashboard "Novedades" block, so they are not shown again.
+     * @var array<string>|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $dismissedHints = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -401,6 +409,27 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
             && $this->addressMunicipality !== null && $this->addressMunicipality !== ''
             && $this->addressPostalCode !== null && $this->addressPostalCode !== ''
             && $this->contactPhone !== null && $this->contactPhone !== '';
+    }
+
+    /** @return array<string> string UUIDs of dismissed UsageHints */
+    public function getDismissedHints(): array
+    {
+        return $this->dismissedHints ?? [];
+    }
+
+    public function dismissHint(string $hintId): static
+    {
+        $dismissed = $this->getDismissedHints();
+        if (!\in_array($hintId, $dismissed, true)) {
+            $dismissed[] = $hintId;
+            $this->dismissedHints = $dismissed;
+        }
+        return $this;
+    }
+
+    public function hasDismissedHint(string $hintId): bool
+    {
+        return \in_array($hintId, $this->getDismissedHints(), true);
     }
 
     public function __toString(): string

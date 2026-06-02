@@ -1,0 +1,75 @@
+{# Shared document action helpers (reprocess + link to request).
+   Included from solicitudes/show.html.twig, documentos/index.html.twig and
+   comunicaciones/index.html.twig. Buttons must live inside a [data-document-id] row. #}
+<script>
+    window.reprocessDocument = async function(docId, btn) {
+        if (!confirm('¿Reprocesar este documento? Se volverá a analizar con IA.')) return;
+
+        const icon = btn.querySelector('i');
+        btn.disabled = true;
+        if (icon) icon.classList.add('animate-spin');
+
+        try {
+            const resp = await fetch('{{ path('app_document_process') }}', {
+                method: 'POST',
+                body: JSON.stringify({ documentIds: [docId] }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (resp.ok) {
+                const row = btn.closest('[data-document-id]');
+                const badge = row ? row.querySelector('.badge') : null;
+                if (badge) {
+                    badge.className = 'badge badge-warning';
+                    badge.textContent = 'Procesando...';
+                }
+            } else {
+                const err = await resp.json();
+                alert(err.error || 'Error al reprocesar documento');
+            }
+        } catch (e) {
+            alert('Error de conexión');
+        } finally {
+            btn.disabled = false;
+            if (icon) icon.classList.remove('animate-spin');
+        }
+    };
+
+    window.linkDocumentTo = async function(docId, accessRequestId, btn) {
+        if (!accessRequestId) {
+            alert('Selecciona una solicitud');
+            return;
+        }
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Enlazando...';
+
+        try {
+            const resp = await fetch('/documentos/' + docId + '/link', {
+                method: 'POST',
+                body: JSON.stringify({ accessRequestId: accessRequestId }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (resp.ok) {
+                window.location.reload();
+            } else {
+                const err = await resp.json();
+                alert(err.error || 'Error al enlazar documento');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        } catch (e) {
+            alert('Error de conexión');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    };
+</script>

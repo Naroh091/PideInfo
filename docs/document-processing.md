@@ -290,6 +290,7 @@ Existing AI pipeline (same as manual uploads)
 - `Document.sourceMetadata` almacena: `{from, subject, date, emailGroupId, emailHash}` para emails, o metadatos específicos del portal para documentos sincronizados desde el portal
 - `Document.contentHash` almacena el SHA-256 del contenido del archivo para deduplicación entre fuentes
 - La detección de duplicados para emails utiliza un hash de `from + date + subject + número de adjuntos`
+- Los documentos recibidos por email se pueden gestionar (descargar, vincular, eliminar, reprocesar) en la vista `/comunicaciones`, agrupados por `emailGroupId`; el resto de documentos del usuario se listan en `/documentos` (ver [inbound-email.md](inbound-email.md))
 
 ### Cloudflare Worker
 
