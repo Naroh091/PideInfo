@@ -728,7 +728,10 @@ class AgentWebhookProcessor
         if (str_contains($t, 'comunicación de inicio') || str_contains($t, 'comunicacion de inicio')) {
             return DocumentType::ComplaintProcessingStart;
         }
-        if (str_starts_with($t, 'trámite de audiencia') || str_starts_with($t, 'tramite de audiencia') || str_contains($p, 'audiencia')) {
+        // str_contains (no str_starts_with): los títulos reales del portal llegan
+        // como "Notificación_Trámite de audiencia" o con prefijo de fecha. Los
+        // checks anteriores (R CTBG, comunicación de inicio) protegen el orden.
+        if (str_contains($t, 'trámite de audiencia') || str_contains($t, 'tramite de audiencia') || str_contains($p, 'audiencia')) {
             return DocumentType::Audiencia;
         }
         if (str_starts_with($t, 'recibo')) {
