@@ -115,4 +115,21 @@ enum DocumentType: string
             default => null,
         };
     }
+
+    /**
+     * Whether the AI's content-based verdict should override a preassigned (or
+     * previously assigned) type. By default preassignments win — the agent's
+     * CTBG phase context is more reliable than the AI for e.g. complaint
+     * resolutions. The exception: the phase mapping cannot tell the audiencia
+     * notification apart from the admin's alegaciones (both arrive in the same
+     * CTBG phase), so when the AI reads "audiencia" in the content it refines
+     * an Alegaciones/Complaint preassignment. Without this, reprocessing a
+     * misclassified audiencia document could never fix it (and the
+     * HearingProcess would never be registered).
+     */
+    public static function aiRefinesPreassigned(self $preassigned, self $aiType): bool
+    {
+        return $aiType === self::Audiencia
+            && in_array($preassigned, [self::Alegaciones, self::Complaint], true);
+    }
 }
