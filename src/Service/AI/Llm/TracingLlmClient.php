@@ -28,7 +28,7 @@ final class TracingLlmClient extends LlmClient
         private readonly Tracer $tracer,
         #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
         bool $useCustom,
-        CustomModelClient $customClient,
+        private readonly CustomModelClient $customClient,
         GeminiChatClient $geminiClient,
         LoggerInterface $logger,
         private readonly ?Security $security = null,
@@ -133,11 +133,19 @@ final class TracingLlmClient extends LlmClient
             AttributeKeys::GEN_AI_OPERATION => 'chat',
             AttributeKeys::GEN_AI_SYSTEM => $this->useCustomCached ? 'openai' : 'google.generative_ai',
             AttributeKeys::GEN_AI_REQUEST_MODEL => $req->size->name,
-            AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $req->temperature,
+            // The custom backend ignores the per-request temperature and always runs at CUSTOM_MODEL_TEMP.
+            AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $this->useCustomCached ? $this->customClient->getTemperature() : $req->temperature,
             AttributeKeys::GEN_AI_REQUEST_MAX_TOKENS => $req->maxOutputTokens,
             AttributeKeys::LANGFUSE_OBSERVATION_LABEL => $req->label,
             AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $this->serializeInput($req),
         ];
+
+        // Link the generation to the Langfuse-managed prompt. Only possible when the
+        // template actually came from Langfuse (bundled fallbacks have no version).
+        if ($req->promptRef?->version !== null) {
+            $attrs[AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_NAME] = $req->promptRef->name;
+            $attrs[AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_VERSION] = $req->promptRef->version;
+        }
 
         $userId = $this->security?->getUser()?->getUserIdentifier();
         if ($userId !== null) {

@@ -23,6 +23,7 @@ final class DeadlineAlerts extends AbstractController
     public function __construct(
         private readonly AccessRequestRepository $repository,
         private readonly CustomDeadlineRepository $customDeadlineRepository,
+        private readonly \App\Repository\HearingProcessRepository $hearingProcessRepository,
         private readonly Security $security,
     ) {
     }
@@ -118,6 +119,27 @@ final class DeadlineAlerts extends AbstractController
             ];
         }
 
+        // Get hearing process deadlines (trámites de audiencia)
+        $hearings = $this->hearingProcessRepository->findApproachingByUser($user, $this->daysThreshold);
+
+        foreach ($hearings as $hearing) {
+            $daysUntil = $hearing->getDaysUntilEnd();
+            $isPassed = !$hearing->isActive();
+            $accessRequest = $hearing->getComplaint()->getAccessRequest();
+
+            $alerts[] = [
+                'id' => (string) $accessRequest->getId(),
+                'title' => $accessRequest->getTitle(),
+                'publicBody' => $accessRequest->getPublicBody()->getName(),
+                'deadlineAt' => $hearing->getEndDate(),
+                'daysUntil' => $daysUntil,
+                'isPassed' => $isPassed,
+                'type' => $this->getAlertType($daysUntil, $isPassed),
+                'message' => $this->getHearingAlertMessage($daysUntil, $isPassed),
+                'isHearing' => true,
+            ];
+        }
+
         // Sort by urgency (passed first, then by days until)
         usort($alerts, function ($a, $b) {
             if ($a['isPassed'] && !$b['isPassed']) return -1;
@@ -192,6 +214,20 @@ final class DeadlineAlerts extends AbstractController
             return 'Plazo de reclamación vence mañana';
         }
         return sprintf('Quedan %d días para resolución de reclamación', $daysUntil);
+    }
+
+    private function getHearingAlertMessage(int $daysUntil, bool $isPassed): string
+    {
+        if ($isPassed) {
+            return 'Plazo de alegaciones (audiencia) vencido';
+        }
+        if ($daysUntil === 0) {
+            return 'El plazo de alegaciones vence hoy';
+        }
+        if ($daysUntil === 1) {
+            return 'El plazo de alegaciones vence mañana';
+        }
+        return sprintf('Quedan %d días para presentar alegaciones', $daysUntil);
     }
 
     private function getCustomDeadlineMessage(int $daysUntil, bool $isPassed, string $description): string

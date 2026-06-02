@@ -4,6 +4,7 @@ namespace App\Service\ActivitySummary;
 
 use App\Entity\User;
 use App\Entity\UserNotification;
+use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Repository\UserNotificationRepository;
 use App\Service\AI\Llm\ChatRequest;
@@ -156,7 +157,7 @@ final class ActivitySummarizer
     /**
      * @param UserNotification[] $notifications
      */
-    private function buildPrompt(User $user, array $notifications): string
+    private function buildPrompt(User $user, array $notifications): CompiledPrompt
     {
         $context = sprintf(
             'Usuario: %s. Total de eventos en la ventana: %d.',

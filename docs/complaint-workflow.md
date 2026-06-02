@@ -207,6 +207,17 @@ El consejo da al ciudadano un plazo para revisar las alegaciones de la administr
 
 **Tipo de documento (notificación):** `DocumentType::Audiencia` — La notificación del consejo del periodo de audiencia, que normalmente se envía junto con las alegaciones de la administración
 
+**Registro del plazo (`HearingProcess`).** Cuando la notificación indica el plazo para alegar, el LLM
+extrae `hearing_days` y `hearing_days_type` (`business` = días hábiles, `calendar` = naturales; por
+defecto hábiles) y `HearingProcessManager` crea un `HearingProcess` asociado a la reclamación: fecha de
+inicio (la del documento) y fecha límite calculada con `DeadlineCalculator::calculateHearingDeadline()`
+(el cómputo empieza el día siguiente a la notificación, Ley 39/2015 art. 30). Una reclamación puede
+acumular varios trámites de audiencia; el "activo" es el de fecha límite más lejana aún no vencida
+(`AccessRequestComplaint::getActiveHearingProcess()`). La creación es idempotente: reprocesar el mismo
+documento actualiza el trámite en vez de duplicarlo. El plazo se destaca en el detalle de la solicitud
+(aviso superior mientras está vivo + fila "Plazo de alegaciones" en la zona Plazos) y en la agenda de
+plazos de la home, y deja rastro en el timeline y en `DeadlineHistory` (tipo `hearing`).
+
 **Generar una respuesta.** Cuando el estado de la reclamación es `reclaimed`, el usuario puede pulsar "Responder a alegaciones" y aterriza en `/solicitudes/{id}/redactar?mode=alegation_response`. A partir de ahí aplica el mismo flujo conversacional que para las reclamaciones — `free_chat`, `suggest_ideas`, `generate_first_draft`, `rewrite`. Internamente, `ComplaintDraftGenerator` delega las acciones que reemplazan el lienzo a `ComplaintGenerator::generateAlegationResponseStream()`, que:
 1. Lee el documento de alegaciones de la administración y sus `alegationPoints` extraídos.
 2. Recupera resoluciones y criterios actualizados relevantes para los argumentos.
@@ -247,8 +258,9 @@ Cuando se desestima la reclamación:
 | Plazo de presentación | 30 días (configurable por ley) | Desde la fecha de denegación/silencio |
 | Plazo de resolución | 3 meses | Desde el acuse/inicio de tramitación del consejo |
 | Plazo de cumplimiento | 10 días hábiles (configurable por ley) | Desde la fecha de resolución si se estima |
+| Plazo de alegaciones (audiencia) | Variable: `hearing_days` extraídos del documento | Desde el día siguiente a la notificación del trámite de audiencia |
 
-Los plazos se registran en `DeadlineHistory` con los tipos `TYPE_COMPLAINT` y `TYPE_COMPLIANCE`.
+Los plazos se registran en `DeadlineHistory` con los tipos `TYPE_COMPLAINT`, `TYPE_COMPLIANCE` y `TYPE_HEARING`.
 
 ## Organismos de reclamación
 

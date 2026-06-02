@@ -67,6 +67,27 @@
             </div>
         {% endif %}
 
+        {% if request.complaint and request.complaint.latestHearingProcess %}
+            {% set hearing = request.complaint.latestHearingProcess %}
+            {% set hearingPassed = not hearing.isActive %}
+            <div class="aside-row">
+                <span class="aside-key">Plazo de alegaciones</span>
+                <span class="aside-value">
+                    <span class="{{ hearingPassed ? 'text-red-600 font-semibold' : '' }}">
+                        {{ hearing.endDate|date('d/m/Y') }}
+                    </span>
+                    {% if hearingPassed %}
+                        <span class="aside-tag is-passed">Vencido</span>
+                    {% else %}
+                        <span class="meta">· {{ hearing.daysUntilEnd }} día{{ hearing.daysUntilEnd != 1 ? 's' : '' }}</span>
+                    {% endif %}
+                </span>
+                <p class="aside-note">
+                    Trámite de audiencia: {{ hearing.hearingDays }} {{ hearing.hearingDaysTypeLabel }} desde el {{ hearing.startDate|date('d/m/Y') }}.
+                </p>
+            </div>
+        {% endif %}
+
         {% if request.complaint and request.complaint.complianceDeadlineAt %}
             <div class="aside-row">
                 <span class="aside-key">Plazo de cumplimiento</span>

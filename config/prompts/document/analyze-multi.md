@@ -36,7 +36,9 @@ Cada documento tiene su PROPIO tipo, fecha y resumen. NO clasifiques todos los d
             "thirdPartyAllegationsDeadline": null,
             "isProcessingStart": false,
             "processingStartDate": null,
-            "alegationPoints": null
+            "alegationPoints": null,
+            "hearing_days": null,
+            "hearing_days_type": null
         }
     ]
 }
@@ -109,13 +111,15 @@ REGLAS PARA autonomousCommunityCode:
 - Para universidades públicas, usa el código de la CCAA donde están ubicadas
 - Para entidades autonómicas (Consejerías, SAS, SERGAS, etc.) → código de su CCAA
 
-REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, otro):
+REGLAS PARA documentType (valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, prorroga, traslado, afectacion_terceros, reclamacion, acuse_recibo_reclamacion, inicio_tramitacion_reclamacion, resolucion_reclamacion, alegaciones, respuesta_alegaciones, audiencia, otro):
 
 Usa "resolucion_reclamacion" si el documento es una resolución emitida por un organismo de transparencia (CTBG, GAIP, Comisionado de Transparencia, Consejo de Transparencia autonómico, etc.) que resuelve una reclamación interpuesta por el ciudadano. No confundir con "resolucion" que es la respuesta directa de la Administración a la solicitud.
 
 Usa "alegaciones" SOLO si el documento es un escrito de alegaciones de la ADMINISTRACIÓN (el órgano público) durante un proceso de reclamación ante un organismo de transparencia. Es la defensa/respuesta de la Administración ante la reclamación del ciudadano. El remitente debe ser la Administración, no el ciudadano.
 
 Usa "respuesta_alegaciones" si el documento es un escrito del CIUDADANO/INTERESADO respondiendo a las alegaciones de la Administración, o presentando sus propias alegaciones ante el organismo de transparencia (CTBG, etc.) durante el trámite de audiencia o alegaciones. El remitente es el interesado/reclamante, no la Administración.
+
+Usa "audiencia" si es una notificación del organismo de transparencia notificando la apertura de un trámite de audiencia en el marco de un proceso de reclamación para que el ciudadano alegue. Cuando uses este tipo, rellena "hearing_days" con el número de días que da el documento para alegar y "hearing_days_type" con 'business' si son días hábiles o 'calendar' si son naturales. Si el documento no especifica el tipo de días, usa 'business' (los plazos administrativos en días se entienden hábiles salvo indicación expresa).
 
 IMPORTANTE - Usa "resolucion" si el documento:
 - ESTIMA (concede/otorga) el acceso a la información solicitada

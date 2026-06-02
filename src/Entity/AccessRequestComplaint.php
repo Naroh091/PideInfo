@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\AccessRequestComplaintRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
@@ -85,6 +87,11 @@ class AccessRequestComplaint
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $filedAt = null;
 
+    /** @var Collection<int, HearingProcess> */
+    #[ORM\OneToMany(mappedBy: 'complaint', targetEntity: HearingProcess::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['endDate' => 'DESC'])]
+    private Collection $hearingProcesses;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -94,6 +101,7 @@ class AccessRequestComplaint
     public function __construct()
     {
         $this->id = Uuid::v7();
+        $this->hearingProcesses = new ArrayCollection();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
     }
@@ -312,5 +320,70 @@ class AccessRequestComplaint
         $today = new \DateTimeImmutable('today');
         $interval = $today->diff($this->complianceDeadlineAt);
         return $interval->invert ? -$interval->days : $interval->days;
+    }
+
+    /** @return Collection<int, HearingProcess> */
+    public function getHearingProcesses(): Collection
+    {
+        return $this->hearingProcesses;
+    }
+
+    public function addHearingProcess(HearingProcess $hearingProcess): static
+    {
+        if (!$this->hearingProcesses->contains($hearingProcess)) {
+            $this->hearingProcesses->add($hearingProcess);
+            $hearingProcess->setComplaint($this);
+        }
+        return $this;
+    }
+
+    /**
+     * Trámite de audiencia vivo: el de fecha límite más lejana entre los no
+     * vencidos. Null cuando no hay ninguno abierto.
+     */
+    public function getActiveHearingProcess(): ?HearingProcess
+    {
+        $active = null;
+        foreach ($this->hearingProcesses as $hearing) {
+            if (!$hearing->isActive()) {
+                continue;
+            }
+            if ($active === null || $hearing->getEndDate() > $active->getEndDate()) {
+                $active = $hearing;
+            }
+        }
+        return $active;
+    }
+
+    /**
+     * El trámite más relevante para mostrar: el activo o, si todos vencieron,
+     * el de fecha límite más reciente.
+     */
+    public function getLatestHearingProcess(): ?HearingProcess
+    {
+        $active = $this->getActiveHearingProcess();
+        if ($active !== null) {
+            return $active;
+        }
+
+        $latest = null;
+        foreach ($this->hearingProcesses as $hearing) {
+            if ($latest === null || $hearing->getEndDate() > $latest->getEndDate()) {
+                $latest = $hearing;
+            }
+        }
+        return $latest;
+    }
+
+    /** Idempotencia: trámite ya registrado para este documento, si existe. */
+    public function findHearingProcessByTriggerDocument(Document $document): ?HearingProcess
+    {
+        foreach ($this->hearingProcesses as $hearing) {
+            $trigger = $hearing->getTriggerDocument();
+            if ($trigger !== null && $trigger->getId()->equals($document->getId())) {
+                return $hearing;
+            }
+        }
+        return null;
     }
 }

@@ -4,6 +4,7 @@ namespace App\Service\AI;
 
 use App\Entity\Document;
 use App\Enum\DocumentType;
+use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ContentPart;
@@ -53,8 +54,9 @@ final class DocumentAnalyzer
         $content = $this->documentsStorage->read($document->getStoredFilename());
         $contextLabel = sprintf('[Documento: %s]', $document->getOriginalFilename());
 
+        $prompt = $this->buildPrompt();
         $parts = $this->buildDocumentParts($document, $content, $contextLabel);
-        $parts[] = ContentPart::text($this->buildPrompt());
+        $parts[] = ContentPart::text($prompt->text);
 
         $data = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: '',
@@ -63,6 +65,7 @@ final class DocumentAnalyzer
             temperature: 0.1,
             jsonMode: true,
             maxOutputTokens: 16384,
+            promptRef: $prompt,
         ));
 
         if ($document->getMimeType() === 'application/pdf'
@@ -142,7 +145,8 @@ final class DocumentAnalyzer
             }
         }
 
-        $parts[] = ContentPart::text($this->buildMultiDocumentPrompt(count($documents)));
+        $multiPrompt = $this->buildMultiDocumentPrompt(count($documents));
+        $parts[] = ContentPart::text($multiPrompt->text);
 
         $data = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: '',
@@ -151,17 +155,18 @@ final class DocumentAnalyzer
             temperature: 0.1,
             jsonMode: true,
             maxOutputTokens: 16384,
+            promptRef: $multiPrompt,
         ));
 
         return $this->parseMultiData($data, count($documents));
     }
 
-    private function buildMultiDocumentPrompt(int $documentCount): string
+    private function buildMultiDocumentPrompt(int $documentCount): CompiledPrompt
     {
         return $this->promptStore->compile('pideinfo-document-analyze-multi', ['document_count' => $documentCount]);
     }
 
-    private function buildPrompt(): string
+    private function buildPrompt(): CompiledPrompt
     {
         return $this->promptStore->compile('pideinfo-document-analyze-single');
     }
@@ -456,6 +461,16 @@ final class DocumentAnalyzer
         if (!empty($data['alegationPoints']) && is_array($data['alegationPoints']) && $data['documentType'] === DocumentType::Other) {
             $data['documentType'] = DocumentType::Alegaciones;
         }
+
+        // Trámite de audiencia: normaliza el plazo de alegaciones que el LLM
+        // extrae del documento. hearing_days debe ser un entero positivo;
+        // hearing_days_type cae a 'business' (días hábiles, Ley 39/2015 art.
+        // 30.2) cuando falta o trae un valor desconocido.
+        $rawDays = $data['hearing_days'] ?? null;
+        $data['hearing_days'] = is_numeric($rawDays) && (int) $rawDays > 0 ? (int) $rawDays : null;
+        $data['hearing_days_type'] = in_array($data['hearing_days_type'] ?? null, ['business', 'calendar'], true)
+            ? $data['hearing_days_type']
+            : 'business';
 
         return $data;
     }
