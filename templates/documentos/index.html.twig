@@ -1,0 +1,307 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% block title %}Documentos - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        /* ── Documentos index ── */
+        .docs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 1px solid rgb(226 232 240);
+        }
+        .docs-title {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            font-size: clamp(1.75rem, 3.5vw, 2.4rem);
+            line-height: 1.05;
+            letter-spacing: -.015em;
+            color: rgb(15 23 42);
+        }
+        .docs-sub {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem;
+            color: rgb(100 116 139);
+            margin-top: .35rem;
+        }
+
+        /* ── Document rows ── */
+        .doc-list {
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .doc-row {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid rgb(241 245 249);
+            transition: background .12s ease;
+        }
+        .doc-row:last-child { border-bottom: none; }
+        .doc-row:hover { background: rgb(248 250 252); }
+        .doc-row:hover .doc-actions { opacity: 1; }
+
+        .doc-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 38px;
+            height: 38px;
+            border-radius: .55rem;
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            color: rgb(100 116 139);
+            flex-shrink: 0;
+        }
+        .doc-main { flex: 1; min-width: 0; }
+        .doc-name {
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: .92rem;
+            color: rgb(15 23 42);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .doc-meta {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .35rem .65rem;
+            margin-top: .3rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem;
+            color: rgb(100 116 139);
+        }
+        .doc-meta .sep { color: rgb(203 213 225); }
+        .doc-summary {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .84rem;
+            color: rgb(71 85 105);
+            margin-top: .4rem;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .doc-request {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            margin-top: .5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem;
+            color: var(--color-primary-700);
+            text-decoration: none;
+        }
+        .doc-request:hover { text-decoration: underline; }
+        .doc-request.is-unlinked {
+            color: rgb(148 163 184);
+            text-decoration: none;
+            cursor: default;
+        }
+
+        .doc-origin {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+        }
+
+        .doc-actions {
+            display: flex;
+            align-items: flex-start;
+            gap: .25rem;
+            flex-shrink: 0;
+            opacity: .55;
+            transition: opacity .12s ease;
+        }
+        .doc-actions a,
+        .doc-actions button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: .45rem;
+            color: rgb(100 116 139);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: background .12s ease, color .12s ease;
+        }
+        .doc-actions a:hover,
+        .doc-actions button:hover {
+            background: rgb(226 232 240);
+            color: rgb(15 23 42);
+        }
+        .doc-actions button.is-danger:hover {
+            background: rgb(254 226 226);
+            color: rgb(185 28 28);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<header class="docs-header">
+    <div class="min-w-0">
+        <h1 class="docs-title">Documentos</h1>
+        <p class="docs-sub">
+            {% if total > 0 %}
+                {{ total }} documento{{ total != 1 ? 's' : '' }} importado{{ total != 1 ? 's' : '' }} en tu cuenta, del más reciente al más antiguo.
+            {% else %}
+                Todos los documentos que importes aparecerán aquí.
+            {% endif %}
+        </p>
+    </div>
+    <a href="{{ path('app_comunicaciones_index') }}" class="btn btn-secondary">
+        <i data-lucide="mail" class="w-4 h-4"></i>
+        Comunicaciones por email
+    </a>
+</header>
+
+{% if documents|length > 0 %}
+    <div class="doc-list">
+        {% for doc in documents %}
+            {% set isZip = doc.mimeType in ['application/zip', 'application/x-zip-compressed'] %}
+            {% set iconName = isZip ? 'archive' : (doc.isPdf ? 'file-text' : (doc.isImage ? 'image' : 'file')) %}
+            {% if doc.sourceType == 'portal' %}
+                {% set originIcon = 'bot' %}
+                {% set originLabel = 'Importación automática vía agente' %}
+            {% elseif doc.sourceType == 'email' %}
+                {% set originIcon = 'mail' %}
+                {% set originLabel = 'Importación automática vía email' %}
+            {% else %}
+                {% set originIcon = 'upload' %}
+                {% set originLabel = 'Subida manual' %}
+            {% endif %}
+            <div class="doc-row" data-document-id="{{ doc.id }}">
+                <span class="doc-icon">
+                    <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
+                </span>
+                <div class="doc-main">
+                    <p class="doc-name" title="{{ doc.displayFilename }}">{{ doc.displayFilename }}</p>
+                    <div class="doc-meta">
+                        {% if doc.processed %}
+                            <span class="badge badge-secondary">{{ doc.typeLabel }}</span>
+                        {% else %}
+                            <span class="badge badge-warning">Procesando...</span>
+                        {% endif %}
+                        <span>{{ doc.createdAt|date('d/m/Y H:i') }}</span>
+                        <span class="sep">·</span>
+                        <span class="doc-origin">
+                            <i data-lucide="{{ originIcon }}" class="w-3.5 h-3.5"></i>
+                            {{ originLabel }}
+                        </span>
+                    </div>
+                    {% if doc.summary %}
+                        <p class="doc-summary">{{ doc.summary }}</p>
+                    {% endif %}
+                    {% if doc.accessRequest %}
+                        <a href="{{ path('app_solicitudes_show', {id: doc.accessRequest.id}) }}" class="doc-request">
+                            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                            {{ doc.accessRequest.title }}
+                        </a>
+                    {% else %}
+                        <span class="doc-request is-unlinked">
+                            <i data-lucide="unlink" class="w-3.5 h-3.5"></i>
+                            Sin solicitud vinculada
+                        </span>
+                    {% endif %}
+                </div>
+                <div class="doc-actions">
+                    <a href="{{ path('app_document_download', {id: doc.id}) }}?inline=1"
+                       target="_blank"
+                       title="Abrir en nueva pestaña">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                    </a>
+                    <a href="{{ path('app_document_download', {id: doc.id}) }}"
+                       title="Descargar">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                    </a>
+                    {% if not isZip %}
+                        <button type="button"
+                                title="Reprocesar documento"
+                                onclick="reprocessDocument('{{ doc.id }}', this)">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                    {% endif %}
+                    <form method="post"
+                          action="{{ path('app_document_delete', {id: doc.id}) }}"
+                          onsubmit="return confirm('¿Eliminar este documento? Esta acción no se puede deshacer.')"
+                          class="inline-flex">
+                        <input type="hidden" name="_token" value="{{ csrf_token('delete-document-' ~ doc.id) }}">
+                        <input type="hidden" name="_redirect" value="documentos">
+                        <button type="submit" class="is-danger" title="Eliminar documento">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    {% if totalPages > 1 %}
+        <div class="mt-6 flex items-center justify-between">
+            <p class="text-sm text-slate-500">
+                {{ ((page - 1) * pageSize) + 1 }}–{{ min(page * pageSize, total) }} de {{ total }}
+            </p>
+            <nav class="flex items-center gap-1" aria-label="Paginación">
+                {% if page > 3 %}
+                    <a href="{{ path('app_documentos_index', { page: 1 }) }}"
+                       class="btn btn-ghost btn-sm" title="Primera página">
+                        <i data-lucide="chevrons-left" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% if page > 1 %}
+                    <a href="{{ path('app_documentos_index', { page: page - 1 }) }}"
+                       class="btn btn-ghost btn-sm">
+                        <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% for p in max(1, page - 2)..min(totalPages, page + 2) %}
+                    <a href="{{ path('app_documentos_index', { page: p }) }}"
+                       class="btn btn-sm {{ p == page ? 'btn-primary' : 'btn-ghost' }}">
+                        {{ p }}
+                    </a>
+                {% endfor %}
+
+                {% if page < totalPages %}
+                    <a href="{{ path('app_documentos_index', { page: page + 1 }) }}"
+                       class="btn btn-ghost btn-sm">
+                        <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+
+                {% if page < totalPages - 2 %}
+                    <a href="{{ path('app_documentos_index', { page: totalPages }) }}"
+                       class="btn btn-ghost btn-sm" title="Última página">
+                        <i data-lucide="chevrons-right" class="w-4 h-4"></i>
+                    </a>
+                {% endif %}
+            </nav>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="empty-state py-16">
+        <i data-lucide="files" class="empty-state-icon"></i>
+        <h3 class="empty-state-title">Aún no hay documentos</h3>
+        <p class="empty-state-description">
+            Los documentos llegan aquí automáticamente desde el agente o tu email virtual,
+            o súbelos manualmente desde el panel principal o cualquier solicitud.
+        </p>
+    </div>
+{% endif %}
+
+{% include '_partials/document_actions_js.html.twig' %}
+{% endblock %}

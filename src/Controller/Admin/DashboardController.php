@@ -10,6 +10,7 @@ use App\Entity\Document;
 use App\Entity\Organization;
 use App\Entity\PublicBody;
 use App\Entity\Resolution;
+use App\Entity\UsageHint;
 use App\Entity\User;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Dashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\MenuItem;
@@ -51,6 +52,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToCrud('Organizaciones', 'fa fa-building', Organization::class);
 
         yield MenuItem::section('Configuración');
+        yield MenuItem::linkToCrud('Novedades', 'fa fa-bullhorn', UsageHint::class);
         yield MenuItem::linkToCrud('Comunidades Autónomas', 'fa fa-map', AutonomousCommunity::class);
         yield MenuItem::linkToCrud('Leyes aplicables', 'fa fa-gavel', ApplicableLaw::class);
         yield MenuItem::linkToCrud('Órganos de reclamación', 'fa fa-balance-scale', ComplaintOrganism::class);

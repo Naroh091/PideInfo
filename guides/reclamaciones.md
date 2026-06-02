@@ -100,3 +100,16 @@ Para tu referencia, éste es el ciclo habitual de una reclamación:
 PideInfo soporta todos los tipos de documento de este proceso. Si subes el documento correspondiente a cada fase, se refleja automáticamente en el historial y los plazos de tu solicitud.
 
 El organismo de transparencia tiene **3 meses** para resolver la reclamación. PideInfo calcula y muestra este plazo automáticamente.
+
+## Plazos del trámite de audiencia
+
+Cuando el organismo de transparencia te da **trámite de audiencia** (paso 6 del proceso: te trasladan las alegaciones de la administración y te dan unos días para responder), PideInfo registra ese plazo automáticamente:
+
+1. Al procesar el documento de audiencia, la IA extrae **cuántos días** te dan y si son **días hábiles o naturales**
+2. El plazo se calcula conforme a la Ley 39/2015 (empieza a contar el día siguiente a la notificación; los días hábiles excluyen fines de semana y festivos nacionales)
+3. La fecha límite para presentar alegaciones aparece:
+   - En un **aviso destacado** en el detalle de la solicitud mientras la ventana esté abierta
+   - En la sección de **plazos** del detalle
+   - En las **alertas de plazos** del panel principal
+
+Así no se te pasa el plazo para responder, que suele ser corto (normalmente 10 o 15 días hábiles).

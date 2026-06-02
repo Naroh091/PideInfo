@@ -22,16 +22,44 @@
                         <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
                         <span>Inicio</span>
                     </a>
-                    <a href="{{ path('app_solicitudes_index') }}"
-                       class="nav-link {{ 'solicitud' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
-                        <i data-lucide="folder-open" class="w-4 h-4"></i>
-                        <span>Solicitudes</span>
-                    </a>
-                    <a href="{{ path('app_listas_index') }}"
-                       class="nav-link {{ 'lista' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
-                        <i data-lucide="list" class="w-4 h-4"></i>
-                        <span>Listas</span>
-                    </a>
+                    {# Solicitudes: clicking navigates, hovering reveals the related sections #}
+                    {% set currentRoute = app.request.attributes.get('_route')|default('') %}
+                    <div class="relative"
+                         x-data="{ open: false }"
+                         @mouseenter="open = true"
+                         @mouseleave="open = false">
+                        <a href="{{ path('app_solicitudes_index') }}"
+                           class="nav-link {{ 'solicitud' in currentRoute or 'lista' in currentRoute or 'documentos' in currentRoute or 'comunicaciones' in currentRoute ? 'active' : '' }}"
+                           :aria-expanded="open"
+                           aria-haspopup="true">
+                            <i data-lucide="folder-open" class="w-4 h-4"></i>
+                            <span>Solicitudes</span>
+                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="open ? 'rotate-180' : ''"></i>
+                        </a>
+                        {# top-full + inner padding (no margin) so there is no hover dead-zone between trigger and panel #}
+                        <div x-show="open"
+                             x-transition:enter="transition ease-out duration-100"
+                             x-transition:enter-start="transform opacity-0 scale-95"
+                             x-transition:enter-end="transform opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-75"
+                             x-transition:leave-start="transform opacity-100 scale-100"
+                             x-transition:leave-end="transform opacity-0 scale-95"
+                             class="absolute left-0 top-full pt-1 z-50"
+                             style="display: none;">
+                            <div class="w-56 bg-white rounded-xl shadow-lg border border-slate-100 py-2">
+                                <a href="{{ path('app_listas_index') }}"
+                                   class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary-600 transition-colors">
+                                    <i data-lucide="list" class="w-4 h-4"></i>
+                                    <span>Listas</span>
+                                </a>
+                                <a href="{{ path('app_documentos_index') }}"
+                                   class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 hover:text-primary-600 transition-colors">
+                                    <i data-lucide="files" class="w-4 h-4"></i>
+                                    <span>Documentos</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                     <a href="{{ path('app_guias_index') }}"
                        class="nav-link {{ 'guia' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
                         <i data-lucide="book-open" class="w-4 h-4"></i>
@@ -96,6 +124,16 @@
                class="nav-link w-full {{ 'lista' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
                 <i data-lucide="list" class="w-4 h-4"></i>
                 <span>Listas</span>
+            </a>
+            <a href="{{ path('app_documentos_index') }}"
+               class="nav-link w-full {{ 'documentos' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                <i data-lucide="files" class="w-4 h-4"></i>
+                <span>Documentos</span>
+            </a>
+            <a href="{{ path('app_comunicaciones_index') }}"
+               class="nav-link w-full {{ 'comunicaciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">
+                <i data-lucide="mail" class="w-4 h-4"></i>
+                <span>Comunicaciones</span>
             </a>
             <a href="{{ path('app_resoluciones_index') }}"
                class="nav-link w-full {{ 'resoluciones' in app.request.attributes.get('_route')|default('') ? 'active' : '' }}">

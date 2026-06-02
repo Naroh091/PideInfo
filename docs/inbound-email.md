@@ -177,6 +177,19 @@ Una vez creados los documentos y despachados a la cola asíncrona, siguen el pip
 
 El documento con el texto del cuerpo del correo es especialmente útil para el emparejamiento por IA: los correos de las administraciones suelen incluir el número de referencia y el contexto que ayudan a Gemini a identificar a qué solicitud de acceso pertenecen los documentos adjuntos.
 
+## Visualización y gestión: vista Comunicaciones
+
+Los correos recibidos son visibles y gestionables desde la vista **Comunicaciones** (`GET /comunicaciones`, ruta `app_comunicaciones_index`, controlador `CommunicationController`):
+
+- Los documentos con `sourceType: 'email'` del usuario se reagrupan por `sourceMetadata.emailGroupId`: cada grupo representa un correo recibido (remitente, asunto, fecha) con su cuerpo y adjuntos
+- Por cada documento se muestran el tipo (clasificado por IA), el mini resumen y la solicitud vinculada (si la hay)
+- Acciones por documento: descargar/abrir, **vincular manualmente** a una solicitud (si quedó huérfano), **eliminar** y **reprocesar**. Todas reutilizan los endpoints existentes de `DocumentController` (`app_document_download`, `app_document_link`, `app_document_delete`, `app_document_process`)
+- La agrupación y el conteo de `emailGroupId` se hacen en PHP (el id vive dentro del JSON `sourceMetadata`)
+
+Esta vista es importante cuando el usuario usa su email virtual como dirección de contacto en organismos (p. ej. el CTBG): las comunicaciones que llegan ahí son visibles aunque la IA no haya podido vincularlas a ninguna solicitud.
+
+Además, la tarjeta "Email virtual" del panel principal muestra un **contador de emails recibidos en los últimos 7 días** (`DocumentRepository::countRecentEmailGroups()`) con un enlace a esta vista.
+
 ## Consideraciones de seguridad
 
 - Las direcciones de correo virtuales utilizan aleatoriedad criptográfica — no se pueden adivinar
@@ -191,6 +204,8 @@ El documento con el texto del cuerpo del correo es especialmente útil para el e
 | Fichero | Propósito |
 |------|---------|
 | `src/Controller/Webhook/InboundEmailController.php` | Endpoint del webhook |
+| `src/Controller/CommunicationController.php` | Vista Comunicaciones (emails agrupados) |
+| `templates/comunicaciones/index.html.twig` | Plantilla de la vista Comunicaciones |
 | `src/Service/Email/VirtualEmailManager.php` | Generación de correo virtual |
 | `pideinfo-worker/src/index.ts` | Cloudflare Email Worker |
 | `pideinfo-worker/wrangler.jsonc` | Configuración del Worker |
