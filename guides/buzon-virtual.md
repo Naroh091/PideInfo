@@ -65,6 +65,14 @@ El funcionamiento es el mismo: PideInfo extrae los adjuntos, los analiza con IA 
 5. Si lo consigue, el documento se enlaza y el estado de la solicitud se actualiza automáticamente
 6. Si no lo consigue, el documento queda como "sin asignar" para que lo enlaces tú manualmente
 
+## Ver y gestionar las comunicaciones recibidas
+
+Todos los correos que llegan a tu buzón virtual son visibles en la vista **Comunicaciones**, accesible desde la tarjeta "Email virtual" del panel principal. Allí verás cada correo agrupado con sus adjuntos: remitente, asunto, fecha, a qué solicitud quedó vinculado, y podrás **vincular manualmente** los que quedaron sin asignar, **descargarlos**, **reprocesarlos** o **eliminarlos**.
+
+Además, la tarjeta "Email virtual" del panel muestra un **contador con los emails recibidos en los últimos 7 días**, para que sepas de un vistazo si ha llegado algo nuevo.
+
+Esto es especialmente útil si usas tu dirección virtual como **email de contacto directo** ante un organismo (por ejemplo, al presentar una reclamación ante el CTBG): aunque la IA no consiga asociar una notificación a una solicitud, siempre la encontrarás en Comunicaciones. Más detalles en la guía de [Documentos y comunicaciones](/guias/documentos).
+
 ## Detección de duplicados
 
 Si reenvías el mismo correo dos veces (o si recibes el mismo email por varias vías), el sistema detecta el duplicado y lo ignora. La detección se basa en el remitente, la fecha, el asunto y el número de adjuntos.

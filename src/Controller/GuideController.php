@@ -15,6 +15,7 @@ class GuideController extends AbstractController
         'como-funciona' => 'Cómo funciona',
         'solicitudes' => 'Añadir solicitudes',
         'buzon-virtual' => 'Buzón virtual',
+        'documentos' => 'Documentos y comunicaciones',
         'agente' => 'Agente de sincronización',
         'reclamaciones' => 'Reclamaciones',
         'recordatorios' => 'Recordatorios',

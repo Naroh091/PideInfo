@@ -82,6 +82,78 @@ class DocumentRepository extends ServiceEntityRepository
     }
 
     /**
+     * Paginated list of all documents imported by a user, newest first.
+     *
+     * @return Document[]
+     */
+    public function findByUserPaginated(User $user, int $page = 1, int $limit = 25): array
+    {
+        return $this->createQueryBuilder('d')
+            ->where('d.uploadedBy = :user')
+            ->setParameter('user', $user)
+            ->orderBy('d.createdAt', 'DESC')
+            ->setFirstResult(($page - 1) * $limit)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function countByUser(User $user): int
+    {
+        return (int) $this->createQueryBuilder('d')
+            ->select('COUNT(d.id)')
+            ->where('d.uploadedBy = :user')
+            ->setParameter('user', $user)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * All documents that arrived via the virtual email inbox, newest first.
+     *
+     * @return Document[]
+     */
+    public function findEmailDocumentsByUser(User $user): array
+    {
+        return $this->createQueryBuilder('d')
+            ->where('d.uploadedBy = :user')
+            ->andWhere('d.sourceType = :sourceType')
+            ->setParameter('user', $user)
+            ->setParameter('sourceType', Document::SOURCE_EMAIL)
+            ->orderBy('d.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Count distinct received emails (grouped by emailGroupId) since a given date.
+     *
+     * The group id lives inside the sourceMetadata JSON column, so the distinct
+     * count is done in PHP — email volumes per user are small.
+     */
+    public function countRecentEmailGroups(User $user, \DateTimeImmutable $since): int
+    {
+        $rows = $this->createQueryBuilder('d')
+            ->select('d.id, d.sourceMetadata')
+            ->where('d.uploadedBy = :user')
+            ->andWhere('d.sourceType = :sourceType')
+            ->andWhere('d.createdAt >= :since')
+            ->setParameter('user', $user)
+            ->setParameter('sourceType', Document::SOURCE_EMAIL)
+            ->setParameter('since', $since)
+            ->getQuery()
+            ->getArrayResult();
+
+        $groups = [];
+        foreach ($rows as $row) {
+            $groupId = $row['sourceMetadata']['emailGroupId'] ?? ('doc-' . $row['id']);
+            $groups[$groupId] = true;
+        }
+
+        return \count($groups);
+    }
+
+    /**
      * Find documents that were matched by keywords and need user confirmation.
      *
      * @return Document[]
