@@ -4,6 +4,7 @@ namespace App\Service\Complaint;
 
 use App\DTO\SuccessAnalysis;
 use App\Entity\AccessRequest;
+use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DocumentEmbeddingsRetriever;
@@ -269,7 +270,7 @@ final class SuccessAnalyzer
         array $favorablePrecedents,
         array $unfavorablePrecedents,
         array $documentContents,
-    ): string {
+    ): CompiledPrompt {
         $status = match (true) {
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
             $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'silencio administrativo negativo',
