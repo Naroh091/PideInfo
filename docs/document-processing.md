@@ -76,7 +76,7 @@ La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isE
 
 **Estructura de la llamada a la API:**
 - Modelo: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- Temperatura: 0.1 (casi determinista para una clasificación consistente)
+- Temperatura: 0.1 en la ruta Gemini (casi determinista para una clasificación consistente); el backend personalizado usa siempre `CUSTOM_MODEL_TEMP`
 - Formato de respuesta: JSON
 - Timeout: 120 segundos (los documentos pueden ser grandes)
 

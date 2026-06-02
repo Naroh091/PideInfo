@@ -69,10 +69,11 @@ class DebugDocumentAnalysisCommand extends Command
         try {
             $content = $this->documentsStorage->read($document->getStoredFilename());
 
+            $debugPrompt = $this->buildDebugPrompt();
             $parts = [
                 ContentPart::inlineData($document->getMimeType(), base64_encode($content)),
                 ContentPart::text(sprintf('[Documento: %s]', $document->getOriginalFilename())),
-                ContentPart::text($this->buildDebugPrompt()),
+                ContentPart::text($debugPrompt->text),
             ];
 
             $rawText = $this->llmClient->chat(new ChatRequest(
@@ -82,6 +83,7 @@ class DebugDocumentAnalysisCommand extends Command
                 temperature: 0.1,
                 jsonMode: true,
                 maxOutputTokens: 4096,
+                promptRef: $debugPrompt,
             ))->content;
 
             $io->section('Raw LLM Response');
@@ -121,7 +123,7 @@ class DebugDocumentAnalysisCommand extends Command
         }
     }
 
-    private function buildDebugPrompt(): string
+    private function buildDebugPrompt(): \App\Prompt\CompiledPrompt
     {
         return $this->promptStore->compile('pideinfo-document-debug-analyze-cot');
     }

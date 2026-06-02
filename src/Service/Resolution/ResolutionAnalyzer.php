@@ -4,6 +4,7 @@ namespace App\Service\Resolution;
 
 use App\Entity\Resolution;
 use App\Observability\Tracer;
+use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ChatRequest;
@@ -186,7 +187,7 @@ final class ResolutionAnalyzer
      * @param array<int, array{header: ?string, body: string}> $chunks
      * @return array{formatted_text: string}
      */
-    private function doFormatText(string $cleanedText, array $chunks, int $total, string $prompt, bool $flex): array
+    private function doFormatText(string $cleanedText, array $chunks, int $total, CompiledPrompt $prompt, bool $flex): array
     {
 
         if ($total === 1) {
@@ -239,7 +240,7 @@ final class ResolutionAnalyzer
         return ['formatted_text' => implode("\n\n", array_filter($pieces, static fn ($p) => $p !== ''))];
     }
 
-    private function buildFormatTextSystemPrompt(): string
+    private function buildFormatTextSystemPrompt(): CompiledPrompt
     {
         $customSuffix = $this->llmClient->isCustomEnabled()
             ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"formatted_text\": \"HTML formateado aquí\"}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
@@ -399,7 +400,7 @@ final class ResolutionAnalyzer
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildFormatTextSchema());
 
-        return $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['formatted_text'], $schema);
+        return $this->callCustomModelBatchApi($prompt->text, $userContent, $cleanedTexts, ['formatted_text'], $schema);
     }
 
     /**
@@ -417,7 +418,7 @@ final class ResolutionAnalyzer
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildExtractAnalysisSchema());
-        $results = $this->callCustomModelBatchApi($prompt, $userContent, $cleanedTexts, ['summary', 'keypoints'], $schema);
+        $results = $this->callCustomModelBatchApi($prompt->text, $userContent, $cleanedTexts, ['summary', 'keypoints'], $schema);
 
         foreach ($results as $i => $result) {
             /** @var array<string, mixed> $result */
@@ -476,7 +477,7 @@ Responde ÚNICAMENTE con un JSON válido con la estructura {"results": [{"index"
 SÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.
 FOOTER;
 
-        $prompt = $batchHeader . $basePrompt . $batchFooter;
+        $prompt = $batchHeader . $basePrompt->text . $batchFooter;
 
         $userContent = $this->buildBatchUserContent($cleanedTexts);
         $schema = $this->wrapBatchSchema($this->buildNonCompleteAnalysisSchema());
@@ -564,7 +565,6 @@ FOOTER;
                     ],
                     jsonSchema: $responseSchema,
                     schemaName: 'resolution_analysis_batch',
-                    temperature: 0.1,
                     maxRetries: 0,
                 )->content;
             } catch (\Throwable $e) {
@@ -643,7 +643,7 @@ FOOTER;
         throw $lastError ?? new \RuntimeException(sprintf('Custom model batch API call failed after %d attempts.', $maxRetries + 1));
     }
 
-    public function buildExtractAnalysisPrompt(bool $skipResolutionDate = false, string $customSuffix = ''): string
+    public function buildExtractAnalysisPrompt(bool $skipResolutionDate = false, string $customSuffix = ''): CompiledPrompt
     {
         return $this->promptStore->compile('pideinfo-resolution-extract-analysis', [
             'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
@@ -768,7 +768,7 @@ FOOTER;
         return $result;
     }
 
-    public function buildNonCompleteAnalysisPrompt(string $customSuffix = ''): string
+    public function buildNonCompleteAnalysisPrompt(string $customSuffix = ''): CompiledPrompt
     {
         return $this->promptStore->compile('pideinfo-resolution-extract-noncomplete', [
             'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
