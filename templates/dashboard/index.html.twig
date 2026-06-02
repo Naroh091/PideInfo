@@ -220,6 +220,9 @@
     {# Onboarding banner for new users #}
     {% include 'dashboard/_onboarding_banner.html.twig' %}
 
+    {# Novedades (dismissable usage hints) #}
+    {% include 'dashboard/_usage_hints.html.twig' %}
+
     {# ─────────────────── HERO ─────────────────── #}
     {% set h = 'now'|date('H')|number_format(0) %}
     {% set salutation = h < 6 ? 'Buenas noches' : (h < 13 ? 'Buenos días' : (h < 21 ? 'Buenas tardes' : 'Buenas noches')) %}
@@ -505,6 +508,17 @@
                         <p class="mt-2 text-xs text-slate-500 leading-relaxed">
                             Reenvía aquí los correos de las administraciones para que se procesen automáticamente.
                         </p>
+                        <a href="{{ path('app_comunicaciones_index') }}"
+                           class="mt-3 flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg bg-slate-50 border border-slate-200 hover:border-primary-200 hover:bg-primary-50/50 transition-colors group">
+                            <span class="flex items-center gap-2 text-xs text-slate-600 group-hover:text-primary-700">
+                                <i data-lucide="inbox" class="w-3.5 h-3.5"></i>
+                                Emails recibidos (últimos 7 días)
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="badge badge-primary">{{ recentEmailCount }}</span>
+                                <i data-lucide="chevron-right" class="w-3.5 h-3.5 text-slate-400 group-hover:text-primary-600"></i>
+                            </span>
+                        </a>
                     {% else %}
                         <p class="text-xs text-slate-500 mb-3 leading-relaxed">
                             Genera un email para recibir documentos directamente desde las administraciones.

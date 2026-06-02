@@ -34,11 +34,13 @@ Organization ──┤ (optional)
 
 **AccessRequestComplaint** contiene el estado de una reclamación presentada ante un consejo de transparencia. Tiene su propio `externalId` (el número de referencia del organismo), `status`, `deadlineAt` (plazo de resolución de 3 meses), `complianceDeadlineAt` y `filedAt`. Valores de estado: `reclaimed`, `complaint_granted`, `complaint_denied`, `complaint_archived`.
 
-**Document** representa cualquier archivo subido. Cada documento tiene un `type` (del enum `DocumentType` — 20 tipos posibles que cubren el ciclo de vida de la solicitud y la reclamación), texto extraído, metadatos de IA (JSON) y estado de procesamiento. Los documentos se almacenan en S3 y se analizan de forma asíncrona.
+**Document** representa cualquier archivo subido. Cada documento tiene un `type` (del enum `DocumentType` — 20 tipos posibles que cubren el ciclo de vida de la solicitud y la reclamación), texto extraído, metadatos de IA (JSON) y estado de procesamiento. Los documentos se almacenan en S3 y se analizan de forma asíncrona. El campo `sourceType` identifica el origen de importación: `'portal'` (agente), `'email'` (buzón virtual) o `null` (subida manual). Todos los documentos del usuario son consultables en la vista global `/documentos` (`app_documentos_index`, paginada, con tipo, resumen, solicitud vinculada y etiqueta de origen) y los recibidos por email también en `/comunicaciones` (`app_comunicaciones_index`, agrupados por correo recibido — ver [inbound-email.md](inbound-email.md)). Los métodos de listado correspondientes viven en `DocumentRepository` (`findByUserPaginated`, `countByUser`, `findEmailDocumentsByUser`, `countRecentEmailGroups`).
 
 **ApplicableLaw** define las reglas de una ley de transparencia: plazo de respuesta (duración y unidad — meses, días o días hábiles), máximo de prórrogas, días de plazo para reclamar y qué `ComplaintOrganism` resuelve las apelaciones. Cada ley pertenece opcionalmente a una `AutonomousCommunity`.
 
 **PublicBody** representa una entidad gubernamental. Tiene un nombre, nivel administrativo (estatal, autonómico, local, otro) y comunidad autónoma opcional.
+
+**UsageHint** es una novedad/anuncio que se muestra en el bloque descartable "Novedades" de la parte superior del panel principal. Tiene título, contenido en Markdown, enlace opcional y flag `isActive`. Cuando un usuario cierra una novedad, su id se añade a `User.dismissedHints` (columna JSON) y deja de mostrársele (`UsageHintRepository::findPendingForUser()`, descarte vía `POST /novedades/{id}/cerrar`). Se gestionan desde el panel de administración (sección Configuración → Novedades).
 
 ### Patrones de relación
 
@@ -225,6 +227,10 @@ InboundEmailController
         │
         ▼
 Same processing pipeline as manual uploads
+        │
+        ▼
+User manages received emails in /comunicaciones
+(grouped by email, link/delete/reprocess actions)
 ```
 
 ### Sincronización con el Portal de Transparencia (agente)

@@ -38,6 +38,27 @@ class DocumentController extends AbstractController
     ) {
     }
 
+    #[Route('', name: 'app_documentos_index', methods: ['GET'])]
+    public function index(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $page = max(1, $request->query->getInt('page', 1));
+        $limit = 25;
+
+        $documents = $this->documentRepository->findByUserPaginated($user, $page, $limit);
+        $total = $this->documentRepository->countByUser($user);
+
+        return $this->render('documentos/index.html.twig', [
+            'documents' => $documents,
+            'page' => $page,
+            'totalPages' => max(1, (int) ceil($total / $limit)),
+            'total' => $total,
+            'pageSize' => $limit,
+        ]);
+    }
+
     #[Route('/subir', name: 'app_document_upload', methods: ['POST'])]
     public function upload(Request $request): JsonResponse
     {
@@ -322,6 +343,16 @@ class DocumentController extends AbstractController
             $this->addFlash('success', 'Documento eliminado correctamente');
         } catch (\Exception $e) {
             $this->addFlash('error', 'Error al eliminar el documento');
+        }
+
+        // Optional explicit return destination (used by the Documentos / Comunicaciones views)
+        $redirectRoutes = [
+            'documentos' => 'app_documentos_index',
+            'comunicaciones' => 'app_comunicaciones_index',
+        ];
+        $redirect = $request->request->getString('_redirect');
+        if (isset($redirectRoutes[$redirect])) {
+            return $this->redirectToRoute($redirectRoutes[$redirect]);
         }
 
         // Redirect back to the access request if one was associated
