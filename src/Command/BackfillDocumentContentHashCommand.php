@@ -44,16 +44,14 @@ class BackfillDocumentContentHashCommand extends Command
         $batchSize = max(1, (int) $input->getOption('batch-size'));
         $listDuplicates = (bool) $input->getOption('list-duplicates');
 
-        $qb = $this->documentRepository->createQueryBuilder('d')
+        $total = (int) $this->documentRepository->createQueryBuilder('d')
+            ->select('COUNT(d.id)')
             ->where('d.contentHash IS NULL')
-            ->orderBy('d.createdAt', 'ASC');
+            ->getQuery()
+            ->getSingleScalarResult();
         if ($limit > 0) {
-            $qb->setMaxResults($limit);
+            $total = min($total, $limit);
         }
-
-        /** @var Document[] $documents */
-        $documents = $qb->getQuery()->getResult();
-        $total = count($documents);
 
         if ($total === 0) {
             $io->success('No hay documentos sin contentHash.');
@@ -73,46 +71,73 @@ class BackfillDocumentContentHashCommand extends Command
         $errors = 0;
         $processed = 0;
 
-        foreach ($documents as $document) {
-            $processed++;
-            $stored = $document->getStoredFilename();
+        // IDs we must not re-fetch: docs whose file is missing (their hash
+        // stays NULL forever) and, in dry-run, everything already examined
+        // (nothing gets persisted, so the WHERE clause alone won't move on).
+        $excludeIds = [];
 
-            try {
-                if (!$stored || !$this->documentsStorage->fileExists($stored)) {
-                    $missing++;
-                    $progress->advance();
-                    continue;
-                }
-
-                $stream = $this->documentsStorage->readStream($stored);
-                $ctx = hash_init('sha256');
-                hash_update_stream($ctx, $stream);
-                $hash = hash_final($ctx);
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
-
-                if (!$dryRun) {
-                    $document->setContentHash($hash);
-                }
-                $hashed++;
-
-                if (!$dryRun && ($processed % $batchSize) === 0) {
-                    $this->entityManager->flush();
-                    $this->entityManager->clear();
-                }
-            } catch (\Throwable $e) {
-                $errors++;
-                $io->newLine();
-                $io->warning(sprintf('Error en documento %s: %s', $document->getId(), $e->getMessage()));
+        // Re-query per batch instead of loading everything upfront: after a
+        // flush()+clear() the previously-loaded entities are DETACHED and any
+        // later setContentHash() on them is silently lost — that bug made the
+        // command persist only its first batch per run.
+        while ($processed < $total) {
+            $qb = $this->documentRepository->createQueryBuilder('d')
+                ->where('d.contentHash IS NULL')
+                ->orderBy('d.createdAt', 'ASC')
+                ->setMaxResults(min($batchSize, $total - $processed));
+            if ($excludeIds !== []) {
+                $qb->andWhere('d.id NOT IN (:excluded)')
+                    ->setParameter('excluded', $excludeIds);
             }
 
-            $progress->advance();
+            /** @var Document[] $documents */
+            $documents = $qb->getQuery()->getResult();
+            if ($documents === []) {
+                break;
+            }
+
+            foreach ($documents as $document) {
+                $processed++;
+                $stored = $document->getStoredFilename();
+
+                try {
+                    if (!$stored || !$this->documentsStorage->fileExists($stored)) {
+                        $missing++;
+                        $excludeIds[] = $document->getId();
+                        $progress->advance();
+                        continue;
+                    }
+
+                    $stream = $this->documentsStorage->readStream($stored);
+                    $ctx = hash_init('sha256');
+                    hash_update_stream($ctx, $stream);
+                    $hash = hash_final($ctx);
+                    if (is_resource($stream)) {
+                        fclose($stream);
+                    }
+
+                    if ($dryRun) {
+                        $excludeIds[] = $document->getId();
+                    } else {
+                        $document->setContentHash($hash);
+                    }
+                    $hashed++;
+                } catch (\Throwable $e) {
+                    $errors++;
+                    $excludeIds[] = $document->getId();
+                    $io->newLine();
+                    $io->warning(sprintf('Error en documento %s: %s', $document->getId(), $e->getMessage()));
+                }
+
+                $progress->advance();
+            }
+
+            if (!$dryRun) {
+                $this->entityManager->flush();
+                $this->entityManager->clear();
+            }
         }
 
-        if (!$dryRun) {
-            $this->entityManager->flush();
-        }
         $progress->finish();
         $io->newLine(2);
 
