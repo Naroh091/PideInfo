@@ -333,13 +333,25 @@ class Document
             return $this->originalFilename;
         }
 
-        $extension = pathinfo($this->originalFilename, PATHINFO_EXTENSION);
-        $baseName = pathinfo($this->originalFilename, PATHINFO_FILENAME);
+        // Strip any previous type-label prefix so a reclassification (e.g. a
+        // reprocessed Alegaciones doc refined to Audiencia) replaces the prefix
+        // instead of stacking "Tipo nuevo - Tipo viejo - nombre.pdf".
+        $name = $this->originalFilename;
+        foreach (DocumentType::cases() as $case) {
+            $stalePrefix = $case->label() . ' - ';
+            if (str_starts_with($name, $stalePrefix)) {
+                $name = substr($name, strlen($stalePrefix));
+                break;
+            }
+        }
+
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $baseName = pathinfo($name, PATHINFO_FILENAME);
         $typeLabel = $this->type->label();
 
         // Avoid duplication if the original already starts with the type label
-        if (str_starts_with($this->originalFilename, $typeLabel)) {
-            return $this->originalFilename;
+        if (str_starts_with($name, $typeLabel)) {
+            return $name;
         }
 
         return $extension
