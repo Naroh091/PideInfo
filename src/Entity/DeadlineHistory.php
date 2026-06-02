@@ -16,6 +16,7 @@ class DeadlineHistory
     public const TYPE_COMPLAINT = 'complaint';
     public const TYPE_COMPLIANCE = 'compliance';
     public const TYPE_THIRD_PARTY_ALLEGATIONS = 'third_party_allegations';
+    public const TYPE_HEARING = 'hearing';
 
     public const REASON_INITIAL = 'initial';
     public const REASON_EXTENSION = 'extension';
@@ -96,6 +97,7 @@ class DeadlineHistory
             self::TYPE_COMPLAINT => 'Plazo de reclamación',
             self::TYPE_COMPLIANCE => 'Plazo de cumplimiento',
             self::TYPE_THIRD_PARTY_ALLEGATIONS => 'Plazo alegaciones terceros',
+            self::TYPE_HEARING => 'Plazo de alegaciones (audiencia)',
             default => $this->deadlineType,
         };
     }

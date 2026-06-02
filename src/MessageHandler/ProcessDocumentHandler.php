@@ -15,6 +15,7 @@ use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
 use App\Service\Submission\ApplicableLawResolver;
+use App\Service\Complaint\HearingProcessManager;
 use App\Service\Complaint\SuccessAnalysisWarmer;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,6 +39,7 @@ final class ProcessDocumentHandler
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
         private readonly MessageBusInterface $messageBus,
+        private readonly HearingProcessManager $hearingProcessManager,
     ) {
     }
 
@@ -614,10 +616,11 @@ final class ProcessDocumentHandler
                 break;
 
             case DocumentType::Audiencia:
-                $this->ensureComplaint($accessRequest);
+                $complaint = $this->ensureComplaint($accessRequest);
+                $hearing = $this->hearingProcessManager->registerFromDocument($complaint, $document, $analysis);
                 $this->recordStatusChange(
                     $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                    'Trámite de audiencia notificado por el organismo de transparencia', $eventDate
+                    $this->hearingProcessManager->buildTimelineNote($hearing), $eventDate
                 );
                 break;
 

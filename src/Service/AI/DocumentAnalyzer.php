@@ -462,6 +462,16 @@ final class DocumentAnalyzer
             $data['documentType'] = DocumentType::Alegaciones;
         }
 
+        // Trámite de audiencia: normaliza el plazo de alegaciones que el LLM
+        // extrae del documento. hearing_days debe ser un entero positivo;
+        // hearing_days_type cae a 'business' (días hábiles, Ley 39/2015 art.
+        // 30.2) cuando falta o trae un valor desconocido.
+        $rawDays = $data['hearing_days'] ?? null;
+        $data['hearing_days'] = is_numeric($rawDays) && (int) $rawDays > 0 ? (int) $rawDays : null;
+        $data['hearing_days_type'] = in_array($data['hearing_days_type'] ?? null, ['business', 'calendar'], true)
+            ? $data['hearing_days_type']
+            : 'business';
+
         return $data;
     }
 }
