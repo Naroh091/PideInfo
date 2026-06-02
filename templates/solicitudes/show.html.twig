@@ -1214,6 +1214,48 @@
     {{ component('RequestStatusBanner', {request: request}) }}
 </div>
 
+{# Trámite de audiencia activo: el reclamante tiene un plazo abierto para
+   presentar alegaciones. Se oculta al vencer; el histórico queda en el
+   timeline y en la zona Plazos del lateral. #}
+{% if request.complaint and request.complaint.activeHearingProcess %}
+    {% set hearing = request.complaint.activeHearingProcess %}
+    <div class="rise rise-3">
+        <aside class="dossier-notice is-amber mb-6">
+            <div class="dossier-notice-body">
+                <div class="dossier-notice-icon">
+                    <i data-lucide="megaphone" class="w-4 h-4"></i>
+                </div>
+                <div class="dossier-notice-content">
+                    <div class="dossier-notice-eyebrow">
+                        <span class="dot"></span>
+                        Trámite de audiencia
+                        <span class="meta">· {{ hearing.daysUntilEnd }} día{{ hearing.daysUntilEnd != 1 ? 's' : '' }} restante{{ hearing.daysUntilEnd != 1 ? 's' : '' }}</span>
+                    </div>
+                    <h3 class="dossier-notice-headline">
+                        Tienes hasta el {{ hearing.endDate|date('d/m/Y') }} para presentar alegaciones.
+                    </h3>
+                    <div class="dossier-notice-prose">
+                        <p>
+                            El organismo de transparencia ha abierto un trámite de audiencia de
+                            {{ hearing.hearingDays }} {{ hearing.hearingDaysTypeLabel }}
+                            (desde el {{ hearing.startDate|date('d/m/Y') }}) para que puedas alegar
+                            lo que estimes oportuno antes de que resuelva la reclamación.
+                        </p>
+                    </div>
+                    {% if hearing.triggerDocument %}
+                        <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
+                            <a href="{{ path('app_document_download', {id: hearing.triggerDocument.id}) }}" class="btn btn-ghost btn-sm" data-turbo="false">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i>
+                                Ver notificación del trámite
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </aside>
+    </div>
+{% endif %}
+
 {# Visibilidad de los intentos de envío vía agente. Si la solicitud sigue
    pendiente y hubo tareas fallidas o inciertas, lo avisamos junto a la
    invitación de envío y ofrecemos un modal con el detalle de cada intento. #}

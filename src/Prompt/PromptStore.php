@@ -12,14 +12,15 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * SDK is not configured.
  *
  * Templates use Langfuse `{{var}}` placeholders. `compile($name, $vars)` returns
- * the substituted string ready to drop into a `ChatRequest::systemPrompt`.
+ * a CompiledPrompt: the substituted text plus the Langfuse name/version reference,
+ * so traces can link the generation back to the managed prompt.
  *
  * The Langfuse PHP SDK's `getPrompt` does not URL-encode slashes in prompt names,
  * so we go through our own LangfuseAdminClient (which uses `rawurlencode`).
  */
 final class PromptStore
 {
-    /** @var array<string, ?string> Compiled-template cache (raw template body). */
+    /** @var array<string, ?array{template: string, version: ?int}> Fetched-template cache (raw template body + Langfuse version). */
     private array $cache = [];
 
     public function __construct(
@@ -34,14 +35,22 @@ final class PromptStore
     /**
      * @param array<string, scalar|\Stringable|null> $variables
      */
-    public function compile(string $name, array $variables = []): string
+    public function compile(string $name, array $variables = []): CompiledPrompt
     {
-        $template = $this->fetchTemplate($name) ?? $this->bundled->load($name);
+        $fetched = $this->fetchTemplate($name);
+        $template = $fetched['template'] ?? $this->bundled->load($name);
 
-        return $this->substitute($template, $variables);
+        return new CompiledPrompt(
+            text: $this->substitute($template, $variables),
+            name: $name,
+            version: $fetched['version'] ?? null,
+        );
     }
 
-    private function fetchTemplate(string $name): ?string
+    /**
+     * @return ?array{template: string, version: ?int}
+     */
+    private function fetchTemplate(string $name): ?array
     {
         if (array_key_exists($name, $this->cache)) {
             return $this->cache[$name];
@@ -67,7 +76,10 @@ final class PromptStore
             return $this->cache[$name] = null;
         }
 
-        return $this->cache[$name] = $data['prompt'];
+        return $this->cache[$name] = [
+            'template' => $data['prompt'],
+            'version' => is_int($data['version'] ?? null) ? $data['version'] : null,
+        ];
     }
 
     /**

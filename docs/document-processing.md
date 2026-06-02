@@ -76,7 +76,7 @@ La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isE
 
 **Estructura de la llamada a la API:**
 - Modelo: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- Temperatura: 0.1 (casi determinista para una clasificación consistente)
+- Temperatura: 0.1 en la ruta Gemini (casi determinista para una clasificación consistente); el backend personalizado usa siempre `CUSTOM_MODEL_TEMP`
 - Formato de respuesta: JSON
 - Timeout: 120 segundos (los documentos pueden ser grandes)
 
@@ -106,6 +106,17 @@ El prompt instruye al modelo a devolver un objeto JSON con:
 | `processingStartDate` | string | Fecha en que comenzó formalmente la tramitación |
 | `alegationPoints` | array | Argumentos clave de las alegaciones de la administración |
 | `keyPoints` | array | Puntos clave del documento (para respuestas, reclamaciones, resoluciones de reclamación y respuestas a alegaciones) |
+| `hearing_days` | integer | Días para alegar cuando el documento abre un trámite de audiencia (`documentType = audiencia`) |
+| `hearing_days_type` | string | Tipo de días del trámite de audiencia: `business` (hábiles) o `calendar` (naturales); por defecto `business` |
+
+**Trámite de audiencia.** Cuando `documentType = audiencia` y el análisis trae `hearing_days`, ambos
+handlers (single y batch) delegan en `HearingProcessManager`, que crea de forma idempotente (clave: el
+documento que lo dispara) un `HearingProcess` asociado a la reclamación: `startDate` = fecha del documento
+y `endDate` calculada con `DeadlineCalculator::calculateHearingDeadline()` (el cómputo empieza el día
+siguiente; en días hábiles salta fines de semana y festivos nacionales). También registra la entrada
+correspondiente en `DeadlineHistory` (tipo `hearing`) y la nota del timeline incluye el plazo y la fecha
+límite. El plazo se muestra en el dossier-notice del detalle (mientras está vivo), en la zona Plazos del
+detalle (`RequestStatusSidebar`) y en la box de Plazos de la home (`DeadlineAlerts`).
 
 ### Clasificación de tipos de documento
 

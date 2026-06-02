@@ -33,6 +33,8 @@ final class CustomModelClient
         private readonly string $apiKey,
         #[Autowire(env: 'int:CUSTOM_MODEL_MAX_TOKENS')]
         private readonly int $maxTokens,
+        #[Autowire(env: 'float:CUSTOM_MODEL_TEMP')]
+        private readonly float $temperature,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -43,6 +45,16 @@ final class CustomModelClient
     }
 
     /**
+     * Sampling temperature applied to every custom-model call (CUSTOM_MODEL_TEMP).
+     * Per-request temperatures are intentionally ignored on this backend: the
+     * self-hosted model has its own recommended setting.
+     */
+    public function getTemperature(): float
+    {
+        return $this->temperature;
+    }
+
+    /**
      * Dispatch a backend-agnostic ChatRequest to the custom model. Used by LlmClient
      * to route every call (chat, structured output, multi-turn, multimodal) through here.
      */
@@ -50,7 +62,7 @@ final class CustomModelClient
     {
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
-        return $this->dispatch($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+        return $this->dispatch($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
     }
 
     /**
@@ -67,7 +79,7 @@ final class CustomModelClient
     {
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
-        return yield from $this->dispatchStream($messages, $req->temperature, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+        return yield from $this->dispatchStream($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
     }
 
     /**
@@ -143,7 +155,6 @@ final class CustomModelClient
         array $messages,
         ?array $jsonSchema = null,
         string $schemaName = 'structured_response',
-        float $temperature = 0.1,
         int $maxRetries = 2,
     ): ChatResult {
         $responseFormat = $jsonSchema !== null
@@ -156,7 +167,7 @@ final class CustomModelClient
             ]
             : null;
 
-        return $this->dispatch($messages, $temperature, $this->maxTokens, $maxRetries, $responseFormat);
+        return $this->dispatch($messages, $this->maxTokens, $maxRetries, $responseFormat);
     }
 
     /**
@@ -186,12 +197,12 @@ final class CustomModelClient
      * @param array<int, array<string, mixed>> $messages
      * @param array<string, mixed>|null $responseFormat
      */
-    private function dispatch(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): ChatResult
+    private function dispatch(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat): ChatResult
     {
         $params = [
             'model' => $this->model,
             'messages' => $messages,
-            'temperature' => $temperature,
+            'temperature' => $this->temperature,
             'max_tokens' => $maxTokens,
             'stream' => true,
             'stream_options' => ['include_usage' => true],
@@ -272,12 +283,12 @@ final class CustomModelClient
      * @param array<string, mixed>|null $responseFormat
      * @return \Generator<int, string, void, ChatResult>
      */
-    private function dispatchStream(array $messages, float $temperature, int $maxTokens, int $maxRetries, ?array $responseFormat): \Generator
+    private function dispatchStream(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat): \Generator
     {
         $params = [
             'model' => $this->model,
             'messages' => $messages,
-            'temperature' => $temperature,
+            'temperature' => $this->temperature,
             'max_tokens' => $maxTokens,
             'stream' => true,
             'stream_options' => ['include_usage' => true],

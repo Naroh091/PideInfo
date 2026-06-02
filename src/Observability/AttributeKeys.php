@@ -33,4 +33,7 @@ final class AttributeKeys
     public const LANGFUSE_OBSERVATION_INPUT = 'langfuse.observation.input';
     public const LANGFUSE_OBSERVATION_OUTPUT = 'langfuse.observation.output';
     public const LANGFUSE_OBSERVATION_LABEL = 'langfuse.observation.metadata.label';
+    // Both name + version (integer) are required for Langfuse to link a generation to a managed prompt.
+    public const LANGFUSE_OBSERVATION_PROMPT_NAME = 'langfuse.observation.prompt.name';
+    public const LANGFUSE_OBSERVATION_PROMPT_VERSION = 'langfuse.observation.prompt.version';
 }

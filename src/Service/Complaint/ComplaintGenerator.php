@@ -12,6 +12,7 @@ use App\Entity\Document;
 use App\Enum\DocumentType;
 use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
+use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DocumentEmbeddingsRetriever;
@@ -189,17 +190,19 @@ final class ComplaintGenerator
             $hasResponseDocument
         );
 
+        $systemPrompt = $prompt->text;
         if ($userDirections) {
-            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
         $stream = $this->llmClient->chatStream(new ChatRequest(
-            systemPrompt: $prompt,
+            systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
             temperature: 0.3,
             maxOutputTokens: 8192,
             label: 'complaint.generate',
+            promptRef: $prompt,
         ));
 
         foreach ($stream as $delta) {
@@ -252,16 +255,18 @@ final class ComplaintGenerator
             $hasResponseDocument
         );
 
+        $systemPrompt = $prompt->text;
         if ($userDirections) {
-            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
         $content = $this->llmClient->chat(new ChatRequest(
-            systemPrompt: $prompt,
+            systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
             temperature: 0.3,
             maxOutputTokens: 8192,
+            promptRef: $prompt,
         ))->content;
 
         $content = $this->sanitizeHtmlResponse($content);
@@ -372,7 +377,7 @@ final class ComplaintGenerator
                 $alegacionesContent,
                 $alegationPoints,
                 $documentContents,
-            );
+            )->text;
         }
 
         return $this->buildPrompt(
@@ -383,7 +388,7 @@ final class ComplaintGenerator
             $resolutions,
             $documentContents,
             $this->hasResponseDocument($accessRequest),
-        );
+        )->text;
     }
 
     public function canGenerateComplaint(AccessRequest $accessRequest): bool
@@ -548,7 +553,7 @@ TXT;
         array $resolutions,
         array $documentContents = [],
         bool $hasResponseDocument = false
-    ): string {
+    ): CompiledPrompt {
         $silencePositive = $accessRequest->getApplicableLaw()->isSilenceIsPositive();
         $silenceLabel = $silencePositive
             ? 'silencio administrativo positivo (derecho adquirido pero no materializado)'
@@ -785,17 +790,19 @@ GRANTED_PENDING;
             $documentContents
         );
 
+        $systemPrompt = $prompt->text;
         if ($userDirections) {
-            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
         $stream = $this->llmClient->chatStream(new ChatRequest(
-            systemPrompt: $prompt,
+            systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
             temperature: 0.3,
             maxOutputTokens: 8192,
             label: 'complaint.alegation_response',
+            promptRef: $prompt,
         ));
 
         foreach ($stream as $delta) {
@@ -850,16 +857,18 @@ GRANTED_PENDING;
             $documentContents
         );
 
+        $systemPrompt = $prompt->text;
         if ($userDirections) {
-            $prompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
         $content = $this->llmClient->chat(new ChatRequest(
-            systemPrompt: $prompt,
+            systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
             temperature: 0.3,
             maxOutputTokens: 8192,
+            promptRef: $prompt,
         ))->content;
 
         $content = $this->sanitizeHtmlResponse($content);
@@ -953,7 +962,7 @@ GRANTED_PENDING;
         string $alegacionesContent,
         array $alegationPoints,
         array $documentContents = []
-    ): string {
+    ): CompiledPrompt {
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
 

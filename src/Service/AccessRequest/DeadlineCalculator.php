@@ -30,6 +30,22 @@ class DeadlineCalculator
         return $this->addBusinessDays($resolutionDate, $law->getComplaintDeadlineDays());
     }
 
+    /**
+     * Deadline of a hearing process (trámite de audiencia). The legal count
+     * starts the day AFTER the notification (Ley 39/2015 art. 30.3): business
+     * days skip weekends + national holidays; calendar days are plain natural
+     * days, so the end lands on documentDate + N days.
+     */
+    public function calculateHearingDeadline(\DateTimeImmutable $documentDate, int $days, string $daysType): \DateTimeImmutable
+    {
+        return match ($daysType) {
+            'calendar' => $documentDate->modify("+{$days} days"),
+            // 'business' and any unknown value: plazos en días se entienden
+            // hábiles salvo indicación expresa (Ley 39/2015 art. 30.2).
+            default => $this->addBusinessDays($documentDate, $days),
+        };
+    }
+
     public function addDuration(\DateTimeImmutable $startDate, int $value, string $unit): \DateTimeImmutable
     {
         return match ($unit) {
