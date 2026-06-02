@@ -111,6 +111,8 @@
                     <span class="agenda-row-tag tag-complaint">reclamación</span>
                 {% elseif alert.isCompliance is defined %}
                     <span class="agenda-row-tag tag-compliance">cumplimiento</span>
+                {% elseif alert.isHearing is defined %}
+                    <span class="agenda-row-tag tag-hearing">audiencia</span>
                 {% elseif alert.isCustom is defined %}
                     <span class="agenda-row-tag tag-custom">recordatorio</span>
                 {% endif %}
@@ -254,6 +256,7 @@
     }
     .tag-complaint  { background: rgb(254 243 199); color: rgb(180 83 9); }
     .tag-compliance { background: rgb(209 250 229); color: rgb(5 150 105); }
+    .tag-hearing    { background: rgb(254 226 226); color: rgb(185 28 28); }
     .tag-custom     { background: rgb(241 245 249); color: rgb(71 85 105); }
 
     .agenda-row-date {

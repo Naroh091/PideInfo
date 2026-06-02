@@ -14,6 +14,7 @@ use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AI\DocumentAnalyzer;
+use App\Service\Complaint\HearingProcessManager;
 use App\Service\Complaint\SuccessAnalysisWarmer;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,6 +37,7 @@ final class ProcessDocumentBatchHandler
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
         private readonly MessageBusInterface $messageBus,
+        private readonly HearingProcessManager $hearingProcessManager,
     ) {
     }
 
@@ -539,6 +541,15 @@ final class ProcessDocumentBatchHandler
                     $complaint->setStatus($status);
                     $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
                 }
+                break;
+
+            case DocumentType::Audiencia:
+                $complaint = $this->ensureComplaint($accessRequest);
+                $hearing = $this->hearingProcessManager->registerFromDocument($complaint, $document, $analysis);
+                $this->recordStatusChange(
+                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
+                    $this->hearingProcessManager->buildTimelineNote($hearing), $eventDate,
+                );
                 break;
         }
     }
