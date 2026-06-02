@@ -79,9 +79,12 @@ final class ProcessDocumentHandler
             // to ComplaintResolution / Alegaciones / ...), trust it over the
             // analyzer — the AI cannot tell "RESOLUCIÓN DE LA RECLAMACIÓN" apart
             // from a regular Response, and that misclassification used to hide
-            // the doc from the reclamación section.
+            // the doc from the reclamación section. Exception: the AI may refine
+            // Alegaciones/Complaint → Audiencia (see DocumentType::aiRefinesPreassigned),
+            // otherwise reprocessing could never register the hearing process.
             $preassignedType = $document->getType();
-            $typeWasPreassigned = $preassignedType !== DocumentType::Unprocessed;
+            $typeWasPreassigned = $preassignedType !== DocumentType::Unprocessed
+                && !DocumentType::aiRefinesPreassigned($preassignedType, $analysis['documentType']);
             if (!$typeWasPreassigned) {
                 $document->setType($analysis['documentType']);
             } else {

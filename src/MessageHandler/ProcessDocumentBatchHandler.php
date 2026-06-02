@@ -83,12 +83,14 @@ final class ProcessDocumentBatchHandler
             // Preassigned types (set by AgentWebhookProcessor for CTBG complaint
             // docs) override the analyzer's verdict: the agent has the phase
             // context the AI lacks. See ProcessDocumentHandler for the same
-            // pattern in the single-doc path.
+            // pattern in the single-doc path. Exception: the AI may refine
+            // Alegaciones/Complaint → Audiencia (DocumentType::aiRefinesPreassigned).
             foreach ($documents as $index => $document) {
                 $docAnalysis = $perDocAnalyses[$index] ?? $shared;
 
                 $preassignedType = $document->getType();
-                $typeWasPreassigned = $preassignedType !== DocumentType::Unprocessed;
+                $typeWasPreassigned = $preassignedType !== DocumentType::Unprocessed
+                    && !DocumentType::aiRefinesPreassigned($preassignedType, $docAnalysis['documentType']);
                 if (!$typeWasPreassigned) {
                     $document->setType($docAnalysis['documentType']);
                 } else {
