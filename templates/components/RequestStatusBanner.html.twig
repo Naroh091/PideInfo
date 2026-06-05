@@ -244,7 +244,7 @@
             </div>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
-        <div class="dossier-notice-footer">
+        <div class="dossier-notice-footer" style="display: flex; gap: .55rem; flex-wrap: wrap; align-items: center;">
             <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-accent btn-sm">
                 <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                 {% if draftDocument %}
@@ -253,6 +253,24 @@
                     Reclamar a {{ council|u.truncate(40, '…') }}
                 {% endif %}
             </a>
+            <form method="post" action="{{ path('app_solicitudes_change_status', {id: request.id}) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                <input type="hidden" name="statusType" value="status">
+                <input type="hidden" name="newStatus" value="granted">
+                <button type="submit" class="btn btn-ghost btn-sm">
+                    <i data-lucide="check" class="w-4 h-4 mr-1.5"></i>
+                    Marcar como completada
+                </button>
+            </form>
+            <form method="post" action="{{ path('app_solicitudes_change_status', {id: request.id}) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
+                <input type="hidden" name="statusType" value="status">
+                <input type="hidden" name="newStatus" value="granted_completed">
+                <button type="submit" class="btn btn-ghost btn-sm">
+                    <i data-lucide="package-check" class="w-4 h-4 mr-1.5"></i>
+                    Marcar como completada y recibida
+                </button>
+            </form>
         </div>
     </aside>
 {% endif %}

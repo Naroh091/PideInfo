@@ -1242,12 +1242,20 @@
                             lo que estimes oportuno antes de que resuelva la reclamación.
                         </p>
                     </div>
-                    {% if hearing.triggerDocument %}
+                    {% if request.complaint.status == 'reclaimed' or hearing.triggerDocument %}
                         <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
-                            <a href="{{ path('app_document_download', {id: hearing.triggerDocument.id}) }}" class="btn btn-ghost btn-sm" data-turbo="false">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i>
-                                Ver notificación del trámite
-                            </a>
+                            {% if request.complaint.status == 'reclaimed' %}
+                                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-accent btn-sm">
+                                    <i data-lucide="message-square-reply" class="w-3.5 h-3.5 mr-1.5"></i>
+                                    Redactar alegaciones
+                                </a>
+                            {% endif %}
+                            {% if hearing.triggerDocument %}
+                                <a href="{{ path('app_document_download', {id: hearing.triggerDocument.id}) }}" class="btn btn-ghost btn-sm" data-turbo="false">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i>
+                                    Ver notificación del trámite
+                                </a>
+                            {% endif %}
                         </div>
                     {% endif %}
                 </div>
