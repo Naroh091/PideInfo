@@ -140,6 +140,16 @@
                             {% set icon = 'package-check' %}
                             {% set title = 'Información recibida' %}
                             {% set titleColor = 'text-emerald-800' %}
+                        {% elseif to == 'partially_granted' %}
+                            {% set dotColor = 'bg-amber-500' %}
+                            {% set icon = 'pie-chart' %}
+                            {% set title = 'Estimación parcial' %}
+                            {% set titleColor = 'text-amber-700' %}
+                        {% elseif to == 'inadmitted' %}
+                            {% set dotColor = 'bg-red-500' %}
+                            {% set icon = 'ban' %}
+                            {% set title = 'Inadmitida a trámite' %}
+                            {% set titleColor = 'text-red-700' %}
                         {% elseif to == 'denied' %}
                             {% set dotColor = 'bg-red-500' %}
                             {% set icon = 'x-circle' %}

@@ -188,7 +188,7 @@ La solicitud se resuelve de una de estas maneras:
 
 **Concedida y completada** (`granted_completed`) — La persona usuaria confirma que ha recibido la información solicitada. Este es el verdadero estado terminal para las solicitudes con éxito. La transición desde `granted` se hace mediante el banner o el desplegable de estado.
 
-**Estimación parcial** (`partially_granted`) — El organismo público concede parte de la información solicitada. Se fija `resolvedAt`. La persona usuaria puede presentar una reclamación por la parte no facilitada; `ComplaintGenerator` adapta el prompt en consecuencia cuando `resolutionResult = partially_granted`.
+**Estimación parcial** (`partially_granted`) — El organismo público concede parte de la información solicitada. Se fija `resolvedAt`. La persona usuaria puede presentar una reclamación por la parte no facilitada; `ComplaintGenerator` adapta el prompt en consecuencia cuando `resolutionResult = partially_granted`. El banner de concesión parcial en el detalle ofrece, además de la reclamación, dos atajos de cierre — **Marcar como completada** (→ `granted`) y **Marcar como completada y recibida** (→ `granted_completed`) — que pasan por `AccessRequestManager::changeStatus()` y conservan `resolutionResult = partially_granted` (la concesión sigue siendo parcial aunque el procedimiento se cierre).
 
 **Inadmitida** (`inadmitted`) — El organismo público se niega a admitir la solicitud a trámite (p. ej., por causas del art. 18 Ley 19/2013). Se fija `resolvedAt`. También está disponible la posibilidad de presentar una reclamación.
 
@@ -288,7 +288,11 @@ Cada cambio de estado — ya lo dispare una persona usuaria, un administrador o 
 3. Gestiona los efectos colaterales (creación de la reclamación, actualización de plazos, `resolvedAt`)
 4. Crea un registro en `StatusHistory` con el valor antiguo, el nuevo, las notas y, opcionalmente, el documento que disparó el cambio
 
-El timeline en la página de detalle de la solicitud renderiza estos registros de forma cronológica, con iconos codificados por color para los distintos tipos de evento (traslado, terceros, inicio de tramitación, ampliación, resolución).
+El timeline en la página de detalle de la solicitud renderiza estos registros de forma cronológica, con iconos codificados por color para los distintos tipos de evento (traslado, terceros, inicio de tramitación, ampliación, resolución). Las etiquetas las traduce `StatusHistory::getToStatusLabel()`, que cubre todos los estados principales — incluidos `partially_granted` ("Estimación parcial") e `inadmitted` ("Inadmitida"), que antes caían al valor crudo.
+
+## Recordatorios en el detalle
+
+La barra lateral del detalle (`RequestStatusSidebar`) incluye, junto al bloque "Plazos", un bloque **"Recordatorios"** que lista los recordatorios pendientes del expediente: los `CustomDeadline` (fecha + descripción propias, con enlaces a crear/editar/eliminar vía `app_solicitudes_deadline_*`) y los avisos ligeros `Reminder` ("recuérdamelo", `ReminderRepository::findAllPendingForRequest()`).
 
 ## Relación con `AccessRequestComplaint`
 
