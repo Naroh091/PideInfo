@@ -31,4 +31,22 @@ class ReminderRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    /**
+     * Every pending (non-dismissed) reminder for a request, soonest first.
+     *
+     * @return Reminder[]
+     */
+    public function findAllPendingForRequest(User $user, AccessRequest $accessRequest): array
+    {
+        return $this->createQueryBuilder('r')
+            ->where('r.user = :user')
+            ->andWhere('r.accessRequest = :request')
+            ->andWhere('r.dismissedAt IS NULL')
+            ->setParameter('user', $user)
+            ->setParameter('request', $accessRequest)
+            ->orderBy('r.remindAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }
