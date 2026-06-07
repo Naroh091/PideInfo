@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\PublicBody;
 use App\Entity\AutonomousCommunity;
 use App\Entity\RegDestination;
+use App\Service\Submission\RegAdministrationLevel;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -54,29 +55,63 @@ class PublicBodyRepository extends ServiceEntityRepository
     }
 
     /**
-     * Routable through the agent's "realizar" flow: bodies that the agent can
-     * actually submit to. Today that means either an AGE Portal de Transparencia
-     * idAmb is registered OR the body has at least one active REG destination
-     * imported from the DIR3 catalogue. Optionally narrows by name substring.
+     * Cuerpos enviables (Portal AGE por idAmb, o apuntados por una
+     * RegDestination activa como submissionTarget), opcionalmente filtrados por
+     * nivel de administración (clave UI de RegAdministrationLevel) y ámbito
+     * (ministerio para `estado`, comunidad para el resto), más subcadena de
+     * nombre.
      *
-     * The portal criterion is `transparencyPortalAmbId`, not the informational
-     * `transparencyPortalUrl`: the agent builds the wizard URL from the idAmb,
-     * so a body without one is not actually submittable through the portal.
+     * El nivel `estado` incluye además los cuerpos AGE, que no tienen
+     * RegDestination. El resto de niveles excluyen AGE.
      *
      * @return PublicBody[]
      */
-    public function searchSubmittableByName(string $query = '', int $limit = 20): array
-    {
-        // Join via the unmapped target side: we want bodies that are pointed
-        // to by at least one active reg_destination as a *submission target*
-        // (which is what the picker actually drives the user toward), not
-        // bodies that merely happen to be the Raíz of a tree.
+    public function searchSubmittable(
+        string $query = '',
+        ?string $nivel = null,
+        ?string $ministerio = null,
+        ?string $comunidad = null,
+        int $limit = 20,
+    ): array {
         $qb = $this->createQueryBuilder('pb')
             ->leftJoin(RegDestination::class, 'rd', 'WITH', 'rd.submissionTarget = pb AND rd.disabledAt IS NULL')
-            ->where('pb.transparencyPortalAmbId IS NOT NULL OR rd.id IS NOT NULL')
             ->groupBy('pb.id')
             ->orderBy('pb.name', 'ASC')
             ->setMaxResults($limit);
+
+        $nivelValue = $nivel !== null ? RegAdministrationLevel::nivelFor($nivel) : null;
+
+        if ($nivelValue === null) {
+            // Sin nivel (o nivel desconocido): comportamiento anterior — REG ∪ AGE.
+            $qb->where('pb.transparencyPortalAmbId IS NOT NULL OR rd.id IS NOT NULL');
+        } else {
+            // Rama REG: la unidad debe ser de ese nivel (y ámbito si procede).
+            $regCond = 'rd.id IS NOT NULL AND rd.nivelAdministracion = :nivelValue';
+            $qb->setParameter('nivelValue', $nivelValue);
+
+            if ($comunidad !== null && $comunidad !== '') {
+                $regCond .= ' AND rd.comunidad = :comunidad';
+                $qb->setParameter('comunidad', $comunidad);
+            }
+            if ($ministerio !== null && $ministerio !== '') {
+                // Raíz (rd.publicBody) identifica al ministerio.
+                $regCond .= ' AND raiz.name = :ministerio';
+                $qb->leftJoin('rd.publicBody', 'raiz');
+                $qb->setParameter('ministerio', $ministerio);
+            }
+
+            if (RegAdministrationLevel::includesAgeBodies($nivel)) {
+                // Rama AGE: cuerpos de Portal. Filtrados por ministerio = su propio nombre.
+                $ageCond = 'pb.transparencyPortalAmbId IS NOT NULL';
+                if ($ministerio !== null && $ministerio !== '') {
+                    $ageCond .= ' AND pb.name = :ministerioAge';
+                    $qb->setParameter('ministerioAge', $ministerio);
+                }
+                $qb->where(sprintf('(%s) OR (%s)', $regCond, $ageCond));
+            } else {
+                $qb->where($regCond);
+            }
+        }
 
         if ($query !== '') {
             $qb->andWhere('LOWER(pb.name) LIKE LOWER(:query)')
@@ -130,5 +165,69 @@ class PublicBodyRepository extends ServiceEntityRepository
     public function findAllOrdered(): array
     {
         return $this->findBy([], ['name' => 'ASC']);
+    }
+
+    /**
+     * Comunidades distintas presentes en destinos REG activos del nivel dado
+     * (clave UI). Alimenta el desplegable del paso 2 para niveles territoriales.
+     *
+     * @return list<string>
+     */
+    public function findComunidadesForNivel(string $nivel): array
+    {
+        $nivelValue = RegAdministrationLevel::nivelFor($nivel);
+        if ($nivelValue === null) {
+            return [];
+        }
+
+        $rows = $this->getEntityManager()->createQueryBuilder()
+            ->select('DISTINCT rd.comunidad')
+            ->from(RegDestination::class, 'rd')
+            ->where('rd.disabledAt IS NULL')
+            ->andWhere('rd.nivelAdministracion = :nivelValue')
+            ->andWhere('rd.comunidad IS NOT NULL')
+            ->setParameter('nivelValue', $nivelValue)
+            ->orderBy('rd.comunidad', 'ASC')
+            ->getQuery()
+            ->getScalarResult();
+
+        return array_map(static fn (array $r) => $r['comunidad'], $rows);
+    }
+
+    /**
+     * Ministerios para el paso 2 del nivel "estado": nombres de las Raíces de
+     * destinos REG estatales ∪ nombres de cuerpos AGE. Distintos y ordenados.
+     *
+     * @return list<string>
+     */
+    public function findEstadoMinistries(): array
+    {
+        $em = $this->getEntityManager();
+        $estado = RegAdministrationLevel::nivelFor('estado');
+
+        $regRows = $em->createQueryBuilder()
+            ->select('DISTINCT raiz.name AS name')
+            ->from(RegDestination::class, 'rd')
+            ->join('rd.publicBody', 'raiz')
+            ->where('rd.disabledAt IS NULL')
+            ->andWhere('rd.nivelAdministracion = :estado')
+            ->setParameter('estado', $estado)
+            ->getQuery()
+            ->getScalarResult();
+
+        $ageRows = $this->createQueryBuilder('pb')
+            ->select('DISTINCT pb.name AS name')
+            ->where('pb.transparencyPortalAmbId IS NOT NULL')
+            ->getQuery()
+            ->getScalarResult();
+
+        $names = array_merge(
+            array_map(static fn (array $r) => $r['name'], $regRows),
+            array_map(static fn (array $r) => $r['name'], $ageRows),
+        );
+        $names = array_values(array_unique($names));
+        sort($names, SORT_LOCALE_STRING);
+
+        return $names;
     }
 }

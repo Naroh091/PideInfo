@@ -14,275 +14,305 @@ import TomSelect from 'tom-select';
  *   unitsUrlTemplate → ruta de unidades, con {id} para el publicBody
  */
 export default class extends Controller {
-    static targets = ['select', 'preview', 'continueButton'];
+    static targets = [
+        'nivel', 'facet', 'facetStep', 'facetLabel',
+        'select', 'unit', 'unitStep',
+        'addButton', 'continueButton', 'preview',
+    ];
     static values = {
         loadUrl: String,
+        facetsUrl: String,
         initiateUrl: String,
         unitsUrlTemplate: String,
         csrfToken: String,
     };
 
     connect() {
-        this.bodiesById = new Map();
-        this.selectedUnitsByBody = new Map();
-        this.unitTomSelects = new Map();
+        // Destinatarios acumulados: [{publicBodyId, regDestinationId?, name, channel, channelLabel, levelLabel, unitLabel?, law?}]
+        this.selectedTargets = [];
+        this.currentBody = null;     // organismo elegido en paso 3 (objeto JSON del endpoint)
+        this.currentUnit = null;     // {id, displayLabel} elegido en paso 4
 
-        const escape = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
-            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
-        }[c]));
-
-        const labelOf = (data) => {
-            const meta = this.bodiesById.get(data.id) || {};
-            return data.name || meta.name || data.text || '';
-        };
-
-        const channelBadge = (channel, channelLabel) => {
-            if (!channelLabel) return '';
-            const cls = channel === 'submit_request_transparencia'
-                ? 'channel-badge channel-badge-portal channel-badge-sm'
-                : 'channel-badge channel-badge-reg channel-badge-sm';
-            return `<span class="${cls}">${escape(channelLabel)}</span>`;
-        };
-
-        const renderOption = (data, esc) => {
-            const meta = this.bodiesById.get(data.id) || {};
-            const channel = meta.channel || data.channel || '';
-            const channelLabel = meta.channelLabel || data.channelLabel || '';
-            const law = (meta.applicableLaw || data.applicableLaw)?.shortCode || '';
-            const deadline = (meta.applicableLaw || data.applicableLaw)?.deadlineLabel || '';
-            // Show CCAA only for sub-state bodies — for state-level organisms
-            // it's redundant noise.
-            const level = meta.level || data.level || '';
-            const ccaa = (meta.autonomousCommunity || data.autonomousCommunity || '');
-            const territory = (level === 'autonomous' || level === 'local') && ccaa ? ccaa : '';
-            const metaParts = [territory, deadline, law].filter(Boolean).map(escape);
-            const lawLine = metaParts.length > 0
-                ? `<span class="picker-option-meta">${metaParts.join(' · ')}</span>`
-                : '';
-            return `<div class="picker-option">
-                <div class="picker-option-row">
-                    <span class="picker-option-name">${escape(labelOf(data))}</span>
-                    ${channelBadge(channel, channelLabel)}
-                </div>
-                ${lawLine}
-            </div>`;
-        };
-
-        const renderItem = (data, esc) => {
-            const meta = this.bodiesById.get(data.id) || {};
-            const channel = meta.channel || data.channel || '';
-            const channelLabel = meta.channelLabel || data.channelLabel || '';
-            return `<div class="picker-chip"><span>${escape(labelOf(data))}</span>${channelBadge(channel, channelLabel)}</div>`;
-        };
-
-        this.tomSelect = new TomSelect(this.selectTarget, {
-            valueField: 'id',
-            labelField: 'name',
-            searchField: ['name'],
-            preload: 'focus',
-            plugins: { dropdown_input: {}, remove_button: {} },
-            load: (query, callback) => this._loadOptions(query, callback),
-            render: { option: renderOption, item: renderItem },
-            onChange: () => this._refreshPreview(),
-            onItemAdd: () => this._refreshPreview(),
-            onItemRemove: (value) => {
-                this.selectedUnitsByBody.delete(value);
-                const ts = this.unitTomSelects.get(value);
-                if (ts) { ts.destroy(); this.unitTomSelects.delete(value); }
-                this._refreshPreview();
-            },
-        });
-
-        this._refreshPreview();
+        this._mountOrganismSelect();
+        this._renderTargets();
+        this._updateAddButton();
+        this._updateContinueButton();
     }
 
     disconnect() {
-        if (this.tomSelect) this.tomSelect.destroy();
-        this.unitTomSelects.forEach((ts) => ts.destroy());
-        this.unitTomSelects.clear();
+        if (this.organismTs) this.organismTs.destroy();
+        if (this.unitTs) this.unitTs.destroy();
     }
 
-    _loadOptions(query, callback) {
-        const url = `${this.loadUrlValue}?q=${encodeURIComponent(query)}&limit=25`;
-        fetch(url, { credentials: 'same-origin' })
-            .then((r) => r.json())
-            .then((json) => {
-                const bodies = (json && json.bodies) || [];
-                bodies.forEach((b) => this.bodiesById.set(b.id, b));
-                callback(bodies);
-            })
-            .catch(() => callback());
-    }
+    // ── Paso 1: nivel ──
+    nivelChanged() {
+        const nivel = this.nivelTarget.value;
+        this.currentBody = null;
+        this.currentUnit = null;
+        this._clearOrganism();
+        this._clearUnit();
 
-    _refreshPreview() {
-        const ids = this.tomSelect.getValue();
-        const list = Array.isArray(ids) ? ids : (ids ? [ids] : []);
-        const bodies = list.map((id) => this.bodiesById.get(id)).filter(Boolean);
-
-        this._updateContinueButton(bodies);
-
-        if (!this.hasPreviewTarget) return;
-
-        if (bodies.length === 0) {
-            this.previewTarget.innerHTML = `
-                <div class="preview-empty">
-                    <div class="preview-empty-icon"><i data-lucide="search" class="w-5 h-5"></i></div>
-                    <div>
-                        <p class="preview-empty-title">Empieza eligiendo el organismo</p>
-                        <p class="preview-empty-body">Cuando lo selecciones aparecerá aquí su ley aplicable y los plazos.</p>
-                    </div>
-                </div>`;
-            this._reIcons();
+        if (!nivel) {
+            this.facetStepTarget.hidden = true;
+            this._updateAddButton();
             return;
         }
 
-        if (bodies.length === 1) {
-            this.previewTarget.innerHTML = this._singleOrganismCard(bodies[0]);
+        fetch(`${this.facetsUrlValue}?nivel=${encodeURIComponent(nivel)}`, { credentials: 'same-origin' })
+            .then((r) => r.json())
+            .then((json) => {
+                const options = json.options || [];
+                if ((json.facetType || 'none') === 'none' || options.length === 0) {
+                    this.facetStepTarget.hidden = true;
+                    return;
+                }
+                // El número del paso lo pone el contador CSS; aquí solo el texto.
+                this.facetLabelTarget.textContent = json.facetType === 'ministerio'
+                    ? 'Ministerio' : 'Comunidad autónoma';
+                this.facetTarget.innerHTML = '<option value="">Todos</option>'
+                    + options.map((o) => `<option value="${this._escape(o)}">${this._escape(o)}</option>`).join('');
+                this.facetStepTarget.hidden = false;
+            })
+            .catch(() => { this.facetStepTarget.hidden = true; });
+
+        this._updateAddButton();
+    }
+
+    // ── Paso 2: ámbito ──
+    facetChanged() {
+        this.currentBody = null;
+        this.currentUnit = null;
+        this._clearOrganism();
+        this._clearUnit();
+        this._updateAddButton();
+    }
+
+    // ── Paso 3: organismo ──
+    organismChanged() {
+        const id = this.organismTs ? this.organismTs.getValue() : '';
+        this.currentUnit = null;
+        this._clearUnit();
+        this.currentBody = id ? (this.bodiesById.get(id) || null) : null;
+
+        if (this.currentBody && this.currentBody.requiresRegDestination) {
+            this._mountUnitSelect(this.currentBody);
+            this.unitStepTarget.hidden = false;
         } else {
-            const chips = bodies.map((b) => `<li class="preview-chip" data-body-id="${this._escape(b.id)}">
-                <div class="preview-chip-head">
-                    <span class="preview-chip-name">${this._escape(b.name)}</span>
-                    <span class="channel-badge ${b.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg'} channel-badge-sm">${this._escape(b.channelLabel)}</span>
-                </div>
-                ${b.requiresRegDestination ? `<div class="preview-chip-unit"><label class="picker-card-label">Unidad de destino</label><select data-unit-select-for="${this._escape(b.id)}"></select></div>` : ''}
-            </li>`).join('');
-
-            this.previewTarget.innerHTML = `
-                <div class="preview-multi">
-                    <div class="preview-multi-head">
-                        <i data-lucide="layers" class="w-5 h-5"></i>
-                        <h3>Vas a enviar a ${bodies.length} organismos</h3>
-                    </div>
-                    <p class="preview-multi-note">PideInfo creará una solicitud independiente para cada uno. La probabilidad de éxito solo se calcula cuando el destinatario es uno.</p>
-                    <ul class="preview-multi-list">${chips}</ul>
-                </div>`;
+            this.unitStepTarget.hidden = true;
         }
-
-        bodies.filter((b) => b.requiresRegDestination).forEach((b) => this._mountUnitSelector(b));
-
-        this._reIcons();
+        this._updateAddButton();
     }
 
-    _singleOrganismCard(body) {
-        const law = body.applicableLaw || {};
-        const lawLine = law.name
-            ? `<dl class="preview-law">
-                <dt>Ley aplicable</dt>
-                <dd>${this._escape(law.name)} <span class="preview-law-code">${this._escape(law.shortCode || '')}</span></dd>
-                <dt>Plazo de respuesta</dt>
-                <dd>${this._escape(law.deadlineLabel || '—')}</dd>
-              </dl>`
-            : '<p class="preview-law-empty">Sin ley aplicable resoluta automáticamente. Podrás elegirla en el siguiente paso.</p>';
+    // ── Añadir destinatario al panel ──
+    addTarget() {
+        if (!this._canAdd()) return;
+        const b = this.currentBody;
+        const entry = {
+            publicBodyId: b.id,
+            name: b.name,
+            channel: b.channel,
+            channelLabel: b.channelLabel,
+            levelLabel: b.levelLabel,
+            law: b.applicableLaw || null,
+        };
+        if (b.requiresRegDestination) {
+            entry.regDestinationId = this.currentUnit.id;
+            entry.unitLabel = this.currentUnit.displayLabel;
+        }
+        // Evitar duplicado exacto (mismo organismo + misma unidad).
+        const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
+            && (t.regDestinationId || null) === (entry.regDestinationId || null));
+        if (!dup) this.selectedTargets.push(entry);
 
-        const ccaa = body.autonomousCommunity
-            ? `<span class="preview-meta-pill">${this._escape(body.autonomousCommunity)}</span>`
-            : '';
+        // Reset de la cascada para añadir otro.
+        this.nivelTarget.value = '';
+        this.facetStepTarget.hidden = true;
+        this.unitStepTarget.hidden = true;
+        this._clearOrganism();
+        this._clearUnit();
+        this.currentBody = null;
+        this.currentUnit = null;
 
-        const badgeClass = body.channel === 'submit_request_transparencia'
-            ? 'channel-badge channel-badge-portal'
-            : 'channel-badge channel-badge-reg';
-
-        const unitBlock = body.requiresRegDestination
-            ? `<div class="preview-card-unit">
-                  <p class="picker-card-label">Unidad de destino del REG</p>
-                  <select data-unit-select-for="${this._escape(body.id)}"></select>
-                  <p class="picker-help" style="margin-top:.5rem;">Selecciona la unidad concreta a la que va dirigida tu solicitud. Si tu organismo tiene oficinas territoriales, podrás filtrar por provincia.</p>
-               </div>`
-            : '';
-
-        return `
-            <article class="preview-card">
-                <header class="preview-card-head">
-                    <span class="${badgeClass}">${this._escape(body.channelLabel)}</span>
-                    <span class="preview-meta-pill">${this._escape(body.levelLabel)}</span>
-                    ${ccaa}
-                </header>
-                <h2 class="preview-card-title">${this._escape(body.name)}</h2>
-                ${lawLine}
-                ${unitBlock}
-            </article>`;
+        this._renderTargets();
+        this._updateAddButton();
+        this._updateContinueButton();
     }
 
-    _mountUnitSelector(body) {
-        const select = this.previewTarget.querySelector(`select[data-unit-select-for="${CSS.escape(body.id)}"]`);
-        if (!select) return;
+    removeTarget(event) {
+        const idx = Number(event.currentTarget.dataset.index);
+        if (Number.isInteger(idx)) {
+            this.selectedTargets.splice(idx, 1);
+            this._renderTargets();
+            this._updateContinueButton();
+        }
+    }
 
+    // ── Helpers de montaje ──
+    _mountOrganismSelect() {
+        this.bodiesById = new Map();
+        const escape = (s) => this._escape(s);
+
+        this.organismTs = new TomSelect(this.selectTarget, {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: ['name'],
+            maxItems: 1,
+            preload: 'focus',
+            plugins: { dropdown_input: {} },
+            load: (query, callback) => {
+                const params = new URLSearchParams({ q: query, limit: '25' });
+                const nivel = this.nivelTarget.value;
+                if (nivel) params.set('nivel', nivel);
+                const facet = this.hasFacetTarget && !this.facetStepTarget.hidden ? this.facetTarget.value : '';
+                if (facet) {
+                    params.set(nivel === 'estado' ? 'ministerio' : 'comunidad', facet);
+                }
+                fetch(`${this.loadUrlValue}?${params.toString()}`, { credentials: 'same-origin' })
+                    .then((r) => r.json())
+                    .then((json) => {
+                        const bodies = (json && json.bodies) || [];
+                        bodies.forEach((b) => this.bodiesById.set(b.id, b));
+                        callback(bodies);
+                    })
+                    .catch(() => callback());
+            },
+            render: {
+                option: (data, esc) => {
+                    const law = data.applicableLaw?.shortCode || '';
+                    const deadline = data.applicableLaw?.deadlineLabel || '';
+                    const territory = (data.level === 'autonomous' || data.level === 'local') && data.autonomousCommunity
+                        ? data.autonomousCommunity : '';
+                    const metaParts = [territory, deadline, law].filter(Boolean).map(escape);
+                    const meta = metaParts.length ? `<span class="picker-option-meta">${metaParts.join(' · ')}</span>` : '';
+                    const badge = data.channelLabel
+                        ? `<span class="channel-badge ${data.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg'} channel-badge-sm">${escape(data.channelLabel)}</span>`
+                        : '';
+                    return `<div class="picker-option"><div class="picker-option-row"><span class="picker-option-name">${escape(data.name)}</span>${badge}</div>${meta}</div>`;
+                },
+            },
+            onChange: () => this.organismChanged(),
+        });
+    }
+
+    _mountUnitSelect(body) {
+        if (this.unitTs) { this.unitTs.destroy(); this.unitTs = null; }
         const url = (this.unitsUrlTemplateValue || '').replace('__body__', body.id);
-        const ts = new TomSelect(select, {
+        this.unitTs = new TomSelect(this.unitTarget, {
             valueField: 'id',
             labelField: 'displayLabel',
-            // Search across the whole hierarchy so the user can find a unit
-            // by Oficina or Raíz name/code, not just the Unidad label.
             searchField: ['displayLabel', 'name', 'dir3', 'oficinaName', 'oficinaDir3', 'raizName', 'raizDir3', 'provincia'],
+            maxItems: 1,
             preload: 'focus',
             maxOptions: 100,
             plugins: { dropdown_input: {} },
             load: (q, cb) => {
                 fetch(`${url}?q=${encodeURIComponent(q)}&limit=100`, { credentials: 'same-origin' })
                     .then((r) => r.json())
-                    .then((json) => cb(json.units || []))
+                    .then((json) => {
+                        this._unitsById = this._unitsById || new Map();
+                        (json.units || []).forEach((u) => this._unitsById.set(u.id, u));
+                        cb(json.units || []);
+                    })
                     .catch(() => cb());
             },
             render: {
                 option: (data, esc) => {
-                    // Three lines: Unidad (bold) / Oficina / Raíz. Each line
-                    // shows "[DIR3] Nombre"; missing pieces render as "—" so
-                    // the structure stays readable even on legacy rows that
-                    // haven't been re-imported with Oficina yet.
-                    const line = (code, name) => `
-                        <div class="picker-option-row">
-                            <span class="picker-option-dir3">${esc(code || '—')}</span>
-                            <span class="picker-option-name">${esc(name || '—')}</span>
-                        </div>`;
+                    const line = (code, name) => `<div class="picker-option-row"><span class="picker-option-dir3">${esc(code || '—')}</span><span class="picker-option-name">${esc(name || '—')}</span></div>`;
                     return `<div class="picker-option picker-option-tree">
                         <div class="picker-option-line picker-option-line-unit">${line(data.dir3, data.name)}</div>
                         <div class="picker-option-line picker-option-line-oficina">${line(data.oficinaDir3, data.oficinaName)}</div>
-                        <div class="picker-option-line picker-option-line-raiz">
-                            ${line(data.raizDir3, data.raizName)}
-                            ${data.provincia ? `<span class="picker-option-meta">${esc(data.provincia)}</span>` : ''}
-                        </div>
+                        <div class="picker-option-line picker-option-line-raiz">${line(data.raizDir3, data.raizName)}${data.provincia ? `<span class="picker-option-meta">${esc(data.provincia)}</span>` : ''}</div>
                     </div>`;
                 },
             },
             onChange: (value) => {
-                if (value) {
-                    this.selectedUnitsByBody.set(body.id, value);
-                } else {
-                    this.selectedUnitsByBody.delete(body.id);
-                }
-                this._updateContinueButton();
+                const u = value && this._unitsById ? this._unitsById.get(value) : null;
+                this.currentUnit = u ? { id: u.id, displayLabel: u.displayLabel } : null;
+                this._updateAddButton();
             },
         });
-
-        const previous = this.selectedUnitsByBody.get(body.id);
-        if (previous) ts.setValue(previous, true);
-
-        this.unitTomSelects.set(body.id, ts);
     }
 
-    _updateContinueButton(bodies = null) {
-        if (!this.hasContinueButtonTarget) return;
-        if (bodies === null) {
-            const ids = this.tomSelect.getValue();
-            const list = Array.isArray(ids) ? ids : (ids ? [ids] : []);
-            bodies = list.map((id) => this.bodiesById.get(id)).filter(Boolean);
+    _clearOrganism() {
+        if (this.organismTs) { this.organismTs.clear(true); this.organismTs.clearOptions(); }
+        this.unitStepTarget.hidden = true;
+    }
+
+    _clearUnit() {
+        if (this.unitTs) { this.unitTs.destroy(); this.unitTs = null; }
+        this.currentUnit = null;
+    }
+
+    // ── Estado de botones ──
+    _canAdd() {
+        if (!this.currentBody) return false;
+        if (this.currentBody.requiresRegDestination && !this.currentUnit) return false;
+        return true;
+    }
+
+    _updateAddButton() {
+        if (this.hasAddButtonTarget) this.addButtonTarget.disabled = !this._canAdd();
+    }
+
+    _updateContinueButton() {
+        if (this.hasContinueButtonTarget) this.continueButtonTarget.disabled = this.selectedTargets.length === 0;
+    }
+
+    // ── Panel derecho ──
+    _renderTargets() {
+        if (!this.hasPreviewTarget) return;
+        if (this.selectedTargets.length === 0) {
+            this.previewTarget.innerHTML = `
+                <div class="preview-empty">
+                    <div class="preview-empty-icon"><i data-lucide="users" class="w-5 h-5"></i></div>
+                    <div>
+                        <p class="preview-empty-title">Aún no has añadido destinatarios</p>
+                        <p class="preview-empty-body">Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos a los que enviaremos tu solicitud.</p>
+                    </div>
+                </div>`;
+            this._reIcons();
+            return;
         }
-        const missingUnit = bodies.some((b) => b.requiresRegDestination && !this.selectedUnitsByBody.get(b.id));
-        this.continueButtonTarget.disabled = bodies.length === 0 || missingUnit;
+
+        const cards = this.selectedTargets.map((t, i) => {
+            const badgeClass = t.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg';
+            const lawLine = t.law && t.law.name
+                ? `<div class="target-card-unit">${this._escape(t.law.shortCode || t.law.name)} · ${this._escape(t.law.deadlineLabel || '—')}</div>` : '';
+            const unitLine = t.unitLabel ? `<div class="target-card-unit">└ ${this._escape(t.unitLabel)}</div>` : '';
+            return `<li class="preview-chip">
+                <div class="preview-chip-head">
+                    <span class="preview-chip-name">${this._escape(t.name)}</span>
+                    <span style="display:flex;align-items:center;gap:.4rem;">
+                        <span class="channel-badge ${badgeClass} channel-badge-sm">${this._escape(t.channelLabel || '')}</span>
+                        <button type="button" class="target-card-remove" data-index="${i}" data-action="realizar-picker#removeTarget" aria-label="Quitar">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </span>
+                </div>
+                ${unitLine}
+                ${lawLine}
+            </li>`;
+        }).join('');
+
+        this.previewTarget.innerHTML = `
+            <div class="preview-multi">
+                <div class="targets-panel-head">
+                    <i data-lucide="users" class="w-5 h-5"></i>
+                    <h3>Destinatarios seleccionados (${this.selectedTargets.length})</h3>
+                </div>
+                <p class="preview-multi-note">PideInfo creará una solicitud independiente para cada destinatario.</p>
+                <ul class="preview-multi-list">${cards}</ul>
+            </div>`;
+        this._reIcons();
     }
 
     async submit(event) {
         event.preventDefault();
-        const ids = this.tomSelect.getValue();
-        const list = Array.isArray(ids) ? ids : (ids ? [ids] : []);
-        if (list.length === 0) return;
+        if (this.selectedTargets.length === 0) return;
 
-        const targets = list.map((id) => {
-            const body = this.bodiesById.get(id) || {};
-            const target = { publicBodyId: id };
-            if (body.requiresRegDestination) {
-                target.regDestinationId = this.selectedUnitsByBody.get(id);
-            }
+        const targets = this.selectedTargets.map((t) => {
+            const target = { publicBodyId: t.publicBodyId };
+            if (t.regDestinationId) target.regDestinationId = t.regDestinationId;
             return target;
         });
 

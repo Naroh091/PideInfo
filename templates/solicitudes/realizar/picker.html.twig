@@ -348,6 +348,118 @@
             font-family: 'DM Sans', sans-serif;
             font-size: .88rem;
         }
+
+        /* ── Cascade form (issue #82): 4-step stepper ── */
+        .picker-step { margin-bottom: 0; }
+        .picker-step[hidden] { display: none; }
+        /* Gentle divider between consecutive (visible) steps for rhythm. */
+        .picker-step + .picker-step {
+            margin-top: 1.15rem;
+            padding-top: 1.15rem;
+            border-top: 1px solid rgb(241 245 249);
+        }
+        /* Numbered steps via a CSS counter: always correct, and hidden steps
+           (display:none) don't increment it — so when the Ámbito or Unidad step
+           is hidden there are no gaps, with zero JS involved. */
+        .picker-card { counter-reset: step; }
+        .picker-step { counter-increment: step; }
+        .picker-step .picker-card-label { display: flex; align-items: center; }
+        .picker-step .picker-card-label::before {
+            content: counter(step);
+            flex: 0 0 auto;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.3rem; height: 1.3rem; margin-right: .5rem;
+            border-radius: 999px;
+            background: var(--color-primary-100, #e0f2fe);
+            color: var(--color-primary-700, #0369a1);
+            font-family: 'Inter', sans-serif; font-size: .72rem; font-weight: 700;
+            letter-spacing: 0;
+        }
+
+        /* Native <select> (Nivel + Ámbito) — same visual language as the
+           TomSelect .ts-control controls, with a custom chevron so they don't
+           fall back to the raw browser dropdown. */
+        .picker-select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 100%;
+            min-height: 2.7rem;
+            padding: .5rem 2.4rem .5rem .75rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .95rem;
+            color: rgb(15 23 42);
+            background-color: #fff;
+            border: 1px solid rgb(203 213 225);
+            border-radius: .55rem;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right .7rem center;
+            background-size: 1.15rem;
+            transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+        }
+        .picker-select:hover { border-color: rgb(186 230 253); }
+        .picker-select:focus {
+            outline: none;
+            border-color: var(--color-primary-500, #0ea5e9);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, .15);
+        }
+        /* Muted "placeholder" colour while the empty first option is selected. */
+        .picker-select:has(option[value=""]:checked) { color: rgb(148 163 184); }
+        .picker-select option { color: rgb(15 23 42); }
+        .picker-select option[value=""] { color: rgb(148 163 184); }
+
+        /* Mirror the same focus ring on the TomSelect controls for consistency. */
+        .picker-card .ts-wrapper.focus .ts-control {
+            border-color: var(--color-primary-500, #0ea5e9);
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, .15);
+        }
+
+        /* "Añadir destinatario" — dashed, full-width, invites adding another. */
+        .picker-add-btn {
+            margin-top: 1.4rem;
+            width: 100%;
+            display: inline-flex; align-items: center; justify-content: center; gap: .45rem;
+            padding: .7rem 1rem;
+            font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: .9rem;
+            color: var(--color-primary-700, #0369a1);
+            background: var(--color-primary-50, #f0f9ff);
+            border: 1px dashed var(--color-primary-300, #7dd3fc);
+            border-radius: .6rem;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .picker-add-btn:hover:not(:disabled) {
+            background: var(--color-primary-100, #e0f2fe);
+            border-color: var(--color-primary-400, #38bdf8);
+        }
+        .picker-add-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+        /* ── Selected-recipients panel (right side) ── */
+        .targets-panel-head {
+            display: flex; align-items: center; gap: .55rem; margin-bottom: .85rem;
+        }
+        .targets-panel-head i { color: var(--color-primary-600); }
+        .targets-panel-head h3 {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.15rem; color: rgb(15 23 42);
+        }
+        .targets-empty {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .88rem; color: rgb(100 116 139); line-height: 1.5;
+        }
+        .target-card-remove {
+            background: none; border: 0; cursor: pointer;
+            color: rgb(148 163 184); padding: .15rem;
+            display: inline-flex; align-items: center;
+            transition: color .15s ease;
+        }
+        .target-card-remove:hover { color: rgb(220 38 38); }
+        .target-card-unit {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .82rem; color: rgb(71 85 105); margin-top: .3rem;
+        }
     </style>
 {% endblock %}
 
@@ -365,9 +477,6 @@
 </nav>
 
 <header class="picker-band">
-    <p class="picker-eyebrow">
-        <span>Paso 1 de 2</span><span class="dot"></span><span>Elegir destinatario</span>
-    </p>
     <h1 class="picker-title">Elige a qué organismo u organismos va dirigida tu <em>solicitud</em></h1>
     <p class="picker-sub">
         Aparecen los organismos que PideInfo puede enviar automáticamente: por Portal de Transparencia (AGE) o por el Registro Electrónico Común (REG/RED SARA). El resto los puedes anotar a mano desde "Ya la envié".
@@ -377,19 +486,57 @@
 <div class="picker-grid"
      data-controller="realizar-picker"
      data-realizar-picker-load-url-value="{{ path('app_solicitudes_realizar_bodies_json') }}"
+     data-realizar-picker-facets-url-value="{{ path('app_solicitudes_realizar_facets_json') }}"
      data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}"
      data-realizar-picker-units-url-template-value="{{ path('app_solicitudes_realizar_units_json', {'publicBody': '__body__'}) }}">
 
     <section class="picker-card">
-        <label for="realizar-organism-select" class="picker-card-label">Buscar organismo</label>
-        <select id="realizar-organism-select"
-                multiple
-                autocomplete="off"
-                data-realizar-picker-target="select"
-                placeholder="Empieza a escribir el nombre del organismo..."></select>
+        <div class="picker-step">
+            <label for="realizar-nivel-select" class="picker-card-label">Nivel de administración</label>
+            <select id="realizar-nivel-select"
+                    class="picker-select"
+                    data-realizar-picker-target="nivel"
+                    data-action="realizar-picker#nivelChanged">
+                <option value="">Elige un nivel…</option>
+                {% for key, label in reg_levels %}
+                    <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="picker-step" data-realizar-picker-target="facetStep" hidden>
+            <label for="realizar-facet-select" class="picker-card-label" data-realizar-picker-target="facetLabel">Ámbito</label>
+            <select id="realizar-facet-select"
+                    class="picker-select"
+                    data-realizar-picker-target="facet"
+                    data-action="realizar-picker#facetChanged"></select>
+        </div>
+
+        <div class="picker-step">
+            <label for="realizar-organism-select" class="picker-card-label">Organismo</label>
+            <select id="realizar-organism-select"
+                    autocomplete="off"
+                    data-realizar-picker-target="select"
+                    data-action="realizar-picker#organismChanged"
+                    placeholder="Empieza a escribir el nombre del organismo..."></select>
+        </div>
+
+        <div class="picker-step" data-realizar-picker-target="unitStep" hidden>
+            <label for="realizar-unit-select" class="picker-card-label">Unidad de destino (REG)</label>
+            <select id="realizar-unit-select" data-realizar-picker-target="unit"></select>
+            <p class="picker-help" style="margin-top:.5rem;">Selecciona la unidad concreta (p. ej. una concejalía). Si el organismo tiene oficinas territoriales, puedes filtrar al escribir.</p>
+        </div>
+
+        <button type="button"
+                class="picker-add-btn"
+                data-realizar-picker-target="addButton"
+                data-action="realizar-picker#addTarget"
+                disabled>
+            <i data-lucide="plus" class="w-4 h-4"></i> Añadir destinatario
+        </button>
 
         <p class="picker-help">
-            <b>¿No encuentras el tuyo?</b> En esta primera versión enviamos automáticamente al Portal de Transparencia (AGE) y a las unidades del REG / RED SARA importadas del catálogo DIR3. Si tu organismo no está, podrás registrarlo manualmente desde "Ya la envié".
+            <b>¿No encuentras el tuyo?</b> Enviamos automáticamente al Portal de Transparencia (AGE) y a las unidades del REG / RED SARA del catálogo DIR3. Si tu organismo no está, podrás registrarlo desde "Ya la envié".
         </p>
 
         <div class="picker-cta-row">
