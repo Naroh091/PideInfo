@@ -26,6 +26,7 @@ use App\Service\AI\ResolutionRetriever;
 use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
+use App\Service\Submission\RegAdministrationLevel;
 use App\Service\Submission\RegPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
@@ -126,7 +127,9 @@ class AccessRequestController extends AbstractController
     #[Route('/nueva/realizar', name: 'app_solicitudes_submit_form', methods: ['GET'])]
     public function pickOrganism(): Response
     {
-        return $this->render('solicitudes/realizar/picker.html.twig');
+        return $this->render('solicitudes/realizar/picker.html.twig', [
+            'reg_levels' => RegAdministrationLevel::choices(),
+        ]);
     }
 
     #[Route('/nueva/realizar/organismos.json', name: 'app_solicitudes_realizar_bodies_json', methods: ['GET'])]
@@ -139,8 +142,14 @@ class AccessRequestController extends AbstractController
     ): JsonResponse {
         $q = trim((string) $request->query->get('q', ''));
         $limit = max(1, min(50, (int) $request->query->get('limit', 20)));
+        $nivel = $request->query->get('nivel') ?: null;
+        if ($nivel !== null && !RegAdministrationLevel::isValid($nivel)) {
+            $nivel = null;
+        }
+        $ministerio = $request->query->get('ministerio') ?: null;
+        $comunidad = $request->query->get('comunidad') ?: null;
 
-        $bodies = $publicBodyRepository->searchSubmittableByName($q, $limit);
+        $bodies = $publicBodyRepository->searchSubmittable($q, $nivel, $ministerio, $comunidad, $limit);
 
         $items = [];
         foreach ($bodies as $body) {
@@ -166,6 +175,29 @@ class AccessRequestController extends AbstractController
         }
 
         return new JsonResponse(['bodies' => $items, 'count' => count($items)]);
+    }
+
+    #[Route('/nueva/realizar/facetas.json', name: 'app_solicitudes_realizar_facets_json', methods: ['GET'])]
+    public function submissionFacetsJson(
+        Request $request,
+        PublicBodyRepository $publicBodyRepository,
+    ): JsonResponse {
+        $nivel = (string) $request->query->get('nivel', '');
+        if (!RegAdministrationLevel::isValid($nivel)) {
+            return new JsonResponse(['error' => 'invalid_nivel'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $facetType = RegAdministrationLevel::facetType($nivel);
+        $options = match ($facetType) {
+            RegAdministrationLevel::FACET_MINISTERIO => $publicBodyRepository->findEstadoMinistries(),
+            RegAdministrationLevel::FACET_COMUNIDAD => $publicBodyRepository->findComunidadesForNivel($nivel),
+            default => [],
+        };
+
+        return new JsonResponse([
+            'facetType' => $facetType,
+            'options' => array_values($options),
+        ]);
     }
 
     #[Route('/nueva/realizar/organismos/{publicBody}/unidades.json', name: 'app_solicitudes_realizar_units_json', methods: ['GET'])]
