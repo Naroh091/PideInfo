@@ -128,6 +128,40 @@ Una solicitud puede crearse de tres maneras:
 - **AGE Portal de Transparencia** cuando `PublicBody.transparencyPortalAmbId !== null` (el `idAmb` del wizard; el agente construye con él la URL `/procedimiento/formulario?idProc=133628&idAmb={ID}`). El campo informativo `transparencyPortalUrl` no determina el canal.
 - **REG / RED SARA** cuando el organismo tiene al menos un `RegDestination` activo importado desde DIR3 (véase `docs/documentacion-procesos-envio/redsara_reg.md`). Los borradores REG recogen `expone` y `solicita` (máx. 4000 caracteres cada uno) en lugar de una única descripción, y requieren la dirección postal y el teléfono de la persona usuaria (`/perfil/datos-personales`) antes del envío.
 
+#### Selección de destinatario (picker en cascada)
+
+El picker de "Realizar solicitud" (`templates/solicitudes/realizar/picker.html.twig`,
+controlador Stimulus `assets/controllers/realizar_picker_controller.js`) guía al usuario en
+4 pasos:
+
+1. **Nivel de administración** (obligatorio): Estado, Autonómica, Local, Justicia,
+   Universidades, Otras Instituciones. Definidos en
+   `src/Service/Submission/RegAdministrationLevel.php`.
+2. **Ámbito** (opcional, depende del nivel): desplegable de **ministerios** para Estado,
+   o de **comunidades autónomas** para Autonómica / Local / Justicia. Servido por
+   `GET /solicitudes/nueva/realizar/facetas.json?nivel={clave}`
+   (`app_solicitudes_realizar_facets_json`).
+3. **Organismo** (obligatorio): autocompletar contra
+   `GET /solicitudes/nueva/realizar/organismos.json` (`app_solicitudes_realizar_bodies_json`),
+   que filtra los cuerpos enviables por `nivel` + ámbito (`ministerio` o `comunidad`). Incluye
+   cuerpos REG/RED SARA y cuerpos del Portal de Transparencia AGE; estos últimos solo aparecen
+   en el nivel Estado.
+4. **Unidad** (solo organismos REG): la `RegDestination` concreta (p. ej. una concejalía de un
+   Ayuntamiento), servida por
+   `GET /solicitudes/nueva/realizar/organismos/{publicBody}/unidades.json`
+   (`app_solicitudes_realizar_units_json`).
+
+El filtrado se deriva en tiempo de consulta de `RegDestination.nivelAdministracion`,
+`RegDestination.comunidad` y la Raíz (`RegDestination.publicBody`); no se denormaliza nada en
+`PublicBody` (cuyo `level` solo distingue estado/autonómica/local). El usuario completa la
+cascada, pulsa **"Añadir destinatario"** —que apila el organismo junto a su unidad en el panel
+derecho y resetea la cascada— y repite para enviar a varios organismos. "Continuar" hace
+`POST /solicitudes/nueva/realizar/iniciar` (`app_solicitudes_realizar_initiate`) con
+`{ targets: [{ publicBodyId, regDestinationId? }] }`, sin cambios respecto al flujo anterior.
+
+Detalle de diseño:
+`docs/superpowers/specs/2026-06-07-regdestination-cascade-selector-design.md`.
+
 **Asistente de redacción.** El canvas "Realizar" alberga un único asistente conversacional (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; controlador Stimulus `assistant-chat`). El modelo **decide automáticamente** en cada turno si responder con una pregunta o actuar sobre el canvas:
 - El system prompt codifica una política de tres acciones y pide al modelo que emita la respuesta conversacional, después un marcador literal `===DECISION===` y luego un bloque JSON `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.
 - `App\Service\AI\StreamingDecisionSplitter` separa el stream del LLM en torno al marcador, de modo que los tokens del chat pueden enviarse en vivo mientras el JSON se acumula y se parsea al final.
