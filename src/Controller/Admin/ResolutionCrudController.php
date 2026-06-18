@@ -83,6 +83,7 @@ class ResolutionCrudController extends AbstractCrudController
                 'CTPDA' => Resolution::SOURCE_CTPDA,
                 'CVT' => Resolution::SOURCE_CVT,
                 'CTCAN' => Resolution::SOURCE_CTCAN,
+                'CTRM' => Resolution::SOURCE_CTRM,
             ]))
             ->add(ChoiceFilter::new('scope', 'Ámbito')->setChoices([
                 'Nacional' => Resolution::SCOPE_NATIONAL,
@@ -152,6 +153,7 @@ class ResolutionCrudController extends AbstractCrudController
                 'CTPDA' => Resolution::SOURCE_CTPDA,
                 'CVT' => Resolution::SOURCE_CVT,
                 'CTCAN' => Resolution::SOURCE_CTCAN,
+                'CTRM' => Resolution::SOURCE_CTRM,
             ]);
         yield ChoiceField::new('scope', 'Ámbito')
             ->setChoices([
