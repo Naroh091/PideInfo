@@ -6,6 +6,7 @@ use App\Service\AI\Embedding\EmbedderInterface;
 use App\Service\AI\Embedding\GeminiEmbedder;
 use App\Service\AI\Embedding\QwenEmbedder;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
  * Public facade for embedding generation. Dispatches to either GeminiEmbedder or
@@ -18,6 +19,9 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  */
 class EmbeddingGenerator
 {
+    /** Same key as LlmClient: embeddings and chat share the model API budget. */
+    private const RATE_LIMIT_KEY = 'llm-api';
+
     private readonly EmbedderInterface $active;
 
     public function __construct(
@@ -25,8 +29,16 @@ class EmbeddingGenerator
         bool $useCustom,
         GeminiEmbedder $gemini,
         QwenEmbedder $qwen,
+        // The `llm_api` limiter. Nullable so the TracingEmbeddingGenerator decorator
+        // can omit it in its parent::__construct (it delegates to the real inner).
+        private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
     ) {
         $this->active = $useCustom ? $qwen : $gemini;
+    }
+
+    private function throttle(): void
+    {
+        $this->llmApiLimiter?->create(self::RATE_LIMIT_KEY)->reserve(1)->wait();
     }
 
     /**
@@ -34,6 +46,8 @@ class EmbeddingGenerator
      */
     public function generate(string $text): array
     {
+        $this->throttle();
+
         return $this->active->generate($text);
     }
 
@@ -43,6 +57,8 @@ class EmbeddingGenerator
      */
     public function generateBatch(array $texts): array
     {
+        $this->throttle();
+
         return $this->active->generateBatch($texts);
     }
 

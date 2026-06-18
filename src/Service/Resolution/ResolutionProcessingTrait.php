@@ -109,7 +109,6 @@ trait ResolutionProcessingTrait
 
             try {
                 $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
-                usleep(200_000);
             } catch (\Throwable $e) {
                 $this->logger->error('PDF phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
                 $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
@@ -120,7 +119,6 @@ trait ResolutionProcessingTrait
             try {
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
-                    usleep(500_000);
                 }
             } catch (\Throwable $e) {
                 $this->logger->error('Analysis phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
@@ -303,8 +301,6 @@ trait ResolutionProcessingTrait
                         'type' => 'fulltext',
                     ])),
                 );
-
-                usleep(100_000);
             }
 
             $keypoints = $resolution->getKeypoints();

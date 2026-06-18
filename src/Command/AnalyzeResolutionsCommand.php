@@ -702,7 +702,6 @@ class AnalyzeResolutionsCommand extends Command
                     'type' => 'fulltext',
                 ])),
             );
-            usleep(100_000);
         }
 
         $keypoints = $resolution->getKeypoints();

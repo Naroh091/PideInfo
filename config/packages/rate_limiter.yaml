@@ -1,5 +1,17 @@
 framework:
     rate_limiter:
+        # Global budget for the self-hosted model API key, shared by chat
+        # (analysis + vision OCR) AND embeddings (vectorization) because they hit
+        # the same endpoint/key. token_bucket (not sliding_window) so callers can
+        # reserve()->wait() and block until a slot frees up. Refill 1/s = 60 rpm
+        # sustained; `limit` is the small burst allowance. cache_pool must be the
+        # Redis pool so the bucket is shared across all worker processes.
+        llm_api:
+            policy: token_bucket
+            limit: 6
+            rate: { interval: '1 second', amount: 1 }
+            cache_pool: cache.app
+
         inbound_email:
             policy: sliding_window
             limit: 30

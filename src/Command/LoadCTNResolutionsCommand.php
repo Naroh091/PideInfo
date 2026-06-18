@@ -286,7 +286,6 @@ class LoadCTNResolutionsCommand extends Command
                         $this->processLocalPdf($resolution, $pdfPath, $io, $stats);
                     } elseif ($resolution->getSourceUrl()) {
                         $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
-                        usleep(200_000);
                     } else {
                         $stats['skippedPdf']++;
                     }
@@ -302,7 +301,6 @@ class LoadCTNResolutionsCommand extends Command
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
-                    usleep(500_000);
                 }
             } catch (\Throwable $e) {
                 $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);

@@ -437,7 +437,6 @@ class LoadCVAIPResolutionsCommand extends Command
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
-                    usleep(500_000);
                 }
             } catch (\Throwable $e) {
                 $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
