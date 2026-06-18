@@ -119,6 +119,27 @@ class PdfTextExtractor
     }
 
     /**
+     * Extract per-page text (1-indexed) WITHOUT the all-or-nothing readability
+     * discard used by extractPages(). Pages that have no text layer come back as
+     * empty strings, so callers (e.g. the vision-OCR fallback) can detect exactly
+     * which individual pages need OCR — even when the document as a whole is
+     * unreadable (image-only scans).
+     *
+     * @return array<int, string> Map of 1-indexed page number → raw page text.
+     */
+    public function extractPageTexts(string $filePath): array
+    {
+        if ($this->isPopplerAvailable()) {
+            $pages = $this->extractWithPoppler($filePath);
+            if ($pages !== null) {
+                return $pages;
+            }
+        }
+
+        return $this->extractWithSmalot($filePath);
+    }
+
+    /**
      * @return array<int, string> Map of 1-indexed page number → raw page text.
      */
     private function extractPages(string $filePath): array
@@ -187,6 +208,15 @@ class PdfTextExtractor
         }
 
         $rawPages = explode("\f", $full);
+
+        // pdftotext appends a form-feed after every page including the last, so
+        // explode() yields one extra trailing empty segment. Drop it so page
+        // numbers match the real page count — otherwise the per-page OCR fallback
+        // would flag a non-existent page and try to rasterize past the last page.
+        if ($rawPages !== [] && trim((string) end($rawPages)) === '') {
+            array_pop($rawPages);
+        }
+
         $pages = [];
         foreach ($rawPages as $i => $pageText) {
             $pages[$i + 1] = $pageText;
