@@ -4,6 +4,7 @@ namespace App\Service\Resolution;
 
 use App\Entity\Resolution;
 use App\Message\ProcessResolutionMessage;
+use App\Service\Document\PdfOcrTranscriber;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
@@ -11,6 +12,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Service\Attribute\Required;
 
 /**
  * Shared processing methods for resolution import commands (CTBG, GAIP).
@@ -27,6 +29,19 @@ use Symfony\Component\Uid\Uuid;
 trait ResolutionProcessingTrait
 {
     private const MAX_CHUNK_CHARS = 4000;
+
+    private PdfOcrTranscriber $pdfOcrTranscriber;
+
+    /**
+     * Injected via setter so consuming commands don't each need to declare the
+     * dependency in their constructor. Autoconfigure (enabled in services.yaml)
+     * calls every #[Required] method on the command service.
+     */
+    #[Required]
+    public function setPdfOcrTranscriber(PdfOcrTranscriber $pdfOcrTranscriber): void
+    {
+        $this->pdfOcrTranscriber = $pdfOcrTranscriber;
+    }
 
     /**
      * Backfill PDF extraction + AI analysis + vectorization for resolutions that have a sourceUrl
@@ -332,21 +347,9 @@ trait ResolutionProcessingTrait
 
     private function extractText(string $filePath): string
     {
-        $process = new Process(['pdftotext', '-layout', $filePath, '-']);
-        $process->setTimeout(30);
-        $process->run();
-
-        if ($process->isSuccessful() && strlen(trim($process->getOutput())) > 100) {
-            return $process->getOutput();
-        }
-
-        try {
-            $parser = new \Smalot\PdfParser\Parser();
-            $pdf = $parser->parseFile($filePath);
-            return $pdf->getText();
-        } catch (\Exception) {
-            return '';
-        }
+        // Delegates to the shared extractor, which transcribes via vision-LLM any
+        // pages that lack a text layer (image-only scans) and merges them back in.
+        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath);
     }
 
     private function extractTextFromDoc(string $filePath): string

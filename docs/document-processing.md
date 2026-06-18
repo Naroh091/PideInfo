@@ -74,6 +74,17 @@ El analizador lee el documento desde S3, lo codifica en base64 y lo envía a tra
 
 La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isExtractedTextUseful()`. el modelo recibe los datos inline originales `application/pdf` sin cambios — su backend rasteriza de forma nativa. Las imágenes simples y los documentos `text/plain` no se ven afectados por esta rama.
 
+### Fallback de OCR por visión en el pipeline de resoluciones
+
+Muchas resoluciones de los órganos de transparencia (de forma notable las del **CTRM**, Región de Murcia) llegan como PDF **sin capa de texto en algunas o todas las páginas** (escaneos solo-imagen). El pipeline de ingesta de resoluciones aplica un *fallback* de OCR por visión, **global a todas las fuentes**, encapsulado en `App\Service\Document\PdfOcrTranscriber`:
+
+1. `PdfTextExtractor::extractPageTexts()` devuelve el texto **por página** (sin el descarte de legibilidad de todo-o-nada que usa `extractPages()`), de modo que las páginas sin texto vienen como cadenas vacías y se pueden detectar individualmente.
+2. Para cada página sin capa de texto utilizable (`pageNeedsOcr()`: menos de ~20 caracteres alfanuméricos), `PdfRasterizer::rasterizePageFromContent()` rasteriza **solo esa página** con `pdftoppm -f N -l N` a 200 DPI.
+3. La imagen se envía al LLM multimodal vía `LlmClient::chat()` (partes `ContentPart::inlineData('image/png', …)`) para transcribirla literalmente; el texto transcrito se fusiona en la posición de su página.
+4. **Ruta barata**: si todas las páginas ya tienen texto, no se rasteriza ni se llama al LLM (comportamiento idéntico al anterior para el 99% de los PDFs).
+
+Se respeta un tope de páginas a transcribir por documento (`MAX_OCR_PAGES = 30`) para acotar el coste. El *fallback* se aplica por igual en la ruta **inline** (`ResolutionProcessingTrait::extractText()`) y en la **asíncrona** (`ProcessResolutionHandler::extractText()`), que delegan ambas en el mismo servicio para mantener la paridad.
+
 **Estructura de la llamada a la API:**
 - Modelo: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
 - Temperatura: 0.1 en la ruta Gemini (casi determinista para una clasificación consistente); el backend personalizado usa siempre `CUSTOM_MODEL_TEMP`

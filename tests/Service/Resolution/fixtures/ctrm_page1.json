@@ -1,0 +1,69 @@
+{
+    "page": 1,
+    "pageSize": 100,
+    "lastPage": 1,
+    "totalCount": 3,
+    "items": [
+        {
+            "id": 98974,
+            "externalReferenceCode": "254c61e6-4638-0f05-4677-9d64e3b3a74a",
+            "referencia": "RESOLUCIÓN 005-2026 EXPTE S-002-2026",
+            "anho": 2026,
+            "dateCreated": "2026-03-13T12:59:16Z",
+            "dateModified": "2026-03-13T12:59:22Z",
+            "organismo": "COMISIONADO DE TRANSPARENCIA DE LA REGIÓN DE MURCIA",
+            "asuntoDeLaReclamacion": "AUTORIZACIÓN EXPLOTACIÓN MÁQUINA RECREATIVA",
+            "palabraClave": "INADMISIÓN - REMISIÓN AL ÓRGANO COMPETENTE",
+            "status": {
+                "label": "approved",
+                "label_i18n": "Aprobado"
+            },
+            "documentoAdjunto": {
+                "name": "RESOLUCIÓN 005-2026 EXPTE S-002-2026-anominizado.pdf",
+                "link": {
+                    "href": "/documents/32972/34539/RESOLUCIÓN 005-2026 EXPTE S-002-2026-anominizado.pdf?version=1.0&download=true"
+                }
+            }
+        },
+        {
+            "id": 98975,
+            "externalReferenceCode": "354c61e6-4638-0f05-4677-9d64e3b3a74b",
+            "referencia": "RES-014-2026 EXPTE R-125-2025",
+            "anho": 2026,
+            "dateCreated": "2026-03-14T09:10:00Z",
+            "organismo": "COMISIONADO DE TRANSPARENCIA DE LA REGIÓN DE MURCIA",
+            "asuntoDeLaReclamacion": "ACCESO A EXPEDIENTE",
+            "palabraClave": "ESTIMATORIA PARCIAL",
+            "status": {
+                "label": "approved",
+                "label_i18n": "Aprobado"
+            },
+            "documentoAdjunto": {
+                "name": "RES-014-2026 EXPTE R-125-2025.pdf",
+                "link": {
+                    "href": "/documents/32972/34539/RES-014-2026 EXPTE R-125-2025.pdf?download=true"
+                }
+            }
+        },
+        {
+            "id": 98976,
+            "externalReferenceCode": "454c61e6-4638-0f05-4677-9d64e3b3a74c",
+            "referencia": "RES-042-2026 EXPTE R-061-2026",
+            "anho": 2026,
+            "dateCreated": "2026-03-15T10:00:00Z",
+            "organismo": "COMISIONADO DE TRANSPARENCIA DE LA REGIÓN DE MURCIA",
+            "asuntoDeLaReclamacion": "ACCESO A INFORMACIÓN TRIBUTARIA",
+            "palabraClave": "Ámbito subjetivo: Administración regional  Ámbito material: Hacienda. Tributos",
+            "status": {
+                "label": "approved",
+                "label_i18n": "Aprobado"
+            },
+            "documentoAdjunto": {
+                "name": "RES-042-2026 EXPTE R-061-2026.pdf",
+                "link": {
+                    "href": "/documents/32972/34539/RES-042-2026 EXPTE R-061-2026.pdf?download=true"
+                }
+            }
+        }
+    ]
+}

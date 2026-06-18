@@ -9,6 +9,7 @@ use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity(repositoryClass: ResolutionRepository::class)]
+#[ORM\HasLifecycleCallbacks]
 #[ORM\Index(columns: ['outcome'], name: 'idx_outcome')]
 #[ORM\Index(columns: ['resolution_date'], name: 'idx_resolution_date')]
 #[ORM\Index(columns: ['scope'], name: 'idx_resolution_scope')]
@@ -73,6 +74,7 @@ class Resolution
     public const SOURCE_CTPDA = 'CTPDA';
     public const SOURCE_CVT = 'CVT';
     public const SOURCE_CTCAN = 'CTCAN';
+    public const SOURCE_CTRM = 'CTRM';
 
     // Scopes
     public const SCOPE_NATIONAL = 'national';
@@ -140,6 +142,9 @@ class Resolution
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
+    private \DateTimeImmutable $updatedAt;
+
     #[ORM\Column(length: 20, options: ['default' => self::SCOPE_NATIONAL])]
     private string $scope = self::SCOPE_NATIONAL;
 
@@ -186,6 +191,13 @@ class Resolution
     {
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
+        $this->updatedAt = new \DateTimeImmutable();
+    }
+
+    #[ORM\PreUpdate]
+    public function onPreUpdate(): void
+    {
+        $this->updatedAt = new \DateTimeImmutable();
     }
 
     public function getId(): Uuid
@@ -393,6 +405,11 @@ class Resolution
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getUpdatedAt(): \DateTimeImmutable
+    {
+        return $this->updatedAt;
     }
 
     // --- New field accessors ---

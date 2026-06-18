@@ -293,6 +293,38 @@ php bin/console app:ctcan:load-resolutions --skip-pdf --skip-analysis --skip-vec
 php bin/console app:ctcan:load-resolutions --async
 ```
 
+### `app:ctrm:load-resolutions`
+
+Importa resoluciones del **Comisionado de Transparencia de la Región de Murcia (CTRM)** desde la API del portal Liferay (`https://comisionadotransparencia.carm.es/o/c/reclamacions/scopes/32972`). La API devuelve las reclamaciones paginadas y ordenadas DATE DESC (`sort=anho:desc,referencia:desc,id:asc`).
+
+```bash
+php bin/console app:ctrm:load-resolutions [opciones]
+```
+
+| Opción | Descripción |
+|--------|-------------|
+| `--limit=N` | Máximo de resoluciones a procesar |
+| `--dry-run` | Previsualizar sin guardar |
+| `--skip-analysis` | Omitir análisis IA |
+| `--skip-vectors` | Omitir vectorización |
+| `--skip-pdf` | Omitir descarga y extracción de PDF |
+| `--async` | Despachar procesamiento a workers de Messenger |
+| `--reference=REF` | Procesar una resolución concreta por referencia (omite la llamada a la API) |
+| `--update` | Parar tras una racha de resoluciones ya existentes (importación incremental) |
+| `--force` | Sobrescribir resoluciones existentes |
+| `--missing-pdf` | Procesar resoluciones existentes con `sourceUrl` pero sin texto extraído |
+
+**Particularidades:**
+- La referencia se toma del campo `referencia` (p. ej. "RESOLUCIÓN 005-2026 EXPTE S-002-2026"); el sentido/outcome se mapea desde `palabraClave`, el asunto desde `asuntoDeLaReclamacion` y el año desde `anho`.
+- La URL del PDF (`documentoAdjunto.link.href`) es relativa y se prefija con `https://comisionadotransparencia.carm.es`.
+- Se enlaza al `ComplaintOrganism` con `shortName='CTRM'` (sembrado por la migración `Version20260618120000`) y a la CCAA `Región de Murcia`.
+- **OCR por visión**: muchos PDFs del CTRM llegan sin capa de texto en algunas o todas las páginas. El pipeline detecta por página las que no tienen texto, las rasteriza con `pdftoppm` y las transcribe con el LLM multimodal vía `LlmClient` (`App\Service\Document\PdfOcrTranscriber`). Este *fallback* es global a todas las fuentes y se aplica tanto en la ruta inline como en la asíncrona; si todas las páginas ya tienen texto, no se llama al LLM.
+
+**Ejemplo — importación incremental con procesamiento async:**
+```bash
+php bin/console app:ctrm:load-resolutions --update --async
+```
+
 ### `app:ctpda:load-resolutions`
 
 Descarga resoluciones del Consejo de Transparencia y Protección de Datos de Andalucía (CTPDA) desde un export CSV en ctpdandalucia.es. El CSV contiene todas las resoluciones en una sola descarga (tarda ~2 minutos).
