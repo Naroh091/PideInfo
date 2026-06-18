@@ -430,7 +430,6 @@ final class ProcessResolutionHandler
                         'type' => 'fulltext',
                     ])),
                 );
-                usleep(100_000);
             } catch (\Exception $e) {
                 $this->logger->error('Embedding error', [
                     'reference' => $resolution->getReferenceNumber(),

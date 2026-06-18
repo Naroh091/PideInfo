@@ -309,7 +309,6 @@ class LoadCTPDAResolutionsCommand extends Command
             try {
                 if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
                     $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
-                    usleep(200_000);
 
                     // After text extraction, parse metadata from the PDF text
                     $this->extractMetadataFromText($resolution, $io);
@@ -325,7 +324,6 @@ class LoadCTPDAResolutionsCommand extends Command
                 if (!$skipAnalysis && !empty($resolution->getFullText()) && empty($resolution->getKeypoints())) {
                     $this->analyzeResolution($resolution, $io);
                     $stats['analyzed']++;
-                    usleep(500_000);
                 }
             } catch (\Throwable $e) {
                 $this->logger->error('Analysis phase failed', ['reference' => $resolution->getReferenceNumber(), 'error' => $e->getMessage()]);
