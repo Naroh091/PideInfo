@@ -6,6 +6,7 @@ use App\Entity\Resolution;
 use App\Message\ProcessResolutionMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
+use App\Service\Document\PdfOcrTranscriber;
 use App\Service\Resolution\CrtWebReader;
 use App\Service\Resolution\CtcanWebReader;
 use App\Service\Resolution\CtpdaCsvReader;
@@ -47,6 +48,7 @@ final class ProcessResolutionHandler
         private readonly PublicBodyResolver $publicBodyResolver,
         private readonly LoggerInterface $logger,
         private readonly \App\Observability\Tracer $tracer,
+        private readonly PdfOcrTranscriber $pdfOcrTranscriber,
     ) {
     }
 
@@ -684,21 +686,9 @@ final class ProcessResolutionHandler
 
     private function extractText(string $filePath): string
     {
-        $process = new Process(['pdftotext', '-layout', $filePath, '-']);
-        $process->setTimeout(30);
-        $process->run();
-
-        if ($process->isSuccessful() && strlen(trim($process->getOutput())) > 100) {
-            return $process->getOutput();
-        }
-
-        try {
-            $parser = new \Smalot\PdfParser\Parser();
-            $pdf = $parser->parseFile($filePath);
-            return $pdf->getText();
-        } catch (\Exception) {
-            return '';
-        }
+        // Delegates to the shared extractor, which transcribes via vision-LLM any
+        // pages that lack a text layer (image-only scans) and merges them back in.
+        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath);
     }
 
     private function extractCtpdMetadata(Resolution $resolution, string $text): void
