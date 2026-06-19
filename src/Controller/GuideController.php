@@ -8,7 +8,6 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/guias')]
-#[IsGranted('ROLE_USER')]
 class GuideController extends AbstractController
 {
     private const GUIDES = [
@@ -35,12 +34,14 @@ class GuideController extends AbstractController
     }
 
     #[Route('', name: 'app_guias_index')]
+    #[IsGranted('ROLE_USER')]
     public function index(): Response
     {
         return $this->redirectToRoute('app_guias_show', ['slug' => 'como-funciona']);
     }
 
     #[Route('/{slug}', name: 'app_guias_show')]
+    #[IsGranted('ROLE_USER')]
     public function show(string $slug): Response
     {
         if (!isset(self::GUIDES[$slug])) {
