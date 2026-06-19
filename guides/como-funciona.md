@@ -15,7 +15,7 @@ PideInfo es un sistema para gestionar tus solicitudes de acceso a información p
 Cuando subes un documento a PideInfo — ya sea arrastrando un PDF al panel, o reenviando un correo de la administración al buzón virtual — ocurre lo siguiente:
 
 1. **Almacenamiento**: El archivo se guarda de forma segura en la nube
-2. **Análisis con IA**: El sistema envía el documento a la API de Google Gemini, que extrae automáticamente:
+2. **Análisis con IA**: El sistema procesa el documento con el modelo de IA Google Gemma 4, que extrae automáticamente:
    - El **tipo de documento** (acuse de recibo, resolución, prórroga, alegaciones, etc.)
    - El **número de expediente** o referencia
    - El **organismo público** que lo emite
@@ -28,11 +28,11 @@ Todo este proceso ocurre en segundo plano. Tras subir un archivo, en unos segund
 
 ## Privacidad y uso de la IA
 
-PideInfo utiliza la API de pago de Google Gemini para el análisis de documentos. Es importante saber que:
+PideInfo utiliza **Google Gemma 4**, un modelo de lenguaje abierto que ejecutamos nosotros mismos sobre una GPU alquilada en Vast.ai, tanto para el análisis de documentos como para la generación de reclamaciones y alegaciones. Es importante saber que:
 
-- **Google no utiliza los datos enviados a través de su API de pago para entrenar modelos de IA.** Esto está garantizado en sus [Términos de Servicio para servicios de pago](https://ai.google.dev/gemini-api/terms?hl=es-419#paid-services).
-- El uso que hacemos de Gemini es equivalente a guardar documentos en Google Drive o enviarlos como adjuntos en un correo de Gmail: Google procesa el contenido para prestarte el servicio, pero no lo utiliza para otros fines.
-- Los documentos se envían a Gemini únicamente para su análisis (clasificación, extracción de datos). No se almacenan de forma permanente en los servidores de Google.
+- El proveedor de la GPU **no tiene acceso a tus datos**: solo nos proporciona la capacidad de cómputo.
+- Tus documentos e instrucciones **no se almacenan en la GPU**: solo están presentes durante el tiempo necesario para procesarlos y se descartan al terminar.
+- Únicamente conservamos **trazas de generación** para analizar el rendimiento del sistema. **Estos datos no se utilizan para entrenar modelos de IA.**
 - **Tus archivos se almacenan en Amazon S3**, el servicio de almacenamiento en la nube de Amazon Web Services — la misma infraestructura que utilizan miles de empresas y organismos para guardar datos de forma segura y redundante.
 
 ## El historial de la solicitud
