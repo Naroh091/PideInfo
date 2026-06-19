@@ -27,7 +27,18 @@ class Schedule implements ScheduleProviderInterface
             ->add(RecurringMessage::cron('* * * * *', new CheckCustomDeadlinesMessage()))
             ->add(RecurringMessage::cron('0 7 * * *', new UpdateExpiredRequestsMessage()))
             ->add(RecurringMessage::cron('0 9 * * *', new RunCommandMessage('app:requests:notify-expiring')))
-            ->add(RecurringMessage::cron('0 13 * * *', new RunCommandMessage('app:cvaip:load-resolutions --update')))
-        ;
+
+            ->add(RecurringMessage::cron('0 1 * * *', new RunCommandMessage('app:cvaip:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 1 * * *', new RunCommandMessage('app:crt:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 2 * * *', new RunCommandMessage('app:ctbg:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 2 * * *', new RunCommandMessage('app:ctar:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 3 * * *', new RunCommandMessage('app:ctcyl:load-resolutions --async --update')))
+            ->add(RecurringMessage::cron('0 3 * * *', new RunCommandMessage('app:ctg:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 4 * * *', new RunCommandMessage('app:ctn:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 4 * * *', new RunCommandMessage('app:ctpda:load-resolutions --async --update')))
+            ->add(RecurringMessage::cron('0 5 * * *', new RunCommandMessage('app:ctpd:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 6 * * *', new RunCommandMessage('app:ctrm:load-resolutions --async')))
+            ->add(RecurringMessage::cron('0 6 * * *', new RunCommandMessage('app:cvt:load-resolutions --async')))
+            ;
     }
 }
