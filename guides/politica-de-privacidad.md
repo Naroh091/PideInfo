@@ -1,6 +1,6 @@
 # Política de Privacidad
 
-**Última actualización:** 29 de marzo de 2026
+**Última actualización:** 19 de junio de 2026
 
 PideInfo es un proyecto personal desarrollado para facilitar a los ciudadanos la gestión de sus solicitudes de acceso a información pública en España.
 
@@ -42,14 +42,12 @@ Utilizamos tus datos exclusivamente para:
 
 ## 4. Procesamiento de documentos con inteligencia artificial
 
-Para analizar los documentos que subes, PideInfo utiliza la **API de pago de Google Gemini**. Es importante que sepas:
+Para analizar los documentos que subes y para generar reclamaciones y alegaciones, PideInfo utiliza **Google Gemma 4**, un modelo de lenguaje abierto que ejecutamos nosotros mismos sobre una GPU alquilada en **Vast.ai**. Es importante que sepas:
 
-- Los documentos se envían a la API de Gemini exclusivamente para su análisis (clasificación, extracción de fechas, números de expediente y resúmenes).
-- **Google no utiliza los datos enviados a través de su API de pago para entrenar modelos de IA.** Esto está garantizado en los [Términos de Servicio de Google para servicios de pago](https://ai.google.dev/gemini-api/terms?hl=es-419#paid-services).
-- El tratamiento es análogo al que realiza Google cuando almacenas documentos en Google Drive o los envías como adjuntos en Gmail: procesa el contenido para prestarte el servicio, pero no lo utiliza para otros fines.
-- Google actúa como encargado del tratamiento conforme al artículo 28 del RGPD.
-
-Para la generación de reclamaciones, el sistema también utiliza la API de Gemini. Las instrucciones que des y los borradores generados se procesan en tiempo real y no se almacenan en los servidores de Google más allá del tiempo necesario para generar la respuesta.
+- El modelo se usa tanto para el análisis de documentos (clasificación, extracción de fechas, números de expediente y resúmenes) como para la generación de reclamaciones y alegaciones a partir de las instrucciones que nos das.
+- El proveedor de la GPU (Vast.ai) **no tiene acceso a los datos**: únicamente pone a nuestra disposición la capacidad de cómputo.
+- Los datos **no se almacenan en la GPU**; solo están presentes en ella durante el tiempo estrictamente necesario para procesar cada petición y se descartan al terminar.
+- Únicamente conservamos **trazas de generación** con la finalidad de analizar el rendimiento del sistema. **Estos datos no se utilizan para entrenar ningún modelo de inteligencia artificial.**
 
 ## 5. Almacenamiento de datos
 
@@ -101,7 +99,7 @@ Los siguientes proveedores actúan como encargados del tratamiento de datos conf
 |-----------|----------|---------------|
 | Hetzner Online GmbH | Alojamiento de servidores | Todos los datos almacenados en la plataforma |
 | Amazon Web Services (AWS) | Almacenamiento de archivos (S3) | Documentos subidos por los usuarios |
-| Google LLC (Gemini API) | Análisis de documentos y generación de reclamaciones con IA | Contenido de los documentos enviados para análisis |
+| Vast.ai | Capacidad de cómputo (GPU) para ejecutar el modelo de IA Google Gemma 4 | Contenido procesado durante el análisis y la generación (no almacenado por el proveedor) |
 | Google LLC (Analytics) | Analítica web | Datos de navegación anonimizados |
 | Cloudflare Inc. | Enrutamiento de correo electrónico | Correos entrantes al buzón virtual (en tránsito) |
 
