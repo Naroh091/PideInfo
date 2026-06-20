@@ -703,8 +703,8 @@ class ComplaintController extends AbstractController
             ? ($this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Notification) ?? $respuestaDoc)
             : null;
 
-        // Justificante del REG de la solicitud original, if any (stored as Receipt).
         $justificanteDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Receipt);
+        $prorrogaDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Extension);
 
         $missing = [];
         if ($solicitudDoc === null) { $missing[] = 'solicitud'; }
@@ -760,6 +760,7 @@ class ComplaintController extends AbstractController
             'respuesta_pdf_url'    => $respuestaDoc    ? $this->urlForAgentDocument($respuestaDoc)    : null,
             'notificacion_pdf_url' => $notificationDoc ? $this->urlForAgentDocument($notificationDoc) : null,
             'justificante_pdf_url' => $justificanteDoc ? $this->urlForAgentDocument($justificanteDoc) : null,
+            'prorroga_pdf_url'     => $prorrogaDoc     ? $this->urlForAgentDocument($prorrogaDoc)     : null,
         ]);
         $em->persist($task);
         $accessRequest->setMetadataValue('submission_uncertain', null);
