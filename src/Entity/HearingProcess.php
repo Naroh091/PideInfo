@@ -50,6 +50,10 @@ class HearingProcess
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    /** Marcado manualmente por el ciudadano como "ya he presentado las alegaciones". */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $closedManually = false;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -137,9 +141,23 @@ class HearingProcess
         return $this->createdAt;
     }
 
-    /** El plazo sigue abierto (la fecha límite es hoy o futura). */
+    public function isClosedManually(): bool
+    {
+        return $this->closedManually;
+    }
+
+    public function setClosedManually(bool $closedManually): static
+    {
+        $this->closedManually = $closedManually;
+        return $this;
+    }
+
+    /** El plazo sigue abierto: la fecha límite es hoy o futura y no se cerró manualmente. */
     public function isActive(): bool
     {
+        if ($this->closedManually) {
+            return false;
+        }
         return $this->endDate >= new \DateTimeImmutable('today');
     }
 
