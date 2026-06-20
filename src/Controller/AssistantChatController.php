@@ -161,7 +161,7 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $systemPrompt = $this->complaintPromptComposer->compose($accessRequest, $mode, $currentBodyHtml, $documentContents);
+        $composedPrompt = $this->complaintPromptComposer->compose($accessRequest, $mode, $currentBodyHtml, $documentContents);
 
         $previousDraft = ['title' => '', 'body_html' => $currentBodyHtml];
 
@@ -171,14 +171,20 @@ final class AssistantChatController extends AbstractController
         $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
         $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
 
+        $traceName = $mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
+            ? 'AlegationGenerationStream'
+            : 'ComplaintGenerationStream';
+
         $turn = new AssistantChatTurn(
             flow: 'complaint',
             entityId: $accessRequest->getId()->toRfc4122(),
-            systemPrompt: $systemPrompt,
+            systemPrompt: $composedPrompt->text,
             userMessage: $userMessage,
             history: $history,
             attachments: $attachments,
-            label: 'assistant.complaint:' . $mode,
+            label: $traceName,
+            promptRef: $composedPrompt,
+            traceName: $traceName,
         );
 
         return $this->streamTurn(

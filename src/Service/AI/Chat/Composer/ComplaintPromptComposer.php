@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Chat\Composer;
 
 use App\Entity\AccessRequest;
+use App\Prompt\CompiledPrompt;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
 
@@ -30,7 +31,7 @@ final class ComplaintPromptComposer
     /**
      * @param array<array{name: string, type: string, content: string}> $documentContents
      */
-    public function compose(AccessRequest $ar, string $mode, string $currentBodyHtml, array $documentContents = []): string
+    public function compose(AccessRequest $ar, string $mode, string $currentBodyHtml, array $documentContents = []): CompiledPrompt
     {
         $isAlegation = $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE;
         $scaffolding = $this->complaintGenerator->composeChatScaffolding($ar, $mode, $documentContents);
@@ -85,6 +86,8 @@ TXT;
             ? "\n\n## Borrador actual en el canvas (PUNTO DE PARTIDA para `rewrite`)\n\n{$currentBodyHtml}\n"
             : '';
 
-        return $policy . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding;
+        $fullText = $policy . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
+
+        return new CompiledPrompt(text: $fullText, name: $scaffolding->name, version: $scaffolding->version);
     }
 }

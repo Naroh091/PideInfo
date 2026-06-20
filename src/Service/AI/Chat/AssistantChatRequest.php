@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Chat;
 
 use App\DTO\ChatMessage;
+use App\Prompt\CompiledPrompt;
 use App\Service\AI\Llm\ContentPart;
 
 /**
@@ -26,6 +27,8 @@ final readonly class AssistantChatRequest
         public array $history,
         public array $attachments,
         public string $label,
+        public ?CompiledPrompt $promptRef = null,
+        public ?string $traceName = null,
     ) {
     }
 }

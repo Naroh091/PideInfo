@@ -28,6 +28,7 @@ final readonly class ChatRequest
      * @param array<string, mixed>|null $jsonSchema Structured-output schema (takes precedence over $jsonMode).
      * @param string[]|null $requiredJsonKeys Keys the parsed JSON must contain; otherwise retry.
      * @param string|null $label Optional human tag included in retry/failure log lines (e.g. "resolution.formatText.chunk[2/3]"); never sent to the LLM.
+     * @param string|null $traceName When set, used as the full Langfuse observation name instead of the auto-constructed "llm.chat[.stream] <label>".
      * @param CompiledPrompt|null $promptRef Explicit prompt reference for tracing when the compiled prompt is not the system prompt (e.g. it goes into $userParts).
      */
     public function __construct(
@@ -45,6 +46,7 @@ final readonly class ChatRequest
         public bool $flex = false,
         public ?array $requiredJsonKeys = null,
         public ?string $label = null,
+        public ?string $traceName = null,
         ?CompiledPrompt $promptRef = null,
     ) {
         $this->systemPrompt = $systemPrompt instanceof CompiledPrompt ? $systemPrompt->text : $systemPrompt;

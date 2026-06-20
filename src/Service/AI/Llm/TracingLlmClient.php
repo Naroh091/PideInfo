@@ -45,7 +45,7 @@ final class TracingLlmClient extends LlmClient
     public function chat(ChatRequest $req): ChatResult
     {
         return $this->tracer->generation(
-            name: 'llm.chat' . ($req->label !== null ? ' ' . $req->label : ''),
+            name: $req->traceName ?? ('llm.chat' . ($req->label !== null ? ' ' . $req->label : '')),
             attributes: $this->buildRequestAttributes($req),
             fn: fn () => $this->inner->chat($req),
             captureOutput: function (ChatResult $result, SpanInterface $span): void {
@@ -60,7 +60,7 @@ final class TracingLlmClient extends LlmClient
     public function chatStream(ChatRequest $req): \Generator
     {
         return yield from $this->tracer->generationStream(
-            name: 'llm.chat.stream' . ($req->label !== null ? ' ' . $req->label : ''),
+            name: $req->traceName ?? ('llm.chat.stream' . ($req->label !== null ? ' ' . $req->label : '')),
             attributes: $this->buildRequestAttributes($req),
             gen: $this->inner->chatStream($req),
             captureOutput: function (ChatResult $result, SpanInterface $span): void {
