@@ -425,7 +425,7 @@ final class ComplaintGenerator
      *
      * @param array<array{name: string, type: string, content: string}> $documentContents
      */
-    public function composeChatScaffolding(AccessRequest $accessRequest, string $mode, array $documentContents = []): string
+    public function composeChatScaffolding(AccessRequest $accessRequest, string $mode, array $documentContents = []): \App\Prompt\CompiledPrompt
     {
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
@@ -443,7 +443,7 @@ final class ComplaintGenerator
                 $alegacionesContent,
                 $alegationPoints,
                 $documentContents,
-            )->text;
+            );
         }
 
         return $this->buildPrompt(
@@ -454,7 +454,7 @@ final class ComplaintGenerator
             $resolutions,
             $documentContents,
             $this->hasResponseDocument($accessRequest),
-        )->text;
+        );
     }
 
     public function canGenerateComplaint(AccessRequest $accessRequest): bool

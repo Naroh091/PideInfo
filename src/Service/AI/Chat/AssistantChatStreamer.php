@@ -55,6 +55,8 @@ final class AssistantChatStreamer
             temperature: 1.0,
             maxOutputTokens: 8192,
             label: $req->label,
+            traceName: $req->traceName,
+            promptRef: $req->promptRef,
         );
 
         try {
