@@ -15,6 +15,7 @@ use Symfony\Component\Uid\Uuid;
 class AgentTask
 {
     public const TYPE_PRESENT_COMPLAINT = 'present_complaint';
+    public const TYPE_PRESENT_COMPLAINT_REG = 'present_complaint_reg';
     public const TYPE_SUBMIT_REQUEST_PORTAL = 'submit_request_transparencia';
     public const TYPE_SUBMIT_REQUEST_REG = 'submit_request_reg';
 

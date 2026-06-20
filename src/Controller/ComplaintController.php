@@ -611,6 +611,162 @@ class ComplaintController extends AbstractController
     }
 
     /**
+     * Submit a complaint via the Registro Electrónico General (REG / redsara.es)
+     * to a regional transparency council that supports REG submission
+     * (ComplaintOrganism::supportsRegSubmission()).
+     *
+     * The EXPONE/SOLICITA plain-text fields are generated on demand by the LLM
+     * (ComplaintGenerator::generateRegFields) and cached in Document.aiMetadata
+     * under `expone_reg` / `solicita_reg` for subsequent calls.
+     */
+    #[Route('/presentar-reg', name: 'app_complaint_present_via_agent_reg', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function presentViaAgentReg(
+        Request $request,
+        AccessRequest $accessRequest,
+        \Doctrine\ORM\EntityManagerInterface $em,
+        \App\Service\AccessRequest\SubmissionGuard $submissionGuard,
+    ): JsonResponse {
+        $data = json_decode($request->getContent(), true) ?? [];
+        $mode = $data['mode'] ?? null;
+        if (!in_array($mode, [\App\Entity\AgentTask::MODE_AUTO, \App\Entity\AgentTask::MODE_SUPERVISED], true)) {
+            return new JsonResponse(['error' => 'invalid_mode'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $complaintDocument = $this->findGeneratedDocument($accessRequest);
+        if ($complaintDocument === null || $complaintDocument->getType() !== DocumentType::Complaint) {
+            return new JsonResponse(['error' => 'no_complaint_document'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
+        if (!$organism?->supportsRegSubmission()) {
+            return new JsonResponse([
+                'error' => 'reg_not_supported',
+                'message' => 'El organismo de garantía de esta solicitud no admite presentación vía REG.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        if (!$this->complaintGenerator->canGenerateComplaint($accessRequest)) {
+            return new JsonResponse([
+                'error' => 'request_not_complainable',
+                'message' => sprintf(
+                    'La solicitud aún no está en un estado reclamable (%s).',
+                    $accessRequest->getStatusLabel()
+                ),
+            ], Response::HTTP_CONFLICT);
+        }
+
+        $confirmUncertain = (bool) ($data['confirmUncertain'] ?? false);
+        $guardDecision = $submissionGuard->evaluate(
+            $accessRequest,
+            \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT_REG,
+            $confirmUncertain,
+        );
+        if (!$guardDecision->allowed) {
+            if ($guardDecision->reason === 'uncertain_needs_confirmation') {
+                return new JsonResponse([
+                    'error' => 'uncertain_needs_confirmation',
+                    'message' => 'Esta reclamación podría haberse presentado ya. Compruébalo en el REG antes de reenviar.',
+                ], Response::HTTP_CONFLICT);
+            }
+            return new JsonResponse([
+                'error' => 'submission_in_progress',
+                'message' => 'Ya hay una presentación de esta reclamación en curso.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        // Generate REG fields via LLM (cached in aiMetadata on subsequent calls).
+        try {
+            $regFields = $this->complaintGenerator->generateRegFields($complaintDocument, $organism);
+        } catch (\RuntimeException $e) {
+            return new JsonResponse([
+                'error' => 'reg_fields_generation_failed',
+                'message' => $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $map = self::mapStatusToCtbg($accessRequest);
+        $user = $this->getUser();
+        \assert($user instanceof \App\Entity\User);
+
+        $solicitudDoc    = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Request);
+        $respuestaDoc    = $map['branch'] === 'yes'
+            ? $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Response)
+            : null;
+        $notificationDoc = $map['branch'] === 'yes'
+            ? ($this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Notification) ?? $respuestaDoc)
+            : null;
+
+        // Justificante del REG de la solicitud original, if any (stored as Receipt).
+        $justificanteDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Receipt);
+
+        $missing = [];
+        if ($solicitudDoc === null) { $missing[] = 'solicitud'; }
+        if (!empty($missing)) {
+            return new JsonResponse([
+                'error' => 'missing_documents',
+                'missing' => $missing,
+                'message' => 'Falta el documento de solicitud original. Súbelo al expediente y reintenta.',
+            ], Response::HTTP_CONFLICT);
+        }
+
+        // Prepend "A/A:" prefix to the generated EXPONE and enforce 4000-char REG limit.
+        $exponeWithHeader = sprintf("A/A: %s\n\n%s", $organism->getName(), $regFields['expone_reg']);
+        $exponeWithHeader = mb_substr($exponeWithHeader, 0, 4000);
+        $solicita         = mb_substr($regFields['solicita_reg'], 0, 4000);
+
+        $task = new \App\Entity\AgentTask($user, \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT_REG);
+        $task->setAccessRequest($accessRequest);
+        $task->setMode($mode);
+        $task->setPayload([
+            'access_request_id'    => $accessRequest->getId()->toRfc4122(),
+            'complaint_document_id' => $complaintDocument->getId()->toRfc4122(),
+
+            // Destination
+            'dir3_code'            => $organism->getDir3Code(),
+            'organismo_name'       => $organism->getName(),
+
+            // REG text fields
+            'expone_reg'           => $exponeWithHeader,
+            'solicita_reg'         => $solicita,
+
+            // Solicitante (mirrors RegPayloadBuilder::build shape)
+            'solicitante' => [
+                'first_name'  => $user->getFirstName(),
+                'last_name'   => $user->getLastName(),
+                'email'       => $user->getEmail(),
+                'address'     => [
+                    'street_type' => $user->getAddressStreetType(),
+                    'line'        => $user->getAddressLine(),
+                    'country'     => $user->getAddressCountry() ?? 'ES',
+                    'province'    => $user->getAddressProvince(),
+                    'municipality' => $user->getAddressMunicipality(),
+                    'postal_code' => $user->getAddressPostalCode(),
+                ],
+                'phone'       => $user->getContactPhone(),
+            ],
+
+            // Branch info (for step 3 attachments)
+            'complaint_branch'     => $map['branch'],
+
+            // Attachments
+            'solicitud_pdf_url'    => $this->urlForAgentDocument($solicitudDoc),
+            'respuesta_pdf_url'    => $respuestaDoc    ? $this->urlForAgentDocument($respuestaDoc)    : null,
+            'notificacion_pdf_url' => $notificationDoc ? $this->urlForAgentDocument($notificationDoc) : null,
+            'justificante_pdf_url' => $justificanteDoc ? $this->urlForAgentDocument($justificanteDoc) : null,
+        ]);
+        $em->persist($task);
+        $accessRequest->setMetadataValue('submission_uncertain', null);
+        $em->flush();
+
+        return new JsonResponse([
+            'taskId'    => $task->getId()->toRfc4122(),
+            'schemeUrl' => 'pideinfo://present-complaint-reg/' . $task->getId()->toRfc4122(),
+            'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $task->getId()->toRfc4122()]),
+        ]);
+    }
+
+    /**
      * Map AccessRequest.resolutionResult → CTBG complaint branch + reason + notification date.
      *
      * The resolutionResult captures the type of administrative response and is

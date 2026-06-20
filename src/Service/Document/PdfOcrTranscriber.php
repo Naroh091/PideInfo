@@ -144,7 +144,7 @@ final class PdfOcrTranscriber
                     ContentPart::text('Transcribe el texto de esta página.'),
                 ],
                 size: ModelSize::Mid,
-                temperature: 0.0,
+                temperature: 1.0,
                 label: sprintf('pdf-ocr-transcribe[p%d]', $pageNumber),
             ));
 

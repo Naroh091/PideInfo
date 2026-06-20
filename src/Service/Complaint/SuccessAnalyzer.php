@@ -120,7 +120,7 @@ final class SuccessAnalyzer
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 size: ModelSize::Mid,
-                temperature: 0.1,
+                temperature: 1.0,
                 jsonSchema: $schema,
                 schemaName: 'success_analysis',
                 maxOutputTokens: 2048,

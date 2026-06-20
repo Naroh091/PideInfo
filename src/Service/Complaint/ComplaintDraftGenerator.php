@@ -170,7 +170,7 @@ final class ComplaintDraftGenerator
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $this->promptStore->compile($promptName, $vars),
             size: ModelSize::Mid,
-            temperature: 0.4,
+            temperature: 1.0,
             requiredJsonKeys: ['suggestions'],
             maxOutputTokens: 1500,
             label: 'complaint_draft.suggest_ideas:' . $mode,
@@ -227,7 +227,7 @@ final class ComplaintDraftGenerator
             systemPrompt: $this->promptStore->compile($promptName, $vars),
             userText: $userMessage,
             size: ModelSize::Mid,
-            temperature: 0.4,
+            temperature: 1.0,
             requiredJsonKeys: ['reply'],
             maxOutputTokens: 1024,
             label: 'complaint_draft.free_chat:' . $mode,

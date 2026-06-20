@@ -199,7 +199,7 @@ final class ComplaintGenerator
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
-            temperature: 0.3,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             label: 'complaint.generate',
             promptRef: $prompt,
@@ -264,7 +264,7 @@ final class ComplaintGenerator
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
-            temperature: 0.3,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,
         ))->content;
@@ -344,6 +344,72 @@ final class ComplaintGenerator
         $this->entityManager->flush();
 
         return $document;
+    }
+
+    /**
+     * Generate EXPONE and SOLICITA plain-text fields for REG submission.
+     *
+     * Reads the stored HTML complaint document, calls the LLM with the
+     * `generate-complaint-reg-fields` prompt, and persists the result in
+     * `Document.aiMetadata` under the keys `expone_reg` / `solicita_reg` so
+     * subsequent calls for the same document skip the LLM entirely.
+     *
+     * @return array{expone_reg: string, solicita_reg: string}
+     *
+     * @throws \RuntimeException when the LLM returns malformed JSON or the
+     *                           document content cannot be read from storage.
+     */
+    public function generateRegFields(Document $complaintDocument, \App\Entity\ComplaintOrganism $organism): array
+    {
+        // Return cached values when already generated.
+        $meta = $complaintDocument->getAiMetadata() ?? [];
+        if (!empty($meta['expone_reg']) && !empty($meta['solicita_reg'])) {
+            return ['expone_reg' => $meta['expone_reg'], 'solicita_reg' => $meta['solicita_reg']];
+        }
+
+        $html = $this->documentsStorage->read($complaintDocument->getStoredFilename());
+        $councilName = $organism->getName();
+
+        $prompt = $this->promptStore->compile(
+            'pideinfo-complaint-generate-complaint-reg-fields',
+            [
+                'transparency_council' => $councilName,
+                'complaint_html'       => $html,
+            ],
+        );
+
+        $raw = $this->llmClient->chat(new ChatRequest(
+            systemPrompt: $prompt->text,
+            messages: [],
+            size: ModelSize::Big,
+            temperature: 1.0,
+            promptRef: $prompt,
+        ))->content;
+
+        // Strip optional JSON code fence the model may emit despite instructions.
+        $raw = preg_replace('/^```(?:json)?\s*/i', '', trim($raw));
+        $raw = preg_replace('/\s*```$/', '', $raw);
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !isset($decoded['expone'], $decoded['solicita'])) {
+            throw new \RuntimeException(sprintf(
+                'LLM returned malformed JSON for REG fields (complaint %s): %s',
+                $complaintDocument->getId(),
+                substr($raw, 0, 200),
+            ));
+        }
+
+        $exponeReg  = mb_substr((string) $decoded['expone'],   0, 3900);
+        $solicitaReg = mb_substr((string) $decoded['solicita'], 0, 3900);
+
+        // Persist so the next call is a cache hit.
+        $complaintDocument->setAiMetadata(array_merge($meta, [
+            'expone_reg'   => $exponeReg,
+            'solicita_reg' => $solicitaReg,
+        ]));
+        $this->entityManager->flush();
+
+        return ['expone_reg' => $exponeReg, 'solicita_reg' => $solicitaReg];
     }
 
     /**
@@ -799,7 +865,7 @@ GRANTED_PENDING;
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
-            temperature: 0.3,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             label: 'complaint.alegation_response',
             promptRef: $prompt,
@@ -866,7 +932,7 @@ GRANTED_PENDING;
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             size: ModelSize::Big,
-            temperature: 0.3,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,
         ))->content;

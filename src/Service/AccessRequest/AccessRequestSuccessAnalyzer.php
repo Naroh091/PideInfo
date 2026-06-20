@@ -131,7 +131,7 @@ final class AccessRequestSuccessAnalyzer
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 size: ModelSize::Mid,
-                temperature: 0.1,
+                temperature: 1.0,
                 jsonSchema: $this->responseSchema(),
                 schemaName: 'access_request_success_analysis',
                 requiredJsonKeys: ['percentage', 'summary', 'strengths', 'weaknesses'],
