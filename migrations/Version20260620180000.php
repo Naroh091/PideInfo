@@ -50,6 +50,7 @@ final class Version20260620180000 extends AbstractMigration
             'CTN'   => 'A15031131',
             'CVAIP' => 'A16021890',
             'CTCYL' => 'I00000423',
+            'CTAR'  => 'A02029281',
         ];
 
         foreach ($organisms as $shortName => $dir3Code) {
