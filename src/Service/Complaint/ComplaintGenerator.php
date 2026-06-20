@@ -649,6 +649,7 @@ TXT;
                 'status' => $status,
                 'timeline' => $timeline,
                 'silence_directive' => $this->silenceDirective($accessRequest),
+                'documents_block' => $this->formatDocumentContents($documentContents),
             ]);
         }
 
