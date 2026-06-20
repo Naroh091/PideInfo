@@ -695,7 +695,15 @@ class ComplaintController extends AbstractController
         $user = $this->getUser();
         \assert($user instanceof \App\Entity\User);
 
-        $solicitudDoc    = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Request);
+        $justificanteDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Receipt);
+        $prorrogaDoc     = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Extension);
+
+        // Cuando la solicitud se presentó vía REG, el acuse ya lleva el texto
+        // de la solicitud incluido y no existe un Document separado de tipo
+        // Request. En ese caso usamos el acuse como documento de solicitud.
+        $solicitudDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Request)
+            ?? $justificanteDoc;
+
         $respuestaDoc    = $map['branch'] === 'yes'
             ? $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Response)
             : null;
@@ -703,16 +711,11 @@ class ComplaintController extends AbstractController
             ? ($this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Notification) ?? $respuestaDoc)
             : null;
 
-        $justificanteDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Receipt);
-        $prorrogaDoc = $this->accessRequestRepository->findDocumentByType($accessRequest, DocumentType::Extension);
-
-        $missing = [];
-        if ($solicitudDoc === null) { $missing[] = 'solicitud'; }
-        if (!empty($missing)) {
+        if ($solicitudDoc === null) {
             return new JsonResponse([
                 'error' => 'missing_documents',
-                'missing' => $missing,
-                'message' => 'Falta el documento de solicitud original. Súbelo al expediente y reintenta.',
+                'missing' => ['solicitud'],
+                'message' => 'Falta el documento de solicitud original (o acuse de recibo). Súbelo al expediente y reintenta.',
             ], Response::HTTP_CONFLICT);
         }
 
