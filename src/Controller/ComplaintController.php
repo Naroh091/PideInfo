@@ -490,6 +490,16 @@ class ComplaintController extends AbstractController
         }
 
         $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
+
+        // Si el organismo tiene DIR3, la vía correcta es el REG, no el formulario
+        // web. Devolvemos un error explícito para que el cliente use /presentar-reg.
+        if ($organism?->supportsRegSubmission()) {
+            return new JsonResponse([
+                'error' => 'use_reg_channel',
+                'message' => 'Este organismo de garantía requiere presentación vía REG. Usa el endpoint /presentar-reg.',
+            ], Response::HTTP_CONFLICT);
+        }
+
         $complaintFormUrl = $organism?->getComplaintFormUrlFor($accessRequest);
         if (!$complaintFormUrl) {
             return new JsonResponse(['error' => 'no_form_url_configured'], Response::HTTP_CONFLICT);
