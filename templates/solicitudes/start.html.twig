@@ -30,6 +30,7 @@
         }
         .choice-card.choice-register .choice-icon { background: #f1f5f9; color: #475569; }
         .choice-card.choice-submit   .choice-icon { background: #ecfeff; color: #0e7490; }
+        .choice-card.choice-draft    .choice-icon { background: #f0fdf4; color: #16a34a; }
 
         /* When the register card is acting as a dropzone we tint the border
            and bg, and keep the link clickable for users who don't drag. */
@@ -69,6 +70,7 @@
             gap: .35rem;
         }
         .choice-card.choice-register .choice-cta { color: #475569; }
+        .choice-card.choice-draft    .choice-cta { color: #16a34a; }
     </style>
 {% endblock %}
 
@@ -87,7 +89,7 @@
         <p class="text-slate-500">Elige cómo quieres empezar.</p>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-4">
+    <div class="grid md:grid-cols-3 gap-4">
         <a href="{{ path('app_solicitudes_submit_form') }}" class="choice-card choice-submit">
             <div class="choice-icon"><i data-lucide="send" class="w-5 h-5"></i></div>
             <h3>Quiero redactarla con asistencia de IA y que PideInfo la envíe por mí</h3>
@@ -267,6 +269,13 @@
                 </div>
             </div>
         </div>
+
+        <a href="{{ path('app_solicitudes_draft_only') }}" class="choice-card choice-draft">
+            <div class="choice-icon"><i data-lucide="pen-line" class="w-5 h-5"></i></div>
+            <h3>Quiero redactarla con IA sin enviarla</h3>
+            <p>Redacta tu solicitud con ayuda de la IA y guárdala. Puedes enviarla manualmente más adelante.</p>
+            <span class="choice-cta">Solo redactar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
     </div>
 
     {# Toast container for the file-uploader's live alerts. #}
