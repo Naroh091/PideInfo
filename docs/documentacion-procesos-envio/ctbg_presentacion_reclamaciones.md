@@ -2,6 +2,10 @@
 
 Spec viva del formulario público de presentación electrónica de reclamaciones de ámbito estatal. Sirve para implementar el handler `present_complaint` del agente con relleno automático.
 
+> **Ámbito autonómico y local:** el mismo handler `present_complaint` cubre también el trámite de [ámbito autonómico y local](ctbg_presentacion_reclamaciones_autonomico_local.md) (casi idéntico; añade un desplegable obligatorio de CCAA y vuelve opcional el Nº de expediente). El backend elige la URL con `ComplaintOrganism::getComplaintFormUrlFor()` y, para el regional, manda el value de la CCAA en `payload.autonomous_local_entity`.
+
+> **Nota de implementación (Nº expediente):** el localizador del campo "Nº expediente" en el filler matchea la parte invariante `Nº expediente` (regex `N.{0,3}\s*expediente`), no la cadena completa "del Portal de Transparencia", para servir a ambos trámites. Además `_open_wicket_field` reconstruye la etiqueta a partir del **texto que precede** al anchor dentro de su bloque (no el `innerText` del ancestro), porque el form regional empaqueta ENTIDAD + CCAA + Nº expediente en un mismo `<p>` y el `innerText` del ancestro mezclaría etiquetas de campos contiguos.
+
 > Última actualización del mapeo: 2026-05-01.
 > Fuente: navegación manual con MCP en sesión Cl@ve real (DAVID FERNANDEZ, NIF 53781829D).
 

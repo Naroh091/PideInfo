@@ -495,6 +495,23 @@ class ComplaintController extends AbstractController
             return new JsonResponse(['error' => 'no_form_url_configured'], Response::HTTP_CONFLICT);
         }
 
+        // Vía autonómica/local del CTBG: el formulario regional pide la CCAA en
+        // un desplegable, y el CTBG solo es competente para las 7 CCAA/ciudades
+        // que han delegado en él. Si el organismo pertenece a otra CCAA (con
+        // consejo propio), no podemos presentar por esta vía. El enrutado por
+        // órgano de garantías ya debería evitarlo; esto es una defensa.
+        $isCtbgRegional = $complaintFormUrl === \App\Entity\ComplaintOrganism::CTBG_FORM_URL_REGIONAL;
+        $autonomousLocalEntity = $isCtbgRegional
+            ? $organism?->ctbgRegionalCcaaValueFor($accessRequest)
+            : null;
+        if ($isCtbgRegional && $autonomousLocalEntity === null) {
+            return new JsonResponse([
+                'error' => 'ccaa_not_supported',
+                'message' => 'El CTBG no es competente para reclamaciones de la comunidad autónoma '
+                    . 'de este organismo; debe presentarse ante su órgano de garantías propio.',
+            ], Response::HTTP_CONFLICT);
+        }
+
         // Use the same gate as the rest of the complaint flow — a request is
         // complainable when explicitly denied/silent OR when its deadline has
         // passed without a granting decision.
@@ -571,6 +588,11 @@ class ComplaintController extends AbstractController
             'resolution_result' => $accessRequest->getResolutionResult(),
             'notification_date' => $map['notification_date'],
             'complaint_body' => $this->extractComplaintBody($complaintDocument),
+            // Vía autonómica/local del CTBG: value del desplegable "Comunidad
+            // Autónoma" (p.ej. 'principado_asturias'). null/ausente en el
+            // formulario estatal — su presencia le indica al filler que debe
+            // rellenar el campo CCAA adicional del paso 2.
+            'autonomous_local_entity' => $autonomousLocalEntity,
 
             // step 3 attachments (URLs absolutas a /api/agent/documents/<id>/download)
             'solicitud_pdf_url' => $this->urlForAgentDocument($solicitudDoc),

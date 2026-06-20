@@ -21,6 +21,27 @@ class ComplaintOrganism
     /** CTBG autonomic/local-scope complaint form (Reclamaciones de ámbito autonómico y local). */
     public const CTBG_FORM_URL_REGIONAL = 'https://sede.consejodetransparencia.gob.es/catalog/t/2ed5dcfa-4396-485f-979a-3e39a27e971e';
 
+    /**
+     * AutonomousCommunity.code → value del desplegable "Comunidad Autónoma" del
+     * formulario regional del CTBG (`CTBG_FORM_URL_REGIONAL`, paso 2). El CTBG
+     * solo es competente para estas 7 CCAA/ciudades (las que no tienen consejo
+     * de transparencia propio y han delegado en él); el resto presentan ante su
+     * propio órgano de garantías. Una `code` que no esté aquí ⇒ el CTBG no es
+     * competente para ese organismo por la vía autonómica/local.
+     *
+     * Fuente: navegación del portal (docs/documentacion-procesos-envio/
+     * ctbg_presentacion_reclamaciones_autonomico_local.md).
+     */
+    public const CTBG_REGIONAL_CCAA_BY_CODE = [
+        'AST' => 'principado_asturias',
+        'CNT' => 'cantabria',
+        'RIO' => 'la_rioja',
+        'EXT' => 'extremadura',
+        'CEU' => 'ceuta',
+        'MEL' => 'melilla',
+        'BAL' => 'illes_balears',
+    ];
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -187,6 +208,27 @@ class ComplaintOrganism
                 : self::CTBG_FORM_URL_STATE;
         }
         return $this->complaintFormUrl;
+    }
+
+    /**
+     * Value del desplegable "Comunidad Autónoma" del formulario regional del
+     * CTBG para esta solicitud, derivado de `PublicBody.autonomousCommunity.code`
+     * vía {@see self::CTBG_REGIONAL_CCAA_BY_CODE}.
+     *
+     * Devuelve null cuando no aplica: organismo no-CTBG, sin CCAA asignada, o
+     * una CCAA para la que el CTBG no es competente (consejo propio). El caller
+     * debe tratar el null como "no se puede presentar por la vía regional".
+     */
+    public function ctbgRegionalCcaaValueFor(AccessRequest $accessRequest): ?string
+    {
+        if ($this->shortName !== self::SHORT_NAME_CTBG) {
+            return null;
+        }
+        $code = $accessRequest->getPublicBody()?->getAutonomousCommunity()?->getCode();
+        if ($code === null) {
+            return null;
+        }
+        return self::CTBG_REGIONAL_CCAA_BY_CODE[$code] ?? null;
     }
 
     public function getEmail(): ?string
