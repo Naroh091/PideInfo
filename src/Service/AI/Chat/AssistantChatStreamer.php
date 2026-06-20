@@ -52,7 +52,7 @@ final class AssistantChatStreamer
             messages: $req->history,
             userParts: $userParts,
             size: ModelSize::Big,
-            temperature: 0.35,
+            temperature: 1.0,
             maxOutputTokens: 8192,
             label: $req->label,
         );

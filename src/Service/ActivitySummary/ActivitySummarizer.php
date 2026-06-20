@@ -89,7 +89,7 @@ final class ActivitySummarizer
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 size: ModelSize::Mid,
-                temperature: 0.2,
+                temperature: 1.0,
                 jsonSchema: $this->buildResponseSchema(),
                 schemaName: 'activity_summary',
                 maxOutputTokens: 1024,

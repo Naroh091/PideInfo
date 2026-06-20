@@ -80,7 +80,7 @@ class DebugDocumentAnalysisCommand extends Command
                 systemPrompt: '',
                 userParts: $parts,
                 size: ModelSize::Mid,
-                temperature: 0.1,
+                temperature: 1.0,
                 jsonMode: true,
                 maxOutputTokens: 4096,
                 promptRef: $debugPrompt,

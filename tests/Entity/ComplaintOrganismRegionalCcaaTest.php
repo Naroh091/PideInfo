@@ -92,4 +92,48 @@ final class ComplaintOrganismRegionalCcaaTest extends TestCase
             $gaip->ctbgRegionalCcaaValueFor($this->requestForCcaaCode('EXT')),
         );
     }
+
+    // ─── dir3Code / supportsRegSubmission ────────────────────────────────────
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function regOrganismsProvider(): array
+    {
+        return [
+            'CTG'   => ['A12019988'],
+            'CTRM'  => ['A14022345'],
+            'CTCAN' => ['I00000907'],
+            'GAIP'  => ['A09021957'],
+            'CTR'   => ['I00004460'],
+            'CTPD'  => ['A13049492'],
+            'CTPDA' => ['A01018825'],
+            'CVT'   => ['A10033253'],
+            'CTN'   => ['A15031131'],
+            'CVAIP' => ['A16021890'],
+        ];
+    }
+
+    /**
+     * @dataProvider regOrganismsProvider
+     */
+    public function testSupportsRegSubmissionWhenDir3CodeSet(string $dir3Code): void
+    {
+        $organism = (new ComplaintOrganism())->setDir3Code($dir3Code);
+        $this->assertTrue($organism->supportsRegSubmission());
+        $this->assertSame($dir3Code, $organism->getDir3Code());
+    }
+
+    public function testDoesNotSupportRegSubmissionWhenDir3CodeNull(): void
+    {
+        $organism = new ComplaintOrganism();
+        $this->assertFalse($organism->supportsRegSubmission());
+        $this->assertNull($organism->getDir3Code());
+    }
+
+    public function testCtbgDoesNotSupportRegByDefault(): void
+    {
+        // CTBG uses its own web form, not REG. dir3Code is null unless manually set.
+        $this->assertFalse($this->ctbg()->supportsRegSubmission());
+    }
 }

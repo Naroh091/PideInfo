@@ -68,6 +68,15 @@ class ComplaintOrganism
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $complaintFormUrl = null;
 
+    /**
+     * DIR3 code of the destination unit in the Registro Electrónico General
+     * (redsara.es) for this organism. When set, complaints can be submitted
+     * via REG (TYPE_PRESENT_COMPLAINT_REG) in addition to or instead of the
+     * web form. Null means REG submission is not supported.
+     */
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $dir3Code = null;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $email = null;
 
@@ -229,6 +238,22 @@ class ComplaintOrganism
             return null;
         }
         return self::CTBG_REGIONAL_CCAA_BY_CODE[$code] ?? null;
+    }
+
+    public function getDir3Code(): ?string
+    {
+        return $this->dir3Code;
+    }
+
+    public function setDir3Code(?string $dir3Code): static
+    {
+        $this->dir3Code = $dir3Code;
+        return $this;
+    }
+
+    public function supportsRegSubmission(): bool
+    {
+        return $this->dir3Code !== null;
     }
 
     public function getEmail(): ?string
