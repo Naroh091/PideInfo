@@ -719,9 +719,8 @@ class ComplaintController extends AbstractController
             ], Response::HTTP_CONFLICT);
         }
 
-        // Prepend "A/A:" prefix to the generated EXPONE and enforce 4000-char REG limit.
-        $exponeWithHeader = sprintf("A/A: %s\n\n%s", $organism->getName(), $regFields['expone_reg']);
-        $exponeWithHeader = mb_substr($exponeWithHeader, 0, 4000);
+        // El LLM ya genera el EXPONE con la primera línea "A/A: {organismo}".
+        $exponeWithHeader = mb_substr($regFields['expone_reg'], 0, 4000);
         $solicita         = mb_substr($regFields['solicita_reg'], 0, 4000);
 
         $task = new \App\Entity\AgentTask($user, \App\Entity\AgentTask::TYPE_PRESENT_COMPLAINT_REG);
