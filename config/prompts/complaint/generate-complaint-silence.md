@@ -17,6 +17,7 @@ Escribe un párrafo breve que resuma:
 
 {{timeline}}
 
+{{documents_block}}
 ## ESTRUCTURA OBLIGATORIA
 
 Devuelve HTML usando ÚNICAMENTE estas etiquetas: `<h1>`, `<p>`, `<strong>`, `<ol>`, `<li>`. Nada de markdown, nada de bloques de código.
