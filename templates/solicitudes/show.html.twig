@@ -1260,6 +1260,15 @@
                     {% endif %}
                 </div>
             </div>
+            <div class="dossier-notice-footer">
+                <form method="post" action="{{ path('app_complaint_hearing_close', {id: request.id}) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('close-hearing-' ~ request.complaint.id) }}">
+                    <button type="submit" class="btn btn-ghost btn-sm">
+                        <i data-lucide="check-circle" class="w-4 h-4 mr-1.5"></i>
+                        Ya he presentado las alegaciones
+                    </button>
+                </form>
+            </div>
         </aside>
     </div>
 {% endif %}
