@@ -734,7 +734,7 @@
                 </div>
 
                 {% if not isAlegation %}
-                    {% include 'complaint/_present_modal.html.twig' %}
+                    {% include '_partials/_agent_present_modal.html.twig' %}
                 {% endif %}
 
                 <div class="draft-body draft-body-stack">
@@ -778,18 +778,18 @@
                     {% if not isAlegation %}
                         <div class="draft-cta-group">
                             <button type="button" x-show="editorReady" x-cloak
-                                    @click="presentViaAgent('supervised')" :disabled="presentingMode !== null"
+                                    @click="presentViaAgent('supervised')" :disabled="$store.agentPresent.busy"
                                     class="btn btn-secondary"
                                     title="El agente abre la sede con el formulario rellenado y tú revisas + envías">
                                 <i data-lucide="eye" class="w-4 h-4 mr-2"></i>
-                                <span x-text="presentingMode === 'supervised' ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
+                                <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
                             </button>
                             <button type="button" x-show="editorReady" x-cloak
-                                    @click="presentViaAgent('auto')" :disabled="presentingMode !== null"
+                                    @click="presentViaAgent('auto')" :disabled="$store.agentPresent.busy"
                                     class="btn btn-primary"
                                     title="El agente rellena y envía sin intervención">
                                 <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
-                                <span x-text="presentingMode === 'auto' ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
+                                <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
                             </button>
                         </div>
                     {% endif %}
@@ -978,9 +978,6 @@ function redactarApp() {
         savingDraft: false,
         draftSavedAt: null,
         downloadingPdf: false,
-        presentingMode: null,
-        presentResult: null,
-        presentError: null,
         analysis: null,
         analysisLoading: false,
         streamingHtml: '',
@@ -1305,20 +1302,14 @@ function redactarApp() {
             }
         },
 
-        closePresentModal() {
-            this.presentResult = null;
-            this.presentError = null;
-            this.presentingMode = null;
-        },
         async presentViaAgent(mode) {
-            if (this.presentingMode) return;
+            const store = this.$store.agentPresent;
+            if (store.busy) return;
             if (!this.draftSavedAt) {
                 await this.saveDraft();
                 if (!this.draftSavedAt) return;
             }
-            this.presentingMode = mode;
-            this.presentError = null;
-            this.presentResult = null;
+            store.open('reclamación');
             try {
                 const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
                     method: 'POST',
@@ -1326,15 +1317,13 @@ function redactarApp() {
                     body: JSON.stringify({ mode }),
                 });
                 const data = await res.json();
-                if (!res.ok) {
-                    this.presentError = data.error || 'No se pudo encolar la tarea.';
-                    return;
-                }
-                this.presentResult = { taskId: data.taskId, mode, schemeUrl: data.schemeUrl };
+                if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
+                store.track(
+                    [{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }],
+                    { entityLabel: 'reclamación' },
+                );
             } catch (e) {
-                this.presentError = 'Error de red.';
-            } finally {
-                this.presentingMode = null;
+                store.fail('Error de red.');
             }
         },
 
