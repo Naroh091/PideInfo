@@ -35,6 +35,8 @@ final class TracerFactory
         #[Autowire(env: 'float:OTEL_EXPORTER_OTLP_TIMEOUT')]
         private readonly float $timeoutMillis,
         private readonly LoggerInterface $logger,
+        #[Autowire(env: 'default::LANGFUSE_TRACING_ENVIRONMENT')]
+        private readonly ?string $tracingEnvironment = null,
     ) {
     }
 
@@ -59,11 +61,21 @@ final class TracerFactory
                 timeout: max(1.0, $this->timeoutMillis / 1000.0),
             );
 
-            $exporter = new SpanExporter($transport);
+            // Langfuse answers OTLP exports with `200 {}` (JSON) instead of a protobuf
+            // response; this wrapper stops the exporter from choking on that body.
+            $exporter = new SpanExporter(new JsonTolerantOtlpTransport($transport));
 
-            $resource = ResourceInfoFactory::defaultResource()->merge(ResourceInfo::create(Attributes::create([
+            $resourceAttributes = [
                 ResourceAttributes::SERVICE_NAME => $this->serviceName !== '' ? $this->serviceName : 'pideinfo',
-            ])));
+            ];
+
+            if ($this->tracingEnvironment !== null && $this->tracingEnvironment !== '') {
+                $resourceAttributes['deployment.environment'] = $this->tracingEnvironment;
+            }
+
+            $resource = ResourceInfoFactory::defaultResource()->merge(
+                ResourceInfo::create(Attributes::create($resourceAttributes))
+            );
 
             $processor = new BatchSpanProcessor(
                 exporter: $exporter,

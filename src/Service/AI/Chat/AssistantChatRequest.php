@@ -9,9 +9,9 @@ use App\Prompt\CompiledPrompt;
 use App\Service\AI\Llm\ContentPart;
 
 /**
- * Input to {@see AssistantChatStreamer::stream()}. Carries the user-facing
- * inputs of one chat turn plus the prompt the flow-specific composer
- * produced. The streamer is otherwise flow-agnostic.
+ * Input to {@see \App\Service\AI\Agent\AgentChatOrchestrator::stream()}.
+ * Carries one chat turn's user-facing inputs plus the system prompt produced
+ * by the flow-specific composer. The orchestrator is flow-agnostic.
  */
 final readonly class AssistantChatRequest
 {
@@ -29,6 +29,13 @@ final readonly class AssistantChatRequest
         public string $label,
         public ?CompiledPrompt $promptRef = null,
         public ?string $traceName = null,
+        /**
+         * True when the canvas already holds a draft. Used by the orchestrator
+         * to hard-enforce the planning phase (FASE 1) on the first drafting
+         * turn: when there is no draft yet and no prior assistant turn, the
+         * model is forced to return a plan instead of generating.
+         */
+        public bool $hasDraft = false,
     ) {
     }
 }

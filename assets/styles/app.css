@@ -1716,3 +1716,202 @@ body {
 .profile-section-title {
   @apply text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2;
 }
+
+/* ── Agent progress indicator (chat bubbles) ─────────────────────────────── */
+@keyframes chat-spin { to { transform: rotate(360deg); } }
+
+/* Agent progress feed — visually set apart from reply text by a light rail. */
+.chat-bubble-progress {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-width: 0;
+  max-width: 100%;
+  padding-left: .6rem;
+  border-left: 2px solid rgb(241 245 249);
+}
+
+.chat-progress-steps {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: .15rem;
+  /* Keep the two most recent actions visible; older ones fade to white. */
+  max-height: 3.2rem;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.15rem);
+          mask-image: linear-gradient(to bottom, transparent, #000 1.15rem);
+}
+
+/* Previous (completed) actions: lighter gray, ONE line each (truncated). */
+.chat-progress-step-done {
+  display: block;
+  /* Never let the flex column shrink these below their line height — otherwise
+     the lines collapse/overlap and eventually vanish. They keep full height and
+     the container's overflow:hidden clips the oldest ones off the top instead. */
+  flex-shrink: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: .74rem;
+  color: rgb(148 163 184);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: chat-step-settle .32s ease both;
+}
+.chat-progress-step-done::before {
+  content: '✓';
+  margin-right: .35rem;
+  color: rgb(203 213 225);
+  font-size: .7rem;
+}
+
+/* Action in execution: gray, may span several lines, with a progress
+   indicator (spinner) before it. */
+.chat-progress-current {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  min-width: 0;
+  font-family: 'Inter', sans-serif;
+  font-size: .8rem;
+  font-weight: 500;
+  color: rgb(51 65 85);
+  line-height: 1.35;
+  animation: chat-current-in .25s ease;
+}
+/* The action text (last span) must wrap inside the bubble, never overflow it. */
+.chat-progress-current > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.chat-step-spinner {
+  display: inline-block;
+  width: .8em;
+  height: .8em;
+  margin-top: .12em;
+  border: 2px solid rgb(226 232 240);
+  border-top-color: rgb(100 116 139);
+  border-radius: 50%;
+  animation: chat-spin .7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* Smooth transition as an action moves from "executing" to "executed". */
+@keyframes chat-step-settle {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chat-current-in {
+  from { opacity: .45; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-progress-step-done,
+  .chat-progress-current { animation: none; }
+}
+
+.chat-progress-history {
+  margin-top: .2rem;
+}
+.chat-progress-history summary {
+  font-family: 'Inter', sans-serif;
+  font-size: .7rem;
+  color: rgb(100 116 139);
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  user-select: none;
+}
+.chat-progress-history summary::before {
+  content: '▸';
+  font-size: .6rem;
+}
+.chat-progress-history[open] summary::before {
+  content: '▾';
+}
+.chat-progress-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  margin-top: .25rem;
+  padding-left: .5rem;
+  border-left: 2px solid rgb(226 232 240);
+}
+
+/* Agent reply rendered from Markdown — structured so counter-arguments can be
+   highlighted with bold and lists. */
+.chat-md { white-space: normal; }
+.chat-md > :first-child { margin-top: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+.chat-md p { margin: 0 0 .4rem; }
+.chat-md ul, .chat-md ol { margin: .3rem 0 .5rem; padding-left: 1.15rem; }
+.chat-md li { margin: .12rem 0; }
+.chat-md li::marker { color: rgb(148 163 184); }
+.chat-md strong { font-weight: 600; color: rgb(15 23 42); }
+.chat-md em { font-style: italic; }
+.chat-md code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .9em;
+  background: rgb(241 245 249);
+  padding: .05rem .3rem;
+  border-radius: .25rem;
+}
+
+/* FASE 1 plan: one card per administration argument + how it's dismantled. */
+.chat-cards {
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  margin-top: .55rem;
+}
+.chat-card {
+  display: flex;
+  gap: .5rem;
+  padding: .55rem .6rem;
+  border: 1px solid rgb(226 232 240);
+  border-radius: .55rem;
+  background: rgb(248 250 252);
+}
+.chat-card-num {
+  flex-shrink: 0;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: var(--color-primary-600, rgb(37 99 235));
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-size: .72rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 0;
+}
+.chat-card-field { display: flex; flex-direction: column; }
+.chat-card-label {
+  font-family: 'Inter', sans-serif;
+  font-size: .64rem;
+  font-weight: 600;
+  color: rgb(148 163 184);
+  margin-bottom: .08rem;
+}
+.chat-card-arg {
+  font-size: .8rem;
+  font-weight: 500;
+  color: rgb(15 23 42);
+  line-height: 1.35;
+}
+.chat-card-strategy {
+  font-size: .78rem;
+  color: rgb(71 85 105);
+  line-height: 1.4;
+}

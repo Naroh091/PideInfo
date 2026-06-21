@@ -3,19 +3,12 @@
 namespace App\Service\AI;
 
 use App\Service\AI\Embedding\EmbedderInterface;
-use App\Service\AI\Embedding\GeminiEmbedder;
 use App\Service\AI\Embedding\QwenEmbedder;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
- * Public facade for embedding generation. Dispatches to either GeminiEmbedder or
- * QwenEmbedder based on the explicit `USE_CUSTOM_EMBEDDING_MODEL` flag.
- *
- * The chat/completion `USE_CUSTOM_MODEL` toggle is intentionally NOT consulted here:
- * embedders and chat backends are independent. Switching the embedder is a manual
- * migration (drop + recreate vector tables + reindex), not a runtime toggle — that
- * is why activation requires its own explicit flag.
+ * Public facade for embedding generation. Always delegates to QwenEmbedder
+ * (OpenAI-compatible endpoint).
  */
 class EmbeddingGenerator
 {
@@ -25,15 +18,12 @@ class EmbeddingGenerator
     private readonly EmbedderInterface $active;
 
     public function __construct(
-        #[Autowire(env: 'bool:USE_CUSTOM_EMBEDDING_MODEL')]
-        bool $useCustom,
-        GeminiEmbedder $gemini,
         QwenEmbedder $qwen,
         // The `llm_api` limiter. Nullable so the TracingEmbeddingGenerator decorator
         // can omit it in its parent::__construct (it delegates to the real inner).
         private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
     ) {
-        $this->active = $useCustom ? $qwen : $gemini;
+        $this->active = $qwen;
     }
 
     private function throttle(): void

@@ -4,17 +4,13 @@ namespace App\Service\AI;
 
 use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
-use App\Service\AI\Embedding\GeminiEmbedder;
 use App\Service\AI\Embedding\QwenEmbedder;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\AsDecorator;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\AutowireDecorated;
 
 /**
  * Decorator wrapping every embedding call with a Langfuse "generation" span.
- * Single-text inputs serialize the text; batch inputs only record the count to
- * keep span size bounded.
  */
 #[AsDecorator(decorates: EmbeddingGenerator::class)]
 final class TracingEmbeddingGenerator extends EmbeddingGenerator
@@ -23,13 +19,10 @@ final class TracingEmbeddingGenerator extends EmbeddingGenerator
         #[AutowireDecorated]
         private readonly EmbeddingGenerator $inner,
         private readonly Tracer $tracer,
-        #[Autowire(env: 'bool:USE_CUSTOM_EMBEDDING_MODEL')]
-        bool $useCustom,
-        GeminiEmbedder $gemini,
         QwenEmbedder $qwen,
         private readonly ?Security $security = null,
     ) {
-        parent::__construct($useCustom, $gemini, $qwen);
+        parent::__construct($qwen);
     }
 
     /**

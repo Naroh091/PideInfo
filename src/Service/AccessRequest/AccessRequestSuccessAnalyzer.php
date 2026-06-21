@@ -10,7 +10,6 @@ use App\Prompt\PromptStore;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -130,7 +129,6 @@ final class AccessRequestSuccessAnalyzer
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
-                size: ModelSize::Mid,
                 temperature: 1.0,
                 jsonSchema: $this->responseSchema(),
                 schemaName: 'access_request_success_analysis',

@@ -28,7 +28,14 @@ final class PromptCatalog
             ['name' => 'pideinfo-complaint-generate-complaint', 'commitMessage' => 'Draft a transparency complaint (reclamacion)'],
             ['name' => 'pideinfo-complaint-generate-complaint-silence', 'commitMessage' => 'Compact prompt for silencio administrativo (positive or negative)'],
             ['name' => 'pideinfo-complaint-generate-alegation-response', 'commitMessage' => 'Draft a response to administration alegaciones'],
+            // Chat-specific variants (no pre-injected RAG; model uses search_resolutions tool per argument)
+            ['name' => 'pideinfo-complaint-generate-complaint-chat', 'commitMessage' => 'Chat scaffold: draft complaint (agent uses search_resolutions per argument)'],
+            ['name' => 'pideinfo-complaint-generate-alegation-response-chat', 'commitMessage' => 'Chat scaffold: response to alegaciones (agent uses search_resolutions per argument)'],
             ['name' => 'pideinfo-activity-summary-24h', 'commitMessage' => '24-hour AI activity summary shown on the home dashboard'],
+            // Agentic drafting tools (Issues #90 + #91)
+            ['name' => 'pideinfo-resolution-keypoints-screen', 'commitMessage' => 'Agent: quick keypoints pre-filter before full-text resolution review'],
+            ['name' => 'pideinfo-resolution-deep-review', 'commitMessage' => 'Agent: full-text resolution review for legal argumentation support'],
+            ['name' => 'pideinfo-document-extract-for-drafting', 'commitMessage' => 'Agent: extract key facts from a document for the drafting context'],
         ];
     }
 }
