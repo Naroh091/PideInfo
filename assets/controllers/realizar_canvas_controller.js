@@ -475,8 +475,10 @@ export default class extends Controller {
 
         if (response.ok && json?.redirectUrl) {
             if (Array.isArray(json.tasks) && json.tasks.length > 0 && window.Alpine?.store) {
-                // clear the in-flight guard so the user can interact with the modal
-                if (button) button.dataset.dispatchInFlight = '';
+                // Re-enable the submit button: the modal is store-driven and the
+                // user may close it to stay on this page, so the dispatch CTA
+                // must not be left permanently disabled.
+                restoreButton();
                 window.Alpine.store('agentPresent').track(
                     json.tasks.map(t => ({ id: t.taskId, statusUrl: t.statusUrl, bodyName: t.bodyName })),
                     { entityLabel: 'solicitud', doneHref: json.redirectUrl },
