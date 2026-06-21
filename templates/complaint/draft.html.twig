@@ -169,20 +169,20 @@
                     x-show="savedRedirectUrl"
                     x-cloak
                     @click="presentViaAgent('supervised')"
-                    :disabled="presentingMode !== null"
+                    :disabled="$store.agentPresent.busy"
                     title="El agente abre la sede con el formulario rellenado y tú revisas + envías">
                 <i data-lucide="eye" class="w-4 h-4 mr-1.5"></i>
-                <span x-text="presentingMode === 'supervised' ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
+                <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
             </button>
             <button type="button"
                     class="btn btn-secondary"
                     x-show="savedRedirectUrl"
                     x-cloak
                     @click="presentViaAgent('auto')"
-                    :disabled="presentingMode !== null"
+                    :disabled="$store.agentPresent.busy"
                     title="El agente rellena y envía sin intervención">
                 <i data-lucide="zap" class="w-4 h-4 mr-1.5"></i>
-                <span x-text="presentingMode === 'auto' ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
+                <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
             </button>
             <a x-show="savedRedirectUrl || hasInitialDraft" x-cloak
                href="{{ path('app_complaint_pdf', {id: request.id}) }}"
@@ -203,7 +203,7 @@
         </div>
     </div>
 
-    {% include 'complaint/_present_modal.html.twig' %}
+    {% include '_partials/_agent_present_modal.html.twig' %}
 </div>
 
 <script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>
@@ -215,16 +215,12 @@
     function complaintDraftEditor() {
         const initialHtml = {{ existingHtml|json_encode|raw }};
         const saveUrl = {{ path('app_complaint_save_draft', {id: request.id})|json_encode|raw }};
-        const presentUrl = {{ path('app_complaint_present_via_agent', {id: request.id})|json_encode|raw }};
         return {
             saving: false,
             edited: !initialHtml,
             hasInitialDraft: !!initialHtml,
             flash: null,
             savedRedirectUrl: null,
-            presentingMode: null,
-            presentResult: null,
-            presentError: null,
             async save() {
                 const input = document.getElementById('complaint-draft-html');
                 const html = input ? input.value : '';
@@ -254,36 +250,28 @@
                     this.saving = false;
                 }
             },
-            closePresentModal() {
-                this.presentResult = null;
-                this.presentError = null;
-                this.presentingMode = null;
-            },
             async presentViaAgent(mode) {
-                if (this.presentingMode) return;
+                const store = this.$store.agentPresent;
+                if (store.busy) return;
                 if (!this.savedRedirectUrl) {
                     await this.save();
                     if (!this.savedRedirectUrl) return;
                 }
-                this.presentingMode = mode;
-                this.presentError = null;
-                this.presentResult = null;
+                store.open('reclamación');
                 try {
-                    const response = await fetch(presentUrl, {
+                    const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ mode }),
                     });
-                    const data = await response.json();
-                    if (!response.ok) {
-                        this.presentError = data.error || 'No se pudo encolar la tarea.';
-                        return;
-                    }
-                    this.presentResult = { taskId: data.taskId, mode, schemeUrl: data.schemeUrl };
+                    const data = await res.json();
+                    if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
+                    store.track(
+                        [{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }],
+                        { entityLabel: 'reclamación' },
+                    );
                 } catch (e) {
-                    this.presentError = 'Error de red.';
-                } finally {
-                    this.presentingMode = null;
+                    store.fail('Error de red.');
                 }
             },
             initEditor() {

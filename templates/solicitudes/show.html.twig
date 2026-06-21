@@ -1613,11 +1613,26 @@
                         {# Always-true guard: the outer branch already implies notFiledYet — kept for clarity of the action-button block. #}
                         {% if true %}
                             <div class="mt-4 pt-4 border-t border-amber-200/60 flex flex-wrap items-center gap-2"
-                                 x-data="{ openAgentModal: false, agentMode: 'supervised' }"
-                                 data-controller="agent-present"
-                                 data-action="agent-present:submit->agent-present#submit"
-                                 data-agent-present-present-url-value="{{ path('app_complaint_present_via_agent', {id: request.id}) }}"
-                                 data-agent-present-pdf-url-value="{{ path('app_complaint_pdf', {id: request.id}) }}">
+                                 x-data="{
+                                    openAgentModal: false,
+                                    agentMode: 'supervised',
+                                    async presentNow() {
+                                        const store = this.$store.agentPresent;
+                                        if (store.busy) return;
+                                        this.openAgentModal = false;
+                                        store.open('reclamación');
+                                        try {
+                                            const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ mode: this.agentMode }),
+                                            });
+                                            const data = await res.json();
+                                            if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
+                                            store.track([{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }], { entityLabel: 'reclamación' });
+                                        } catch (e) { store.fail('Error de red.'); }
+                                    }
+                                 }">
 
                                 {% if complaintFormUrl %}
                                     <button type="button"
@@ -1649,27 +1664,6 @@
                                     <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
                                     Editar
                                 </a>
-                                <span class="ml-auto text-xs text-slate-500" data-agent-present-target="status"></span>
-
-                                <div class="hidden mt-3 w-full text-sm bg-slate-50 border border-slate-200 rounded-lg p-3"
-                                     data-agent-present-target="fallback">
-                                    <p class="text-slate-700 font-medium mb-2">El agente no parece estar abierto.</p>
-                                    <div class="flex flex-wrap gap-2">
-                                        <a class="btn btn-secondary btn-sm" data-agent-present-target="fallbackPdf">
-                                            <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
-                                            Descargar PDF
-                                        </a>
-                                        <a class="btn btn-secondary btn-sm" data-agent-present-target="retryLink">
-                                            <i data-lucide="refresh-cw" class="w-4 h-4 mr-1.5"></i>
-                                            Reintentar wake-up
-                                        </a>
-                                        <a href="{{ path('app_dashboard') }}#agent-setup" class="btn btn-secondary btn-sm">
-                                            <i data-lucide="help-circle" class="w-4 h-4 mr-1.5"></i>
-                                            Cómo registrar el handler
-                                        </a>
-                                    </div>
-                                </div>
-
                                 {# Modo modal — Alpine controlled #}
                                 <div x-show="openAgentModal" x-cloak
                                      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -1679,7 +1673,7 @@
                                         <p class="text-sm text-slate-600 mb-4">Elige cómo quieres que el agente proceda en la sede del Consejo:</p>
 
                                         <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-2 cursor-pointer hover:border-primary-400">
-                                            <input type="radio" name="agent-mode" value="supervised" x-model="agentMode" data-agent-present-target="mode" class="mt-1">
+                                            <input type="radio" name="agent-mode" value="supervised" x-model="agentMode" class="mt-1">
                                             <span>
                                                 <span class="block font-medium text-slate-800">Supervisado</span>
                                                 <span class="block text-xs text-slate-500">El agente rellena el formulario; tú revisas y pulsas «Enviar».</span>
@@ -1687,7 +1681,7 @@
                                         </label>
 
                                         <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-4 cursor-pointer hover:border-primary-400">
-                                            <input type="radio" name="agent-mode" value="auto" x-model="agentMode" data-agent-present-target="mode" class="mt-1">
+                                            <input type="radio" name="agent-mode" value="auto" x-model="agentMode" class="mt-1">
                                             <span>
                                                 <span class="block font-medium text-slate-800">Automático</span>
                                                 <span class="block text-xs text-slate-500">El agente envía la reclamación por ti, sin intervención adicional.</span>
@@ -1697,7 +1691,7 @@
                                         <div class="flex justify-end gap-2">
                                             <button type="button" class="btn btn-ghost btn-sm" @click="openAgentModal = false">Cancelar</button>
                                             <button type="button" class="btn btn-accent btn-sm"
-                                                    @click="openAgentModal = false; $nextTick(() => $el.closest('[data-controller=agent-present]').dispatchEvent(new Event('agent-present:submit')))">
+                                                    @click="presentNow()">
                                                 Lanzar agente
                                             </button>
                                         </div>
@@ -1835,6 +1829,7 @@
                 </div>
             {% endif %}
         {% endfor %}
+        {% include '_partials/_agent_present_modal.html.twig' %}
         {% if summaryBlocks|length > 0 %}
             </section>
         {% endif %}
