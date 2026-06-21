@@ -1194,6 +1194,54 @@ class AccessRequestController extends AbstractController
     }
 
     /**
+     * Mark the active hearing process of a complaint as manually closed
+     * ("Ya he presentado las alegaciones"). Records the action in StatusHistory
+     * so it appears in the timeline, then hides the hearing notice.
+     */
+    #[Route('/{id}/reclamacion/audiencia/cerrar', name: 'app_complaint_hearing_close', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function closeHearing(
+        Request $request,
+        AccessRequest $accessRequest,
+        AccessRequestManager $manager,
+        EntityManagerInterface $em,
+    ): Response {
+        $complaint = $accessRequest->getComplaint();
+
+        if (!$this->isCsrfTokenValid('close-hearing-' . ($complaint?->getId() ?? ''), $request->request->get('_token'))) {
+            $this->addFlash('error', 'Token CSRF inválido');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        if ($complaint === null) {
+            $this->addFlash('error', 'Esta solicitud no tiene una reclamación activa.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $hearing = $complaint->getActiveHearingProcess();
+
+        if ($hearing === null) {
+            $this->addFlash('warning', 'No hay ningún trámite de audiencia activo.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $hearing->setClosedManually(true);
+
+        $manager->recordStatusEvent(
+            $accessRequest,
+            StatusHistory::TYPE_COMPLAINT,
+            $complaint->getStatus(),
+            $complaint->getStatus(),
+            'Alegaciones presentadas (marcado manualmente)',
+        );
+
+        $em->flush();
+
+        $this->addFlash('success', 'Trámite de audiencia cerrado. Las alegaciones han sido registradas.');
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    /**
      * @param list<AccessRequest> $drafts
      */
     private function findInDrafts(array $drafts, string $arId): ?AccessRequest
