@@ -119,18 +119,26 @@ final class ReadRequestDocumentsTool
             ? mb_substr($rawText, 0, self::MAX_TEXT_PER_DOC) . "\n\n[…texto truncado]"
             : $rawText;
 
+        // System prompt = instructions only (no document content).
+        // User turn = document content — models handle "text to analyse" better
+        // when it arrives in the user turn rather than buried in the system prompt.
         $prompt = $this->promptStore->compile('pideinfo-document-extract-for-drafting', [
-            'context'   => $context,
-            'filename'  => $filename,
-            'mime_type' => $mimeType,
-            'content'   => $excerpt,
+            'context' => $context,
         ]);
+
+        $userText = sprintf(
+            "**Documento:** %s\n**Tipo:** %s\n\n**Contenido:**\n\n%s",
+            $filename,
+            $mimeType,
+            $excerpt,
+        );
 
         $this->progress->step("Analizando {$filename}…", 'read_request_documents');
 
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
+                userText: $userText,
                 maxOutputTokens: 1024,
                 maxRetries: 1,
                 requiredJsonKeys: ['useful_for_drafting'],

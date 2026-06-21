@@ -375,6 +375,11 @@ class AccessRequestComplaint
         return $latest;
     }
 
+    public function __toString(): string
+    {
+        return $this->externalId ?? 'Reclamación ' . substr((string) $this->id, 0, 8);
+    }
+
     /** Idempotencia: trámite ya registrado para este documento, si existe. */
     public function findHearingProcessByTriggerDocument(Document $document): ?HearingProcess
     {

@@ -168,6 +168,32 @@ export default class extends Controller {
 
         const assistantBubble = this._appendAssistantBubble('');
         const tokens = assistantBubble.querySelector('.chat-bubble-text');
+        const progress = assistantBubble.querySelector('.chat-bubble-progress');
+        const progressCurrent = assistantBubble.querySelector('.chat-progress-current span:last-child');
+        const progressSteps = assistantBubble.querySelector('.chat-progress-steps');
+        let completedSteps = [];
+        let progressShown = true;
+
+        // Helper: transition from progress area to text area on first token.
+        const activateText = () => {
+            if (!progressShown) return;
+            progressShown = false;
+            if (progress) {
+                if (completedSteps.length > 0) {
+                    // Collapse completed steps into a <details> summary.
+                    progress.innerHTML = `
+                        <details class="chat-progress-history">
+                            <summary>${completedSteps.length} paso${completedSteps.length !== 1 ? 's' : ''} previos</summary>
+                            <div class="chat-progress-history-list">
+                                ${completedSteps.map(s => `<div class="chat-progress-step-done">${this._escape(s)}</div>`).join('')}
+                            </div>
+                        </details>`;
+                } else {
+                    progress.remove();
+                }
+            }
+            if (tokens) tokens.style.display = '';
+        };
 
         this._abort = new AbortController();
         let response;
@@ -207,7 +233,12 @@ export default class extends Controller {
                 while ((idx = buffer.indexOf('\n\n')) !== -1) {
                     const raw = buffer.slice(0, idx);
                     buffer = buffer.slice(idx + 2);
-                    this._processSseRecord(raw, tokens);
+                    this._processSseRecord(raw, tokens, {
+                        activateText,
+                        completedSteps,
+                        progressCurrent,
+                        progressSteps,
+                    });
                 }
             }
         } catch (err) {
@@ -219,7 +250,7 @@ export default class extends Controller {
         }
     }
 
-    _processSseRecord(raw, tokensEl) {
+    _processSseRecord(raw, tokensEl, ctx = {}) {
         let event = 'message';
         let data = '';
         for (const line of raw.split('\n')) {
@@ -231,19 +262,44 @@ export default class extends Controller {
         let payload = {};
         try { payload = data ? JSON.parse(data) : {}; } catch { return; }
 
+        const { activateText, completedSteps, progressCurrent, progressSteps } = ctx;
+
         switch (event) {
+            case 'step': {
+                const msg = String(payload.message ?? '');
+                if (!msg) break;
+                // Move previous current step into the completed list.
+                if (progressCurrent && completedSteps && progressSteps) {
+                    const prev = progressCurrent.textContent;
+                    if (prev && prev !== 'Pensando…') {
+                        completedSteps.push(prev);
+                        const done = document.createElement('div');
+                        done.className = 'chat-progress-step-done';
+                        done.textContent = prev;
+                        progressSteps.appendChild(done);
+                        progressSteps.scrollTop = progressSteps.scrollHeight;
+                    }
+                    progressCurrent.textContent = msg;
+                }
+                this._scrollToBottom();
+                break;
+            }
             case 'chat_token':
+                if (activateText) activateText();
                 tokensEl.textContent += String(payload.text ?? '');
                 this._scrollToBottom();
                 break;
             case 'decision':
+                if (activateText) activateText();
                 this._applyDecision(payload, tokensEl);
                 break;
             case 'error':
+                if (activateText) activateText();
                 tokensEl.textContent = (tokensEl.textContent || '') + ' ⚠ ' + (payload.message || '');
                 this._scrollToBottom();
                 break;
             case 'done':
+                if (activateText) activateText();
                 if (!tokensEl.textContent) {
                     tokensEl.textContent = '(sin respuesta)';
                 }
@@ -315,10 +371,25 @@ export default class extends Controller {
     _appendAssistantBubble(initialText) {
         const node = document.createElement('div');
         node.className = 'chat-turn chat-turn-assistant';
+
+        // Progress area — shown while tool calls run; hidden once chat_token arrives.
+        const progress = document.createElement('div');
+        progress.className = 'chat-bubble-progress';
+        progress.innerHTML = `
+            <div class="chat-progress-steps"></div>
+            <div class="chat-progress-current">
+                <span class="chat-step-spinner"></span>
+                <span>Pensando…</span>
+            </div>`;
+        node.appendChild(progress);
+
+        // Text area — hidden initially, shown once chat_token arrives.
         const text = document.createElement('div');
         text.className = 'chat-bubble-text';
+        text.style.display = 'none';
         text.textContent = initialText || '';
         node.appendChild(text);
+
         if (this.hasHistoryTarget) {
             this.historyTarget.appendChild(node);
         }

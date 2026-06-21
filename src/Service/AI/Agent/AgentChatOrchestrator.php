@@ -20,6 +20,7 @@ use Symfony\AI\Agent\Toolbox\ToolFactory\ReflectionToolFactory;
 use Symfony\AI\Agent\Toolbox\Toolbox;
 use Symfony\AI\Agent\Toolbox\ToolResultConverter;
 use Symfony\AI\Platform\Result\ToolCall;
+use Symfony\Bundle\SecurityBundle\Security;
 
 /**
  * Agentic chat driver. Per turn:
@@ -33,7 +34,7 @@ use Symfony\AI\Platform\Result\ToolCall;
  */
 final class AgentChatOrchestrator
 {
-    private const MAX_TOOL_ITERATIONS = 5;
+    private const MAX_TOOL_ITERATIONS = 8;
 
     /** Chunk size (characters) for emitting conversational_reply as chat_token events. */
     private const REPLY_CHUNK_SIZE = 60;
@@ -50,7 +51,10 @@ final class AgentChatOrchestrator
         'additionalProperties' => false,
         'required'             => ['conversational_reply', 'action'],
         'properties'           => [
-            'conversational_reply' => ['type' => 'string'],
+            'conversational_reply' => [
+                'type'        => 'string',
+                'description' => 'Respuesta breve al usuario, idealmente 1-2 frases: qué vas a hacer o qué has hecho. NO expliques el proceso ni el contenido del borrador aquí.',
+            ],
             'action'               => ['type' => 'string', 'enum' => ['reply', 'generate', 'rewrite']],
             'draft'                => [
                 'type'       => ['object', 'null'],
@@ -72,13 +76,32 @@ final class AgentChatOrchestrator
 
 ## Herramientas disponibles
 
-Tienes acceso a las siguientes herramientas que puedes invocar antes de responder:
+Tienes acceso a las siguientes herramientas. **Debes usarlas antes de generar o reescribir cualquier borrador.**
 
-- **search_resolutions**: busca resoluciones del CTBG y órganos autonómicos que respalden una argumentación legal concreta. Úsala cuando necesites precedentes o argumentos jurídicos.
-- **read_request_documents**: lee y analiza los documentos adjuntos a la solicitud. Úsala cuando necesites conocer el contenido de los documentos para redactar o argumentar.
-- **get_user_preferences**: devuelve las preferencias de redacción del usuario. Úsala al inicio de una sesión de redacción o cuando el usuario pida cambiar el estilo.
+### search_resolutions
+Busca resoluciones del CTBG y órganos autonómicos que apoyen un argumento jurídico concreto. Lee el texto completo de cada candidata y filtra las aplicables.
 
-Invoca las herramientas que necesites y, cuando tengas suficiente información, emite tu respuesta siguiendo el protocolo de salida definido arriba.
+**CÓMO USARLA:**
+- Llámala **una vez por cada argumento o límite jurídico que debas abordar**. No hagas una sola búsqueda genérica.
+- Ejemplo: si la Administración invoca art. 14.1.e (datos personales) y art. 18.1.b (información publicada), haz DOS llamadas:
+  - `search_resolutions("denegación por protección de datos en solicitud de [tipo de información]")`
+  - `search_resolutions("inadmisión por información ya publicada, [contexto del organismo]")`
+- Para silencio administrativo: `search_resolutions("reclamación por silencio administrativo, [tipo de información solicitada]")`
+
+### read_request_documents
+Lee y analiza los documentos adjuntos a la solicitud (resolución de la Administración, acuses de recibo, alegaciones, etc.). Úsala al inicio para conocer los argumentos exactos de la Administración.
+
+### get_user_preferences
+Devuelve las preferencias de redacción del usuario. Úsala al inicio de una sesión de redacción.
+
+---
+
+**Protocolo obligatorio para generar o reescribir un borrador:**
+1. **Primero** lee los documentos con `read_request_documents` para identificar los argumentos exactos que ha invocado la Administración (límites del art.14, causas de inadmisión del art.18, etc.)
+2. **Para cada argumento concreto identificado**, llama a `search_resolutions` con ese argumento específico — una llamada por argumento
+3. **Si `search_resolutions` devuelve que no ha encontrado resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso"
+4. Una vez tienes resoluciones por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
+5. NO busques resoluciones antes de leer los documentos
 
 TXT;
 
@@ -93,6 +116,7 @@ TXT;
         private readonly GetUserPreferencesTool $prefsTool,
         private readonly AgentProgress $agentProgress,
         private readonly Tracer $tracer,
+        private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
         $toolInstances = [$searchTool, $docTool, $prefsTool];
@@ -103,38 +127,103 @@ TXT;
     /**
      * Drives one agentic chat turn. Yields [event, payload] tuples for SSE.
      *
-     * New events added over the old AssistantChatStreamer:
-     *   ['tool_call',   ['tool' => string, 'input_summary' => string]]
-     *   ['tool_result', ['tool' => string, 'summary' => string]]
+     * All tool-loop and final-decision spans are nested under a single root
+     * Langfuse trace so the full turn is visible in one place.
      *
      * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
      */
     public function stream(AssistantChatRequest $req): \Generator
     {
+        $userId = $this->security->getUser()?->getUserIdentifier();
+
+        $traceInput = json_encode([
+            'flow'    => $req->flow,
+            'entity'  => $req->entityId,
+            'message' => mb_substr($req->userMessage, 0, 300),
+        ], JSON_UNESCAPED_UNICODE);
+
+        return yield from $this->tracer->traceRootStream(
+            name: 'agent.chat-turn',
+            attributes: [
+                AttributeKeys::GEN_AI_SYSTEM        => 'openai',
+                AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
+                AttributeKeys::LANGFUSE_USER_ID     => $userId ?? '',
+                AttributeKeys::LANGFUSE_SESSION_ID  => $req->entityId,
+                'agent.flow'                        => $req->flow,
+            ],
+            gen: $this->doStream($req, $userId),
+            captureOutput: function (mixed $_, SpanInterface $span) use ($req): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, mb_substr($req->flow, 0, 50));
+            },
+            traceInput: $traceInput,
+        );
+    }
+
+    /**
+     * Inner generator — runs with the root trace span active so all child
+     * generation() calls are nested under it in Langfuse.
+     *
+     * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
+     */
+    private function doStream(AssistantChatRequest $req, ?string $userId): \Generator
+    {
         $this->agentProgress->reset();
         $messages = $this->buildMessages($req);
         $converter = new ToolResultConverter();
 
-        // ── Tool-calling loop ────────────────────────────────────────────────
+        // ── Deterministic pre-calls ──────────────────────────────────────────
+        yield from $this->runDeterministicPreCalls($req, $messages);
+
+        // ── Optional tool-calling loop (model-driven) ────────────────────────
+        // Iter=0: force read_request_documents so the model knows the administration's
+        // specific denial arguments BEFORE searching for relevant resolutions.
+        // Iter=1+: auto — model calls search_resolutions per argument it identified.
         $toolIterations = 0;
+        $toolLoopDecision = null; // may hold a valid DECISION_SCHEMA from the loop
         while ($toolIterations < self::MAX_TOOL_ITERATIONS) {
+            $toolChoice = $toolIterations === 0
+                ? ['type' => 'function', 'function' => ['name' => 'read_request_documents']]
+                : 'auto';
+
+            $inputSummary = json_encode([
+                'messages'    => count($messages),
+                'tools'       => count($this->toolDefinitions),
+                'flow'        => $req->flow,
+                'entity'      => $req->entityId,
+                'tool_choice' => is_array($toolChoice) ? $toolChoice['function']['name'] : $toolChoice,
+            ], JSON_UNESCAPED_UNICODE);
+
             try {
                 $iteration = $toolIterations;
                 $response = $this->tracer->generation(
                     name: 'agent.tool-loop',
                     attributes: [
-                        AttributeKeys::GEN_AI_OPERATION    => 'tool_calling',
-                        AttributeKeys::GEN_AI_SYSTEM       => 'openai',
-                        AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
-                        'agent.iteration'                   => $iteration,
-                        'agent.flow'                        => $req->flow,
+                        AttributeKeys::GEN_AI_OPERATION           => 'tool_calling',
+                        AttributeKeys::GEN_AI_SYSTEM              => 'openai',
+                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $this->customClient->getModel(),
+                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $inputSummary,
+                        AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
+                        'agent.iteration'                         => $iteration,
+                        'agent.flow'                              => $req->flow,
                     ],
-                    fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions),
+                    fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, $toolChoice),
                     captureOutput: function (array $r, SpanInterface $span): void {
                         $span->setAttribute('agent.response_type', $r['type']);
+                        $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r['promptTokens'] ?? 0);
+                        $span->setAttribute(AttributeKeys::GEN_AI_USAGE_OUTPUT_TOKENS, $r['completionTokens'] ?? 0);
                         if ($r['type'] === 'tool_calls') {
-                            $names = array_column($r['calls'] ?? [], 'name');
-                            $span->setAttribute('agent.tools_called', implode(',', $names));
+                            $calls = $r['calls'] ?? [];
+                            $names = array_column($calls, 'name');
+                            $span->setAttribute('agent.tools_called', implode(', ', $names));
+                            // Serialize tool calls with their arguments for full visibility.
+                            $callsSummary = array_map(
+                                fn (array $c) => sprintf('%s(%s)', $c['name'], mb_substr(json_encode($c['arguments'], JSON_UNESCAPED_UNICODE), 0, 300)),
+                                $calls,
+                            );
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, implode(' | ', $callsSummary));
+                        } else {
+                            $preview = mb_substr((string) ($r['content'] ?? ''), 0, 300);
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, $preview);
                         }
                     },
                 );
@@ -150,6 +239,12 @@ TXT;
             }
 
             if ($response['type'] !== 'tool_calls') {
+                // Model returned text. Check if it already contains a valid decision
+                // so we can skip the chatRaw() call below and avoid a double generation.
+                $candidate = json_decode((string) ($response['content'] ?? ''), true);
+                if (is_array($candidate) && isset($candidate['conversational_reply'], $candidate['action'])) {
+                    $toolLoopDecision = $candidate;
+                }
                 break;
             }
 
@@ -184,6 +279,10 @@ TXT;
                     yield ['step', $step];
                 }
 
+                // Emit a step with a short summary of the tool result.
+                $resultPreview = mb_substr($resultText, 0, 150) . (mb_strlen($resultText) > 150 ? '…' : '');
+                yield ['step', ['message' => "✓ {$toolName}: {$resultPreview}", 'tool' => $toolName]];
+
                 $messages[] = [
                     'role'         => 'tool',
                     'tool_call_id' => $callData['id'],
@@ -194,46 +293,60 @@ TXT;
             $toolIterations++;
         }
 
-        yield ['step', ['message' => 'Redactando respuesta…', 'tool' => null]];
+        // ── Final JSON call (or reuse tool-loop response) ────────────────────
+        // If the tool-loop already produced a valid DECISION_SCHEMA response
+        // (model chose not to call tools and went straight to the answer),
+        // reuse it to avoid a second full LLM generation.
+        if ($toolLoopDecision !== null) {
+            // Reuse the tool-loop response — model produced a valid decision
+            // without needing a separate final-decision call. Saves ~9s + ~4500 tokens.
+            $data = $toolLoopDecision;
+        } else {
+            yield ['step', ['message' => 'Redactando respuesta…', 'tool' => null]];
 
-        // ── Final JSON call (structured output, replaces ===DECISION===) ─────
-        try {
-            $result = $this->tracer->generation(
-                name: 'agent.final-decision',
-                attributes: [
-                    AttributeKeys::GEN_AI_OPERATION    => 'chat',
-                    AttributeKeys::GEN_AI_SYSTEM       => 'openai',
-                    AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
-                    'agent.flow'                        => $req->flow,
-                ],
-                fn: fn () => $this->customClient->chatRaw(
-                    messages: $messages,
-                    jsonSchema: self::DECISION_SCHEMA,
-                    schemaName: 'assistant_decision',
-                    maxRetries: 2,
-                ),
-                captureOutput: function (mixed $r, SpanInterface $span): void {
-                    if ($r !== null) {
-                        $span->setAttribute(AttributeKeys::GEN_AI_USAGE_OUTPUT_TOKENS, $r->completionTokens ?? 0);
-                    }
-                },
-            );
-        } catch (\Throwable $e) {
-            $this->logger->error('AgentChatOrchestrator final call failure', [
-                'flow'  => $req->flow,
-                'error' => $e->getMessage(),
-            ]);
-            yield ['error', ['message' => 'No se ha podido contactar con el modelo. Reintenta en unos segundos.']];
-            return;
-        }
+            try {
+                $result = $this->tracer->generation(
+                    name: 'agent.final-decision',
+                    attributes: [
+                        AttributeKeys::GEN_AI_OPERATION           => 'chat',
+                        AttributeKeys::GEN_AI_SYSTEM              => 'openai',
+                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $this->customClient->getModel(),
+                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => json_encode(['messages' => count($messages), 'flow' => $req->flow], JSON_UNESCAPED_UNICODE),
+                        AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
+                        'agent.flow'                              => $req->flow,
+                    ],
+                    fn: fn () => $this->customClient->chatRaw(
+                        messages: $messages,
+                        jsonSchema: self::DECISION_SCHEMA,
+                        schemaName: 'assistant_decision',
+                        maxRetries: 2,
+                        maxOutputTokens: 16384,
+                    ),
+                    captureOutput: function (mixed $r, SpanInterface $span): void {
+                        if ($r !== null) {
+                            $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r->promptTokens ?? 0);
+                            $span->setAttribute(AttributeKeys::GEN_AI_USAGE_OUTPUT_TOKENS, $r->completionTokens ?? 0);
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, mb_substr($r->content ?? '', 0, 500));
+                        }
+                    },
+                );
+            } catch (\Throwable $e) {
+                $this->logger->error('AgentChatOrchestrator final call failure', [
+                    'flow'  => $req->flow,
+                    'error' => $e->getMessage(),
+                ]);
+                yield ['error', ['message' => 'No se ha podido contactar con el modelo. Reintenta en unos segundos.']];
+                return;
+            }
 
-        $data = json_decode($result->content, true);
-        if (!is_array($data)) {
-            $this->logger->warning('AgentChatOrchestrator: invalid JSON in final response', [
-                'preview' => mb_substr($result->content, 0, 300),
-            ]);
-            yield ['error', ['message' => 'El asistente respondió en un formato inesperado. Reintenta en unos segundos.']];
-            return;
+            $data = json_decode($result->content, true);
+            if (!is_array($data)) {
+                $this->logger->warning('AgentChatOrchestrator: invalid JSON in final response', [
+                    'preview' => mb_substr($result->content, 0, 300),
+                ]);
+                yield ['error', ['message' => 'El asistente respondió en un formato inesperado. Reintenta en unos segundos.']];
+                return;
+            }
         }
 
         // Emit conversational reply in chunks (typing effect without true streaming).
@@ -258,6 +371,57 @@ TXT;
         }
 
         yield ['decision', ['action' => $action, 'draft' => $draft]];
+    }
+
+    /**
+     * Pre-calls tools that should always run before the model responds, regardless
+     * of whether the underlying model supports function calling.
+     *
+     * Injects results into $messages as an assistant context block so the model
+     * sees them without needing to invoke tools itself.
+     *
+     * @param list<array<string, mixed>> &$messages
+     * @return \Generator yields ['step', ...] events
+     */
+    private function runDeterministicPreCalls(AssistantChatRequest $req, array &$messages): \Generator
+    {
+        $contextParts = [];
+
+        // 1. User writing preferences.
+        yield ['step', ['message' => 'Cargando preferencias de redacción…', 'tool' => 'get_user_preferences']];
+        try {
+            $prefs = ($this->prefsTool)();
+            if ($prefs !== '' && !str_contains($prefs, 'no ha configurado')) {
+                $contextParts[] = $prefs;
+            }
+        } catch (\Throwable) {}
+        foreach ($this->agentProgress->drain() as $step) {
+            yield ['step', $step];
+        }
+
+        // read_request_documents is intentionally NOT pre-called here:
+        // the model calls it spontaneously in iter=1 when it needs document context.
+        // Pre-calling it would run the document LLM extraction twice for the same docs.
+
+        if ($contextParts === []) {
+            return;
+        }
+
+        // Inject as an assistant message + user acknowledgment so the model
+        // sees this context without requiring native function-calling support.
+        $contextBlock = "He recopilado el siguiente contexto antes de responderte:\n\n"
+            . implode("\n\n---\n\n", $contextParts);
+        $messages[] = ['role' => 'assistant', 'content' => $contextBlock];
+        $messages[] = ['role' => 'user',      'content' => 'Gracias. Procede ahora siguiendo las instrucciones del sistema.'];
+    }
+
+    private function buildDraftingContext(AssistantChatRequest $req): string
+    {
+        return match ($req->flow) {
+            'complaint'  => 'Redacción de reclamación ante el consejo de transparencia.',
+            'request'    => 'Redacción de solicitud de acceso a información pública.',
+            default      => 'Asistencia en redacción de escritos de transparencia.',
+        };
     }
 
     /**

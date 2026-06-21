@@ -3,6 +3,7 @@
 namespace App\Service\AI;
 
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Query\VectorQuery;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -46,7 +47,7 @@ final class CriteriaRetriever
         $results = [];
 
         try {
-            $documents = $this->ctbgCriteriaStore->query($vector, ['limit' => $topK]);
+            $documents = $this->ctbgCriteriaStore->query(new VectorQuery($vector), ['limit' => $topK]);
 
             foreach ($documents as $document) {
                 $metadata = $document->metadata;

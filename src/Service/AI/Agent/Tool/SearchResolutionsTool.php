@@ -23,12 +23,15 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
  */
 #[AsTool(
     name: 'search_resolutions',
-    description: 'Busca resoluciones del CTBG y órganos autonómicos que respalden una argumentación legal concreta. Primero filtra candidatas por sus puntos clave y, sólo para las prometedoras, lee el texto completo de la resolución para extraer el argumento jurídico concreto.',
+    description: 'Busca resoluciones del CTBG y órganos autonómicos que respalden un argumento legal concreto. Filtra por keypoints y lee el texto completo de las más prometedoras (máx. 4). Úsala una vez por argumento identificado en los documentos.',
 )]
 final class SearchResolutionsTool
 {
     /** Max characters of fullText sent to the deep-review stage. */
     private const MAX_FULL_TEXT_CHARS = 25_000;
+
+    /** Max candidates that proceed from Stage 1 (keypoints screen) to Stage 2 (full-text LLM). */
+    private const MAX_DEEP_REVIEW = 4;
 
     public function __construct(
         private readonly ResolutionRetriever $resolutionRetriever,
@@ -40,11 +43,11 @@ final class SearchResolutionsTool
 
     /**
      * @param string $argumentation Argumentación legal en construcción: describe el derecho vulnerado, el tipo de información solicitada, el motivo de denegación o el criterio jurídico que se quiere fundamentar.
-     * @param int    $topK          Número máximo de candidatas a recuperar antes del filtrado (1-15). Por defecto 10.
+     * @param int    $topK          Número de candidatas a recuperar (1-10). Por defecto 6.
      */
-    public function __invoke(string $argumentation, int $topK = 10): string
+    public function __invoke(string $argumentation, int $topK = 6): string
     {
-        $topK = max(1, min(15, $topK));
+        $topK = max(1, min(10, $topK));
 
         $this->progress->step('Recuperando resoluciones similares del corpus…', 'search_resolutions');
 
@@ -74,7 +77,8 @@ final class SearchResolutionsTool
             );
         }
 
-        // Stage 2: deep review with full resolution text for promising candidates.
+        // Stage 2: deep review — cap at MAX_DEEP_REVIEW to bound LLM call count.
+        $promising = array_slice($promising, 0, self::MAX_DEEP_REVIEW);
         $relevant = [];
         foreach ($promising as $candidate) {
             $ref = $candidate['reference'] ?? '—';
