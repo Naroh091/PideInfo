@@ -171,7 +171,13 @@ final class CustomModelClient
      *   content?: string,
      * }
      */
-    public function chatWithTools(array $messages, array $tools): array
+    /**
+     * @param array<int, array{type: string, function: array}>  $tools
+     * @param string|array<string, mixed>                       $toolChoice  'auto'|'required'|'none'
+     *                                                           or {'type':'function','function':{'name':'...'}}
+     *                                                           to pin the first call to a specific tool.
+     */
+    public function chatWithTools(array $messages, array $tools, string|array $toolChoice = 'auto'): array
     {
         $this->throttle();
         $params = [
@@ -180,12 +186,15 @@ final class CustomModelClient
             'temperature' => $this->temperature,
             'max_tokens'  => $this->maxTokens,
             'tools'       => $tools,
-            'tool_choice' => 'auto',
+            'tool_choice' => $toolChoice,
         ];
 
         $response = $this->getClient()->chat()->create($params);
         $choice   = $response->choices[0];
         $message  = $choice->message;
+
+        $promptTokens     = $response->usage?->promptTokens ?? 0;
+        $completionTokens = $response->usage?->completionTokens ?? 0;
 
         if (($choice->finishReason ?? '') === 'tool_calls' && !empty($message->toolCalls)) {
             $calls = [];
@@ -208,6 +217,8 @@ final class CustomModelClient
                 'type'              => 'tool_calls',
                 'assistant_message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => $toolCallsPayload],
                 'calls'             => $calls,
+                'promptTokens'      => $promptTokens,
+                'completionTokens'  => $completionTokens,
             ];
         }
 
@@ -216,6 +227,8 @@ final class CustomModelClient
             'type'              => 'text',
             'assistant_message' => ['role' => 'assistant', 'content' => $content],
             'content'           => $content,
+            'promptTokens'      => $promptTokens,
+            'completionTokens'  => $completionTokens,
         ];
     }
 
@@ -245,6 +258,7 @@ final class CustomModelClient
         ?array $jsonSchema = null,
         string $schemaName = 'structured_response',
         int $maxRetries = 2,
+        ?int $maxOutputTokens = null,
     ): ChatResult {
         $this->throttle();
         $responseFormat = $jsonSchema !== null
@@ -257,7 +271,7 @@ final class CustomModelClient
             ]
             : null;
 
-        return $this->dispatch($messages, $this->maxTokens, $maxRetries, $responseFormat);
+        return $this->dispatch($messages, $maxOutputTokens ?? $this->maxTokens, $maxRetries, $responseFormat);
     }
 
     /**

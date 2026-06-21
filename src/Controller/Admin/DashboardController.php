@@ -3,6 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\ApplicableLaw;
 use App\Entity\AutonomousCommunity;
 use App\Entity\ComplaintOrganism;
@@ -45,6 +46,7 @@ class DashboardController extends AbstractDashboardController
 
         yield MenuItem::section('Solicitudes');
         yield MenuItem::linkToCrud('Solicitudes', 'fa fa-folder-open', AccessRequest::class);
+        yield MenuItem::linkToCrud('Reclamaciones', 'fa fa-gavel', AccessRequestComplaint::class);
         yield MenuItem::linkToCrud('Documentos', 'fa fa-file', Document::class);
 
         yield MenuItem::section('Usuarios');

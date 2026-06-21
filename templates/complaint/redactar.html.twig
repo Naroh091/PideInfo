@@ -869,7 +869,7 @@
         <div data-controller="assistant-chat"
              data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
              data-assistant-chat-canvas-outlet-selector-value="#complaint-canvas"
-             @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.element.innerHTML : ''); $refs.assistantDocumentIds.value = selectedDocIds.join(',')">
+             @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.innerHTML : ''); $refs.assistantDocumentIds.value = selectedDocIds.join(',')">
 
             {# Hidden fields the assistant-chat controller appends to every turn's FormData.
                The :before-send event handler above refreshes them with current Trix HTML

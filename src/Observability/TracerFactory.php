@@ -35,6 +35,8 @@ final class TracerFactory
         #[Autowire(env: 'float:OTEL_EXPORTER_OTLP_TIMEOUT')]
         private readonly float $timeoutMillis,
         private readonly LoggerInterface $logger,
+        #[Autowire(env: 'default::LANGFUSE_TRACING_ENVIRONMENT')]
+        private readonly ?string $tracingEnvironment = null,
     ) {
     }
 
@@ -61,9 +63,17 @@ final class TracerFactory
 
             $exporter = new SpanExporter($transport);
 
-            $resource = ResourceInfoFactory::defaultResource()->merge(ResourceInfo::create(Attributes::create([
+            $resourceAttributes = [
                 ResourceAttributes::SERVICE_NAME => $this->serviceName !== '' ? $this->serviceName : 'pideinfo',
-            ])));
+            ];
+
+            if ($this->tracingEnvironment !== null && $this->tracingEnvironment !== '') {
+                $resourceAttributes['deployment.environment'] = $this->tracingEnvironment;
+            }
+
+            $resource = ResourceInfoFactory::defaultResource()->merge(
+                ResourceInfo::create(Attributes::create($resourceAttributes))
+            );
 
             $processor = new BatchSpanProcessor(
                 exporter: $exporter,

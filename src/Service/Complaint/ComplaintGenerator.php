@@ -425,31 +425,28 @@ final class ComplaintGenerator
     {
         $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
         $applicableLawName = $accessRequest->getApplicableLaw()->getName();
-        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
 
+        // Chat path: NO pre-injected RAG. The agent uses search_resolutions tool
+        // to find relevant resolutions per argument — better quality and more targeted
+        // than a single generic top-K search injected into the prompt.
         if ($mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
             $alegacionesContent = $this->getAlegacionesContent($accessRequest);
             $alegationPoints = $this->getAlegationPoints($accessRequest);
-            return $this->buildAlegationResponsePrompt(
+            return $this->buildAlegationResponseChatPrompt(
                 $accessRequest,
                 $transparencyCouncil,
                 $applicableLawName,
-                $criteria,
-                $resolutions,
                 $alegacionesContent,
                 $alegationPoints,
                 $documentContents,
             );
         }
 
-        return $this->buildPrompt(
+        return $this->buildChatPrompt(
             $accessRequest,
             $transparencyCouncil,
             $applicableLawName,
-            $criteria,
-            $resolutions,
             $documentContents,
-            $this->hasResponseDocument($accessRequest),
         );
     }
 
@@ -607,6 +604,15 @@ TXT;
     /**
      * @param array<array{name: string, type: string, content: string}> $documentContents
      */
+    private function buildChatPrompt(
+        AccessRequest $accessRequest,
+        string $transparencyCouncil,
+        string $applicableLawName,
+        array $documentContents = [],
+    ): CompiledPrompt {
+        return $this->buildPrompt($accessRequest, $transparencyCouncil, $applicableLawName, [], [], $documentContents, $this->hasResponseDocument($accessRequest), chatMode: true);
+    }
+
     private function buildPrompt(
         AccessRequest $accessRequest,
         string $transparencyCouncil,
@@ -614,7 +620,8 @@ TXT;
         array $criteria,
         array $resolutions,
         array $documentContents = [],
-        bool $hasResponseDocument = false
+        bool $hasResponseDocument = false,
+        bool $chatMode = false,
     ): CompiledPrompt {
         $silencePositive = $accessRequest->getApplicableLaw()->isSilenceIsPositive();
         $silenceLabel = $silencePositive
@@ -754,10 +761,26 @@ GRANTED_PENDING;
             $silenceBlock = strtr($silenceBlock, ['{$transparencyCouncil}' => $transparencyCouncil]);
         }
 
+        $documentsBlock = $this->formatDocumentContents($documentContents);
+
+        if ($chatMode) {
+            return $this->promptStore->compile('pideinfo-complaint-generate-complaint-chat', [
+                'transparency_council' => $transparencyCouncil,
+                'request_title'        => (string) $accessRequest->getTitle(),
+                'request_description'  => (string) $accessRequest->getDescription(),
+                'public_body_name'     => $accessRequest->getPublicBody()?->getName() ?? '',
+                'external_id'          => (string) $accessRequest->getExternalId(),
+                'status'               => $status,
+                'denial_reason'        => $denialReason,
+                'applicable_law_name'  => $applicableLawName,
+                'timeline'             => $timeline,
+                'documents_block'      => $documentsBlock,
+                'silence_block'        => $silenceBlock,
+            ]);
+        }
+
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
-
-        $documentsBlock = $this->formatDocumentContents($documentContents);
 
         return $this->promptStore->compile('pideinfo-complaint-generate-complaint', [
             'transparency_council' => $transparencyCouncil,
@@ -1014,6 +1037,27 @@ GRANTED_PENDING;
         return [];
     }
 
+    private function buildAlegationResponseChatPrompt(
+        AccessRequest $accessRequest,
+        string $transparencyCouncil,
+        string $applicableLawName,
+        string $alegacionesContent,
+        array $alegationPoints,
+        array $documentContents = [],
+    ): CompiledPrompt {
+        $alegationPointsText = $this->buildAlegationPointsText($alegationPoints);
+
+        return $this->promptStore->compile('pideinfo-complaint-generate-alegation-response-chat', [
+            'transparency_council'  => $transparencyCouncil,
+            'public_body_name'      => $accessRequest->getPublicBody()?->getName() ?? '',
+            'request_title'         => (string) $accessRequest->getTitle(),
+            'request_description'   => (string) $accessRequest->getDescription(),
+            'applicable_law_name'   => $applicableLawName,
+            'alegation_points_text' => $alegationPointsText,
+            'documents_block'       => $this->formatDocumentContents($documentContents),
+        ]);
+    }
+
     private function buildAlegationResponsePrompt(
         AccessRequest $accessRequest,
         string $transparencyCouncil,
@@ -1026,14 +1070,7 @@ GRANTED_PENDING;
     ): CompiledPrompt {
         $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
         $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
-
-        $alegationPointsText = '';
-        if (!empty($alegationPoints)) {
-            $alegationPointsText = "## PUNTOS DE ALEGACIÓN DE LA ADMINISTRACIÓN\n\n";
-            foreach ($alegationPoints as $i => $point) {
-                $alegationPointsText .= sprintf("%d. %s\n", $i + 1, $point);
-            }
-        }
+        $alegationPointsText = $this->buildAlegationPointsText($alegationPoints);
 
         return $this->promptStore->compile('pideinfo-complaint-generate-alegation-response', [
             'transparency_council' => $transparencyCouncil,
@@ -1046,6 +1083,18 @@ GRANTED_PENDING;
             'criteria_text' => $criteriaText,
             'resolutions_text' => $resolutionsText,
         ]);
+    }
+
+    private function buildAlegationPointsText(array $alegationPoints): string
+    {
+        if (empty($alegationPoints)) {
+            return '';
+        }
+        $text = "## PUNTOS DE ALEGACIÓN DE LA ADMINISTRACIÓN\n\n";
+        foreach ($alegationPoints as $i => $point) {
+            $text .= sprintf("%d. %s\n", $i + 1, $point);
+        }
+        return $text;
     }
 
 
