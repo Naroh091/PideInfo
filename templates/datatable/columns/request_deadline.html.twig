@@ -10,8 +10,9 @@
 {% elseif row.isDeadlinePassed %}
     <div class="flex items-center gap-1 text-red-600">
         <i data-lucide="alert-circle" class="w-4 h-4"></i>
-        <span class="text-sm font-medium">Vencido</span>
+        <span class="text-sm font-medium">{{ row.deadlineAt|date('d/m/Y') }}</span>
     </div>
+    <p class="text-xs text-red-500 mt-0.5">Vencido</p>
 {% else %}
     <span class="text-slate-700">{{ row.deadlineAt|date('d/m/Y') }}</span>
     <p class="text-xs {{ row.daysUntilDeadline <= 3 ? 'text-red-500' : (row.daysUntilDeadline <= 7 ? 'text-amber-500' : 'text-slate-400') }} mt-0.5">
@@ -27,8 +28,9 @@
         {% if complaintPassed %}
             <div class="flex items-center gap-1 text-red-600">
                 <i data-lucide="alert-circle" class="w-3 h-3"></i>
-                <span class="text-xs font-medium">Vencido</span>
+                <span class="text-xs font-medium">{{ row.complaint.deadlineAt|date('d/m/Y') }}</span>
             </div>
+            <p class="text-xs text-red-500 mt-0.5">Vencido</p>
         {% else %}
             <span class="text-xs text-slate-700">{{ row.complaint.deadlineAt|date('d/m/Y') }}</span>
         {% endif %}
