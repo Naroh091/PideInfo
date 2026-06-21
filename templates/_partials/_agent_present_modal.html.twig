@@ -1,0 +1,138 @@
+{# Shared "presentar con el agente" modal. Driven entirely by
+   Alpine.store('agentPresent') (registered in layouts/app.html.twig).
+   Include once on any page that submits via the agent. #}
+<div x-data="{}"
+     x-show="$store.agentPresent.phase !== 'idle'"
+     x-cloak
+     x-transition.opacity
+     class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-[1px]"
+     @keydown.escape.window="$store.agentPresent.close()"
+     @click.self="$store.agentPresent.close()">
+
+    <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden border border-slate-200">
+
+        {# header #}
+        <div class="px-6 pt-6 pb-2">
+            <h3 class="text-lg font-semibold text-slate-900">
+                <span x-show="$store.agentPresent.phase === 'enqueuing'" x-cloak
+                      x-text="'Encolando ' + $store.agentPresent.entityLabel + '…'"></span>
+                <span x-show="$store.agentPresent.phase === 'tracking'" x-cloak>Procesando con el agente…</span>
+                <span x-show="$store.agentPresent.phase === 'done'" x-cloak>Listo</span>
+                <span x-show="$store.agentPresent.phase === 'error'" x-cloak>No se pudo completar</span>
+            </h3>
+            <p class="text-sm text-slate-500 mt-1"
+               x-show="$store.agentPresent.phase === 'done' && $store.agentPresent.total > 1" x-cloak
+               x-text="'Enviado a ' + $store.agentPresent.successCount + ' de ' + $store.agentPresent.total + ' organismos.'"></p>
+        </div>
+
+        {# animation (plays while enqueuing/tracking) #}
+        <div class="px-6 py-6 flex items-center justify-center"
+             x-show="$store.agentPresent.phase === 'enqueuing' || $store.agentPresent.phase === 'tracking'" x-cloak>
+            <div class="present-anim" :class="{ 'is-stopped': !$store.agentPresent.busy }">
+                <div class="present-anim-stage">
+                    <span class="present-anim-source" title="PideInfo">
+                        <i data-lucide="folder-open" class="w-6 h-6 text-slate-400"></i>
+                    </span>
+                    <span class="present-anim-track" aria-hidden="true">
+                        <span class="present-anim-doc" data-doc="1"><i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i></span>
+                        <span class="present-anim-doc" data-doc="2"><i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i></span>
+                        <span class="present-anim-doc" data-doc="3"><i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i></span>
+                    </span>
+                    <span class="present-anim-target" title="Agente / Sede">
+                        <i data-lucide="cpu" class="w-6 h-6 text-emerald-500"></i>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        {# per-task progress list (shown while tracking and on done/error) #}
+        <div class="px-6 pb-2" x-show="$store.agentPresent.phase !== 'enqueuing' && $store.agentPresent.tasks.length" x-cloak>
+            <ul class="space-y-2">
+                <template x-for="t in $store.agentPresent.tasks" :key="t.id">
+                    <li class="flex items-start gap-2 text-sm">
+                        {# icon by kind #}
+                        <span class="mt-0.5 shrink-0">
+                            <i x-show="t.kind === 'waiting' || t.kind === 'working'" data-lucide="loader-2" class="w-4 h-4 text-primary-500 animate-spin"></i>
+                            <i x-show="t.kind === 'done'" data-lucide="check-circle-2" class="w-4 h-4 text-emerald-500"></i>
+                            <i x-show="t.kind === 'failed'" data-lucide="x-circle" class="w-4 h-4 text-red-500"></i>
+                            <i x-show="t.kind === 'uncertain'" data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                        </span>
+                        <span class="min-w-0">
+                            <span class="block text-slate-700" x-show="t.bodyName" x-text="t.bodyName"></span>
+                            <span class="block text-slate-500" x-text="t.label"></span>
+                            <span class="block text-red-600 text-xs mt-0.5" x-show="t.errorMessage" x-text="t.errorMessage"></span>
+                        </span>
+                    </li>
+                </template>
+            </ul>
+        </div>
+
+        {# global error (POST/network failure before any task exists) #}
+        <template x-if="$store.agentPresent.phase === 'error' && $store.agentPresent.globalError">
+            <div class="px-6 py-4">
+                <div class="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2"
+                     x-text="$store.agentPresent.globalError"></div>
+            </div>
+        </template>
+
+        {# "task continues" reassurance while in flight #}
+        <p class="px-6 text-xs text-slate-400"
+           x-show="$store.agentPresent.busy" x-cloak>
+            Puedes cerrar esta ventana: la tarea continuará en segundo plano.
+        </p>
+
+        {# footer #}
+        <div class="px-6 pb-6 pt-3 flex items-center justify-end gap-2">
+            <button type="button"
+                    class="text-sm text-slate-500 hover:text-slate-800 px-3 py-1.5"
+                    @click="$store.agentPresent.close()">
+                Cerrar
+            </button>
+            {# single-task complaint: force the desktop agent to start now #}
+            <a x-show="$store.agentPresent.busy && $store.agentPresent.tasks.length === 1 && $store.agentPresent.tasks[0].schemeUrl"
+               x-cloak
+               :href="$store.agentPresent.tasks.length ? $store.agentPresent.tasks[0].schemeUrl : '#'"
+               class="btn btn-accent inline-flex items-center gap-1.5">
+                <i data-lucide="zap" class="w-4 h-4"></i> Forzar inicio
+            </a>
+            {# bulk done: go to the list #}
+            <a x-show="$store.agentPresent.phase === 'done' && $store.agentPresent.doneHref"
+               x-cloak
+               :href="$store.agentPresent.doneHref"
+               class="btn btn-primary inline-flex items-center gap-1.5">
+                <i data-lucide="list" class="w-4 h-4"></i> Ver mis solicitudes
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .present-anim { width: 100%; }
+    .present-anim-stage { position: relative; height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; }
+    .present-anim-source, .present-anim-target { width: 56px; height: 56px; display: inline-flex; align-items: center; justify-content: center; border-radius: 14px; background: #f1f5f9; border: 1px solid #e2e8f0; flex-shrink: 0; }
+    .present-anim-target { background: #ecfdf5; border-color: #a7f3d0; }
+    .present-anim-track { position: absolute; top: 50%; left: 64px; right: 64px; height: 2px; background: linear-gradient(90deg, #cbd5e1, #d1fae5); transform: translateY(-50%); }
+    .present-anim-doc { position: absolute; top: -10px; left: 0; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; background: #fff; border: 1px solid #bae6fd; border-radius: 6px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); animation: present-doc-fly 2.4s linear infinite; }
+    .present-anim-doc[data-doc="2"] { animation-delay: 0.8s; }
+    .present-anim-doc[data-doc="3"] { animation-delay: 1.6s; }
+    .present-anim.is-stopped .present-anim-doc { animation-play-state: paused; opacity: 0; }
+    @keyframes present-doc-fly {
+        0%   { transform: translateX(0)    scale(0.85); opacity: 0; }
+        12%  { opacity: 1; }
+        50%  { transform: translateX(50%)  scale(1);    opacity: 1; }
+        88%  { opacity: 1; }
+        100% { transform: translateX(100%) scale(0.85); opacity: 0; }
+    }
+</style>
+
+{# Re-init lucide icons whenever the modal's task list changes #}
+<script>
+    document.addEventListener('alpine:initialized', () => { if (window.lucide) window.lucide.createIcons(); });
+    document.addEventListener('alpine:init', () => {
+        // re-render icons when tasks mutate (new rows / status icon swaps)
+        if (window.Alpine) Alpine.effect(() => {
+            const _ = Alpine.store('agentPresent') && Alpine.store('agentPresent').tasks.length;
+            queueMicrotask(() => { if (window.lucide) window.lucide.createIcons(); });
+        });
+    });
+</script>
