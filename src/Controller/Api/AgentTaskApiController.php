@@ -120,6 +120,7 @@ class AgentTaskApiController extends AbstractController
             AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
             AgentTask::TYPE_SUBMIT_REQUEST_REG,
             AgentTask::TYPE_PRESENT_COMPLAINT,
+            AgentTask::TYPE_PRESENT_COMPLAINT_REG,
         ], true);
 
         if ($isSubmission) {
