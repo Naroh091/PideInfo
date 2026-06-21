@@ -131,6 +131,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $dismissedHints = null;
 
+    /**
+     * Per-user AI writing style preferences injected into the drafting assistant
+     * system prompt. All keys are optional; absent keys are silently skipped.
+     * `learned` holds durable style preferences the assistant inferred from the
+     * user's own correction instructions (e.g. "Al usuario le gusta ir al grano").
+     * @var array{tone?: string, salutation?: string, closing?: string, notes?: string, learned?: list<string>}|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $writingPreferences = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -430,6 +440,104 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function hasDismissedHint(string $hintId): bool
     {
         return \in_array($hintId, $this->getDismissedHints(), true);
+    }
+
+    /** @return array{tone?: string, salutation?: string, closing?: string, notes?: string, learned?: list<string>} */
+    public function getWritingPreferences(): array
+    {
+        return $this->writingPreferences ?? [];
+    }
+
+    /** @param array{tone?: string, salutation?: string, closing?: string, notes?: string, learned?: list<string>} $prefs */
+    public function setWritingPreferences(array $prefs): static
+    {
+        $this->writingPreferences = $prefs !== [] ? $prefs : null;
+        return $this;
+    }
+
+    public function hasWritingPreferences(): bool
+    {
+        return !empty($this->writingPreferences);
+    }
+
+    /** Upper bound on stored learned preferences, to keep the injected prompt bounded. */
+    private const MAX_LEARNED_PREFERENCES = 15;
+
+    /** @return list<string> */
+    public function getLearnedPreferences(): array
+    {
+        $learned = $this->writingPreferences['learned'] ?? [];
+
+        return is_array($learned)
+            ? array_values(array_filter($learned, static fn ($p): bool => is_string($p) && trim($p) !== ''))
+            : [];
+    }
+
+    /**
+     * Reconcile the learned writing-style preferences with the deltas the assistant
+     * emitted: drop entries the user contradicted (`remove`), append new ones (`add`).
+     * Matching for removal is case-insensitive (exact, then substring either way) so
+     * the model can name a stale preference loosely. Returns whether anything changed.
+     *
+     * @param list<string> $add
+     * @param list<string> $remove
+     */
+    public function applyLearnedPreferenceDeltas(array $add, array $remove): bool
+    {
+        $current = $this->getLearnedPreferences();
+        $before = $current;
+
+        $removeNorm = array_values(array_filter(
+            array_map(static fn ($r): string => mb_strtolower(trim((string) $r)), $remove),
+            static fn (string $r): bool => $r !== '',
+        ));
+        if ($removeNorm !== []) {
+            $current = array_values(array_filter($current, static function (string $pref) use ($removeNorm): bool {
+                $p = mb_strtolower(trim($pref));
+                foreach ($removeNorm as $r) {
+                    if ($p === $r || str_contains($p, $r) || str_contains($r, $p)) {
+                        return false;
+                    }
+                }
+                return true;
+            }));
+        }
+
+        foreach ($add as $candidate) {
+            $pref = trim((string) $candidate);
+            if ($pref === '') {
+                continue;
+            }
+            $norm = mb_strtolower($pref);
+            $dup = false;
+            foreach ($current as $existing) {
+                if (mb_strtolower(trim($existing)) === $norm) {
+                    $dup = true;
+                    break;
+                }
+            }
+            if (!$dup) {
+                $current[] = $pref;
+            }
+        }
+
+        if (count($current) > self::MAX_LEARNED_PREFERENCES) {
+            $current = array_slice($current, -self::MAX_LEARNED_PREFERENCES);
+        }
+
+        if ($current === $before) {
+            return false;
+        }
+
+        $prefs = $this->getWritingPreferences();
+        if ($current === []) {
+            unset($prefs['learned']);
+        } else {
+            $prefs['learned'] = array_values($current);
+        }
+        $this->setWritingPreferences($prefs);
+
+        return true;
     }
 
     public function __toString(): string

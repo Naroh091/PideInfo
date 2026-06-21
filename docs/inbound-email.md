@@ -4,37 +4,9 @@ PideInfo proporciona a cada usuario una dirección de correo electrónico virtua
 
 ## Arquitectura
 
-```
-Email to usuario-xxx@pideinfo.es
-        │
-        ▼
-Cloudflare Email Routing
-  (catch-all on pideinfo.es domain)
-        │
-        ▼
-Cloudflare Email Worker (pideinfo-worker/)
-  ├── Filters: only usuario-* addresses
-  ├── Parses MIME with postal-mime
-  ├── Extracts text body, HTML body, attachments
-  └── POSTs JSON to /webhook/inbound-email
-        │
-        ▼
-InboundEmailController
-  ├── Validates X-Webhook-Secret header
-  ├── Looks up user by virtual email
-  ├── Deduplicates by email hash
-  ├── Stores body as .txt document in S3
-  ├── Stores each attachment in S3
-  ├── Creates Document entities (sourceType: 'email')
-  └── Dispatches ProcessDocumentBatchMessage
-        │
-        ▼
-AI pipeline (same as manual uploads)
-  ├── DocumentAnalyzer (Gemini API)
-  ├── Request matching by reference / keywords
-  ├── State updates (receipt → processing, resolution → granted/denied, etc.)
-  └── Timeline entries recorded
-```
+![Pipeline de correo entrante](diagrams/png/inbound-email-flow.drawio.png)
+
+*Fuente editable: [`diagrams/inbound-email-flow.drawio`](diagrams/inbound-email-flow.drawio)*
 
 ## Direcciones de correo virtuales
 

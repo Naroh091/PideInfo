@@ -10,7 +10,6 @@ use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Document\DocumentContentsCollector;
 use Doctrine\ORM\EntityManagerInterface;
@@ -119,7 +118,6 @@ final class SuccessAnalyzer
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
-                size: ModelSize::Mid,
                 temperature: 1.0,
                 jsonSchema: $schema,
                 schemaName: 'success_analysis',

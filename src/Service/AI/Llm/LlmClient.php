@@ -4,73 +4,31 @@ namespace App\Service\AI\Llm;
 
 use App\Service\AI\CustomModelClient;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
- * Public facade for all chat/completion LLM calls. Routes each request to either
- * the Gemini backend or the OpenAI-compatible custom backend based on USE_CUSTOM_MODEL.
+ * Public facade for all chat/completion LLM calls. Always delegates to the
+ * OpenAI-compatible custom backend (CustomModelClient).
  */
 class LlmClient
 {
-    /** Fixed key so every caller shares the single global model-API token bucket. */
-    private const RATE_LIMIT_KEY = 'llm-api';
-
     public function __construct(
-        #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
-        private readonly bool $useCustom,
         private readonly CustomModelClient $customClient,
-        private readonly GeminiChatClient $geminiClient,
         private readonly LoggerInterface $logger,
-        // The `llm_api` limiter (config/packages/rate_limiter.yaml). Nullable so the
-        // TracingLlmClient decorator can omit it in its parent::__construct (it
-        // delegates to the real, rate-limited inner client).
-        private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
     ) {
-    }
-
-    public function isCustomEnabled(): bool
-    {
-        return $this->useCustom;
-    }
-
-    /**
-     * Block until the shared model-API rate limit allows another request. Shared
-     * across all worker processes via the Redis-backed bucket, so concurrent
-     * workers cannot collectively exceed the per-API-key rpm.
-     */
-    private function throttle(): void
-    {
-        $this->llmApiLimiter?->create(self::RATE_LIMIT_KEY)->reserve(1)->wait();
     }
 
     public function chat(ChatRequest $req): ChatResult
     {
-        $this->throttle();
-
-        return $this->useCustom
-            ? $this->customClient->call($req)
-            : $this->geminiClient->call($req);
+        return $this->customClient->call($req);
     }
 
     /**
-     * Streaming variant of chat(): yields each text delta as it arrives. The Generator's
-     * return value (Generator::getReturn()) carries the final ChatResult with full
-     * content, tokens and finish reason.
-     *
-     * Only supported on the OpenAI-compatible custom backend (USE_CUSTOM_MODEL=true);
-     * raises RuntimeException when Gemini is active.
+     * Streaming variant: yields each text delta. Generator::getReturn() is the final ChatResult.
      *
      * @return \Generator<int, string, void, ChatResult>
      */
     public function chatStream(ChatRequest $req): \Generator
     {
-        if (!$this->useCustom) {
-            throw new \RuntimeException('chatStream() is only supported with USE_CUSTOM_MODEL=true (OpenAI-compatible backend).');
-        }
-
-        $this->throttle();
-
         return yield from $this->customClient->streamCall($req);
     }
 

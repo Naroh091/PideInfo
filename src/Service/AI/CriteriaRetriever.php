@@ -2,7 +2,9 @@
 
 namespace App\Service\AI;
 
+use App\Repository\CriterionRepository;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Query\VectorQuery;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -12,7 +14,85 @@ final class CriteriaRetriever
         #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
         private readonly StoreInterface $ctbgCriteriaStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
+        private readonly CriterionRepository $criterionRepository,
     ) {
+    }
+
+    /**
+     * Retrieve interpretive criteria enriched with the FULL criterion body
+     * (text, summary, keypoints) from the `criterion` table, deduplicated by
+     * criterion and ordered by vector relevance. Unlike retrieve(), which
+     * returns per-chunk snippets, this returns one entry per criterion with its
+     * complete text — so the caller can read each criterion in full and judge
+     * applicability. Mirrors ResolutionRetriever::retrieveSimilarCases().
+     *
+     * @return array<int, array{
+     *     reference: string, criterionId: string, year: int|null, topic: string,
+     *     summary: string, keypoints: array<int, string>, fullText: string,
+     *     source: string, score: float|null,
+     * }>
+     */
+    public function retrieveFull(string $query, int $topK = 6): array
+    {
+        try {
+            $embedding = $this->embeddingGenerator->generate($query);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        try {
+            // Cast a wider net: several chunks may map to the same criterion.
+            $documents = $this->ctbgCriteriaStore->query(new VectorQuery(new Vector($embedding)), [
+                'limit' => max($topK * 3, $topK + 5),
+            ]);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        // Collect unique criterion ids in relevance order, keeping the best score.
+        $criterionIds = [];
+        $scores = [];
+        foreach ($documents as $document) {
+            $metadata = $document->getMetadata();
+            $criterionId = $metadata['criterionId'] ?? null;
+            if (!$criterionId || isset($criterionIds[$criterionId])) {
+                continue;
+            }
+            $criterionIds[$criterionId] = true;
+            $scores[$criterionId] = $document->getScore();
+        }
+
+        if ($criterionIds === []) {
+            return [];
+        }
+
+        $map = $this->criterionRepository->findByIds(array_keys($criterionIds));
+
+        $results = [];
+        foreach (array_keys($criterionIds) as $criterionId) {
+            if (!isset($map[$criterionId])) {
+                continue;
+            }
+            $criterion = $map[$criterionId];
+
+            $results[] = [
+                'reference' => $criterion->getReferenceNumber(),
+                'criterionId' => $criterionId,
+                'year' => $criterion->getYear(),
+                'topic' => $criterion->getTopic() ?? '',
+                'summary' => $criterion->getSummary() ?? '',
+                'keypoints' => $criterion->getKeypoints() ?? [],
+                'fullText' => $criterion->getFullText(),
+                'source' => $criterion->getSource(),
+                'score' => $scores[$criterionId] ?? null,
+            ];
+
+            if (count($results) >= $topK) {
+                break;
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -46,10 +126,10 @@ final class CriteriaRetriever
         $results = [];
 
         try {
-            $documents = $this->ctbgCriteriaStore->query($vector, ['limit' => $topK]);
+            $documents = $this->ctbgCriteriaStore->query(new VectorQuery($vector), ['limit' => $topK]);
 
             foreach ($documents as $document) {
-                $metadata = $document->metadata;
+                $metadata = $document->getMetadata();
 
                 $results[] = [
                     'text' => $metadata->getText() ?? '',
@@ -60,7 +140,7 @@ final class CriteriaRetriever
                     'source' => $metadata->getSource() ?? '',
                     'pageStart' => $metadata['pageStart'] ?? null,
                     'pageEnd' => $metadata['pageEnd'] ?? null,
-                    'score' => $document->score,
+                    'score' => $document->getScore(),
                 ];
             }
         } catch (\Exception) {

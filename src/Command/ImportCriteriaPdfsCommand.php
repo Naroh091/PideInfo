@@ -6,6 +6,7 @@ use App\Entity\ComplaintOrganism;
 use App\Entity\Criterion;
 use App\Repository\ComplaintOrganismRepository;
 use App\Repository\CriterionRepository;
+use App\Service\AI\CriterionEnricher;
 use App\Service\Document\PdfTextExtractor;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -52,6 +53,7 @@ class ImportCriteriaPdfsCommand extends Command
         private readonly EntityManagerInterface $entityManager,
         private readonly CriterionRepository $criterionRepository,
         private readonly ComplaintOrganismRepository $complaintOrganismRepository,
+        private readonly CriterionEnricher $criterionEnricher,
     ) {
         parent::__construct();
     }
@@ -62,6 +64,7 @@ class ImportCriteriaPdfsCommand extends Command
             ->addOption('dir', null, InputOption::VALUE_REQUIRED, 'Directory of PDFs to import', self::DEFAULT_DATA_PATH)
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Source code stored in criterion.source', Criterion::SOURCE_CTBG)
             ->addOption('organism-short-name', null, InputOption::VALUE_REQUIRED, 'ComplaintOrganism.shortName to link', ComplaintOrganism::SHORT_NAME_CTBG)
+            ->addOption('llm', null, InputOption::VALUE_NONE, 'Use the vision LLM to transcribe clean text from the page images (better for low-quality scans) and extract summary + keypoints')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Show what would happen without writing to the database')
         ;
     }
@@ -70,6 +73,7 @@ class ImportCriteriaPdfsCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $dryRun = (bool) $input->getOption('dry-run');
+        $useLlm = (bool) $input->getOption('llm');
         $dir = (string) $input->getOption('dir');
         $source = (string) $input->getOption('source');
         $organismShortName = (string) $input->getOption('organism-short-name');
@@ -77,6 +81,9 @@ class ImportCriteriaPdfsCommand extends Command
         $io->title('Importing interpretive criteria from PDFs');
         $io->text("Source dir: $dir");
         $io->text("Source code: $source");
+        if ($useLlm) {
+            $io->text('Text extraction: <info>vision LLM (clean transcription + summary/keypoints)</info>');
+        }
         if ($dryRun) {
             $io->note('Dry run — nothing will be persisted.');
         }
@@ -109,21 +116,36 @@ class ImportCriteriaPdfsCommand extends Command
                 continue;
             }
 
-            $rawText = $this->pdfTextExtractor->extractFullText($file->getRealPath());
-            $cleaned = $this->pdfTextExtractor->removeRepeatedLines($rawText);
-            $charsRaw = mb_strlen($rawText);
-            $charsClean = mb_strlen($cleaned);
-            $note = sprintf('%d → %d chars', $charsRaw, $charsClean);
+            $llmCleaned = null;
+            if ($useLlm) {
+                $io->writeln("  <comment>Transcribing {$filename} with vision LLM…</comment>");
+                $pdfBytes = (string) file_get_contents($file->getRealPath());
+                $llmCleaned = $pdfBytes !== '' ? $this->criterionEnricher->cleanTextFromPdf($pdfBytes) : null;
+            }
 
-            if ($charsClean < self::MIN_USABLE_CHARS) {
-                $ocrText = $this->maybeOcr($file->getRealPath(), $io);
-                if ($ocrText !== null && mb_strlen($ocrText) >= self::MIN_USABLE_CHARS) {
-                    $cleaned = $this->pdfTextExtractor->removeRepeatedLines($ocrText);
-                    $note .= sprintf(' (OCR → %d chars)', mb_strlen($cleaned));
-                } else {
-                    $rows[] = ['⚠', $filename, $note . ' — too short, needs manual review' . ($ocrText === null ? ' (tesseract not installed)' : '')];
-                    $skippedShortText++;
-                    continue;
+            if ($llmCleaned !== null && mb_strlen($llmCleaned) >= self::MIN_USABLE_CHARS) {
+                $cleaned = $llmCleaned;
+                $note = sprintf('LLM → %d chars', mb_strlen($cleaned));
+            } else {
+                $rawText = $this->pdfTextExtractor->extractFullText($file->getRealPath());
+                $cleaned = $this->pdfTextExtractor->removeRepeatedLines($rawText);
+                $charsRaw = mb_strlen($rawText);
+                $charsClean = mb_strlen($cleaned);
+                $note = sprintf('%d → %d chars', $charsRaw, $charsClean);
+                if ($useLlm) {
+                    $note .= ' (LLM falló, usando pdftotext)';
+                }
+
+                if ($charsClean < self::MIN_USABLE_CHARS) {
+                    $ocrText = $this->maybeOcr($file->getRealPath(), $io);
+                    if ($ocrText !== null && mb_strlen($ocrText) >= self::MIN_USABLE_CHARS) {
+                        $cleaned = $this->pdfTextExtractor->removeRepeatedLines($ocrText);
+                        $note .= sprintf(' (OCR → %d chars)', mb_strlen($cleaned));
+                    } else {
+                        $rows[] = ['⚠', $filename, $note . ' — too short, needs manual review' . ($ocrText === null ? ' (tesseract not installed)' : '')];
+                        $skippedShortText++;
+                        continue;
+                    }
                 }
             }
 
@@ -138,6 +160,15 @@ class ImportCriteriaPdfsCommand extends Command
                 ->setFullText($cleaned)
                 ->setPdfStoragePath($file->getRealPath())
                 ->setComplaintOrganism($organism);
+
+            // Distil summary + keypoints (used by the cheap screening stage and
+            // for display). Only when --llm, to avoid surprise model calls.
+            if ($useLlm) {
+                $enrichment = $this->criterionEnricher->extractSummaryAndKeypoints($cleaned);
+                $criterion->setSummary($enrichment['summary']);
+                $criterion->setKeypoints($enrichment['keypoints'] !== [] ? $enrichment['keypoints'] : null);
+                $note .= sprintf(', %d keypoints', count($enrichment['keypoints']));
+            }
 
             $verb = $existing ? 'updated' : 'created';
             $rows[] = [$existing ? '↻' : '✓', $filename, sprintf('%s %s, %s', $verb, $referenceNumber, $note)];

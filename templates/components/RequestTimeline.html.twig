@@ -35,6 +35,7 @@
                     {% set isSubsanacion = 'subsanación' in notesLower %}
                     {% set isAudiencia = 'audiencia' in notesLower %}
                     {% set isAmpliacion = 'ampliación' in notesLower %}
+                    {% set isAlegacionesPresentadas = 'alegaciones presentadas' in notesLower and 'marcado manualmente' in notesLower %}
 
                     {# Default #}
                     {% set dotColor = 'bg-slate-400' %}
@@ -78,6 +79,9 @@
                                 {% set title = 'Trámite de audiencia' %}
                             {% elseif isAmpliacion %}
                                 {% set title = 'Ampliación de reclamación' %}
+                            {% elseif isAlegacionesPresentadas %}
+                                {% set icon = 'file-check' %}
+                                {% set title = 'Alegaciones presentadas' %}
                             {% elseif 'alegaciones' in notesLower %}
                                 {% set title = 'Alegaciones de la Administración' %}
                             {% elseif 'acuse de recibo' in notesLower %}
