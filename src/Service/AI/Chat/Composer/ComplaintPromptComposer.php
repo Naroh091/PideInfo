@@ -6,6 +6,7 @@ namespace App\Service\AI\Chat\Composer;
 
 use App\Entity\AccessRequest;
 use App\Prompt\CompiledPrompt;
+use App\Service\AI\Chat\WritingPreferencesFormatter;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
 
@@ -126,11 +127,8 @@ Reglas estrictas:
 
 TXT;
 
-        $prefsBlock = '';
-        $user = $ar->getUser();
-        if ($user->hasWritingPreferences()) {
-            $prefsBlock = "\n\n" . $this->formatPreferences($user->getWritingPreferences());
-        }
+        $prefsText = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
+        $prefsBlock = $prefsText !== '' ? "\n\n" . $prefsText : '';
 
         $borradorBlock = $hasDraft
             ? "\n\n## Borrador actual en el canvas (PUNTO DE PARTIDA para `rewrite`)\n\n{$currentBodyHtml}\n"
@@ -139,18 +137,5 @@ TXT;
         $fullText = $policy . $prefsBlock . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
 
         return new CompiledPrompt(text: $fullText, name: $scaffolding->name, version: $scaffolding->version);
-    }
-
-    /** @param array{tone?: string, salutation?: string, closing?: string, notes?: string} $prefs */
-    private function formatPreferences(array $prefs): string
-    {
-        $lines = [];
-        $labels = ['tone' => 'Tono', 'salutation' => 'Saludo/encabezado', 'closing' => 'Cierre', 'notes' => 'Instrucciones adicionales'];
-        foreach ($labels as $key => $label) {
-            if (!empty($prefs[$key])) {
-                $lines[] = "- **{$label}:** {$prefs[$key]}";
-            }
-        }
-        return "## Preferencias de redacción del usuario\n\nAplica estas preferencias al redactar:\n\n" . implode("\n", $lines);
     }
 }

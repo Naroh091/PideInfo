@@ -10,6 +10,7 @@ use App\Observability\Tracer;
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
 use App\Service\AI\Agent\Tool\ReadRequestDocumentsTool;
+use App\Service\AI\Agent\Tool\SaveUserPreferenceTool;
 use App\Service\AI\Agent\Tool\SearchCriteriaTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsTool;
 use App\Service\AI\Chat\AssistantChatRequest;
@@ -150,6 +151,9 @@ Lee y analiza los documentos adjuntos a la solicitud (resolución de la Administ
 ### get_user_preferences
 Devuelve las preferencias de redacción del usuario. Úsala al inicio de una sesión de redacción.
 
+### save_user_preference
+Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de estilo para TODAS sus redacciones futuras). Ver "Aprender preferencias de redacción del usuario".
+
 ---
 
 **Protocolo obligatorio para generar o reescribir un borrador:**
@@ -159,6 +163,32 @@ Devuelve las preferencias de redacción del usuario. Úsala al inicio de una ses
 4. Una vez tienes doctrina (resoluciones y/o criterios) por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
 5. NO busques doctrina antes de leer los documentos
 
+TXT;
+
+    /**
+     * Flow-agnostic preamble teaching the model to learn GENERALIZABLE writing-style
+     * preferences from the user's modify-instructions (and to ask when unsure) by
+     * calling the `save_user_preference` tool ({@see Tool\SaveUserPreferenceTool}).
+     */
+    private const LEARNING_PREAMBLE = <<<'TXT'
+
+---
+
+## Aprender preferencias de redacción del usuario
+
+Cuando el usuario te pida MODIFICAR un borrador ya generado, O exprese de forma explícita cómo le gusta (o no le gusta) que redactes, distingue dos tipos de instrucción:
+
+- **Generalizable** (una preferencia de estilo que probablemente quiera SIEMPRE, en cualquier solicitud, reclamación o respuesta a alegaciones): p. ej. "hazla más corta", "ve más al grano", "parafrasea más la resolución original", "usa un tono más formal", "menos citas literales", "recuerda que prefiero textos breves". Estas SÍ se aprenden.
+- **Específica de este caso** (solo aplica al documento actual, no se puede generalizar): p. ej. "elimina el segundo argumento", "quita el párrafo sobre protección de datos", "corrige esa fecha". Estas NO se aprenden.
+
+Reglas:
+1. Si la instrucción es claramente generalizable: aplícala si procede (action `rewrite`, o `reply` si el usuario solo enuncia la preferencia sin pedir un cambio ahora) Y llama a la herramienta `save_user_preference` con `preference` redactada como UNA frase breve en tercera persona, p. ej. `save_user_preference(preference: "Al usuario le gusta ir al grano y parafrasear las resoluciones originales")`.
+2. Si la instrucción es específica de este caso, NO llames a `save_user_preference`.
+3. Si DUDAS de si es generalizable o solo para este caso, NO la guardes todavía: responde (action `reply`) preguntando, p. ej. "<p>¿Quieres que aplique esto siempre en tus redacciones o solo en esta?</p>", y NO llames a la herramienta. Guárdala en el turno siguiente solo si confirma que es general.
+4. Si el usuario CONTRADICE una preferencia ya aprendida (las verás en el contexto bajo "Estilo aprendido"), llama a `save_user_preference` con `preference` = la nueva y `replaces` = la frase obsoleta copiada tal cual.
+5. Las preferencias aprendidas son GLOBALES: se aplicarán a TODAS las redacciones futuras del usuario, no solo a la actual.
+
+**REGLA DURA:** el único mecanismo real para guardar una preferencia es llamar a `save_user_preference`. Si en `conversational_reply` le dices al usuario que la has guardado o que la recordarás, es OBLIGATORIO que hayas llamado a `save_user_preference` en este turno. NUNCA afirmes que recordarás algo sin haber llamado a la herramienta; y NUNCA inventes preferencias que el usuario no haya expresado.
 TXT;
 
     private readonly Toolbox $toolbox;
@@ -171,12 +201,13 @@ TXT;
         private readonly SearchCriteriaTool $criteriaTool,
         private readonly ReadRequestDocumentsTool $docTool,
         private readonly GetUserPreferencesTool $prefsTool,
+        private readonly SaveUserPreferenceTool $savePrefTool,
         private readonly AgentProgress $agentProgress,
         private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
-        $toolInstances = [$searchTool, $criteriaTool, $docTool, $prefsTool];
+        $toolInstances = [$searchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
     }
@@ -558,7 +589,7 @@ TXT;
      */
     private function buildMessages(AssistantChatRequest $req): array
     {
-        $systemPrompt = $req->systemPrompt . self::TOOLS_PREAMBLE;
+        $systemPrompt = $req->systemPrompt . self::TOOLS_PREAMBLE . self::LEARNING_PREAMBLE;
 
         // Inject the entity ID so the model can pass it to read_request_documents.
         if ($req->entityId !== '') {
@@ -640,6 +671,7 @@ TXT;
             'search_criteria'        => 'Buscando criterios interpretativos…',
             'read_request_documents' => 'Leyendo documentación de la solicitud…',
             'get_user_preferences'   => 'Cargando preferencias de redacción…',
+            'save_user_preference'   => 'Aprendiendo preferencia…',
             default                  => sprintf('Ejecutando %s…', $toolName),
         };
     }

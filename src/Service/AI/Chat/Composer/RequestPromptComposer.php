@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Chat\Composer;
 
 use App\Entity\AccessRequest;
+use App\Service\AI\Chat\WritingPreferencesFormatter;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Submission\ApplicableLawResolver;
 
@@ -41,9 +42,9 @@ final class RequestPromptComposer
             "Resoluciones similares (para inspirarte sin copiar literalmente):\n" . $this->formatResolutions($similarResolutions),
         ];
 
-        $user = $ar->getUser();
-        if ($user->hasWritingPreferences()) {
-            $sections[] = $this->formatPreferences($user->getWritingPreferences());
+        $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
+        if ($prefsBlock !== '') {
+            $sections[] = $prefsBlock;
         }
 
         return implode("\n\n", $sections);
@@ -126,19 +127,6 @@ La solicitud va por el Portal de Transparencia (cuando hay) o por correo electrÃ
 
 {$current}
 TXT;
-    }
-
-    /** @param array{tone?: string, salutation?: string, closing?: string, notes?: string} $prefs */
-    private function formatPreferences(array $prefs): string
-    {
-        $lines = [];
-        $labels = ['tone' => 'Tono', 'salutation' => 'Saludo/encabezado', 'closing' => 'Cierre', 'notes' => 'Instrucciones adicionales'];
-        foreach ($labels as $key => $label) {
-            if (!empty($prefs[$key])) {
-                $lines[] = "- **{$label}:** {$prefs[$key]}";
-            }
-        }
-        return "## Preferencias de redacciÃ³n del usuario\n\nAplica estas preferencias al redactar:\n\n" . implode("\n", $lines);
     }
 
     /**

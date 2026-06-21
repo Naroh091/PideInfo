@@ -6,6 +6,7 @@ namespace App\Service\AI\Agent\Tool;
 
 use App\Entity\User;
 use App\Service\AI\Agent\AgentProgress;
+use App\Service\AI\Chat\WritingPreferencesFormatter;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\Bundle\SecurityBundle\Security;
 
@@ -32,26 +33,12 @@ final class GetUserPreferencesTool
         /** @var User $user */
         $user = $this->security->getUser();
 
-        $prefs = $user->getWritingPreferences();
+        $block = WritingPreferencesFormatter::format($user->getWritingPreferences());
 
-        if ($prefs === []) {
+        if ($block === '') {
             return 'El usuario no ha configurado preferencias de redacción.';
         }
 
-        $labels = [
-            'tone'       => 'Tono',
-            'salutation' => 'Saludo/encabezado',
-            'closing'    => 'Cierre',
-            'notes'      => 'Instrucciones adicionales',
-        ];
-
-        $lines = [];
-        foreach ($labels as $key => $label) {
-            if (!empty($prefs[$key])) {
-                $lines[] = "- **{$label}:** {$prefs[$key]}";
-            }
-        }
-
-        return "Preferencias de redacción del usuario:\n\n" . implode("\n", $lines);
+        return $block;
     }
 }

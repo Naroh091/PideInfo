@@ -95,6 +95,13 @@ class UserProfileController extends AbstractController
             }
         }
 
+        // Preserve assistant-learned style preferences: this endpoint rebuilds the
+        // manual keys from scratch, so without this the `learned` list would be wiped.
+        $learned = $user->getLearnedPreferences();
+        if ($learned !== []) {
+            $prefs['learned'] = $learned;
+        }
+
         $user->setWritingPreferences($prefs);
         $em->flush();
 
