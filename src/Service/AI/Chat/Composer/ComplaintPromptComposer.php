@@ -82,12 +82,31 @@ Reglas estrictas:
 
 TXT;
 
+        $prefsBlock = '';
+        $user = $ar->getUser();
+        if ($user->hasWritingPreferences()) {
+            $prefsBlock = "\n\n" . $this->formatPreferences($user->getWritingPreferences());
+        }
+
         $borradorBlock = $hasDraft
             ? "\n\n## Borrador actual en el canvas (PUNTO DE PARTIDA para `rewrite`)\n\n{$currentBodyHtml}\n"
             : '';
 
-        $fullText = $policy . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
+        $fullText = $policy . $prefsBlock . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
 
         return new CompiledPrompt(text: $fullText, name: $scaffolding->name, version: $scaffolding->version);
+    }
+
+    /** @param array{tone?: string, salutation?: string, closing?: string, notes?: string} $prefs */
+    private function formatPreferences(array $prefs): string
+    {
+        $lines = [];
+        $labels = ['tone' => 'Tono', 'salutation' => 'Saludo/encabezado', 'closing' => 'Cierre', 'notes' => 'Instrucciones adicionales'];
+        foreach ($labels as $key => $label) {
+            if (!empty($prefs[$key])) {
+                $lines[] = "- **{$label}:** {$prefs[$key]}";
+            }
+        }
+        return "## Preferencias de redacción del usuario\n\nAplica estas preferencias al redactar:\n\n" . implode("\n", $lines);
     }
 }

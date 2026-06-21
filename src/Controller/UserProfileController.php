@@ -77,6 +77,30 @@ class UserProfileController extends AbstractController
         );
     }
 
+    #[Route('/api/user/writing-preferences', name: 'api_user_writing_preferences', methods: ['PATCH', 'PUT'])]
+    public function writingPreferences(Request $request, EntityManagerInterface $em): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $data = json_decode($request->getContent(), true);
+        if (!\is_array($data)) {
+            return new JsonResponse(['error' => 'Invalid JSON body'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $prefs = [];
+        foreach (['tone', 'salutation', 'closing', 'notes'] as $key) {
+            if (isset($data[$key])) {
+                $prefs[$key] = mb_substr((string) $data[$key], 0, 500);
+            }
+        }
+
+        $user->setWritingPreferences($prefs);
+        $em->flush();
+
+        return new JsonResponse(['ok' => true, 'preferences' => $user->getWritingPreferences()]);
+    }
+
     private function wantsJson(Request $request): bool
     {
         if ($request->isXmlHttpRequest()) {

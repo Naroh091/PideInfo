@@ -23,8 +23,6 @@ final class CustomModelClient
     private ?OpenAIClient $client = null;
 
     public function __construct(
-        #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
-        private readonly bool $enabled,
         #[Autowire(env: 'CUSTOM_MODEL')]
         private readonly string $model,
         #[Autowire(env: 'CUSTOM_MODEL_ENDPOINT')]
@@ -37,11 +35,6 @@ final class CustomModelClient
         private readonly float $temperature,
         private readonly LoggerInterface $logger,
     ) {
-    }
-
-    public function isEnabled(): bool
-    {
-        return $this->enabled;
     }
 
     /**

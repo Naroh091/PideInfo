@@ -131,6 +131,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $dismissedHints = null;
 
+    /**
+     * Per-user AI writing style preferences injected into the drafting assistant
+     * system prompt. All keys are optional; absent keys are silently skipped.
+     * @var array{tone?: string, salutation?: string, closing?: string, notes?: string}|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $writingPreferences = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -430,6 +438,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function hasDismissedHint(string $hintId): bool
     {
         return \in_array($hintId, $this->getDismissedHints(), true);
+    }
+
+    /** @return array{tone?: string, salutation?: string, closing?: string, notes?: string} */
+    public function getWritingPreferences(): array
+    {
+        return $this->writingPreferences ?? [];
+    }
+
+    /** @param array{tone?: string, salutation?: string, closing?: string, notes?: string} $prefs */
+    public function setWritingPreferences(array $prefs): static
+    {
+        $this->writingPreferences = $prefs !== [] ? $prefs : null;
+        return $this;
+    }
+
+    public function hasWritingPreferences(): bool
+    {
+        return !empty($this->writingPreferences);
     }
 
     public function __toString(): string
