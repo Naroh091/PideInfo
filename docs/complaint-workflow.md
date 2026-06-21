@@ -4,44 +4,9 @@ Cuando se deniega una solicitud de acceso o esta queda sin respuesta, el ciudada
 
 ## Visión general
 
-```
-Request denied / unanswered
-        │
-        ▼
-  ┌─ Complaint filed ──────────────────────────────────────────┐
-  │     (reclamación presentada)                                │
-  │           │                                                 │
-  │           ▼                                                 │
-  │     Receipt received                                        │
-  │     (acuse de recibo)                                       │
-  │           │                                                 │
-  │           ▼                                                 │
-  │     Processing start notified                               │
-  │     (inicio de tramitación)                                 │
-  │           │                                                 │
-  │     ┌─────┼──────────────────┐                              │
-  │     │     │                  │                              │
-  │     ▼     ▼                  ▼                              │
-  │  Subsanación         Administration        Citizen sends    │
-  │  requested           sends alegaciones     additional docs  │
-  │     │                      │              (ampliación)      │
-  │     ▼                      │                                │
-  │  Subsanación               ▼                                │
-  │  submitted           Audiencia notified                     │
-  │                      (citizen can respond)                  │
-  │                            │                                │
-  │                            ▼                                │
-  │                      Citizen responds                       │
-  │                      to alegaciones                         │
-  │                            │                                │
-  │                            ▼                                │
-  │                      Resolution issued                      │
-  │                ┌───────────┼───────────┐                    │
-  │                ▼           ▼           ▼                    │
-  │           Granted      Denied      Archived                 │
-  │         (estimada)  (desestimada) (archivada)               │
-  └─────────────────────────────────────────────────────────────┘
-```
+![Ciclo de vida de una reclamación](diagrams/png/complaint-lifecycle.drawio.png)
+
+*Fuente editable: [`diagrams/complaint-lifecycle.drawio`](diagrams/complaint-lifecycle.drawio)*
 
 ## La entidad AccessRequestComplaint
 

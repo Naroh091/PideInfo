@@ -4,6 +4,7 @@ namespace App\Service\AI;
 
 use App\Repository\ResolutionRepository;
 use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Query\VectorQuery;
 use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
@@ -86,7 +87,7 @@ final class ResolutionRetriever
             }
 
             // Cast a slightly wider net — we may drop rows that don't have a matching DB record.
-            $documents = $this->resolutionsStore->query($vector, [
+            $documents = $this->resolutionsStore->query(new VectorQuery($vector), [
                 'limit' => max($topK * 2, $topK + 3),
                 'where' => "metadata->>'outcome' IN (" . implode(', ', $placeholders) . ')',
                 'params' => $params,

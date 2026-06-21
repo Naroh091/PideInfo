@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="Agentic Chat Flow">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- HTTP Request -->
+        <mxCell id="2" value="POST /asistente/request/{id}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Controller -->
+        <mxCell id="3" value="AssistantChatController" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="300" y="110" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Controller steps -->
+        <mxCell id="ctrl1" value="ChatHistoryStore::loadForLlm()&#xa;(tabla ai_chat_messages + fallback metadata)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="90" width="270" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ctrl2" value="RequestPromptComposer::compose()&#xa;(system prompt + preferencias + resoluciones)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="600" y="150" width="270" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Orchestrator -->
+        <mxCell id="4" value="AgentChatOrchestrator::stream()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="300" y="210" width="240" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Tool loop container -->
+        <mxCell id="toolbox" value="Tool-calling loop (max 5 iter.)" style="swimlane;startSize=30;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="300" width="720" height="270" as="geometry" />
+        </mxCell>
+
+        <!-- chatWithTools -->
+        <mxCell id="5" value="CustomModelClient::chatWithTools()&#xa;Langfuse span: agent.tool-loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="toolbox">
+          <mxGeometry x="30" y="50" width="280" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- decision diamond -->
+        <mxCell id="6" value="finish_reason?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="toolbox">
+          <mxGeometry x="370" y="50" width="140" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- tool_calls branch -->
+        <mxCell id="7" value="SSE: event:step {message, tool}&#xa;Toolbox::execute(ToolCall)&#xa;AgentProgress::drain() → SSE steps&#xa;messages += [tool_call] + [result]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="toolbox">
+          <mxGeometry x="30" y="160" width="280" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- stop label -->
+        <mxCell id="8" value="stop" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=11;" vertex="1" parent="toolbox">
+          <mxGeometry x="530" y="70" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="8b" value="tool_calls" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontStyle=1;fontSize=11;" vertex="1" parent="toolbox">
+          <mxGeometry x="210" y="120" width="80" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- loop back edge -->
+        <mxCell id="e_loop" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="toolbox" source="7" target="5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="170" y="250" />
+              <mxPoint x="170" y="260" />
+              <mxPoint x="170" y="260" />
+              <mxPoint x="170" y="130" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- edges inside toolbox -->
+        <mxCell id="e_t1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="toolbox" source="5" target="6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_t2" value="tool_calls" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="toolbox" source="6" target="7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="140" />
+              <mxPoint x="170" y="140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- SSE step Redactando -->
+        <mxCell id="9" value="SSE: event:step {message: &quot;Redactando respuesta…&quot;}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="610" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Final JSON call -->
+        <mxCell id="10" value="CustomModelClient::chatRaw()&#xa;JSON schema: DECISION_SCHEMA&#xa;Langfuse span: agent.final-decision" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="700" width="280" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- SSE events -->
+        <mxCell id="11" value="SSE: event:chat_token {text}&#xa;(chunks de 60 chars del conversational_reply)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="810" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="12" value="ChatHistoryStore::append()&#xa;→ UPSERT ai_chat_messages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="640" y="810" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="13" value="SSE: event:decision {action, draft}&#xa;SSE: event:done {}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="900" width="280" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Main flow edges -->
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="3" target="ctrl1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="4" target="toolbox">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="stop" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="toolbox" target="9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="9" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="10" target="11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="11" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="11" target="13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

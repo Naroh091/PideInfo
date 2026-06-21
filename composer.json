@@ -38,6 +38,7 @@
         "smalot/pdfparser": "^2.12",
         "symfony/ai-agent": "^0.10",
         "symfony/ai-bundle": "^0.10",
+        "symfony/ai-chat": "^0.10",
         "symfony/ai-platform": "^0.10",
         "symfony/ai-postgres-store": "^0.10",
         "symfony/ai-store": "^0.10",

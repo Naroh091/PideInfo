@@ -10,6 +10,7 @@ use OpenAI;
 use OpenAI\Client as OpenAIClient;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
  * Shared OpenAI-compatible client for calling a self-hosted / custom chat model
@@ -20,6 +21,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  */
 final class CustomModelClient
 {
+    private const RATE_LIMIT_KEY = 'llm-api';
+
     private ?OpenAIClient $client = null;
 
     public function __construct(
@@ -34,7 +37,21 @@ final class CustomModelClient
         #[Autowire(env: 'float:CUSTOM_MODEL_TEMP')]
         private readonly float $temperature,
         private readonly LoggerInterface $logger,
+        // Nullable so the TracingLlmClient decorator can omit it when calling
+        // parent::__construct — it delegates to the real CustomModelClient which
+        // already throttles. Autowired by Symfony from the `llm_api` limiter.
+        private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
     ) {
+    }
+
+    private function throttle(): void
+    {
+        $this->llmApiLimiter?->create(self::RATE_LIMIT_KEY)->reserve(1)->wait();
+    }
+
+    public function getModel(): string
+    {
+        return $this->model;
     }
 
     /**
@@ -53,6 +70,7 @@ final class CustomModelClient
      */
     public function call(ChatRequest $req): ChatResult
     {
+        $this->throttle();
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
         return $this->dispatch($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
@@ -70,6 +88,7 @@ final class CustomModelClient
      */
     public function streamCall(ChatRequest $req): \Generator
     {
+        $this->throttle();
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
         return yield from $this->dispatchStream($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
@@ -137,6 +156,83 @@ final class CustomModelClient
     }
 
     /**
+     * Non-streaming call with tool definitions. Returns either a text result or
+     * a list of tool calls the model wants to invoke, depending on finish_reason.
+     *
+     * Used by AgentChatOrchestrator for the tool-calling loop; non-streaming is
+     * required here so we can reliably detect `finish_reason: tool_calls`.
+     *
+     * @param array<int, array<string, mixed>>                         $messages  OpenAI-style messages array.
+     * @param array<int, array{type: string, function: array}>         $tools     OpenAI tool definitions.
+     * @return array{
+     *   type: 'tool_calls'|'text',
+     *   assistant_message: array<string, mixed>,
+     *   calls?: array<int, array{id: string, name: string, arguments: array<string, mixed>}>,
+     *   content?: string,
+     * }
+     */
+    public function chatWithTools(array $messages, array $tools): array
+    {
+        $this->throttle();
+        $params = [
+            'model'       => $this->model,
+            'messages'    => $messages,
+            'temperature' => $this->temperature,
+            'max_tokens'  => $this->maxTokens,
+            'tools'       => $tools,
+            'tool_choice' => 'auto',
+        ];
+
+        $response = $this->getClient()->chat()->create($params);
+        $choice   = $response->choices[0];
+        $message  = $choice->message;
+
+        if (($choice->finishReason ?? '') === 'tool_calls' && !empty($message->toolCalls)) {
+            $calls = [];
+            $toolCallsPayload = [];
+            foreach ($message->toolCalls as $tc) {
+                $arguments = [];
+                $raw = $tc->function->arguments ?? '{}';
+                if (is_string($raw)) {
+                    $arguments = json_decode($raw, true) ?? [];
+                }
+                $calls[] = ['id' => $tc->id, 'name' => $tc->function->name, 'arguments' => $arguments];
+                $toolCallsPayload[] = [
+                    'id'       => $tc->id,
+                    'type'     => 'function',
+                    'function' => ['name' => $tc->function->name, 'arguments' => $raw],
+                ];
+            }
+
+            return [
+                'type'              => 'tool_calls',
+                'assistant_message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => $toolCallsPayload],
+                'calls'             => $calls,
+            ];
+        }
+
+        $content = $message->content ?? '';
+        return [
+            'type'              => 'text',
+            'assistant_message' => ['role' => 'assistant', 'content' => $content],
+            'content'           => $content,
+        ];
+    }
+
+    /**
+     * Streaming call over a raw OpenAI-style messages array. Used by AgentChatOrchestrator
+     * for the final response after the tool-calling loop has accumulated context.
+     *
+     * @param array<int, array<string, mixed>> $messages
+     * @return \Generator<int, string, void, ChatResult>
+     */
+    public function streamRaw(array $messages): \Generator
+    {
+        $this->throttle();
+        return yield from $this->dispatchStream($messages, $this->maxTokens, 1, null);
+    }
+
+    /**
      * Lower-level entrypoint used by services that need precise control over the OpenAI
      * messages array (e.g. ResolutionAnalyzer's batch path, where the user content is a
      * pre-built block of multiple resolutions).
@@ -150,6 +246,7 @@ final class CustomModelClient
         string $schemaName = 'structured_response',
         int $maxRetries = 2,
     ): ChatResult {
+        $this->throttle();
         $responseFormat = $jsonSchema !== null
             ? [
                 'type' => 'json_schema',

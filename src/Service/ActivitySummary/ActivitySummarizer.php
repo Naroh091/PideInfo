@@ -9,7 +9,6 @@ use App\Prompt\PromptStore;
 use App\Repository\UserNotificationRepository;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -88,7 +87,6 @@ final class ActivitySummarizer
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
-                size: ModelSize::Mid,
                 temperature: 1.0,
                 jsonSchema: $this->buildResponseSchema(),
                 schemaName: 'activity_summary',

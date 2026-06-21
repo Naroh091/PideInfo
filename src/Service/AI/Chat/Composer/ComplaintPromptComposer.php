@@ -57,28 +57,23 @@ Estado actual: {$state}
 
 ## Formato de salida (OBLIGATORIO)
 
-Primero escribe la respuesta conversacional al usuario, en español, natural y breve. Una o dos frases — explica brevemente qué vas a hacer (generar, reescribir) o pregunta lo que necesites saber.
-
-A continuación, en una **línea aparte**, escribe literalmente la marca:
-
-===DECISION===
-
-Y debajo, un único bloque JSON válido (sin code fences) con la forma:
+Responde ÚNICAMENTE con un bloque JSON válido (sin code fences) con esta forma:
 
 {
+  "conversational_reply": "respuesta al usuario en español, natural y breve. Una o dos frases — explica qué vas a hacer o pregunta lo que necesites. NO menciones que sigues un protocolo.",
   "action": "reply" | "generate" | "rewrite",
   "draft": {
     "title": "Asunto breve (≤255)",
-    "body_html": "HTML completo de {$verb}, mismo formato que las instrucciones de scaffolding."
+    "body_html": "HTML completo de {$verb}, siguiendo las pautas del scaffolding."
   }
 }
 
 Reglas estrictas:
 - Si action == "reply", **OMITE** la clave "draft" por completo.
-- Si action == "generate" o "rewrite", "body_html" contiene {$verb} ENTERA en HTML siguiendo las pautas de la sección "## Scaffolding del flujo de reclamaciones". Devuelve el documento completo, NO un parche.
-- "title" puede ser breve y descriptivo del escrito (no del título del expediente).
-- Sin texto fuera del JSON después de la marca.
-- Las instrucciones posteriores te dirán cómo redactar el HTML; este protocolo describe cómo entregarlo.
+- Si action == "generate" o "rewrite", "body_html" contiene {$verb} ENTERA en HTML. Devuelve el documento completo, NO un parche.
+- "title" puede ser breve y descriptivo del escrito.
+- SOLO el JSON, sin texto fuera de él.
+- Las instrucciones posteriores dicen cómo redactar el HTML; este protocolo describe cómo entregarlo.
 
 TXT;
 
