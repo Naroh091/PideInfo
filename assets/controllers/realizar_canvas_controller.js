@@ -474,6 +474,15 @@ export default class extends Controller {
         }
 
         if (response.ok && json?.redirectUrl) {
+            if (Array.isArray(json.tasks) && json.tasks.length > 0 && window.Alpine?.store) {
+                // clear the in-flight guard so the user can interact with the modal
+                if (button) button.dataset.dispatchInFlight = '';
+                window.Alpine.store('agentPresent').track(
+                    json.tasks.map(t => ({ id: t.taskId, statusUrl: t.statusUrl, bodyName: t.bodyName })),
+                    { entityLabel: 'solicitud', doneHref: json.redirectUrl },
+                );
+                return;
+            }
             window.location.href = json.redirectUrl;
             return;
         }
