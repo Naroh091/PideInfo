@@ -18,7 +18,6 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Uid\Uuid;
@@ -160,47 +159,6 @@ class ComplaintRedactController extends AbstractController
     }
 
     /**
-     * Chat dispatcher. SSE for `generate_first_draft` and `rewrite`,
-     * JSON for `free_chat` and `suggest_ideas`.
-     */
-    #[Route('/asistente', name: 'app_complaint_redactar_chat', methods: ['POST'])]
-    #[IsGranted('view', 'accessRequest')]
-    public function chat(Request $request, AccessRequest $accessRequest): Response
-    {
-        $payload = json_decode($request->getContent(), true) ?? [];
-        $mode = $this->normalizeMode($payload['mode'] ?? null);
-        $action = (string) ($payload['action'] ?? 'free_chat');
-        $userMessage = trim((string) ($payload['message'] ?? ''));
-        $directions = $userMessage !== '' ? $userMessage : null;
-        $currentBodyHtml = (string) ($payload['currentBodyHtml'] ?? '');
-        $documentIds = is_array($payload['documentIds'] ?? null) ? $payload['documentIds'] : [];
-        $draftIdParam = isset($payload['draftId']) ? (string) $payload['draftId'] : null;
-
-        if ($mode === null || !$this->modeAllowed($mode, $accessRequest)) {
-            return new JsonResponse(['error' => 'invalid_mode'], Response::HTTP_BAD_REQUEST);
-        }
-
-        $draftDoc = $this->resolveDraftForChat($accessRequest, $mode, $draftIdParam);
-
-        if (in_array($action, ['generate_first_draft', 'rewrite'], true)) {
-            if (!$this->llmClient->isCustomEnabled()) {
-                return new JsonResponse(['error' => 'streaming_unavailable'], Response::HTTP_SERVICE_UNAVAILABLE);
-            }
-            return $this->streamCanvasAction($accessRequest, $mode, $action, $currentBodyHtml, $userMessage, $directions, $documentIds, $draftDoc);
-        }
-
-        if ($action === 'suggest_ideas') {
-            return $this->jsonSuggestIdeas($accessRequest, $mode, $currentBodyHtml, $userMessage, $directions, $draftDoc);
-        }
-
-        if ($action === 'free_chat') {
-            return $this->jsonFreeChat($accessRequest, $mode, $currentBodyHtml, $userMessage, $draftDoc);
-        }
-
-        return new JsonResponse(['error' => 'unknown_action'], Response::HTTP_BAD_REQUEST);
-    }
-
-    /**
      * Save the current canvas as a Complaint or AlegationResponse Document.
      * On first save, migrates the scratch chat history into the Document's aiMetadata.
      */
@@ -260,185 +218,6 @@ class ComplaintRedactController extends AbstractController
     }
 
     // ---------------------------------------------------------------------
-    // chat — SSE / JSON branches
-    // ---------------------------------------------------------------------
-
-    /**
-     * @param string[] $documentIds
-     */
-    private function streamCanvasAction(
-        AccessRequest $accessRequest,
-        string $mode,
-        string $action,
-        string $currentBodyHtml,
-        string $userMessage,
-        ?string $directions,
-        array $documentIds,
-        ?Document $draftDoc,
-    ): StreamedResponse {
-        $documentContents = $this->documentContentsCollector->collect($accessRequest, $documentIds);
-        $chatHistory = $draftDoc !== null
-            ? $this->extractDocumentChatHistory($draftDoc)
-            : $this->loadScratch($accessRequest, $mode);
-
-        $response = new StreamedResponse(function () use ($accessRequest, $mode, $action, $currentBodyHtml, $directions, $documentContents, $chatHistory, $draftDoc, $userMessage): void {
-            // Same SSE plumbing as ComplaintController::createStream().
-            while (\function_exists('ob_get_level') && ob_get_level() > 0) {
-                @ob_end_flush();
-            }
-            @ini_set('zlib.output_compression', '0');
-            @ini_set('output_buffering', '0');
-            @ini_set('implicit_flush', '1');
-            ignore_user_abort(true);
-
-            $flush = static function (): void {
-                if (\function_exists('ob_get_level') && ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                @flush();
-            };
-
-            $emit = static function (string $type, array $payload = []) use ($flush): void {
-                echo 'data: ' . json_encode(['type' => $type] + $payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n\n";
-                $flush();
-            };
-
-            echo ": ping\n\n";
-            $flush();
-
-            try {
-                if ($action === 'rewrite') {
-                    $stream = $this->draftGenerator->rewriteDraftStream(
-                        $accessRequest,
-                        $mode,
-                        $currentBodyHtml,
-                        $chatHistory,
-                        $directions,
-                        $documentContents,
-                    );
-                } else {
-                    $stream = $this->draftGenerator->generateFirstDraftStream(
-                        $accessRequest,
-                        $mode,
-                        $chatHistory,
-                        $directions,
-                        $documentContents,
-                    );
-                }
-
-                foreach ($stream as $delta) {
-                    $emit('chunk', ['text' => $delta]);
-                }
-
-                $draft = $stream->getReturn();
-                $chatReply = $action === 'rewrite'
-                    ? 'Borrador actualizado. Revísalo en el lienzo o pídeme más cambios.'
-                    : 'Aquí tienes el primer borrador. Edítalo o pídeme cambios.';
-
-                // Persist this turn into the chat history.
-                $this->appendTurns(
-                    $accessRequest,
-                    $mode,
-                    $draftDoc,
-                    [
-                        ['role' => 'user', 'kind' => 'text', 'content' => $userMessage !== '' ? $userMessage : ($action === 'rewrite' ? 'Reescribir borrador' : 'Generar primer borrador'), 'ts' => $this->now()],
-                        ['role' => 'assistant', 'kind' => 'text', 'content' => $chatReply, 'ts' => $this->now()],
-                    ],
-                );
-
-                $emit('done', [
-                    'html' => $draft->content,
-                    'draftData' => $draft->toArray(),
-                    'successAnalysis' => $draft->successAnalysis?->toArray(),
-                    'chatReply' => $chatReply,
-                    'replacesCanvas' => true,
-                ]);
-            } catch (\Throwable $e) {
-                $emit('error', ['error' => mb_substr($e->getMessage(), 0, 240)]);
-            }
-        });
-
-        $response->headers->set('Content-Type', 'text/event-stream');
-        $response->headers->set('Cache-Control', 'no-cache, no-transform');
-        $response->headers->set('X-Accel-Buffering', 'no');
-        $response->headers->set('Connection', 'keep-alive');
-
-        return $response;
-    }
-
-    private function jsonSuggestIdeas(
-        AccessRequest $accessRequest,
-        string $mode,
-        string $currentBodyHtml,
-        string $userMessage,
-        ?string $directions,
-        ?Document $draftDoc,
-    ): JsonResponse {
-        $chatHistory = $draftDoc !== null
-            ? $this->extractDocumentChatHistory($draftDoc)
-            : $this->loadScratch($accessRequest, $mode);
-
-        try {
-            $result = $this->draftGenerator->suggestIdeas($accessRequest, $mode, $currentBodyHtml, $chatHistory, $directions);
-        } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'llm_failure', 'detail' => mb_substr($e->getMessage(), 0, 240)], Response::HTTP_BAD_GATEWAY);
-        }
-
-        $this->appendTurns(
-            $accessRequest,
-            $mode,
-            $draftDoc,
-            [
-                ['role' => 'user', 'kind' => 'text', 'content' => $userMessage !== '' ? $userMessage : 'Sugerir ideas', 'ts' => $this->now()],
-                ['role' => 'assistant', 'kind' => 'suggestions', 'items' => $result['suggestions'] ?? [], 'ts' => $this->now()],
-            ],
-        );
-
-        return new JsonResponse([
-            'action' => 'suggest_ideas',
-            'result' => $result,
-            'replacesCanvas' => false,
-        ]);
-    }
-
-    private function jsonFreeChat(
-        AccessRequest $accessRequest,
-        string $mode,
-        string $currentBodyHtml,
-        string $userMessage,
-        ?Document $draftDoc,
-    ): JsonResponse {
-        if ($userMessage === '') {
-            return new JsonResponse(['error' => 'empty_message'], Response::HTTP_BAD_REQUEST);
-        }
-        $chatHistory = $draftDoc !== null
-            ? $this->extractDocumentChatHistory($draftDoc)
-            : $this->loadScratch($accessRequest, $mode);
-
-        try {
-            $result = $this->draftGenerator->freeChat($accessRequest, $mode, $currentBodyHtml, $chatHistory, $userMessage);
-        } catch (\Throwable $e) {
-            return new JsonResponse(['error' => 'llm_failure', 'detail' => mb_substr($e->getMessage(), 0, 240)], Response::HTTP_BAD_GATEWAY);
-        }
-
-        $this->appendTurns(
-            $accessRequest,
-            $mode,
-            $draftDoc,
-            [
-                ['role' => 'user', 'kind' => 'text', 'content' => $userMessage, 'ts' => $this->now()],
-                ['role' => 'assistant', 'kind' => 'text', 'content' => $result['reply'] ?? '', 'allowsHtml' => true, 'ts' => $this->now()],
-            ],
-        );
-
-        return new JsonResponse([
-            'action' => 'free_chat',
-            'result' => $result,
-            'replacesCanvas' => false,
-        ]);
-    }
-
-    // ---------------------------------------------------------------------
     // mode + draft helpers
     // ---------------------------------------------------------------------
 
@@ -476,17 +255,6 @@ class ComplaintRedactController extends AbstractController
             if ($doc->getType() === $expectedType && (string) $doc->getId() === (string) $uuid) {
                 return $doc;
             }
-        }
-        return null;
-    }
-
-    private function resolveDraftForChat(AccessRequest $ar, string $mode, ?string $draftIdParam): ?Document
-    {
-        if (is_string($draftIdParam) && $draftIdParam !== '') {
-            return $this->findDraftDocument($ar, $mode, $draftIdParam);
-        }
-        if ($mode === ComplaintDraftGenerator::MODE_COMPLAINT) {
-            return $ar->getComplaintDraftDocument();
         }
         return null;
     }

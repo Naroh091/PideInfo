@@ -7,7 +7,6 @@ use App\Enum\DocumentType;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -60,7 +59,7 @@ class DebugDocumentAnalysisCommand extends Command
                 ['MIME Type', $document->getMimeType()],
                 ['Current Type', $document->getType()->value . ' (' . $document->getTypeLabel() . ')'],
                 ['Processed', $document->isProcessed() ? 'Yes' : 'No'],
-                ['Active backend', $this->llmClient->isCustomEnabled() ? 'custom' : 'gemini'],
+                ['Active backend', 'custom'],
             ]
         );
 
@@ -79,7 +78,6 @@ class DebugDocumentAnalysisCommand extends Command
             $rawText = $this->llmClient->chat(new ChatRequest(
                 systemPrompt: '',
                 userParts: $parts,
-                size: ModelSize::Mid,
                 temperature: 1.0,
                 jsonMode: true,
                 maxOutputTokens: 4096,

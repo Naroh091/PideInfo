@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="ReadRequestDocumentsTool">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="2" value="__invoke(requestId, context, limit=10)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="20" width="300" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="3" value="AccessRequestRepository::find(uuid)&#xa;+ assertOwnership(user)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="200" y="110" width="300" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Loop container -->
+        <mxCell id="loop" value="Por cada documento (hasta limit)" style="swimlane;startSize=30;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="220" width="500" height="290" as="geometry" />
+        </mxCell>
+
+        <mxCell id="4" value="AgentProgress::step(&quot;Leyendo {filename}…&quot;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="loop">
+          <mxGeometry x="30" y="50" width="440" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="5" value="DocumentContentReader::read(doc, &apos;text&apos;)&#xa;→ texto extraído (PDF / text/plain)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="loop">
+          <mxGeometry x="30" y="100" width="440" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="6" value="AgentProgress::step(&quot;Analizando {filename}…&quot;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="loop">
+          <mxGeometry x="30" y="160" width="440" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="7" value="LlmClient::chatJson(pideinfo-document-extract-for-drafting)&#xa;→ {document_type, key_facts[], denial_reasons[],&#xa;    relevant_dates{}, useful_for_drafting}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="loop">
+          <mxGeometry x="30" y="210" width="440" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="8" value="formatExtractions()&#xa;→ Markdown estructurado con hechos, fechas y motivos de denegación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="150" y="550" width="400" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="3" target="loop">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="loop" target="8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

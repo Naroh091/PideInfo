@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\AccessRequest;
+use App\Entity\User;
+use App\Service\AI\Agent\AgentChatOrchestrator;
 use App\Service\AI\Chat\AssistantChatRequest as AssistantChatTurn;
-use App\Service\AI\Chat\AssistantChatStreamer;
 use App\Service\AI\Chat\ChatAttachmentParser;
+use App\Service\AI\Chat\ChatHistoryStore;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\EmbeddingGenerator;
@@ -54,7 +56,8 @@ final class AssistantChatController extends AbstractController
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly AssistantChatStreamer $streamer,
+        private readonly AgentChatOrchestrator $streamer,
+        private readonly ChatHistoryStore $chatHistoryStore,
         private readonly ChatAttachmentParser $attachmentParser,
         private readonly RequestPromptComposer $requestPromptComposer,
         private readonly ComplaintPromptComposer $complaintPromptComposer,
@@ -185,6 +188,7 @@ final class AssistantChatController extends AbstractController
             label: $traceName,
             promptRef: $composedPrompt,
             traceName: $traceName,
+            hasDraft: trim(strip_tags($currentBodyHtml)) !== '',
         );
 
         return $this->streamTurn(
@@ -371,12 +375,17 @@ final class AssistantChatController extends AbstractController
      */
     private function loadHistoryForLlm(AccessRequest $ar, string $key): array
     {
-        $raw = $ar->getMetadataValue($key);
-        if (!is_array($raw)) {
-            return [];
-        }
-        $recent = array_slice($raw, -self::CHAT_HISTORY_LLM_WINDOW);
-        return AssistantChatStreamer::toLlmHistory($recent);
+        /** @var User $user */
+        $user = $this->getUser();
+        $threadId = ChatHistoryStore::threadIdFromMetadataKey($ar, $key);
+
+        return $this->chatHistoryStore->loadForLlm(
+            threadId: $threadId,
+            user: $user,
+            window: self::CHAT_HISTORY_LLM_WINDOW,
+            ar: $ar,
+            metadataKey: $key,
+        );
     }
 
     /**
@@ -424,15 +433,18 @@ final class AssistantChatController extends AbstractController
             return;
         }
 
-        $current = $ar->getMetadataValue($key);
-        $history = is_array($current) ? $current : [];
-        foreach ($turns as $turn) {
-            $history[] = $turn;
-        }
-        if (count($history) > self::CHAT_HISTORY_CAP) {
-            $history = array_slice($history, -self::CHAT_HISTORY_CAP);
-        }
-        $ar->setMetadataValue($key, $history);
+        /** @var User $user */
+        $user = $this->getUser();
+        $threadId = ChatHistoryStore::threadIdFromMetadataKey($ar, $key);
+
+        $this->chatHistoryStore->append(
+            threadId: $threadId,
+            user: $user,
+            newTurns: $turns,
+            maxTurns: self::CHAT_HISTORY_CAP,
+            ar: $ar,
+            metadataKey: $key,
+        );
     }
 
     /**

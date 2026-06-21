@@ -298,8 +298,9 @@ class AccessRequestCrudController extends AbstractCrudController
                 AccessRequest::RESULT_SILENCE => 'secondary',
             ]);
 
-        yield TextField::new('complaintStatusLabel', 'Reclamación')
-            ->hideOnForm();
+        yield AssociationField::new('complaint', 'Reclamación')
+            ->hideOnForm()
+            ->setCrudController(AccessRequestComplaintCrudController::class);
 
         yield ChoiceField::new('courtStatus', 'Vía judicial')
             ->setChoices([

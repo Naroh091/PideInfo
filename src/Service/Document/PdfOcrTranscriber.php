@@ -5,7 +5,6 @@ namespace App\Service\Document;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -143,7 +142,6 @@ final class PdfOcrTranscriber
                     ContentPart::inlineData('image/png', base64_encode($png)),
                     ContentPart::text('Transcribe el texto de esta página.'),
                 ],
-                size: ModelSize::Mid,
                 temperature: 1.0,
                 label: sprintf('pdf-ocr-transcribe[p%d]', $pageNumber),
             ));

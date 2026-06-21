@@ -4,29 +4,9 @@
 
 El modelo de dominio se centra en `AccessRequest` — una solicitud FOIA presentada — con entidades relacionadas que se ramifican para cubrir reclamaciones, documentos, historial de auditoría, plazos y estructura organizativa.
 
-```
-User ──────────┐
-               │ owns
-Organization ──┤ (optional)
-               ▼
-         AccessRequest ─────────────── PublicBody
-               │                           │
-               │                    AutonomousCommunity
-               │                           │
-               ├── ApplicableLaw ──── ComplaintOrganism
-               │
-               ├── AccessRequestComplaint  (0..1, complaint filed)
-               │
-               ├── Document[]              (uploaded files, AI-analyzed)
-               │
-               ├── StatusHistory[]         (status change audit trail)
-               │
-               ├── DeadlineHistory[]       (deadline change audit trail)
-               │
-               ├── CustomDeadline[]        (user-defined reminders)
-               │
-               └── AccessRequestListItem[] ── AccessRequestList
-```
+![Diagrama de entidades principales](diagrams/png/entity-relationship.drawio.png)
+
+*Fuente editable: [`diagrams/entity-relationship.drawio`](diagrams/entity-relationship.drawio)*
 
 ### Entidades principales
 
@@ -182,83 +162,21 @@ Esto garantiza que el rastro de auditoría sea completo independientemente de c�
 
 ### Subida manual
 
-```
-User uploads document
-        │
-        ▼
-DocumentController stores in S3
-        │
-        ▼
-ProcessDocumentMessage dispatched (async)
-        │
-        ▼
-ProcessDocumentHandler
-  ├── DocumentAnalyzer (via LlmClient)
-  ├── Find/create AccessRequest
-  ├── Update request state
-  ├── Record StatusHistory
-  └── Record DeadlineHistory
-        │
-        ▼
-User sees updated request with
-timeline, documents, and deadlines
-```
+![Flujo de subida y procesamiento de documentos](diagrams/png/document-upload-flow.drawio.png)
+
+*Fuente editable: [`diagrams/document-upload-flow.drawio`](diagrams/document-upload-flow.drawio)*
 
 ### Correo entrante
 
-```
-Email to usuario-xxx@pideinfo.es
-        │
-        ▼
-Cloudflare Email Routing (catch-all)
-        │
-        ▼
-Cloudflare Email Worker
-  ├── Filters by usuario-* prefix
-  ├── Parses MIME (postal-mime)
-  └── POSTs JSON to webhook
-        │
-        ▼
-InboundEmailController
-  ├── Validates shared secret
-  ├── Looks up user by virtual email
-  ├── Stores body + attachments in S3
-  └── Dispatches ProcessDocumentBatchMessage
-        │
-        ▼
-Same processing pipeline as manual uploads
-        │
-        ▼
-User manages received emails in /comunicaciones
-(grouped by email, link/delete/reprocess actions)
-```
+![Pipeline de correo entrante](diagrams/png/inbound-email-flow.drawio.png)
+
+*Fuente editable: [`diagrams/inbound-email-flow.drawio`](diagrams/inbound-email-flow.drawio)*
 
 ### Sincronización con el Portal de Transparencia (agente)
 
-```
-PideInfo Agent (Python, local)
-        │
-        ├── Playwright (headed) → Cl@ve + certificado
-        │   └── Returns session cookies
-        │
-        ├── httpx → Portal de Transparencia AGE
-        │   ├── GET /privada/expedientes (JSON in hidden input)
-        │   ├── GET /privada/notificaciones (JSON in hidden input)
-        │   └── GET /.rest/download/v1/descargaDocumento
-        │
-        └── POST /api/agent/webhook
-                │  (Authorization: Bearer <JWT>)
-                ▼
-        AgentApiController
-          ├── JWT authentication (lexik/jwt-authentication-bundle)
-          ├── AgentWebhookProcessor
-          │   ├── Deduplicates by contentHash (SHA-256)
-          │   ├── Stores documents in S3
-          │   └── Dispatches ProcessDocumentBatchMessage
-          │
-          ▼
-        Same processing pipeline as manual uploads
-```
+![Flujo de sincronización del agente Python](diagrams/png/agent-sync-flow.drawio.png)
+
+*Fuente editable: [`diagrams/agent-sync-flow.drawio`](diagrams/agent-sync-flow.drawio)*
 
 El agente se autentica frente a PideInfo mediante un token JWT generado por el usuario desde la interfaz web (ver [agent.md](agent.md) para más detalles). El token es de larga duración (1 año) y se almacena en las preferencias locales del agente.
 
@@ -283,7 +201,7 @@ Detalle del flujo en [docs/complaint-workflow.md § 1bis](complaint-workflow.md)
 - **Almacenamiento**: AWS S3 vía Flysystem (tres buckets: por defecto, documentos y resoluciones)
 - **Cola de mensajes**: Symfony Messenger con transporte Doctrine (procesamiento asíncrono de documentos)
 - **Tiempo real**: hub Mercure para actualizaciones en vivo del dashboard
-- **Modelos de IA**: todas las llamadas de chat/completion pasan por `App\Service\AI\Llm\LlmClient`, una fachada que enruta a Google Gemini o a un modelo autoalojado compatible con OpenAI (vLLM/llama.cpp). Se conmuta con `USE_CUSTOM_MODEL`. Al usar Gemini, los llamantes eligen un "tamaño" de modelo (`Big`/`Mid`/`Small`/`Free`) que mapea a `GEMINI_BIG_MODEL` (generación de reclamaciones), `GEMINI_MID_MODEL` (análisis de documentos y resoluciones), `GEMINI_SMALL_MODEL` (formateo de texto) o `GEMINI_FREE_MODEL`. Cuando `USE_CUSTOM_MODEL=true`, el tamaño se ignora y todas las llamadas van al único `CUSTOM_MODEL`; además, el backend personalizado ignora la temperatura por petición (`ChatRequest::$temperature`) y aplica siempre `CUSTOM_MODEL_TEMP` (por defecto `1`), porque el modelo autoalojado tiene su propia temperatura recomendada — la temperatura por petición solo se respeta en la ruta Gemini. Los embeddings son independientes: `EmbeddingGenerator` despacha a `GeminiEmbedder` o `QwenEmbedder` según `USE_CUSTOM_EMBEDDING_MODEL` (por defecto: Gemini, 3072 dimensiones). `QwenEmbedder` reutiliza `CUSTOM_MODEL_ENDPOINT`/`CUSTOM_MODEL_API_KEY` por defecto, pero `CUSTOM_EMBEDDING_ENDPOINT` y `CUSTOM_EMBEDDING_API_KEY` pueden sobreescribirlos cuando el backend de embeddings vive en una URL distinta. Cambiar el embedder requiere re-vectorizar el corpus. El análisis por lotes asíncrono de resoluciones sigue pasando por `GeminiBatchService` (solo Gemini). **Rate limiting del modelo autoalojado**: como el chat y los embeddings comparten endpoint/API key, ambos pasan por un único *token bucket* compartido en Redis — el limiter `llm_api` (`config/packages/rate_limiter.yaml`, refill 1/s = 60 rpm sostenido). `LlmClient::chat()`/`chatStream()` y `EmbeddingGenerator::generate()`/`generateBatch()` hacen `reserve(1)->wait()` con la clave fija `llm-api` antes de cada llamada, de modo que **todos los workers (y el tráfico HTTP) comparten el presupuesto de rpm** y ningún reintento ni página de OCR se lo salta. La **concurrencia máxima** se acota por el número de procesos worker que llaman al modelo: `messenger-worker` (cola `async`, donde va `ProcessResolutionMessage`) está limitado a `numprocs=3` en `docker/supervisord.conf`; ten en cuenta que `analysis-worker` (cola `analysis`: análisis de documentos + embeddings) también consume la misma key, así que para un tope duro global de concurrencia hay que considerar la suma de ambos pools (o usar un semáforo compartido).
+- **Modelos de IA**: todas las llamadas de chat/completion pasan por `App\Service\AI\Llm\LlmClient` → `App\Service\AI\CustomModelClient`, que llama a un endpoint compatible con OpenAI (vLLM, LiteLLM, etc.) configurado en `CUSTOM_MODEL` / `CUSTOM_MODEL_ENDPOINT` / `CUSTOM_MODEL_API_KEY`. No hay backend alternativo; Gemini fue eliminado. El backend ignora la temperatura por petición y aplica siempre `CUSTOM_MODEL_TEMP` (por defecto `1`). Los embeddings usan `EmbeddingGenerator` → `QwenEmbedder`, que reutiliza el mismo endpoint por defecto; `CUSTOM_EMBEDDING_ENDPOINT` y `CUSTOM_EMBEDDING_API_KEY` pueden sobreescribirlos. Cambiar el embedder requiere re-vectorizar el corpus (distintas dimensiones). **Rate limiting**: el throttle vive en `CustomModelClient` (no en `LlmClient`), cubriendo todas las rutas — incluyendo el tool loop del agente. Chat y embeddings comparten el bucket Redis `llm-api` (`config/packages/rate_limiter.yaml`, refill 1/s = 60 rpm sostenido). Todos los workers y el tráfico HTTP comparten ese presupuesto. La concurrencia máxima queda acotada por `numprocs` de los workers en `docker/supervisord.conf`.
 - **Almacenes vectoriales**: tres almacenes pgvector — `ai_resolutions` (resoluciones de CTBG nacional + local/autonómico, GAIP, CTG, CVAIP, CTAR, CTCYL, CTPD, CTPDA, CRT, CVT, CTCAN, CTN, CTRM — autowired como `ai.store.postgres.resolutions`), `ai_ctbg_criteria` (criterios interpretativos) y `ai_documents` (embeddings precomputados por chunk de cada documento — autowired como `ai.store.postgres.documents`). Los chunks de resolución almacenan `{resolution_id, outcome, source, chunkIndex, type}` en los metadatos; `ResolutionRetriever` resuelve `resolution_id` (UUID) vía `ResolutionRepository::findByIds()` para obtener el resumen/keypoints/texto completo autoritativos. Los chunks de documento almacenan `{documentId, accessRequestId, documentType, chunkIndex, totalChunks}` en los metadatos para que `DocumentEmbeddingsRetriever::loadVectorsForRequest()` pueda exponer todos los chunks que pertenecen a un expediente dado sin pegarle a la API de embeddings. `SuccessAnalyzer` y `ComplaintGenerator` usan esos vectores como consulta contra `ai_resolutions` / `ai_ctbg_criteria` (vía `*->retrieveByVectors()`); cuando están vacíos (p. ej., documento subido recientemente, cola aún pendiente) ambos hacen fallback a la ruta de consulta basada en string en línea.
 - **Pipeline de resoluciones**: `app:ctbg:load-resolutions` descarga los ficheros Excel del CTBG (nacional + local/autonómico), extrae metadatos + hipervínculos a PDFs, descarga los PDFs a S3 (`resolutions.storage`), extrae el texto, lanza el análisis con Gemini (resumen, keypoints, fechas de resolución/reclamación) y vectoriza el texto completo + keypoints. Fuentes: `CTBG` (nacional, 2019+), `CTBG_LOCAL` (autonómico/local, 2021+), `GAIP` (Cataluña), `CTG` (Galicia), `CVAIP` (País Vasco — Word .docx parseado con PhpWord), `CTAR` (Aragón — metadatos desde páginas de listado, PDFs para el texto completo), `CTCYL` (Castilla y León — ficheros Excel para 2019-2025 + scraping web para páginas de detalle y años anteriores), `CTRM` (Región de Murcia — API del portal Liferay del Comisionado de Transparencia, orden DATE DESC; muchos PDFs llegan sin capa de texto, resuelto por el *fallback* de OCR por visión, ver abajo). **Fallback de OCR por visión (global, todas las fuentes)**: durante la extracción de texto de un PDF, las páginas sin capa de texto (escaneos solo-imagen) se detectan por página, se rasterizan individualmente con `pdftoppm` y se transcriben con el LLM multimodal vía `LlmClient` (`App\Service\Document\PdfOcrTranscriber`), fusionando el resultado en el texto completo. Cuando todas las páginas ya tienen texto, no se rasteriza ni se llama al LLM (ruta barata). Se aplica por igual en la ruta inline (`ResolutionProcessingTrait`) y asíncrona (`ProcessResolutionHandler`)
 - **Correo entrante**: Cloudflare Email Routing en `pideinfo.es` → Email Worker (`pideinfo-worker/`) → webhook en `/webhook/inbound-email` (ver [inbound-email.md](inbound-email.md))
@@ -291,3 +209,99 @@ Detalle del flujo en [docs/complaint-workflow.md § 1bis](complaint-workflow.md)
 - **Gestión de prompts (Langfuse)**: todos los prompts del LLM previamente hardcodeados se han extraído a `config/prompts/<area>/<name>.md` y se han subido a Langfuse como prompts de tipo texto con nombres solo con guiones como `pideinfo-document-analyze-single`, `pideinfo-resolution-extract-analysis`, `pideinfo-complaint-generate-complaint` (lista completa en `App\Prompt\PromptCatalog`). La convención de guiones es obligatoria porque la instancia de Langfuse está detrás de un WAF de Cloudflare que bloquea las rutas URL que contienen barras codificadas (`%2F`); los nombres con barras no pueden recuperarse en tiempo de ejecución. `BundledPromptLoader` mapea cada nombre con guiones al fichero en disco quitando el prefijo `pideinfo-` y partiendo por el primer guion restante (`pideinfo-{namespace}-{rest}` → `config/prompts/{namespace}/{rest}.md`); la forma heredada con barra `pideinfo/{ns}/{rest}` se mantiene como fallback. En tiempo de ejecución `App\Prompt\PromptStore::compile($name, $vars)` recupera la versión activa (etiqueta configurable vía `LANGFUSE_PROMPT_LABEL`, por defecto `production`) desde Langfuse vía `LangfuseAdminClient::fetchPrompt` y devuelve un value object `App\Prompt\CompiledPrompt` (Stringable) con el texto sustituido más la referencia al prompt gestionado (`name` + `version`); pasado como `systemPrompt` (o como `promptRef` cuando el prompt viaja en `userParts`) de un `ChatRequest`, esa referencia permite que la traza enlace la generación con el prompt en Langfuse. Cuando Langfuse no es alcanzable, faltan las credenciales o la versión devuelve 404, `PromptStore` hace fallback a la plantilla `.md` empaquetada (sin `version`, por lo que no se emite enlace). Las plantillas usan los placeholders `{{var}}` de Langfuse; los bloques dinámicos (p. ej., enums de outcome de resolución, sufijo JSON-mode para el backend personalizado) se pre-renderizan en PHP y se pasan como variables. Sube o refresca prompts con `bin/console app:langfuse:sync-prompts` (soporta `--dry-run`, `--only=<substring>`, `--skip-existing`).
 - **Observabilidad (Langfuse vía OpenTelemetry)**: todas las completions de chat y los embeddings emiten spans de OpenTelemetry compatibles con Langfuse vía OTLP/HTTP a `{LANGFUSE_BASE_URL}/api/public/otel/v1/traces`, autenticados con Basic auth (`LANGFUSE_PUBLIC_KEY`:`LANGFUSE_SECRET_KEY`). Cuando cualquiera de esas tres variables de entorno está vacía, `App\Observability\TracerFactory` devuelve un provider noop para que la app se degrade silenciosamente. La instrumentación se concentra en tres lugares: un decorator de Symfony sobre `LlmClient` (`TracingLlmClient`) emite un span `gen_ai chat` por intento — incluyendo cada retry de `chatJson` — con input/output, modelo, temperatura efectiva (`CUSTOM_MODEL_TEMP` en el backend personalizado, la de la petición en Gemini), uso de tokens de `ChatResult` y, cuando el `ChatRequest` lleva un `CompiledPrompt` procedente de Langfuse, los atributos `langfuse.observation.prompt.name` / `langfuse.observation.prompt.version` que enlazan la generación con el prompt gestionado; un decorator sobre `EmbeddingGenerator` (`TracingEmbeddingGenerator`) emite un span por llamada de embedding; `App\Messenger\TracingMiddleware` envuelve cada envelope de Messenger consumido (para que `ProcessDocumentHandler`, `ProcessDocumentBatchHandler`, `ProcessResolutionHandler` obtengan una traza raíz con el nombre de la clase del mensaje sin ediciones por handler). La atribución al usuario viaja con el envelope: `App\Messenger\UserContextMiddleware` lee `Security::getUser()` en el momento del dispatch y estampa el envelope con `App\Messenger\Stamp\UserContextStamp`, que `TracingMiddleware` proyecta luego sobre la traza raíz como `langfuse.user.id` para que la traza resultante quede vinculada al usuario que despachó incluso en el lado del worker. Para flujos HTTP, `ComplaintGenerator::generate()` y `::generateAlegationResponse()` abren sus propios spans raíz etiquetados con el email del usuario (`langfuse.user.id`) y el UUID de la solicitud de acceso (`langfuse.session.id`); los decorators `TracingLlmClient` y `TracingEmbeddingGenerator` también extraen el usuario activo de `Security` y añaden `langfuse.user.id` a cada span de generación como fallback (p. ej., llamadas a LLM dirigidas directamente por controlador sin su propia traza raíz). `ResolutionAnalyzer::formatText()` / `extractAnalysis()` y el bucle de embeddings en `ProcessResolutionHandler::vectorizeResolution()` añaden wrappers `Tracer::span` para que las llamadas troceadas de LLM/embeddings se agrupen bajo ramas semánticas (`resolution.formatText`, `resolution.vectorize`). Los tokens se capturan ampliando `LlmClient::chat()` para que devuelva un value object `ChatResult` que expone `promptTokens` / `completionTokens` / `modelId` / `finishReason` desde el chunk `usage` del streaming de OpenAI (backend personalizado) y el `usageMetadata` de Gemini (backend Gemini). `BatchSpanProcessor` exporta de forma asíncrona; `TraceFlushListener` fuerza el flush en `kernel.terminate` (HTTP) y el middleware de messenger fuerza el flush por handler (workers) para que los spans aparezcan en Langfuse rápidamente.
 - **Servidor MCP**: endpoint MCP con transporte HTTP en `/mcp`, protegido por un Authorization Server OAuth2 (`league/oauth2-server-bundle`) con PKCE y Dynamic Client Registration para que los clientes de IA (Claude.ai, ChatGPT, MCP Inspector) puedan conectarse a las cuentas de los usuarios. Las herramientas viven en `src/Mcp/Tool/` y delegan en servicios existentes. Ver [mcp.md](mcp.md). Firewalls en capas en este orden: `dev`, `oauth_token`, `oauth_register`, `oauth_well_known`, `api` (JWT del agente Python, sin cambios), `mcp` (bearer stateless vía `App\Security\OAuth2\OAuth2TokenHandler`), `main` (login por formulario). Los usuarios gestionan las integraciones autorizadas desde `/perfil/aplicaciones-conectadas` — tanto los tokens de clientes OAuth2 como el JWT del agente se pueden revocar ahí. La revocación del agente funciona sin una lista negra de JTI almacenando `User.agentTokensInvalidatedAt` y rechazando tokens con `iat` anterior a esa marca vía `App\Security\AgentJwtListener`.
+
+## Flujo de redacción agéntico (Issues #90 + #91)
+
+El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un modelo agéntico desde el que el LLM puede invocar herramientas antes de generar su respuesta.
+
+### Componentes principales
+
+| Clase | Responsabilidad |
+|---|---|
+| `AgentChatOrchestrator` | Orquesta el turno completo: tool loop + respuesta final JSON |
+| `SearchResolutionsTool` | RAG de dos etapas: screening por keypoints + revisión de texto completo |
+| `ReadRequestDocumentsTool` | Lee documentos de la solicitud con sub-llamada LLM por documento |
+| `GetUserPreferencesTool` | Devuelve las preferencias de redacción del usuario |
+| `SaveUserPreferenceTool` | Persiste una preferencia de estilo generalizable aprendida del usuario |
+| `AgentProgress` | Buffer compartido de pasos de progreso emitidos por las herramientas |
+| `ChatHistoryStore` | Historial de chat por usuario/hilo en tabla `ai_chat_messages` (aislamiento `user_id`) |
+| `CustomModelClient` | Endpoint OpenAI-compatible; incluye `chatWithTools()` (tool loop) y `chatRaw()` (JSON schema) |
+
+### Flujo de un turno de chat (SSE)
+
+![Flujo completo de un turno de chat agéntico](diagrams/png/agentic-chat-flow.drawio.png)
+
+*Fuente editable: [`diagrams/agentic-chat-flow.drawio`](diagrams/agentic-chat-flow.drawio)*
+
+### Herramienta SearchResolutionsTool — RAG de dos etapas
+
+![SearchResolutionsTool: RAG de dos etapas](diagrams/png/search-resolutions-rag.drawio.png)
+
+*Fuente editable: [`diagrams/search-resolutions-rag.drawio`](diagrams/search-resolutions-rag.drawio)*
+
+### Herramienta ReadRequestDocumentsTool — sub-análisis por documento
+
+![ReadRequestDocumentsTool: análisis por documento](diagrams/png/document-processing-agent.drawio.png)
+
+*Fuente editable: [`diagrams/document-processing-agent.drawio`](diagrams/document-processing-agent.drawio)*
+
+### Protocolo SSE completo
+
+| Evento | Payload | Cuándo |
+|---|---|---|
+| `step` | `{message, tool}` | Antes de cada herramienta y en cada sub-paso interno (incl. `Aprendiendo preferencia…`) |
+| `chat_token` | `{text}` | Chunks del `conversational_reply` final |
+| `decision` | `{action, draft, plan}` | Al finalizar; `action` ∈ `{reply, generate, rewrite}` |
+| `error` | `{message}` | Cualquier fallo |
+| `done` | `{}` | Siempre al terminar |
+
+### Historial de chat — aislamiento por usuario
+
+| Columna | Tipo | Restricción | Descripción |
+|---|---|---|---|
+| `id` | BIGSERIAL | PK | Clave primaria |
+| `user_id` | UUID | FK → user, NOT NULL | **Columna de aislamiento** — indexada; toda query incluye `AND user_id = ?` |
+| `thread_id` | VARCHAR(200) | NOT NULL | Contexto del hilo: `request:{uuid}` o `complaint:{uuid}:{mode}` |
+| `turns` | JSONB | NOT NULL, default `[]` | Array de turnos `{role, kind, content, ts}`, máx. 60 |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | Última escritura |
+
+Índice único compuesto: `(user_id, thread_id)`.
+
+### Preferencias de redacción del usuario (Issue #90)
+
+```
+user.writing_preferences (JSONB)
+  {
+    "tone":       "formal|informal|neutral",
+    "salutation": "texto libre",
+    "closing":    "texto libre",
+    "notes":      "instrucciones adicionales",
+    "learned":    ["Al usuario le gusta ir al grano…", …]   // aprendidas por el agente
+  }
+
+PATCH /api/user/writing-preferences  → actualiza las 4 claves manuales (preserva `learned`)
+WritingPreferencesFormatter            → única fuente del bloque inyectado
+RequestPromptComposer  }
+ComplaintPromptComposer}  → inyectan el bloque (manual + "Estilo aprendido")
+GetUserPreferencesTool }
+```
+
+#### Aprendizaje de preferencias de estilo
+
+Cuando el usuario pide modificar un borrador con una instrucción **generalizable** ("hazla
+más corta", "ve más al grano", "parafrasea más la resolución") o enuncia explícitamente un
+gusto de estilo, el agente la guarda como preferencia duradera; las instrucciones
+**específicas del caso** ("elimina el segundo argumento") no se guardan. Si duda, pregunta
+antes de guardar.
+
+- El `LEARNING_PREAMBLE` (común a ambos flujos) instruye al modelo a llamar a la herramienta
+  **`SaveUserPreferenceTool`** (`save_user_preference(preference, replaces?)`).
+- Persistir vía **tool** (no vía un campo de la decisión final) es deliberado: el modelo la
+  llama de forma fiable y la preferencia se **commitea a mitad del tool-loop**, antes de la
+  (a veces larga) generación final — así sobrevive aunque el stream SSE se interrumpa.
+- La tool emite el paso de progreso **"Aprendiendo preferencia…"** y persiste con
+  `User::applyLearnedPreferenceDeltas()` (dedup, tope de 15, *case-insensitive*; soporta
+  añadir, actualizar y olvidar ante contradicciones) + `flush()`.
+- Las preferencias aprendidas son **globales por usuario** y se reinyectan al inicio de toda
+  generación futura (solicitudes, reclamaciones y respuestas a alegaciones), renderizadas por
+  `WritingPreferencesFormatter` bajo "Estilo aprendido".
