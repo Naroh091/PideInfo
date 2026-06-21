@@ -696,6 +696,12 @@ class AgentWebhookProcessor
                 (string) $metadata['complaint_phase'],
                 (string) ($metadata['documentTitle'] ?? $filename),
             );
+        } elseif (!empty($metadata['documentType'])) {
+            // Explicit type hint from the agent (e.g. the REG complaint
+            // justificante uploaded via the legacy path keyed by
+            // access_request_id). Falls through to AI re-classification if the
+            // hint is not a known DocumentType.
+            $preassignedType = DocumentType::tryFrom((string) $metadata['documentType']);
         }
 
         $document = $this->createDocument(
