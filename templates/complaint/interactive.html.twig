@@ -719,27 +719,27 @@
                         x-show="editorReady"
                         x-cloak
                         @click="presentViaAgent('supervised')"
-                        :disabled="presentingMode !== null"
+                        :disabled="$store.agentPresent.busy"
                         class="doc-action"
                         title="El agente abre la sede con el formulario rellenado y tú revisas + envías">
                         <i data-lucide="eye" class="w-3.5 h-3.5"></i>
-                        <span x-text="presentingMode === 'supervised' ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
+                        <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (supervisado)'">Presentar (supervisado)</span>
                     </button>
                     <button
                         type="button"
                         x-show="editorReady"
                         x-cloak
                         @click="presentViaAgent('auto')"
-                        :disabled="presentingMode !== null"
+                        :disabled="$store.agentPresent.busy"
                         class="doc-action"
                         title="El agente rellena y envía sin intervención">
                         <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-                        <span x-text="presentingMode === 'auto' ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
+                        <span x-text="$store.agentPresent.busy ? 'Encolando…' : 'Presentar (auto)'">Presentar (auto)</span>
                     </button>
                 </div>
             </div>
-            {# present-via-agent modal — see #present-modal partial below #}
-            {% include 'complaint/_present_modal.html.twig' %}
+            {# present-via-agent modal — see shared partial #}
+            {% include '_partials/_agent_present_modal.html.twig' %}
 
             <div class="doc-body">
                 {# Empty state — neither streaming nor editor #}
@@ -1025,9 +1025,6 @@ function interactiveGenerator() {
         downloadingPdf: false,
         savingDraft: false,
         draftSavedAt: null,
-        presentingMode: null, // 'auto' | 'supervised' | null
-        presentResult: null,  // { taskId, mode } | null
-        presentError: null,
         analysis: null,
         analysisLoading: false,
         streamingHtml: '',
@@ -1236,38 +1233,28 @@ function interactiveGenerator() {
         },
 
         // ── Present via agent ──────────────────────────────────────
-        closePresentModal() {
-            this.presentResult = null;
-            this.presentError = null;
-            this.presentingMode = null;
-        },
         async presentViaAgent(mode) {
-            if (this.presentingMode) return;
-            // 1. Save the draft first if it's dirty / never saved.
+            const store = this.$store.agentPresent;
+            if (store.busy) return;
             if (!this.draftSavedAt) {
                 await this.saveDraft();
-                if (!this.draftSavedAt) return; // save failed
+                if (!this.draftSavedAt) return;
             }
-            // 2. Open the modal in "encolando" state immediately.
-            this.presentingMode = mode;
-            this.presentError = null;
-            this.presentResult = null;
+            store.open('reclamación');
             try {
-                const response = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
+                const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode })
+                    body: JSON.stringify({ mode }),
                 });
-                const data = await response.json();
-                if (!response.ok) {
-                    this.presentError = data.error || 'No se pudo encolar la tarea.';
-                    return;
-                }
-                this.presentResult = { taskId: data.taskId, mode, schemeUrl: data.schemeUrl };
+                const data = await res.json();
+                if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
+                store.track(
+                    [{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }],
+                    { entityLabel: 'reclamación' },
+                );
             } catch (e) {
-                this.presentError = 'Error de red.';
-            } finally {
-                this.presentingMode = null;
+                store.fail('Error de red.');
             }
         },
 

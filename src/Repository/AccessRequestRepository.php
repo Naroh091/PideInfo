@@ -486,12 +486,13 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->setMaxResults($limit);
 
         if ($query !== null && $query !== '') {
-            $qb->andWhere('ar.title LIKE :q OR ar.externalId LIKE :q OR ar.description LIKE :q OR pb.name LIKE :q')
+            $qb->andWhere('LOWER(ar.title) LIKE LOWER(:q) OR LOWER(ar.externalId) LIKE LOWER(:q) '
+                        . 'OR LOWER(ar.description) LIKE LOWER(:q) OR LOWER(pb.name) LIKE LOWER(:q)')
                ->setParameter('q', '%' . $query . '%');
         }
 
         if ($publicBodyName !== null && $publicBodyName !== '') {
-            $qb->andWhere('pb.name LIKE :publicBody')
+            $qb->andWhere('LOWER(pb.name) LIKE LOWER(:publicBody)')
                ->setParameter('publicBody', '%' . $publicBodyName . '%');
         }
 

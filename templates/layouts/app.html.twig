@@ -229,6 +229,108 @@
     }
 </style>
 
+{# Shared agent-present modal store — single source of truth for the
+   "presentar con el agente" progress modal (complaints + solicitudes). #}
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.store('agentPresent', {
+        phase: 'idle',            // idle | enqueuing | tracking | done | error
+        tasks: [],
+        entityLabel: 'tarea',
+        globalError: null,
+        doneHref: null,
+        _timer: null,
+
+        get busy() { return this.phase === 'enqueuing' || this.phase === 'tracking'; },
+        get total() { return this.tasks.length; },
+        get successCount() { return this.tasks.filter(t => t.status === 'done').length; },
+        get anyError() { return this.tasks.some(t => t.status === 'failed' || t.status === 'uncertain'); },
+
+        statusLabel(status) {
+            switch (status) {
+                case 'pending':     return { text: 'Esperando que el agente comience la tarea…', kind: 'waiting' };
+                case 'claimed':     return { text: 'Agente conectado, preparando…',             kind: 'working' };
+                case 'in_progress': return { text: 'Realizando presentación…',                  kind: 'working' };
+                case 'done':        return { text: 'Presentación realizada.',                    kind: 'done' };
+                case 'failed':      return { text: 'Falló la presentación.',                     kind: 'failed' };
+                case 'uncertain':   return { text: 'Resultado incierto: revísalo en la sede.',   kind: 'uncertain' };
+                default:            return { text: status || '…',                               kind: 'waiting' };
+            }
+        },
+
+        open(entityLabel) {
+            this._stop();
+            this.entityLabel = entityLabel || 'tarea';
+            this.tasks = [];
+            this.globalError = null;
+            this.doneHref = null;
+            this.phase = 'enqueuing';
+        },
+
+        track(tasks, opts) {
+            opts = opts || {};
+            if (opts.entityLabel) this.entityLabel = opts.entityLabel;
+            this.doneHref = opts.doneHref || null;
+            this.globalError = null;
+            this.tasks = (tasks || []).map(t => {
+                const lbl = this.statusLabel('pending');
+                return {
+                    id: t.id, statusUrl: t.statusUrl,
+                    schemeUrl: t.schemeUrl || null,
+                    bodyName: t.bodyName || null,
+                    status: 'pending', errorMessage: null,
+                    label: lbl.text, kind: lbl.kind,
+                };
+            });
+            if (this.tasks.length === 0) { this.fail('No se creó ninguna tarea.'); return; }
+            this.phase = 'tracking';
+            this._tick();
+        },
+
+        fail(message) {
+            this._stop();
+            this.globalError = message || 'No se pudo completar la operación.';
+            this.phase = 'error';
+        },
+
+        async _tick() {
+            const pending = this.tasks.filter(t => !this._isTerminal(t.status));
+            await Promise.all(pending.map(async (t) => {
+                try {
+                    const r = await fetch(t.statusUrl, { headers: { 'Accept': 'application/json' } });
+                    if (!r.ok) return;
+                    const data = await r.json();
+                    t.status = data.status || t.status;
+                    t.errorMessage = data.errorMessage || null;
+                    const lbl = this.statusLabel(t.status);
+                    t.label = lbl.text; t.kind = lbl.kind;
+                } catch (_) { /* transient — keep polling */ }
+            }));
+
+            if (this.tasks.every(t => this._isTerminal(t.status))) {
+                this._stop();
+                this.phase = (this.successCount > 0) ? 'done' : 'error';
+                return;
+            }
+            this._timer = setTimeout(() => this._tick(), 2000);
+        },
+
+        _isTerminal(status) {
+            return status === 'done' || status === 'failed' || status === 'uncertain';
+        },
+
+        _stop() {
+            if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+        },
+
+        close() {
+            this._stop();
+            this.phase = 'idle';
+        },
+    });
+});
+</script>
+
 {# Alpine.js for interactivity #}
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% endblock %}

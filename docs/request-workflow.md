@@ -290,6 +290,25 @@ Cuando `SubmissionGuard` detecta un `idBorr` guardado en `portal_markers` para e
 
 La auto-reconciliación de REG y CTBG (canales sin borrador) queda como trabajo posterior; en la versión actual estos canales se reconcilian manualmente a través del flujo `uncertain_needs_confirmation` descrito arriba.
 
+### Modal de progreso unificado (envío masivo)
+
+Cuando el usuario confirma el envío a uno o varios organismos, el endpoint `app_solicitudes_realizar_dispatch` crea un `AgentTask` por organismo y devuelve `tasks: [{taskId, statusUrl, bodyName}]`. El modal de progreso compartido (`templates/_partials/_agent_present_modal.html.twig`, store Alpine `agentPresent` registrado en `templates/layouts/app.html.twig`) se abre automáticamente y muestra **una fila de progreso por organismo**, sondeando `GET /api/agent/tasks/{id}` cada 2 segundos para cada una.
+
+El ciclo de vida de cada tarea se representa con estas etiquetas:
+
+| Estado de la tarea | Etiqueta mostrada |
+|--------------------|-------------------|
+| `pending` | Esperando que el agente comience la tarea… |
+| `claimed` | Agente conectado, preparando… |
+| `in_progress` | Realizando presentación… |
+| `done` | Confirmación de presentación realizada |
+| `failed` | Mensaje de error con el `errorMessage` real de la tarea |
+| `uncertain` | Aviso para verificar manualmente en la sede |
+
+Cuando todas las tareas han alcanzado un estado terminal (`done`, `failed` o `uncertain`), el modal ofrece el botón **"Ver mis solicitudes"**. Cerrar el modal antes de ese punto **no cancela** las tareas en el backend; una nota informativa indica al usuario que las tareas continúan ejecutándose en segundo plano.
+
+El antiguo controlador Stimulus `assets/controllers/agent_present_controller.js` (pastilla de estado + panel de reserva) ha sido **retirado**; toda la presentación vía agente pasa ahora por este modal compartido.
+
 ## Cálculo de plazos
 
 El servicio `DeadlineCalculator` se encarga de toda la aritmética de fechas:

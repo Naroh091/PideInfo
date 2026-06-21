@@ -753,6 +753,7 @@ class AccessRequestController extends AbstractController
         $confirmUncertain = $request->request->getBoolean('confirmUncertain');
         $uncertainNeedsConfirm = [];
         $dispatched = 0;
+        $createdTasks = [];
         $this->entityManager->beginTransaction();
         try {
             foreach ($drafts as $accessRequest) {
@@ -826,6 +827,10 @@ class AccessRequestController extends AbstractController
                 }
                 $this->entityManager->persist($task);
                 $dispatched++;
+                $createdTasks[] = [
+                    'task' => $task,
+                    'bodyName' => $accessRequest->getPublicBody()->getName(),
+                ];
                 // Un despacho nuevo supersede la incertidumbre anterior; se
                 // re-pondrá si este intento también queda incierto.
                 $accessRequest->setMetadataValue('submission_uncertain', null);
@@ -847,9 +852,21 @@ class AccessRequestController extends AbstractController
         }
 
         if ($request->isXmlHttpRequest() || str_contains((string) $request->headers->get('Accept'), 'application/json')) {
+            $tasks = [];
+            foreach ($createdTasks as $entry) {
+                /** @var AgentTask $t */
+                $t = $entry['task'];
+                $tasks[] = [
+                    'taskId'    => $t->getId()->toRfc4122(),
+                    'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $t->getId()->toRfc4122()]),
+                    'bodyName'  => $entry['bodyName'],
+                ];
+            }
+
             return new JsonResponse([
                 'dispatched' => $dispatched,
                 'redirectUrl' => $this->generateUrl('app_solicitudes_index'),
+                'tasks' => $tasks,
             ]);
         }
 
