@@ -156,6 +156,25 @@ Flujo:
 4. El handler descarga todos los PDFs vía JWT, lanza Firefox visible reutilizando el `firefox-profile` autenticado y conduce el wizard CTBG paso 1 → 4 (`CtbgComplaintFiller`). Marca la tarea `done` con `result.status='awaiting_signature'` y deja el navegador abierto en el paso 5 (Firmar).
 5. **Tanto auto como supervisado** se quedan en el paso 5 hoy: la firma electrónica (paso 5) y el acuse de recibo (paso 6) son trabajo pendiente. El usuario firma a mano vía noVNC (dev) o su navegador local (producción) y la solicitud pasa al CTBG.
 
+#### Modal de progreso unificado
+
+Cuando el usuario pulsa **Presentar (auto)** o **Presentar (supervisado)**, en vez de redirigir a una página diferente se muestra el modal de progreso compartido (`templates/_partials/_agent_present_modal.html.twig`), gestionado por el store Alpine `agentPresent` (registrado en `templates/layouts/app.html.twig`).
+
+El modal realiza un `POST` al endpoint de presentación para crear el `AgentTask` y, a continuación, sondea `GET /api/agent/tasks/{id}` cada 2 segundos. El ciclo de vida de la tarea se representa con estas etiquetas:
+
+| Estado de la tarea | Etiqueta mostrada |
+|--------------------|-------------------|
+| `pending` | Esperando que el agente comience la tarea… |
+| `claimed` | Agente conectado, preparando… |
+| `in_progress` | Realizando presentación… |
+| `done` | Confirmación de presentación realizada |
+| `failed` | Mensaje de error con el `errorMessage` real de la tarea |
+| `uncertain` | Aviso para verificar manualmente en la sede |
+
+Cerrar el modal **no cancela** la tarea en el backend; una nota informativa indica al usuario que la tarea continúa ejecutándose en segundo plano. El estado de la tarea sigue siendo visible en la página de detalle de la solicitud.
+
+El antiguo controlador Stimulus `assets/controllers/agent_present_controller.js` (pastilla de estado + panel de reserva en la página de detalle) ha sido **retirado**; toda la presentación vía agente pasa ahora por este modal compartido.
+
 ### 2. Confirmación del acuse de recibo
 
 El consejo de transparencia acusa recibo de la reclamación.
