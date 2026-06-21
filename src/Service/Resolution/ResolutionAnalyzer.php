@@ -9,7 +9,6 @@ use App\Prompt\PromptStore;
 use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use Psr\Log\LoggerInterface;
 
 final class ResolutionAnalyzer
@@ -194,7 +193,6 @@ final class ResolutionAnalyzer
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
-                size: ModelSize::Small,
                 temperature: 1.0,
                 jsonSchema: $this->buildFormatTextSchema(),
                 schemaName: 'resolution_analysis',
@@ -217,7 +215,6 @@ final class ResolutionAnalyzer
                 $result = $this->llmClient->chatJson(new ChatRequest(
                     systemPrompt: $prompt,
                     userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $chunkText,
-                    size: ModelSize::Small,
                     temperature: 1.0,
                     jsonSchema: $this->buildFormatTextSchema(),
                     schemaName: 'resolution_analysis',
@@ -368,7 +365,6 @@ final class ResolutionAnalyzer
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $prompt,
             userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
-            size: ModelSize::Mid,
             temperature: 1.0,
             jsonSchema: $this->buildExtractAnalysisSchema(skipResolutionDate: $skipResolutionDate),
             schemaName: 'resolution_analysis',
@@ -440,7 +436,6 @@ final class ResolutionAnalyzer
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $prompt,
             userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
-            size: ModelSize::Mid,
             temperature: 1.0,
             jsonSchema: $this->buildNonCompleteAnalysisSchema(),
             schemaName: 'resolution_analysis',

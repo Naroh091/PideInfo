@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="26.0.0">
+  <diagram name="SearchResolutionsTool RAG">
+    <mxGraphModel>
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Entry -->
+        <mxCell id="2" value="__invoke(argumentation, topK=10)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="230" y="20" width="300" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Vector search -->
+        <mxCell id="3" value="EmbeddingGenerator::generate(query)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="240" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="4" value="pgvector similarity search&#xa;(ai_resolutions, topK*2 candidates)" style="shape=cylinder3;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="210" width="240" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="5" value="Deduplica por resolution_id&#xa;ResolutionRepository::findByIds()&#xa;→ summary, keypoints[], fullText" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="320" width="240" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 1 container -->
+        <mxCell id="stage1" value="Etapa 1: Screening por keypoints (modelo, barato)" style="swimlane;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="100" width="320" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="6" value="AgentProgress::step(&quot;Comprobando {ref}…&quot;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="stage1">
+          <mxGeometry x="20" y="50" width="280" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="7" value="LlmClient::chatJson(keypoints-screen)&#xa;→ {promising: bool, reason}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="stage1">
+          <mxGeometry x="20" y="100" width="280" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="8" value="promising == false → descartar" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="stage1">
+          <mxGeometry x="20" y="160" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Stage 2 container -->
+        <mxCell id="stage2" value="Etapa 2: Revisión texto completo (solo candidatas prometedoras)" style="swimlane;startSize=30;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="340" width="320" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="9" value="AgentProgress::step(&quot;Leyendo {ref} completa…&quot;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="stage2">
+          <mxGeometry x="20" y="50" width="280" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="10" value="LlmClient::chatJson(deep-review)&#xa;fullText hasta 25.000 chars&#xa;→ {relevant: bool, argument}" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="stage2">
+          <mxGeometry x="20" y="100" width="280" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="11" value="relevant == true:&#xa;AgentProgress::step(&quot;Doctrina aplicable: {ref}&quot;)&#xa;acumular con argument" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="stage2">
+          <mxGeometry x="20" y="170" width="280" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Output -->
+        <mxCell id="12" value="formatRelevant()&#xa;→ Markdown con referencias, organismos y argumentos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="600" width="320" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="2" target="3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="380" y="75" />
+              <mxPoint x="180" y="75" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="4" target="5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="candidatas" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="5" target="stage1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="prometedoras" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="stage1" target="stage2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="stage2" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

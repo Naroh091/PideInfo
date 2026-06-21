@@ -4,37 +4,9 @@ Cómo los documentos subidos son analizados por IA y enlazados automáticamente 
 
 ## Flujo de subida
 
-```
-User drags file onto dropzone (or clicks to select)
-        │
-        ▼
-POST /document/upload
-  ├── SHA-256 of upload computed and looked up in (uploadedBy, contentHash)
-  │   └── If a match exists → respond 409 with the existing document info,
-  │       the dropzone shows a "Archivos duplicados omitidos" modal and
-  │       the upload is skipped (no S3 write, no entity created).
-  ├── File stored in S3 (documents.storage)
-  ├── Document entity created (type: unprocessed, processed: false, contentHash set)
-  └── ProcessDocumentMessage dispatched to async queue
-        │
-        ▼
-Symfony Messenger consumes message
-        │
-        ▼
-ProcessDocumentHandler::__invoke()
-  ├── DocumentAnalyzer::analyze()  ← el modelo API call
-  ├── Find or create AccessRequest
-  ├── Update request state from document
-  ├── Mark document as processed
-  └── Dispatch GenerateDocumentEmbeddingsMessage
-        │
-        ▼
-GenerateDocumentEmbeddingsHandler::__invoke()
-  ├── chunkText(extractedText) via PdfTextExtractor
-  ├── DELETE existing rows in ai_documents WHERE metadata->>'documentId' = ?
-  ├── EmbeddingGenerator::generate() per chunk
-  └── PostgresStore (ai.store.postgres.documents) ← halfvec(3072) + metadata
-```
+![Flujo de procesamiento de documentos](diagrams/png/document-upload-flow.drawio.png)
+
+*Fuente editable: [`diagrams/document-upload-flow.drawio`](diagrams/document-upload-flow.drawio)*
 
 El paso de embeddings es "dispara y olvida" desde el punto de vista de los handlers de documentos: los fallos no revierten la persistencia del documento. Los embeddings precomputados son consumidos de forma perezosa por `SuccessAnalyzer` y `ComplaintGenerator` a través de `DocumentEmbeddingsRetriever::loadVectorsForRequest()`; cuando aún no hay vectores almacenados (subida reciente, cola pendiente, sin texto extraído) ambos servicios recurren a la ruta inline de consulta basada en cadenas (`buildContextQuery`), por lo que la corrección se mantiene durante el intervalo.
 

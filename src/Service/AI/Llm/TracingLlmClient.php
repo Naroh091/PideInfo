@@ -26,7 +26,7 @@ final class TracingLlmClient extends LlmClient
         LoggerInterface $logger,
         private readonly ?Security $security = null,
     ) {
-        parent::__construct($customClient, $logger);
+        parent::__construct($customClient, $logger); // Rate limiting is in CustomModelClient.
     }
 
     public function chat(ChatRequest $req): ChatResult
@@ -119,7 +119,7 @@ final class TracingLlmClient extends LlmClient
         $attrs = [
             AttributeKeys::GEN_AI_OPERATION => 'chat',
             AttributeKeys::GEN_AI_SYSTEM => 'openai',
-            AttributeKeys::GEN_AI_REQUEST_MODEL => $req->size->name,
+            AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
             AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $this->customClient->getTemperature(),
             AttributeKeys::GEN_AI_REQUEST_MAX_TOKENS => $req->maxOutputTokens,
             AttributeKeys::LANGFUSE_OBSERVATION_LABEL => $req->label,

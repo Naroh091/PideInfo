@@ -18,7 +18,6 @@ use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\TransparencyCouncilResolver;
 use Doctrine\ORM\EntityManagerInterface;
@@ -198,7 +197,6 @@ final class ComplaintGenerator
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
-            size: ModelSize::Big,
             temperature: 1.0,
             maxOutputTokens: 8192,
             label: 'complaint.generate',
@@ -263,7 +261,6 @@ final class ComplaintGenerator
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
-            size: ModelSize::Big,
             temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,
@@ -381,7 +378,6 @@ final class ComplaintGenerator
         $raw = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $prompt->text,
             messages: [],
-            size: ModelSize::Big,
             temperature: 1.0,
             promptRef: $prompt,
         ))->content;
@@ -865,7 +861,6 @@ GRANTED_PENDING;
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
-            size: ModelSize::Big,
             temperature: 1.0,
             maxOutputTokens: 8192,
             label: 'complaint.alegation_response',
@@ -932,7 +927,6 @@ GRANTED_PENDING;
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
-            size: ModelSize::Big,
             temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,

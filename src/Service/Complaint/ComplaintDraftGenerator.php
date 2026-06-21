@@ -12,7 +12,6 @@ use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\TransparencyCouncilResolver;
 
@@ -169,7 +168,6 @@ final class ComplaintDraftGenerator
 
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $this->promptStore->compile($promptName, $vars),
-            size: ModelSize::Mid,
             temperature: 1.0,
             requiredJsonKeys: ['suggestions'],
             maxOutputTokens: 1500,
@@ -226,7 +224,6 @@ final class ComplaintDraftGenerator
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $this->promptStore->compile($promptName, $vars),
             userText: $userMessage,
-            size: ModelSize::Mid,
             temperature: 1.0,
             requiredJsonKeys: ['reply'],
             maxOutputTokens: 1024,

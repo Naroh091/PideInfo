@@ -74,24 +74,20 @@ Estado actual: {$state}
 
 ## Formato de salida (OBLIGATORIO)
 
-Escribe primero la respuesta conversacional para el usuario, en español, natural, sin metalenguaje ("voy a…", "como modelo de IA…"), tan breve como puedas ser útil.
-
-A continuación, en una línea aparte, escribe literalmente la marca:
-
-===DECISION===
-
-Y debajo, un único bloque JSON válido (sin code fences) con la forma:
+Responde ÚNICAMENTE con un bloque JSON válido (sin code fences) con esta forma:
 
 {
+  "conversational_reply": "respuesta al usuario en español, natural, sin metalenguaje, tan breve como puedas ser útil",
   "action": "reply" | "generate" | "rewrite",
   {$draftShape}  // OMÍTELO si action == "reply"
 }
 
 Reglas:
+- `conversational_reply`: tu respuesta directa al usuario. NO menciones que vas a incluir JSON ni que sigues un protocolo.
 - Si action == "reply", NO incluyas la clave "draft".
 - Si action == "generate" o "rewrite", incluye "draft" COMPLETO con todos sus campos (no devuelvas parches).
-- No añadas más texto después del JSON.
 - No uses comillas tipográficas; respeta los límites de longitud.
+- SOLO el JSON, sin texto fuera de él.
 TXT;
     }
 

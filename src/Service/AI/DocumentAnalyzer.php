@@ -9,7 +9,6 @@ use App\Prompt\PromptStore;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
-use App\Service\AI\Llm\ModelSize;
 use App\Service\Document\PdfRasterizer;
 use App\Service\Document\PdfTextExtractor;
 use League\Flysystem\FilesystemOperator;
@@ -61,7 +60,6 @@ final class DocumentAnalyzer
         $data = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: '',
             userParts: $parts,
-            size: ModelSize::Mid,
             temperature: 1.0,
             jsonMode: true,
             maxOutputTokens: 16384,
@@ -151,7 +149,6 @@ final class DocumentAnalyzer
         $data = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: '',
             userParts: $parts,
-            size: ModelSize::Mid,
             temperature: 1.0,
             jsonMode: true,
             maxOutputTokens: 16384,

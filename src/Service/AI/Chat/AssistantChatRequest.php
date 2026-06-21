@@ -9,9 +9,9 @@ use App\Prompt\CompiledPrompt;
 use App\Service\AI\Llm\ContentPart;
 
 /**
- * Input to {@see AssistantChatStreamer::stream()}. Carries the user-facing
- * inputs of one chat turn plus the prompt the flow-specific composer
- * produced. The streamer is otherwise flow-agnostic.
+ * Input to {@see \App\Service\AI\Agent\AgentChatOrchestrator::stream()}.
+ * Carries one chat turn's user-facing inputs plus the system prompt produced
+ * by the flow-specific composer. The orchestrator is flow-agnostic.
  */
 final readonly class AssistantChatRequest
 {
