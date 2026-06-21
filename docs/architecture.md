@@ -222,6 +222,7 @@ El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un mode
 | `SearchResolutionsTool` | RAG de dos etapas: screening por keypoints + revisión de texto completo |
 | `ReadRequestDocumentsTool` | Lee documentos de la solicitud con sub-llamada LLM por documento |
 | `GetUserPreferencesTool` | Devuelve las preferencias de redacción del usuario |
+| `SaveUserPreferenceTool` | Persiste una preferencia de estilo generalizable aprendida del usuario |
 | `AgentProgress` | Buffer compartido de pasos de progreso emitidos por las herramientas |
 | `ChatHistoryStore` | Historial de chat por usuario/hilo en tabla `ai_chat_messages` (aislamiento `user_id`) |
 | `CustomModelClient` | Endpoint OpenAI-compatible; incluye `chatWithTools()` (tool loop) y `chatRaw()` (JSON schema) |
@@ -248,9 +249,9 @@ El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un mode
 
 | Evento | Payload | Cuándo |
 |---|---|---|
-| `step` | `{message, tool}` | Antes de cada herramienta y en cada sub-paso interno |
+| `step` | `{message, tool}` | Antes de cada herramienta y en cada sub-paso interno (incl. `Aprendiendo preferencia…`) |
 | `chat_token` | `{text}` | Chunks del `conversational_reply` final |
-| `decision` | `{action, draft}` | Al finalizar; `action` ∈ `{reply, generate, rewrite}` |
+| `decision` | `{action, draft, plan}` | Al finalizar; `action` ∈ `{reply, generate, rewrite}` |
 | `error` | `{message}` | Cualquier fallo |
 | `done` | `{}` | Siempre al terminar |
 
@@ -274,10 +275,33 @@ user.writing_preferences (JSONB)
     "tone":       "formal|informal|neutral",
     "salutation": "texto libre",
     "closing":    "texto libre",
-    "notes":      "instrucciones adicionales"
+    "notes":      "instrucciones adicionales",
+    "learned":    ["Al usuario le gusta ir al grano…", …]   // aprendidas por el agente
   }
 
-PATCH /api/user/writing-preferences  → actualiza el campo
+PATCH /api/user/writing-preferences  → actualiza las 4 claves manuales (preserva `learned`)
+WritingPreferencesFormatter            → única fuente del bloque inyectado
 RequestPromptComposer  }
-ComplaintPromptComposer}  → inyectan el bloque si el usuario tiene preferencias
+ComplaintPromptComposer}  → inyectan el bloque (manual + "Estilo aprendido")
+GetUserPreferencesTool }
 ```
+
+#### Aprendizaje de preferencias de estilo
+
+Cuando el usuario pide modificar un borrador con una instrucción **generalizable** ("hazla
+más corta", "ve más al grano", "parafrasea más la resolución") o enuncia explícitamente un
+gusto de estilo, el agente la guarda como preferencia duradera; las instrucciones
+**específicas del caso** ("elimina el segundo argumento") no se guardan. Si duda, pregunta
+antes de guardar.
+
+- El `LEARNING_PREAMBLE` (común a ambos flujos) instruye al modelo a llamar a la herramienta
+  **`SaveUserPreferenceTool`** (`save_user_preference(preference, replaces?)`).
+- Persistir vía **tool** (no vía un campo de la decisión final) es deliberado: el modelo la
+  llama de forma fiable y la preferencia se **commitea a mitad del tool-loop**, antes de la
+  (a veces larga) generación final — así sobrevive aunque el stream SSE se interrumpa.
+- La tool emite el paso de progreso **"Aprendiendo preferencia…"** y persiste con
+  `User::applyLearnedPreferenceDeltas()` (dedup, tope de 15, *case-insensitive*; soporta
+  añadir, actualizar y olvidar ante contradicciones) + `flush()`.
+- Las preferencias aprendidas son **globales por usuario** y se reinyectan al inicio de toda
+  generación futura (solicitudes, reclamaciones y respuestas a alegaciones), renderizadas por
+  `WritingPreferencesFormatter` bajo "Estilo aprendido".
