@@ -185,7 +185,7 @@ export default class extends Controller {
                         <details class="chat-progress-history">
                             <summary>${completedSteps.length} paso${completedSteps.length !== 1 ? 's' : ''} previos</summary>
                             <div class="chat-progress-history-list">
-                                ${completedSteps.map(s => `<div class="chat-progress-step-done">${this._escape(s)}</div>`).join('')}
+                                ${completedSteps.map(s => `<div class="chat-progress-step-done" title="${this._escape(s)}">${this._escape(s)}</div>`).join('')}
                             </div>
                         </details>`;
                 } else {
@@ -193,6 +193,15 @@ export default class extends Controller {
                 }
             }
             if (tokens) tokens.style.display = '';
+            // Pin the view to the START of the generated response instead of
+            // following the text to the bottom, so there's no jump when the
+            // reply appears. After this one-time positioning we never auto-scroll
+            // the reply, letting the user read from the beginning.
+            if (this.hasHistoryTarget) {
+                const hb = this.historyTarget.getBoundingClientRect();
+                const bb = assistantBubble.getBoundingClientRect();
+                this.historyTarget.scrollTop += (bb.top - hb.top) - 8;
+            }
         };
 
         this._abort = new AbortController();
@@ -276,18 +285,29 @@ export default class extends Controller {
                         const done = document.createElement('div');
                         done.className = 'chat-progress-step-done';
                         done.textContent = prev;
+                        done.title = prev; // full text on hover (the line is truncated)
                         progressSteps.appendChild(done);
                         progressSteps.scrollTop = progressSteps.scrollHeight;
                     }
                     progressCurrent.textContent = msg;
+                    // Replay the subtle fade on the running action line.
+                    const currentLine = progressCurrent.parentElement;
+                    if (currentLine) {
+                        currentLine.style.animation = 'none';
+                        void currentLine.offsetWidth;
+                        currentLine.style.animation = '';
+                    }
                 }
                 this._scrollToBottom();
                 break;
             }
             case 'chat_token':
                 if (activateText) activateText();
-                tokensEl.textContent += String(payload.text ?? '');
-                this._scrollToBottom();
+                // Accumulate the agent's HTML and render it (sanitized). No scroll —
+                // the view stays at the START of the reply (set by activateText).
+                tokensEl._raw = (tokensEl._raw || '') + String(payload.text ?? '');
+                tokensEl.classList.add('chat-md');
+                tokensEl.innerHTML = this._renderHtml(tokensEl._raw);
                 break;
             case 'decision':
                 if (activateText) activateText();
@@ -295,8 +315,9 @@ export default class extends Controller {
                 break;
             case 'error':
                 if (activateText) activateText();
-                tokensEl.textContent = (tokensEl.textContent || '') + ' ⚠ ' + (payload.message || '');
-                this._scrollToBottom();
+                tokensEl._raw = (tokensEl._raw || '') + '<p>⚠ ' + this._escape(payload.message || '') + '</p>';
+                tokensEl.classList.add('chat-md');
+                tokensEl.innerHTML = this._renderHtml(tokensEl._raw);
                 break;
             case 'done':
                 if (activateText) activateText();
@@ -307,7 +328,13 @@ export default class extends Controller {
         }
     }
 
-    _applyDecision({ action, draft, previous }, tokensEl) {
+    _applyDecision({ action, draft, previous, plan }, tokensEl) {
+        // FASE 1 plan: render each administration argument + dismantling strategy
+        // as a card right under the reply.
+        if (Array.isArray(plan) && plan.length) {
+            this._renderPlanCards(plan, tokensEl);
+        }
+
         if (action === 'reply' || !draft) {
             return;
         }
@@ -440,5 +467,78 @@ export default class extends Controller {
         return String(s).replace(/[&<>"']/g, (c) => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[c]));
+    }
+
+    /**
+     * Sanitize agent-supplied HTML against an allowlist before it is inserted
+     * with innerHTML. The agent emits HTML directly (no Markdown step), but its
+     * output is still filtered: disallowed elements are unwrapped, dangerous ones
+     * (script/style/iframe…) removed, and every attribute except a safe `href`
+     * on links is stripped. Parsing happens in an inert <template>, so nothing
+     * executes or loads during sanitization.
+     */
+    _renderHtml(raw) {
+        const ALLOWED = new Set(['P', 'BR', 'STRONG', 'B', 'EM', 'I', 'U', 'UL', 'OL', 'LI', 'A', 'CODE', 'SPAN', 'BLOCKQUOTE', 'H4', 'H5']);
+        const REMOVE = new Set(['SCRIPT', 'STYLE', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'SVG', 'MATH', 'IMG', 'FORM', 'INPUT', 'BUTTON']);
+
+        const tpl = document.createElement('template');
+        tpl.innerHTML = String(raw);
+
+        const sanitize = (node) => {
+            for (const child of Array.from(node.childNodes)) {
+                if (child.nodeType === Node.COMMENT_NODE) { child.remove(); continue; }
+                if (child.nodeType !== Node.ELEMENT_NODE) continue;
+                const tag = child.tagName;
+                if (REMOVE.has(tag)) { child.remove(); continue; }
+                if (!ALLOWED.has(tag)) { sanitize(child); child.replaceWith(...child.childNodes); continue; }
+                for (const attr of Array.from(child.attributes)) {
+                    const name = attr.name.toLowerCase();
+                    const okHref = tag === 'A' && name === 'href' && /^(https?:|mailto:)/i.test(attr.value.trim());
+                    if (!okHref) child.removeAttribute(attr.name);
+                }
+                if (tag === 'A') { child.setAttribute('target', '_blank'); child.setAttribute('rel', 'noopener noreferrer'); }
+                sanitize(child);
+            }
+        };
+        sanitize(tpl.content);
+        return tpl.innerHTML;
+    }
+
+    /**
+     * Render the FASE 1 plan as cards: one per administration argument, each
+     * showing what the administration claims and how it will be dismantled.
+     * Appended under the reply text in the same assistant bubble.
+     *
+     * @param {Array<{argument: string, strategy: string}>} plan
+     */
+    _renderPlanCards(plan, tokensEl) {
+        const bubble = tokensEl.closest('.chat-turn-assistant') || tokensEl.parentElement;
+        if (!bubble) return;
+        let wrap = bubble.querySelector('.chat-cards');
+        if (!wrap) {
+            wrap = document.createElement('div');
+            wrap.className = 'chat-cards';
+            bubble.appendChild(wrap);
+        }
+        wrap.innerHTML = plan.map((p, i) => `
+            <div class="chat-card">
+                <div class="chat-card-num">${i + 1}</div>
+                <div class="chat-card-body">
+                    <div class="chat-card-field">
+                        <span class="chat-card-label">Argumento de la Administración</span>
+                        <span class="chat-card-arg">${this._escape(p.argument || '')}</span>
+                    </div>
+                    <div class="chat-card-field">
+                        <span class="chat-card-label">Cómo lo desmontamos</span>
+                        <span class="chat-card-strategy">${this._escape(p.strategy || '')}</span>
+                    </div>
+                </div>
+            </div>`).join('');
+        if (this.hasHistoryTarget) {
+            // Keep the start of the reply in view (don't jump past the cards).
+            const hb = this.historyTarget.getBoundingClientRect();
+            const bb = bubble.getBoundingClientRect();
+            this.historyTarget.scrollTop += (bb.top - hb.top) - 8;
+        }
     }
 }

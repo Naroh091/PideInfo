@@ -6,6 +6,7 @@ namespace App\Service\AI\Agent\Tool;
 
 use App\Entity\AccessRequest;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\Mcp\Service\DocumentContentReader;
 use App\Prompt\PromptStore;
 use App\Repository\AccessRequestRepository;
@@ -16,6 +17,8 @@ use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Contracts\Cache\CacheInterface;
+use Symfony\Contracts\Cache\ItemInterface;
 
 /**
  * Agent tool: reads documents attached to a request and extracts key points
@@ -31,6 +34,20 @@ final class ReadRequestDocumentsTool
     /** Max raw text characters sent to the extraction LLM per document. */
     private const MAX_TEXT_PER_DOC = 20_000;
 
+    /** Structured-output schema for per-document extraction (guaranteed valid JSON). */
+    private const EXTRACTION_SCHEMA = [
+        'type'                 => 'object',
+        'additionalProperties' => false,
+        'required'             => ['document_type', 'key_facts', 'denial_reasons', 'relevant_dates', 'useful_for_drafting'],
+        'properties'           => [
+            'document_type'       => ['type' => 'string', 'enum' => ['respuesta_administracion', 'silencio', 'recurso', 'escrito_usuario', 'otro']],
+            'key_facts'           => ['type' => 'array', 'items' => ['type' => 'string']],
+            'denial_reasons'      => ['type' => 'array', 'items' => ['type' => 'string']],
+            'relevant_dates'      => ['type' => 'object', 'additionalProperties' => ['type' => 'string']],
+            'useful_for_drafting' => ['type' => 'string'],
+        ],
+    ];
+
     public function __construct(
         private readonly AccessRequestRepository $requestRepository,
         private readonly DocumentContentReader $contentReader,
@@ -38,6 +55,7 @@ final class ReadRequestDocumentsTool
         private readonly PromptStore $promptStore,
         private readonly Security $security,
         private readonly AgentProgress $progress,
+        private readonly CacheInterface $cache,
     ) {
     }
 
@@ -74,6 +92,14 @@ final class ReadRequestDocumentsTool
             return 'La solicitud no tiene documentos adjuntos.';
         }
 
+        // Prioritise the argument-bearing documents (resolution/denial + the
+        // administration's alegaciones) so they are ALWAYS within the analysed
+        // slice. Otherwise, with documents stored in arbitrary order, the docs
+        // that actually contain the arguments to refute (often added late in the
+        // expediente) could fall outside the `limit` and never be read — leaving
+        // the agent blind to half the administration's reasoning.
+        $allDocs = $this->prioritiseForDrafting($allDocs);
+
         $docs = array_slice($allDocs, 0, $limit);
         $truncated = $total > $limit;
 
@@ -81,14 +107,88 @@ final class ReadRequestDocumentsTool
             ? $context
             : 'Redacción de reclamación o alegaciones relacionadas con la solicitud de acceso a información pública.';
 
-        $extractions = [];
+        // Cache the (expensive, ~1 LLM call per document) extraction so repeated
+        // reads of the SAME documents within a drafting session — e.g. the
+        // planning turn followed by the generation turn — reuse the analysis
+        // instead of re-running it. Keyed by user + request + the document set
+        // fingerprint (id + createdAt), so any document change busts the cache.
+        // The `context` is intentionally NOT part of the key: extraction is
+        // about the documents' facts, which don't change with the drafting hint.
+        $fingerprint = '';
         foreach ($docs as $doc) {
-            $filename = $doc->getOriginalFilename() ?? 'documento';
-            $this->progress->step("Leyendo {$filename}…", 'read_request_documents');
-            $extractions[] = $this->extractFromDocument($doc, $draftingContext);
+            $fingerprint .= $doc->getId()->toRfc4122() . ':' . $doc->getCreatedAt()->getTimestamp() . '|';
         }
+        $cacheKey = 'agent_doc_extract_' . hash(
+            'xxh128',
+            $user->getId()->toRfc4122() . '|' . $requestId . '|' . $limit . '|' . $fingerprint,
+        );
 
-        return $this->formatExtractions($extractions, $total, $truncated);
+        return $this->cache->get($cacheKey, function (ItemInterface $item) use ($docs, $draftingContext, $total, $truncated) {
+            $extractions = [];
+            $hadError = false;
+            foreach ($docs as $doc) {
+                $filename = $doc->getOriginalFilename() ?? 'documento';
+                $this->progress->step("Leyendo {$filename}…", 'read_request_documents');
+                $extraction = $this->extractFromDocument($doc, $draftingContext);
+                $hadError = $hadError || $this->isFailedExtraction($extraction);
+                $extractions[] = $extraction;
+            }
+
+            // Don't lock in a transient failure for an hour: short TTL if any
+            // document failed to extract, full TTL otherwise.
+            $item->expiresAfter($hadError ? 60 : 3600);
+
+            return $this->formatExtractions($extractions, $total, $truncated);
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $extraction
+     */
+    private function isFailedExtraction(array $extraction): bool
+    {
+        return isset($extraction['error'])
+            || ($extraction['useful_for_drafting'] ?? '') === 'Error al analizar el documento.';
+    }
+
+    /**
+     * Reorder documents so the ones that carry the administration's arguments
+     * (the resolution being challenged and its alegaciones) come first, the
+     * request itself next (to know what was asked), and purely procedural
+     * paperwork (receipts, processing-start notices) last. Stable within each
+     * rank so original order is preserved for ties.
+     *
+     * @param array<int, \App\Entity\Document> $docs
+     * @return array<int, \App\Entity\Document>
+     */
+    private function prioritiseForDrafting(array $docs): array
+    {
+        $rank = static function (object $doc): int {
+            return match ($doc->getType()) {
+                DocumentType::Response,
+                DocumentType::ComplaintResolution      => 0, // the act being challenged
+                DocumentType::Alegaciones,
+                DocumentType::AlegationResponse,
+                DocumentType::Audiencia                => 1, // arguments to refute
+                DocumentType::ThirdPartyRights,
+                DocumentType::Subsanacion,
+                DocumentType::SubsanacionResponse,
+                DocumentType::Extension,
+                DocumentType::Redirection              => 2,
+                DocumentType::Request                  => 3, // what was asked
+                default                                => 4, // receipts, notifications, other
+            };
+        };
+
+        // usort is not stable across all PHP versions for equal ranks; decorate
+        // with the original index to guarantee a stable sort.
+        $decorated = [];
+        foreach ($docs as $i => $doc) {
+            $decorated[] = [$rank($doc), $i, $doc];
+        }
+        usort($decorated, static fn (array $a, array $b) => [$a[0], $a[1]] <=> [$b[0], $b[1]]);
+
+        return array_map(static fn (array $d) => $d[2], $decorated);
     }
 
     /**
@@ -139,6 +239,8 @@ final class ReadRequestDocumentsTool
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 userText: $userText,
+                jsonSchema: self::EXTRACTION_SCHEMA,
+                schemaName: 'document_extraction',
                 maxOutputTokens: 1024,
                 maxRetries: 1,
                 requiredJsonKeys: ['useful_for_drafting'],
