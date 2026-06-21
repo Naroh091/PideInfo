@@ -9,37 +9,24 @@ use OpenTelemetry\API\Trace\SpanInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\AsDecorator;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\DependencyInjection\Attribute\AutowireDecorated;
 
 /**
  * Decorator that wraps every chat() call (and every retry attempt inside chatJson)
- * with a Langfuse "generation" span. Captures input messages, response, model and
- * token usage when available.
+ * with a Langfuse "generation" span.
  */
 #[AsDecorator(decorates: LlmClient::class)]
 final class TracingLlmClient extends LlmClient
 {
-    private readonly bool $useCustomCached;
-
     public function __construct(
         #[AutowireDecorated]
         private readonly LlmClient $inner,
         private readonly Tracer $tracer,
-        #[Autowire(env: 'bool:USE_CUSTOM_MODEL')]
-        bool $useCustom,
         private readonly CustomModelClient $customClient,
-        GeminiChatClient $geminiClient,
         LoggerInterface $logger,
         private readonly ?Security $security = null,
     ) {
-        parent::__construct($useCustom, $customClient, $geminiClient, $logger);
-        $this->useCustomCached = $useCustom;
-    }
-
-    public function isCustomEnabled(): bool
-    {
-        return $this->useCustomCached;
+        parent::__construct($customClient, $logger);
     }
 
     public function chat(ChatRequest $req): ChatResult
@@ -131,17 +118,14 @@ final class TracingLlmClient extends LlmClient
     {
         $attrs = [
             AttributeKeys::GEN_AI_OPERATION => 'chat',
-            AttributeKeys::GEN_AI_SYSTEM => $this->useCustomCached ? 'openai' : 'google.generative_ai',
+            AttributeKeys::GEN_AI_SYSTEM => 'openai',
             AttributeKeys::GEN_AI_REQUEST_MODEL => $req->size->name,
-            // The custom backend ignores the per-request temperature and always runs at CUSTOM_MODEL_TEMP.
-            AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $this->useCustomCached ? $this->customClient->getTemperature() : $req->temperature,
+            AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $this->customClient->getTemperature(),
             AttributeKeys::GEN_AI_REQUEST_MAX_TOKENS => $req->maxOutputTokens,
             AttributeKeys::LANGFUSE_OBSERVATION_LABEL => $req->label,
             AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $this->serializeInput($req),
         ];
 
-        // Link the generation to the Langfuse-managed prompt. Only possible when the
-        // template actually came from Langfuse (bundled fallbacks have no version).
         if ($req->promptRef?->version !== null) {
             $attrs[AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_NAME] = $req->promptRef->name;
             $attrs[AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_VERSION] = $req->promptRef->version;
@@ -176,10 +160,6 @@ final class TracingLlmClient extends LlmClient
     {
         $payload = ['system' => $req->systemPrompt];
 
-        // History and current-turn parts are NOT mutually exclusive: the unified
-        // chat assistant sends both (messages = prior turns, userParts = new turn).
-        // Log every field that's populated so the trace mirrors what the backend
-        // actually receives in CustomModelClient::buildDispatchInput().
         if (!empty($req->messages)) {
             $payload['messages'] = array_map(
                 fn ($m) => ['role' => $m->role, 'content' => $m->content],

@@ -183,9 +183,6 @@ class ComplaintRedactController extends AbstractController
         $draftDoc = $this->resolveDraftForChat($accessRequest, $mode, $draftIdParam);
 
         if (in_array($action, ['generate_first_draft', 'rewrite'], true)) {
-            if (!$this->llmClient->isCustomEnabled()) {
-                return new JsonResponse(['error' => 'streaming_unavailable'], Response::HTTP_SERVICE_UNAVAILABLE);
-            }
             return $this->streamCanvasAction($accessRequest, $mode, $action, $currentBodyHtml, $userMessage, $directions, $documentIds, $draftDoc);
         }
 

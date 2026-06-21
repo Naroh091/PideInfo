@@ -60,7 +60,7 @@ class DebugDocumentAnalysisCommand extends Command
                 ['MIME Type', $document->getMimeType()],
                 ['Current Type', $document->getType()->value . ' (' . $document->getTypeLabel() . ')'],
                 ['Processed', $document->isProcessed() ? 'Yes' : 'No'],
-                ['Active backend', $this->llmClient->isCustomEnabled() ? 'custom' : 'gemini'],
+                ['Active backend', 'custom'],
             ]
         );
 

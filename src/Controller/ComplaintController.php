@@ -169,7 +169,7 @@ class ComplaintController extends AbstractController
         );
         $documentContents = $this->gatherDocumentContents($accessRequest, $documentIds);
 
-        $supportsStreaming = $this->llmClient->isCustomEnabled();
+        $supportsStreaming = true;
 
         $response = new StreamedResponse(function () use ($mode, $accessRequest, $conversationHistory, $userDirections, $documentContents, $supportsStreaming): void {
             // Disable any active output buffering so chunks reach the proxy immediately,

@@ -202,7 +202,7 @@ final class DocumentAnalyzer
             }
         }
 
-        if ($mimeType === 'application/pdf' && $this->llmClient->isCustomEnabled()) {
+        if ($mimeType === 'application/pdf') {
             return $this->buildPdfPartsForCustomBackend($content, $contextLabel, $filename);
         }
 

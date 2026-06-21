@@ -242,9 +242,7 @@ final class ResolutionAnalyzer
 
     private function buildFormatTextSystemPrompt(): CompiledPrompt
     {
-        $customSuffix = $this->llmClient->isCustomEnabled()
-            ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"formatted_text\": \"HTML formateado aquí\"}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
-            : '';
+        $customSuffix = "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"formatted_text\": \"HTML formateado aquí\"}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
 
         return $this->promptStore->compile('pideinfo-resolution-format-text-system', [
             'custom_suffix' => $customSuffix,
@@ -362,12 +360,9 @@ final class ResolutionAnalyzer
      */
     private function doExtractAnalysis(string $cleanedText, bool $flex, bool $skipResolutionDate): array
     {
-        $customSuffix = '';
-        if ($this->llmClient->isCustomEnabled()) {
-            $customSuffix = $skipResolutionDate
-                ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
-                : "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"resolution_date\": \"YYYY-MM-DD o null\", \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
-        }
+        $customSuffix = $skipResolutionDate
+            ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
+            : "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"resolution_date\": \"YYYY-MM-DD o null\", \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
         $prompt = $this->buildExtractAnalysisPrompt(skipResolutionDate: $skipResolutionDate, customSuffix: $customSuffix);
 
         $result = $this->llmClient->chatJson(new ChatRequest(
@@ -439,9 +434,7 @@ final class ResolutionAnalyzer
      */
     public function extractNonCompleteAnalysis(string $cleanedText, bool $flex = false): array
     {
-        $customSuffix = $this->llmClient->isCustomEnabled()
-            ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"claim_reason\": \"frase corta o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
-            : '';
+        $customSuffix = "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"claim_reason\": \"frase corta o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
         $prompt = $this->buildNonCompleteAnalysisPrompt($customSuffix);
 
         $result = $this->llmClient->chatJson(new ChatRequest(
