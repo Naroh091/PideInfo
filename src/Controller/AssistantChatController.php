@@ -188,6 +188,7 @@ final class AssistantChatController extends AbstractController
             label: $traceName,
             promptRef: $composedPrompt,
             traceName: $traceName,
+            hasDraft: trim(strip_tags($currentBodyHtml)) !== '',
         );
 
         return $this->streamTurn(

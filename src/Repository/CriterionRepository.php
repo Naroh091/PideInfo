@@ -25,6 +25,34 @@ class CriterionRepository extends ServiceEntityRepository
     }
 
     /**
+     * Fetch criteria by id, returned as a map keyed by string id so callers can
+     * enrich vector-store hits with the authoritative entity (full text,
+     * summary, keypoints). Mirrors ResolutionRepository::findByIds().
+     *
+     * @param array<int, string> $ids
+     * @return array<string, Criterion>
+     */
+    public function findByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('c')
+            ->where('c.id IN (:ids)')
+            ->setParameter('ids', array_values(array_unique($ids)))
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($rows as $c) {
+            $map[(string) $c->getId()] = $c;
+        }
+
+        return $map;
+    }
+
+    /**
      * @return Criterion[]
      */
     public function findBySource(string $source): array

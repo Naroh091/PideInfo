@@ -97,12 +97,13 @@ final class ResolutionRetriever
             $resolutionIds = [];
             $scores = [];
             foreach ($documents as $document) {
-                $resolutionId = $document->metadata['resolution_id'] ?? null;
+                $metadata = $document->getMetadata();
+                $resolutionId = $metadata['resolution_id'] ?? null;
                 if (!$resolutionId || isset($resolutionIds[$resolutionId])) {
                     continue;
                 }
                 $resolutionIds[$resolutionId] = true;
-                $scores[$resolutionId] = $document->score;
+                $scores[$resolutionId] = $document->getScore();
             }
 
             if (empty($resolutionIds)) {

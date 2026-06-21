@@ -29,6 +29,13 @@ final readonly class AssistantChatRequest
         public string $label,
         public ?CompiledPrompt $promptRef = null,
         public ?string $traceName = null,
+        /**
+         * True when the canvas already holds a draft. Used by the orchestrator
+         * to hard-enforce the planning phase (FASE 1) on the first drafting
+         * turn: when there is no draft yet and no prior assistant turn, the
+         * model is forced to return a plan instead of generating.
+         */
+        public bool $hasDraft = false,
     ) {
     }
 }

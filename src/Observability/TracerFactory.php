@@ -61,7 +61,9 @@ final class TracerFactory
                 timeout: max(1.0, $this->timeoutMillis / 1000.0),
             );
 
-            $exporter = new SpanExporter($transport);
+            // Langfuse answers OTLP exports with `200 {}` (JSON) instead of a protobuf
+            // response; this wrapper stops the exporter from choking on that body.
+            $exporter = new SpanExporter(new JsonTolerantOtlpTransport($transport));
 
             $resourceAttributes = [
                 ResourceAttributes::SERVICE_NAME => $this->serviceName !== '' ? $this->serviceName : 'pideinfo',

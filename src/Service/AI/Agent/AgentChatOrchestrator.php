@@ -10,6 +10,7 @@ use App\Observability\Tracer;
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
 use App\Service\AI\Agent\Tool\ReadRequestDocumentsTool;
+use App\Service\AI\Agent\Tool\SearchCriteriaTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsTool;
 use App\Service\AI\Chat\AssistantChatRequest;
 use App\Service\AI\CustomModelClient;
@@ -53,9 +54,22 @@ final class AgentChatOrchestrator
         'properties'           => [
             'conversational_reply' => [
                 'type'        => 'string',
-                'description' => 'Respuesta breve al usuario, idealmente 1-2 frases: qué vas a hacer o qué has hecho. NO expliques el proceso ni el contenido del borrador aquí.',
+                'description' => 'Respuesta al usuario en español, en HTML directo (NO Markdown, NO asteriscos). Etiquetas permitidas: <p>, <strong>, <em>, <ul>, <ol>, <li>, <br>, <a>, <code>. Breve, 1-2 frases. En la FASE 1 de planificación, aquí va SOLO una introducción breve (p. ej. "<p>He analizado el expediente. Estos son los argumentos de la Administración y cómo los desmontaré:</p>") — el detalle de cada argumento va en el campo `plan`. NO vuelques el contenido del borrador aquí.',
             ],
             'action'               => ['type' => 'string', 'enum' => ['reply', 'generate', 'rewrite']],
+            'plan'                 => [
+                'type'        => ['array', 'null'],
+                'description' => 'SOLO en la FASE 1 de planificación: un elemento por cada argumento de la Administración que hay que rebatir. Cada elemento se mostrará al usuario como una tarjeta. Deja vacío/null cuando generes o reescribas el borrador.',
+                'items'       => [
+                    'type'                 => 'object',
+                    'additionalProperties' => false,
+                    'required'             => ['argument', 'strategy'],
+                    'properties'           => [
+                        'argument' => ['type' => 'string', 'description' => 'Qué alega la Administración (la causa de inadmisión, el límite o la objeción concreta), en una frase.'],
+                        'strategy' => ['type' => 'string', 'description' => 'Cómo se va a desmontar ese argumento, en una o dos frases (doctrina, criterio, principio aplicable).'],
+                    ],
+                ],
+            ],
             'draft'                => [
                 'type'       => ['object', 'null'],
                 'properties' => [
@@ -64,6 +78,41 @@ final class AgentChatOrchestrator
                     'body_text' => ['type' => 'string'],
                     'expone'    => ['type' => 'string'],
                     'solicita'  => ['type' => 'string'],
+                ],
+            ],
+        ],
+    ];
+
+    /**
+     * Hard-enforced FASE 1 schema. Used on the first drafting turn (no draft yet,
+     * no prior assistant turn): `action` is locked to `reply` and `plan` is
+     * required, so the model CANNOT generate the draft — it must propose the plan
+     * first. This makes the planning phase non-skippable regardless of how the
+     * user phrases the request.
+     *
+     * @var array<string, mixed>
+     */
+    private const PLAN_SCHEMA = [
+        'type'                 => 'object',
+        'additionalProperties' => false,
+        'required'             => ['conversational_reply', 'action', 'plan'],
+        'properties'           => [
+            'conversational_reply' => [
+                'type'        => 'string',
+                'description' => 'Introducción BREVE en HTML (p. ej. "<p>He analizado el expediente. Estos son los argumentos de la Administración y cómo los desmontaré:</p>") y, al final, la pregunta de confirmación. El detalle de cada argumento NO va aquí, va en `plan`.',
+            ],
+            'action' => ['type' => 'string', 'enum' => ['reply']],
+            'plan'   => [
+                'type'     => 'array',
+                'minItems' => 1,
+                'items'    => [
+                    'type'                 => 'object',
+                    'additionalProperties' => false,
+                    'required'             => ['argument', 'strategy'],
+                    'properties'           => [
+                        'argument' => ['type' => 'string', 'description' => 'Qué alega la Administración (1 frase).'],
+                        'strategy' => ['type' => 'string', 'description' => 'Cómo se desmonta (1-2 frases).'],
+                    ],
                 ],
             ],
         ],
@@ -88,6 +137,13 @@ Busca resoluciones del CTBG y órganos autonómicos que apoyen un argumento jur�
   - `search_resolutions("inadmisión por información ya publicada, [contexto del organismo]")`
 - Para silencio administrativo: `search_resolutions("reclamación por silencio administrativo, [tipo de información solicitada]")`
 
+### search_criteria
+Busca **Criterios Interpretativos del CTBG** (p. ej. CI/006/2015 sobre información auxiliar) que definan cómo interpretar el límite o la causa de inadmisión invocada. Son doctrina fundacional, a menudo la base más sólida para desmontar el argumento de la Administración.
+
+**CÓMO USARLA:**
+- Llámala **junto a `search_resolutions`, una vez por cada argumento/causa de inadmisión** que debas rebatir.
+- Ejemplo: `search_criteria("información de carácter auxiliar o de apoyo, art. 18.1.b")` o `search_criteria("reelaboración como causa de inadmisión, art. 18.1.c")`.
+
 ### read_request_documents
 Lee y analiza los documentos adjuntos a la solicitud (resolución de la Administración, acuses de recibo, alegaciones, etc.). Úsala al inicio para conocer los argumentos exactos de la Administración.
 
@@ -98,10 +154,10 @@ Devuelve las preferencias de redacción del usuario. Úsala al inicio de una ses
 
 **Protocolo obligatorio para generar o reescribir un borrador:**
 1. **Primero** lee los documentos con `read_request_documents` para identificar los argumentos exactos que ha invocado la Administración (límites del art.14, causas de inadmisión del art.18, etc.)
-2. **Para cada argumento concreto identificado**, llama a `search_resolutions` con ese argumento específico — una llamada por argumento
-3. **Si `search_resolutions` devuelve que no ha encontrado resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso"
-4. Una vez tienes resoluciones por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
-5. NO busques resoluciones antes de leer los documentos
+2. **Para cada argumento concreto identificado**, llama a `search_resolutions` Y a `search_criteria` con ese argumento específico — una llamada de cada por argumento
+3. **Si `search_resolutions` o `search_criteria` no devuelven resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso"
+4. Una vez tienes doctrina (resoluciones y/o criterios) por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
+5. NO busques doctrina antes de leer los documentos
 
 TXT;
 
@@ -112,6 +168,7 @@ TXT;
     public function __construct(
         private readonly CustomModelClient $customClient,
         private readonly SearchResolutionsTool $searchTool,
+        private readonly SearchCriteriaTool $criteriaTool,
         private readonly ReadRequestDocumentsTool $docTool,
         private readonly GetUserPreferencesTool $prefsTool,
         private readonly AgentProgress $agentProgress,
@@ -119,7 +176,7 @@ TXT;
         private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
-        $toolInstances = [$searchTool, $docTool, $prefsTool];
+        $toolInstances = [$searchTool, $criteriaTool, $docTool, $prefsTool];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
     }
@@ -136,14 +193,15 @@ TXT;
     {
         $userId = $this->security->getUser()?->getUserIdentifier();
 
-        $traceInput = json_encode([
-            'flow'    => $req->flow,
-            'entity'  => $req->entityId,
-            'message' => mb_substr($req->userMessage, 0, 300),
-        ], JSON_UNESCAPED_UNICODE);
+        // Trace name reflects what is being generated, per flow.
+        $traceName = match (true) {
+            $req->flow === 'request'                            => 'RequestGenerationAgent',
+            str_contains((string) $req->traceName, 'Alegation') => 'AlegationGenerationAgent',
+            default                                             => 'ComplaintGenerationAgent',
+        };
 
         return yield from $this->tracer->traceRootStream(
-            name: 'agent.chat-turn',
+            name: $traceName,
             attributes: [
                 AttributeKeys::GEN_AI_SYSTEM        => 'openai',
                 AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
@@ -152,10 +210,14 @@ TXT;
                 'agent.flow'                        => $req->flow,
             ],
             gen: $this->doStream($req, $userId),
-            captureOutput: function (mixed $_, SpanInterface $span) use ($req): void {
-                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, mb_substr($req->flow, 0, 50));
+            // Trace output = the final generated document (reclamación / solicitud /
+            // alegaciones), or the reply text on planning/answer turns. doStream
+            // returns it; traceRootStream forwards the generator's return value here.
+            captureOutput: function (mixed $result, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, is_string($result) ? $result : '');
             },
-            traceInput: $traceInput,
+            // Trace input = the user's own message.
+            traceInput: $req->userMessage,
         );
     }
 
@@ -170,6 +232,16 @@ TXT;
         $this->agentProgress->reset();
         $messages = $this->buildMessages($req);
         $converter = new ToolResultConverter();
+
+        // Link every generation to the Langfuse-managed system prompt it runs on
+        // (name + version). Empty when the prompt came from the bundled fallback
+        // (version null) — then there's no managed prompt to link to.
+        $promptAttrs = $req->promptRef?->version !== null
+            ? [
+                AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_NAME    => $req->promptRef->name,
+                AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_VERSION => $req->promptRef->version,
+            ]
+            : [];
 
         // ── Deterministic pre-calls ──────────────────────────────────────────
         yield from $this->runDeterministicPreCalls($req, $messages);
@@ -205,6 +277,7 @@ TXT;
                         AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
                         'agent.iteration'                         => $iteration,
                         'agent.flow'                              => $req->flow,
+                        ...$promptAttrs,
                     ],
                     fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, $toolChoice),
                     captureOutput: function (array $r, SpanInterface $span): void {
@@ -222,7 +295,11 @@ TXT;
                             );
                             $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, implode(' | ', $callsSummary));
                         } else {
-                            $preview = mb_substr((string) ($r['content'] ?? ''), 0, 300);
+                            // The model returned text (often the decision JSON itself).
+                            // Capture a meaningful summary — full reply + action + draft
+                            // size — instead of a raw 300-char prefix that cuts the reply
+                            // mid-sentence and never shows the action/draft.
+                            $preview = self::summariseDecisionOutput((string) ($r['content'] ?? ''));
                             $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, $preview);
                         }
                     },
@@ -293,11 +370,17 @@ TXT;
             $toolIterations++;
         }
 
+        // FASE 1 hard-enforcement: on the first drafting turn (complaint flow,
+        // no draft yet, no prior assistant turn) the model MUST propose a plan
+        // and cannot generate. We force the plan-only schema and never reuse a
+        // tool-loop decision (which could be a `generate`).
+        $planRequired = $this->planRequired($req);
+
         // ── Final JSON call (or reuse tool-loop response) ────────────────────
         // If the tool-loop already produced a valid DECISION_SCHEMA response
         // (model chose not to call tools and went straight to the answer),
         // reuse it to avoid a second full LLM generation.
-        if ($toolLoopDecision !== null) {
+        if ($toolLoopDecision !== null && !$planRequired) {
             // Reuse the tool-loop response — model produced a valid decision
             // without needing a separate final-decision call. Saves ~9s + ~4500 tokens.
             $data = $toolLoopDecision;
@@ -314,11 +397,12 @@ TXT;
                         AttributeKeys::LANGFUSE_OBSERVATION_INPUT => json_encode(['messages' => count($messages), 'flow' => $req->flow], JSON_UNESCAPED_UNICODE),
                         AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
                         'agent.flow'                              => $req->flow,
+                        ...$promptAttrs,
                     ],
                     fn: fn () => $this->customClient->chatRaw(
                         messages: $messages,
-                        jsonSchema: self::DECISION_SCHEMA,
-                        schemaName: 'assistant_decision',
+                        jsonSchema: $planRequired ? self::PLAN_SCHEMA : self::DECISION_SCHEMA,
+                        schemaName: $planRequired ? 'assistant_plan' : 'assistant_decision',
                         maxRetries: 2,
                         maxOutputTokens: 16384,
                     ),
@@ -326,7 +410,7 @@ TXT;
                         if ($r !== null) {
                             $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r->promptTokens ?? 0);
                             $span->setAttribute(AttributeKeys::GEN_AI_USAGE_OUTPUT_TOKENS, $r->completionTokens ?? 0);
-                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, mb_substr($r->content ?? '', 0, 500));
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, self::summariseDecisionOutput($r->content ?? ''));
                         }
                     },
                 );
@@ -350,8 +434,10 @@ TXT;
         }
 
         // Emit conversational reply in chunks (typing effect without true streaming).
+        // mb_str_split (NOT str_split) so multibyte chars like «ó» are never split
+        // across chunk boundaries — that produced mojibake («Administraci��n»).
         $reply = (string) ($data['conversational_reply'] ?? '');
-        foreach (str_split($reply, self::REPLY_CHUNK_SIZE) as $chunk) {
+        foreach (mb_str_split($reply, self::REPLY_CHUNK_SIZE) as $chunk) {
             yield ['chat_token', ['text' => $chunk]];
         }
 
@@ -370,7 +456,28 @@ TXT;
             return;
         }
 
-        yield ['decision', ['action' => $action, 'draft' => $draft]];
+        // FASE 1 plan: structured list of administration arguments + how each will
+        // be dismantled. Rendered by the client as cards. Only keep well-formed
+        // entries so the UI never gets half-empty cards.
+        $plan = [];
+        foreach ((array) ($data['plan'] ?? []) as $item) {
+            $argument = is_array($item) ? trim((string) ($item['argument'] ?? '')) : '';
+            $strategy = is_array($item) ? trim((string) ($item['strategy'] ?? '')) : '';
+            if ($argument !== '' && $strategy !== '') {
+                $plan[] = ['argument' => $argument, 'strategy' => $strategy];
+            }
+        }
+
+        yield ['decision', ['action' => $action, 'draft' => $draft, 'plan' => $plan]];
+
+        // Return the final generated document (the reclamación / solicitud /
+        // alegaciones) so the root trace's output is the actual result; on
+        // planning/answer turns fall back to the reply text.
+        $finalOutput = is_array($draft)
+            ? (string) ($draft['body_html'] ?? $draft['body_text'] ?? '')
+            : '';
+
+        return $finalOutput !== '' ? $finalOutput : $reply;
     }
 
     /**
@@ -413,6 +520,25 @@ TXT;
             . implode("\n\n---\n\n", $contextParts);
         $messages[] = ['role' => 'assistant', 'content' => $contextBlock];
         $messages[] = ['role' => 'user',      'content' => 'Gracias. Procede ahora siguiendo las instrucciones del sistema.'];
+    }
+
+    /**
+     * Whether the planning phase (FASE 1) must be hard-enforced this turn:
+     * complaint flow, no draft in the canvas yet, and no prior assistant turn
+     * (i.e. this is the first response to the drafting request). In that case
+     * the model is forced to return a plan instead of generating the draft.
+     */
+    private function planRequired(AssistantChatRequest $req): bool
+    {
+        if ($req->flow !== 'complaint' || $req->hasDraft) {
+            return false;
+        }
+        foreach ($req->history as $message) {
+            if ($message->role === 'assistant') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private function buildDraftingContext(AssistantChatRequest $req): string
@@ -511,10 +637,41 @@ TXT;
     {
         return match ($toolName) {
             'search_resolutions'     => 'Buscando resoluciones aplicables…',
+            'search_criteria'        => 'Buscando criterios interpretativos…',
             'read_request_documents' => 'Leyendo documentación de la solicitud…',
             'get_user_preferences'   => 'Cargando preferencias de redacción…',
             default                  => sprintf('Ejecutando %s…', $toolName),
         };
+    }
+
+    /**
+     * Builds a faithful trace preview of a decision-bearing model output.
+     *
+     * The model's text is normally the decision JSON: a `conversational_reply`
+     * (shown to the user) plus an `action` and an optional full HTML `draft`.
+     * A raw character-prefix cuts the reply mid-sentence and never reveals the
+     * action or draft. Instead, when the JSON parses, we surface the COMPLETE
+     * reply, the action, and the draft size; otherwise we fall back to a
+     * generous prefix (and flag likely truncation).
+     */
+    private static function summariseDecisionOutput(string $content): string
+    {
+        // Never truncate the trace: emit the FULL model output. When it parses
+        // as the decision JSON, prepend a one-line header (action + draft size)
+        // for readability, but keep the complete payload below it so nothing —
+        // neither the reply nor the draft — is ever cut.
+        $data = json_decode($content, true);
+        if (is_array($data) && isset($data['conversational_reply'])) {
+            $action = (string) ($data['action'] ?? '—');
+            $draft  = $data['draft'] ?? null;
+            $draftLen = is_array($draft)
+                ? mb_strlen((string) ($draft['body_html'] ?? $draft['body_text'] ?? ''))
+                : 0;
+
+            return sprintf("[decision] action=%s | draft=%d chars\n\n%s", $action, $draftLen, $content);
+        }
+
+        return $content;
     }
 
     /**
