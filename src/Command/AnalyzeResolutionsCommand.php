@@ -180,6 +180,15 @@ class AnalyzeResolutionsCommand extends Command
         } elseif (!$force) {
             if ($mode === 'analyze') {
                 $qb->andWhere('r.keypoints IS NULL');
+            } elseif ($mode === 'format') {
+                // Pick up resolutions that were never analyzed (no summary) OR whose
+                // fullText still has no HTML formatting. The template treats a resolution
+                // as formatted only when fullText contains a <p> or <h2> tag
+                // (templates/resolution/show.html.twig), so mirror that here.
+                $qb->andWhere('(r.summary IS NULL OR r.summary = :emptySummary) OR (r.fullText NOT LIKE :pTag AND r.fullText NOT LIKE :h2Tag)')
+                    ->setParameter('emptySummary', '')
+                    ->setParameter('pTag', '%<p>%')
+                    ->setParameter('h2Tag', '%<h2%');
             } else {
                 $qb->andWhere('r.summary IS NULL OR r.summary = :emptySummary')
                     ->setParameter('emptySummary', '');
