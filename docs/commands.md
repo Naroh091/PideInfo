@@ -540,6 +540,12 @@ php bin/console app:resolutions:analyze [opciones]
 | `--force` | Re-analizar aunque ya tenga resumen/keypoints |
 | `--dry-run` | Previsualizar limpieza de texto sin llamar a la IA |
 | `--clean-only` | Solo limpiar texto, sin llamar a la IA |
+| `--format-only` | Solo formatea el texto a HTML (omite resumen/keypoints) |
+| `--analyze-only` | Solo extrae resumen/keypoints (omite formateo HTML) |
+| `--source=X` | Filtrar por fuente (`CTBG`, `CTG`, `CTAR`, …) |
+| `--async` | Despachar a workers de Messenger en vez de procesar inline |
+
+**Filtro de `--format-only`:** sin `--force`, selecciona las resoluciones que **aún no tienen resumen** (`summary IS NULL`) **o** cuyo `full_text` **todavía no contiene HTML** (`<p>`/`<h2>`). Esto cubre las resoluciones ya analizadas (con resumen) cuyo texto nunca llegó a formatearse, que el filtro basado solo en `summary` se saltaba. El criterio del HTML coincide con el que usa la plantilla `templates/resolution/show.html.twig` para decidir si renderiza el texto como HTML o como texto plano. Con `--force` se reformatea todo sin filtrar.
 
 ---
 
