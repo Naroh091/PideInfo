@@ -47,7 +47,16 @@ final class PdfOcrTranscriber
         pies de página). No traduzcas, no resumas, no añadas comentarios ni explicaciones.
         Devuelve ÚNICAMENTE el texto transcrito. Si la página está en blanco o no contiene
         texto legible, devuelve una cadena vacía.
+
+        Estos documentos pueden estar ANONIMIZADOS: los datos personales aparecen tapados
+        con barras o rectángulos negros. NO intentes transcribir esas zonas tachadas carácter
+        a carácter ni las representes con bloques (█), guiones ni símbolos repetidos. Sustituye
+        cada zona tachada por el marcador «[anonimizado]» una sola vez, y continúa con el resto
+        del texto. Nunca repitas el mismo símbolo muchas veces seguidas.
         PROMPT;
+
+    /** Placeholder substituted for blacked-out (anonymized) regions. */
+    private const REDACTION_PLACEHOLDER = '[anonimizado]';
 
     public function __construct(
         private readonly PdfTextExtractor $pdfTextExtractor,
@@ -162,7 +171,7 @@ final class PdfOcrTranscriber
                 label: sprintf('pdf-ocr-transcribe[p%d]', $pageNumber),
             ));
 
-            return $result->content;
+            return $this->sanitizeTranscription($result->content);
         } catch (\Throwable $e) {
             $this->logger->warning('PdfOcrTranscriber: LLM transcription failed', [
                 'page' => $pageNumber,
@@ -170,6 +179,32 @@ final class PdfOcrTranscriber
             ]);
             return null;
         }
+    }
+
+    /**
+     * Anonymized resolutions cover personal data with solid black bars. The
+     * vision model renders these as runs of block glyphs (█ ▓ ▒ ░ ■ …) and can
+     * fall into a degenerate repetition loop, emitting them until it exhausts the
+     * output-token budget — producing a wall of █ that pollutes the text. The
+     * prompt already asks the model to use a placeholder; this is the
+     * defense-in-depth guard for when it ignores that (and for already-ingested
+     * documents). Collapse any run of block glyphs on a line into a single
+     * placeholder, preserving line structure (a redaction bar is single-line).
+     */
+    private function sanitizeTranscription(string $text): string
+    {
+        // Block Elements (U+2580–U+259F, incl. █), plus ■ ▬ ▮ from Geometric Shapes.
+        $blocks = '\x{2580}-\x{259F}\x{25A0}\x{25AC}\x{25AE}';
+
+        // A run = one block glyph, optionally extended by more block glyphs and
+        // horizontal whitespace, ending in a block glyph → one placeholder.
+        $collapsed = preg_replace(
+            '/[' . $blocks . '](?:[' . $blocks . '\t ]*[' . $blocks . '])?/u',
+            self::REDACTION_PLACEHOLDER,
+            $text,
+        );
+
+        return $collapsed ?? $text;
     }
 
     /**
