@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\AI\Chat\Composer;
 
 use App\Entity\AccessRequest;
+use App\Prompt\CompiledPrompt;
+use App\Prompt\PromptStore;
 use App\Service\AI\Chat\WritingPreferencesFormatter;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Submission\ApplicableLawResolver;
@@ -20,34 +22,40 @@ final class RequestPromptComposer
     public function __construct(
         private readonly ResolutionRetriever $resolutionRetriever,
         private readonly ApplicableLawResolver $applicableLawResolver,
+        private readonly PromptStore $promptStore,
     ) {
     }
 
     /**
      * @param array<int, array<string, mixed>> $similarResolutions
      */
-    public function compose(AccessRequest $ar, array $similarResolutions): string
+    public function compose(AccessRequest $ar, array $similarResolutions): CompiledPrompt
     {
         $isReg = $ar->getRegDestination() !== null;
         $law = $ar->getApplicableLaw();
-        $deadline = $law !== null ? $this->applicableLawResolver->deadlineLabel($law) : '1 mes (silencio negativo)';
+        $deadline = $this->applicableLawResolver->deadlineLabel($law);
 
-        $sections = [
-            'Eres el asistente que ayuda a redactar **solicitudes de acceso a información pública** en España. Hablas con el ciudadano que va a presentar la solicitud. Tu objetivo es llegar a un borrador útil, claro, conciso y bien fundamentado en la ley aplicable.',
-            $this->decisionPolicy($isReg, $ar),
-            'Organismo destinatario: ' . $ar->getPublicBody()->getName(),
-            'Ley aplicable: ' . ($law?->getName() ?? 'Ley 19/2013') . ' (' . ($law?->getShortCode() ?? 'LTAIPBG') . ')',
-            'Plazo de respuesta: ' . $deadline,
-            $isReg ? $this->regChannelBlock($ar) : $this->portalChannelBlock($ar),
-            "Resoluciones similares (para inspirarte sin copiar literalmente):\n" . $this->formatResolutions($similarResolutions),
-        ];
+        $scaffolding = $this->promptStore->compile('pideinfo-request-generate-request-chat', [
+            'organism' => $ar->getPublicBody()->getName(),
+            'applicable_law_name' => $law->getName(),
+            'applicable_law_code' => $law->getShortCode(),
+            'deadline' => $deadline,
+            'channel_block' => $isReg ? $this->regChannelBlock($ar) : $this->portalChannelBlock($ar),
+            'similar_resolutions' => $this->formatResolutions($similarResolutions),
+        ]);
+
+        $fullText = $this->decisionPolicy($isReg, $ar) . "\n\n" . $scaffolding->text;
 
         $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
         if ($prefsBlock !== '') {
-            $sections[] = $prefsBlock;
+            $fullText .= "\n\n" . $prefsBlock;
         }
 
-        return implode("\n\n", $sections);
+        return new CompiledPrompt(
+            text: $fullText,
+            name: $scaffolding->name,
+            version: $scaffolding->version,
+        );
     }
 
     private function decisionPolicy(bool $isReg, AccessRequest $ar): string

@@ -168,6 +168,8 @@ Detalle de diseño:
 - El composer es un textarea multilínea (Enter para enviar, Shift+Enter para salto de línea) y acepta adjuntos (PDF/PNG/JPG/CSV/TXT/MD; ≤4 MB/archivo, ≤5 MB total) que viajan como `ContentPart`s solo en ese turno — no se persisten en S3.
 - Después de cada `rewrite`, la burbuja del sistema incluye un botón "Ver cambios" (controlador `diff-modal`) que abre un modal con un diff línea a línea del título + EXPONE/SOLICITA (o cuerpo único) frente al snapshot anterior. No se almacena historial de versiones; el snapshot vive en los data-attributes de la burbuja del chat solo durante esa sesión.
 
+El prompt de generación de la solicitud se gestiona en Langfuse bajo el nombre `pideinfo-request-generate-request-chat`, con fallback bundled en `config/prompts/request/generate-request-chat.md`. El protocolo de chat (política de decisión `reply`/`generate`/`rewrite`, formato JSON de salida y los bloques de canal REG/Portal) se mantiene inline en `RequestPromptComposer`; solo el contenido de dominio (rol, guía de canal, marco de resoluciones y reglas de redacción) procede del prompt gestionado. Es el mismo patrón que el flujo de reclamaciones.
+
 **Creación automática a partir de documentos.** Cuando una persona usuaria sube un documento clasificado como solicitud (`DocumentType::Request`) o acuse de recibo (`DocumentType::Receipt`), y no se encuentra ninguna solicitud que coincida, el sistema la crea automáticamente. La IA extrae el título, la descripción, el organismo público, la ley aplicable y la fecha de envío a partir del documento.
 
 En el momento de la creación:

@@ -4,21 +4,14 @@ namespace App\Command;
 
 use App\Entity\Criterion;
 use App\Repository\CriterionRepository;
-use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\CriterionProcessor;
 use App\Service\Document\PdfTextExtractor;
-use Symfony\AI\Platform\Vector\Vector;
-use Symfony\AI\Store\Document\Metadata;
-use Symfony\AI\Store\Document\VectorDocument;
-use Symfony\AI\Store\ManagedStoreInterface;
-use Symfony\AI\Store\StoreInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Vectorise interpretive criteria stored as `Criterion` rows into the
@@ -38,10 +31,8 @@ use Symfony\Component\Uid\Uuid;
 class LoadCGBGCriteriaCommand extends Command
 {
     public function __construct(
-        #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
-        private readonly StoreInterface $ctbgCriteriaStore,
         private readonly PdfTextExtractor $pdfTextExtractor,
-        private readonly EmbeddingGenerator $embeddingGenerator,
+        private readonly CriterionProcessor $criterionProcessor,
         private readonly CriterionRepository $criterionRepository,
     ) {
         parent::__construct();
@@ -63,17 +54,10 @@ class LoadCGBGCriteriaCommand extends Command
 
         $io->title('Vectorising interpretive criteria');
 
-        if (!$dryRun && $this->ctbgCriteriaStore instanceof ManagedStoreInterface) {
+        if (!$dryRun) {
             $io->section('Setting up PostgreSQL vector store...');
-            $this->ctbgCriteriaStore->setup([
-                'vector_type' => 'halfvec',
-                'vector_size' => 3072,
-                'index_method' => 'hnsw',
-                'index_opclass' => 'halfvec_cosine_ops',
-            ]);
+            $this->criterionProcessor->ensureStore();
             $io->success('Collection created/verified.');
-        } elseif (!$dryRun) {
-            $io->warning('Store does not implement ManagedStoreInterface, cannot auto-setup collection.');
         }
 
         $io->section('Reading criteria from the database...');
@@ -97,51 +81,20 @@ class LoadCGBGCriteriaCommand extends Command
             }
 
             $io->text('  Found ' . count($chunks) . ' chunk(s)');
+            $totalChunks += count($chunks);
 
-            $documents = [];
-            foreach ($chunks as $chunk) {
-                if ($dryRun) {
-                    $io->text(sprintf(
-                        '  [DRY-RUN] Chunk %d: %d chars',
-                        $chunk['chunkIndex'],
-                        strlen($chunk['text']),
-                    ));
-                    $totalChunks++;
-                    continue;
+            if ($dryRun) {
+                foreach ($chunks as $chunk) {
+                    $io->text(sprintf('  [DRY-RUN] Chunk %d: %d chars', $chunk['chunkIndex'], strlen($chunk['text'])));
                 }
-
-                try {
-                    $embedding = $this->embeddingGenerator->generate($chunk['text']);
-                } catch (\Exception $e) {
-                    $io->error("  Error generating embedding for chunk {$chunk['chunkIndex']}: " . $e->getMessage());
-                    continue;
-                }
-
-                $docMetadata = new Metadata([
-                    Metadata::KEY_TEXT => $chunk['text'],
-                    Metadata::KEY_SOURCE => $criterion->getSource(),
-                    'criterionId' => (string) $criterion->getId(),
-                    'criterion' => $criterion->getReferenceNumber(),
-                    'year' => $criterion->getYear(),
-                    'topic' => $criterion->getTopic(),
-                    'scope' => $criterion->getScope(),
-                    'sourceUrl' => $criterion->getSourceUrl(),
-                    'chunkIndex' => $chunk['chunkIndex'],
-                ]);
-
-                $documents[] = new VectorDocument(
-                    id: Uuid::v7(),
-                    vector: new Vector($embedding),
-                    metadata: $docMetadata,
-                );
-
-                $totalChunks++;
+                $processedCriteria++;
+                continue;
             }
 
-            if (!$dryRun && !empty($documents)) {
-                $this->ctbgCriteriaStore->add($documents);
-                $io->text('  Stored ' . count($documents) . ' chunks in PostgreSQL');
-            }
+            // Shared pipeline: purges stale chunks, embeds and stores. Identical
+            // to the async upload path in CriterionProcessor.
+            $this->criterionProcessor->vectorize($criterion);
+            $io->text('  Stored ' . count($chunks) . ' chunks in PostgreSQL');
 
             $processedCriteria++;
         }

@@ -609,6 +609,10 @@ Vectoriza los criterios interpretativos almacenados en BD y los inserta en el ve
 php bin/console app:ctbg:load-criteria
 ```
 
+La lógica de vectorización vive en `App\Service\AI\CriterionProcessor::vectorize()` (purga los chunks previos del criterio por `criterionId` y reinserta, de forma idempotente). El mismo servicio lo usa la ruta de subida desde el admin (ver más abajo), de modo que CLI, cola y web producen embeddings idénticos.
+
+> **Alternativa por interfaz web:** además de estos comandos, los criterios nuevos se pueden subir desde el panel de administración en **RAG → Criterios interpretativos** (`CriterionCrudController`). Al guardar un PDF se despacha `ProcessCriterionMessage` al worker `analysis`, que ejecuta el pipeline completo (transcripción IA + resumen/keypoints + chunking + vectorización) a través de `CriterionProcessor`. Ver `docs/architecture.md`.
+
 ---
 
 ## Documentos
