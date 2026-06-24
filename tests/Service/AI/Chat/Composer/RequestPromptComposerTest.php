@@ -19,7 +19,6 @@ use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Submission\ApplicableLawResolver;
-use Doctrine\Persistence\ManagerRegistry;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\AI\Store\StoreInterface;
@@ -37,7 +36,6 @@ final class RequestPromptComposerTest extends TestCase
 
         // ResolutionRetriever is final — instantiate with stubbed dependencies.
         // formatForPrompt() is NOT called when we pass [] as similarResolutions.
-        $registry = $this->createStub(ManagerRegistry::class);
         $resolutionRetriever = new ResolutionRetriever(
             $this->createStub(StoreInterface::class),
             $this->createStub(EmbeddingGenerator::class),

@@ -89,21 +89,29 @@ final class AssistantChatController extends AbstractController
         }
 
         $similar = $this->loadSimilarResolutions($accessRequest);
-        $systemPrompt = $this->requestPromptComposer->compose($accessRequest, $similar);
+        $composedPrompt = $this->requestPromptComposer->compose($accessRequest, $similar);
 
         $historyKey = self::CHAT_HISTORY_KEY_REQUEST;
         $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
         $previousDraft = $this->snapshotDraft($accessRequest);
         $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
 
+        $isReg = $accessRequest->getRegDestination() !== null;
+        $hasDraft = $isReg
+            ? (trim((string) $accessRequest->getExpone()) !== '' || trim((string) $accessRequest->getSolicita()) !== '')
+            : trim((string) $accessRequest->getDescription()) !== '';
+
         $turn = new AssistantChatTurn(
             flow: 'request',
             entityId: $accessRequest->getId()->toRfc4122(),
-            systemPrompt: $systemPrompt,
+            systemPrompt: $composedPrompt->text,
             userMessage: $userMessage,
             history: $history,
             attachments: $attachments,
-            label: 'assistant.request',
+            label: 'RequestGenerationStream',
+            promptRef: $composedPrompt,
+            traceName: 'RequestGenerationStream',
+            hasDraft: $hasDraft,
         );
 
         return $this->streamTurn(
