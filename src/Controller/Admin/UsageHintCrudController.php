@@ -43,6 +43,9 @@ class UsageHintCrudController extends AbstractCrudController
             ->hideOnIndex()
             ->setRequired(false);
         yield BooleanField::new('isActive', 'Activa');
+        yield DateTimeField::new('hideAt', 'Ocultar a partir de')
+            ->setHelp('Opcional. Al llegar esta fecha, el comando diario desactiva la novedad. Vacío = no caduca.')
+            ->setRequired(false);
         yield DateTimeField::new('createdAt', 'Creada')->hideOnForm();
     }
 }

@@ -39,6 +39,14 @@ class UsageHint
     #[ORM\Column]
     private bool $isActive = true;
 
+    /**
+     * Fecha a partir de la cual la novedad deja de mostrarse. Al llegar, el
+     * comando diario `app:usage-hints:hide-expired` pone `isActive` a false.
+     * Null = no caduca.
+     */
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $hideAt = null;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -105,6 +113,17 @@ class UsageHint
     public function setIsActive(bool $isActive): static
     {
         $this->isActive = $isActive;
+        return $this;
+    }
+
+    public function getHideAt(): ?\DateTimeImmutable
+    {
+        return $this->hideAt;
+    }
+
+    public function setHideAt(?\DateTimeImmutable $hideAt): static
+    {
+        $this->hideAt = $hideAt;
         return $this;
     }
 

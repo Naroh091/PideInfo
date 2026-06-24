@@ -20,7 +20,7 @@ El modelo de dominio se centra en `AccessRequest` — una solicitud FOIA present
 
 **PublicBody** representa una entidad gubernamental. Tiene un nombre, nivel administrativo (estatal, autonómico, local, otro) y comunidad autónoma opcional.
 
-**UsageHint** es una novedad/anuncio que se muestra en el bloque descartable "Novedades" de la parte superior del panel principal. Tiene título, contenido en Markdown, enlace opcional y flag `isActive`. Cuando un usuario cierra una novedad, su id se añade a `User.dismissedHints` (columna JSON) y deja de mostrársele (`UsageHintRepository::findPendingForUser()`, descarte vía `POST /novedades/{id}/cerrar`). Se gestionan desde el panel de administración (sección Configuración → Novedades).
+**UsageHint** es una novedad/anuncio que se muestra en el bloque descartable "Novedades" de la parte superior del panel principal. Tiene título, contenido en Markdown, enlace opcional, flag `isActive` y una fecha opcional `hideAt` (al llegar, el comando diario `app:usage-hints:hide-expired` pone `isActive=false`; null = no caduca). Cuando un usuario cierra una novedad, su id se añade a `User.dismissedHints` (columna JSON) y deja de mostrársele (`UsageHintRepository::findPendingForUser()`, que también excluye novedades con `hideAt` ya pasado; descarte vía `POST /novedades/{id}/cerrar`). Se gestionan desde el panel de administración (sección Configuración → Novedades).
 
 ### Patrones de relación
 
