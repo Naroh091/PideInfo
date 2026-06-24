@@ -11,6 +11,7 @@ use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\Document\PdfRasterizer;
 use App\Service\Document\PdfTextExtractor;
+use App\Service\Document\WordTextExtractor;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
 
@@ -26,6 +27,7 @@ final class DocumentAnalyzer
         private readonly PromptStore $promptStore,
         private readonly PdfTextExtractor $pdfTextExtractor,
         private readonly PdfRasterizer $pdfRasterizer,
+        private readonly WordTextExtractor $wordTextExtractor,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -34,14 +36,15 @@ final class DocumentAnalyzer
      * Analyze a document using Gemini AI and extract relevant information
      * @return array<string, mixed>
      */
-    private const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
+    private const MAX_FILE_SIZE = 14 * 1024 * 1024; // 14MB
 
     public function analyze(Document $document): array
     {
         if ($document->getFileSize() > self::MAX_FILE_SIZE) {
             throw new \RuntimeException(sprintf(
-                'Documento demasiado grande para análisis automático (%s). Máximo: 4MB.',
-                $document->getFileSizeFormatted()
+                'Documento demasiado grande para análisis automático (%s). Máximo: %dMB.',
+                $document->getFileSizeFormatted(),
+                self::MAX_FILE_SIZE / (1024 * 1024)
             ));
         }
 
@@ -203,8 +206,37 @@ final class DocumentAnalyzer
             return $this->buildPdfPartsForCustomBackend($content, $contextLabel, $filename);
         }
 
+        if ($this->wordTextExtractor->supports($mimeType)) {
+            return $this->buildWordParts($content, $mimeType, $contextLabel, $filename);
+        }
+
         return [
             ContentPart::inlineData($mimeType, base64_encode($content)),
+            ContentPart::text($contextLabel),
+        ];
+    }
+
+    /**
+     * Build parts for Word documents (.doc/.docx). The OpenAI-compatible backend
+     * cannot ingest Word binaries, so we extract the text and send it as text.
+     *
+     * @return ContentPart[]
+     */
+    private function buildWordParts(string $content, ?string $mimeType, string $contextLabel, string $filename): array
+    {
+        $text = trim($this->wordTextExtractor->extractFromContent($content, $mimeType));
+
+        if ($text === '') {
+            $this->logger->warning('Word document yielded no extractable text', [
+                'filename' => $filename,
+                'mimeType' => $mimeType,
+            ]);
+
+            return [ContentPart::text($contextLabel)];
+        }
+
+        return [
+            ContentPart::text(sprintf("[Texto extraído del documento Word: %s]\n%s", $filename, $text)),
             ContentPart::text($contextLabel),
         ];
     }
@@ -413,7 +445,7 @@ final class DocumentAnalyzer
 
         // Normalize each document analysis and merge with shared fields
         $documents = [];
-        foreach ($docResults as $i => $docData) {
+        foreach ($docResults as $docData) {
             $merged = array_merge($shared, $docData);
             $documents[] = $this->normalizeDocumentAnalysis($merged);
         }

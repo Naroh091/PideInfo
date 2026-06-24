@@ -28,6 +28,7 @@ class InboundEmailController extends AbstractController
         'image/gif',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
     ];
 
     private const MAX_PAYLOAD_SIZE = 50 * 1024 * 1024; // 50MB
