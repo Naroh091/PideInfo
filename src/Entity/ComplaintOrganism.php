@@ -86,6 +86,31 @@ class ComplaintOrganism
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes = null;
 
+    /**
+     * Whether this guarantee body has been dissolved by a change in
+     * transparency law (e.g. the Madrid/Murcia councils). Extinct organisms
+     * stay queryable for their historical resolutions, but their detail page
+     * shows a warning and links to the {@see $successor} that took over.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $extinct = false;
+
+    /** Date the organism was legally dissolved, when known. */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $extinctionDate = null;
+
+    /**
+     * The currently-active organism that assumed this one's competences after
+     * its extinction. Self-referencing; null for active organisms.
+     */
+    #[ORM\ManyToOne(targetEntity: self::class, inversedBy: 'predecessors')]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?self $successor = null;
+
+    /** @var Collection<int, ComplaintOrganism> Extinct organisms this one succeeded. */
+    #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'successor')]
+    private Collection $predecessors;
+
     /** @var Collection<int, ApplicableLaw> */
     #[ORM\OneToMany(targetEntity: ApplicableLaw::class, mappedBy: 'complaintOrganism')]
     private Collection $applicableLaws;
@@ -104,6 +129,7 @@ class ComplaintOrganism
         $this->applicableLaws = new ArrayCollection();
         $this->resolutions = new ArrayCollection();
         $this->criteria = new ArrayCollection();
+        $this->predecessors = new ArrayCollection();
     }
 
     public function getId(): Uuid
@@ -286,6 +312,64 @@ class ComplaintOrganism
     public function setNotes(?string $notes): static
     {
         $this->notes = $notes;
+        return $this;
+    }
+
+    public function isExtinct(): bool
+    {
+        return $this->extinct;
+    }
+
+    public function setExtinct(bool $extinct): static
+    {
+        $this->extinct = $extinct;
+        return $this;
+    }
+
+    public function getExtinctionDate(): ?\DateTimeImmutable
+    {
+        return $this->extinctionDate;
+    }
+
+    public function setExtinctionDate(?\DateTimeImmutable $extinctionDate): static
+    {
+        $this->extinctionDate = $extinctionDate;
+        return $this;
+    }
+
+    public function getSuccessor(): ?self
+    {
+        return $this->successor;
+    }
+
+    public function setSuccessor(?self $successor): static
+    {
+        $this->successor = $successor;
+        return $this;
+    }
+
+    /** @return Collection<int, ComplaintOrganism> */
+    public function getPredecessors(): Collection
+    {
+        return $this->predecessors;
+    }
+
+    public function addPredecessor(self $predecessor): static
+    {
+        if (!$this->predecessors->contains($predecessor)) {
+            $this->predecessors->add($predecessor);
+            $predecessor->setSuccessor($this);
+        }
+        return $this;
+    }
+
+    public function removePredecessor(self $predecessor): static
+    {
+        if ($this->predecessors->removeElement($predecessor)) {
+            if ($predecessor->getSuccessor() === $this) {
+                $predecessor->setSuccessor(null);
+            }
+        }
         return $this;
     }
 
