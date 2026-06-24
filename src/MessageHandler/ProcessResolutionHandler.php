@@ -80,9 +80,9 @@ final class ProcessResolutionHandler
 
             // Step 1: Download/extract PDF text
             if ($message->forceReExtractText) {
-                $this->reExtractTextFromStorage($resolution);
+                $this->reExtractTextFromStorage($resolution, $message->forceVision);
             } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
-                $this->downloadAndProcessPdf($resolution);
+                $this->downloadAndProcessPdf($resolution, $message->forceVision);
             }
         } catch (\Exception $e) {
             $this->logger->error('PDF step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
@@ -135,7 +135,7 @@ final class ProcessResolutionHandler
         $this->logger->info("Finished processing resolution $ref");
     }
 
-    private function downloadAndProcessPdf(Resolution $resolution): void
+    private function downloadAndProcessPdf(Resolution $resolution, bool $forceVision = false): void
     {
         $documentUrl = $resolution->getSourceUrl();
 
@@ -173,7 +173,7 @@ final class ProcessResolutionHandler
             $text = match ($extension) {
                 'docx' => $this->extractTextFromDocx($tmpFile),
                 'doc' => $this->extractTextFromDoc($tmpFile),
-                default => $this->extractText($tmpFile),
+                default => $this->extractText($tmpFile, $forceVision),
             };
             @unlink($tmpFile);
 
@@ -221,7 +221,7 @@ final class ProcessResolutionHandler
         }
     }
 
-    private function reExtractTextFromStorage(Resolution $resolution): void
+    private function reExtractTextFromStorage(Resolution $resolution, bool $forceVision = false): void
     {
         $storagePath = $resolution->getPdfStoragePath();
         $ref = $resolution->getReferenceNumber();
@@ -290,7 +290,7 @@ final class ProcessResolutionHandler
             $text = match ($extension) {
                 'docx' => $this->extractTextFromDocx($tmpFile),
                 'doc' => $this->extractTextFromDoc($tmpFile),
-                default => $this->extractText($tmpFile),
+                default => $this->extractText($tmpFile, $forceVision),
             };
             @unlink($tmpFile);
 
@@ -683,11 +683,12 @@ final class ProcessResolutionHandler
         return $text;
     }
 
-    private function extractText(string $filePath): string
+    private function extractText(string $filePath, bool $forceVision = false): string
     {
         // Delegates to the shared extractor, which transcribes via vision-LLM any
         // pages that lack a text layer (image-only scans) and merges them back in.
-        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath);
+        // With $forceVision, every page is transcribed by the vision model.
+        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath, $forceVision);
     }
 
     private function extractCtpdMetadata(Resolution $resolution, string $text): void

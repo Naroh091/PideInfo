@@ -29,6 +29,13 @@ final class PdfOcrTranscriber
     /** Hard cap on how many pages we will OCR per document, to bound LLM cost. */
     private const MAX_OCR_PAGES = 30;
 
+    /**
+     * Higher cap when the caller forces vision on every page (`--vision`): a
+     * full-document transcription shouldn't be truncated as aggressively as the
+     * incidental fallback for a few missing pages.
+     */
+    private const MAX_OCR_PAGES_VISION = 60;
+
     /** DPI used to rasterize pages for OCR. */
     private const OCR_DPI = 200;
 
@@ -54,8 +61,13 @@ final class PdfOcrTranscriber
      * Extract the full text of a PDF, transcribing via vision-LLM any pages that
      * lack a usable text layer. When every page already has text, this is the
      * cheap path: no rasterization and no LLM call.
+     *
+     * When $forceVision is true, EVERY page is rasterized and transcribed by the
+     * vision model regardless of whether it already has a text layer — for PDFs
+     * whose embedded text layer is unreliable (bad OCR, garbled glyphs). The
+     * page cap is raised accordingly ({@see self::MAX_OCR_PAGES_VISION}).
      */
-    public function extractTextWithOcr(string $filePath): string
+    public function extractTextWithOcr(string $filePath, bool $forceVision = false): string
     {
         $pages = $this->pdfTextExtractor->extractPageTexts($filePath);
 
@@ -63,14 +75,16 @@ final class PdfOcrTranscriber
             return '';
         }
 
+        $cap = $forceVision ? self::MAX_OCR_PAGES_VISION : self::MAX_OCR_PAGES;
+
         $missing = [];
         foreach ($pages as $pageNumber => $text) {
-            if ($this->pageNeedsOcr($text)) {
+            if ($forceVision || $this->pageNeedsOcr($text)) {
                 $missing[] = $pageNumber;
             }
         }
 
-        // Cheap path: every page already has a text layer.
+        // Cheap path: every page already has a text layer (never taken with --vision).
         if ($missing === []) {
             return $this->joinPages($pages);
         }
@@ -83,9 +97,10 @@ final class PdfOcrTranscriber
 
         $ocrCount = 0;
         foreach ($missing as $pageNumber) {
-            if ($ocrCount >= self::MAX_OCR_PAGES) {
+            if ($ocrCount >= $cap) {
                 $this->logger->warning('PdfOcrTranscriber: OCR page cap reached, remaining pages left untranscribed', [
-                    'cap' => self::MAX_OCR_PAGES,
+                    'cap' => $cap,
+                    'forceVision' => $forceVision,
                     'totalMissing' => count($missing),
                 ]);
                 break;
@@ -98,8 +113,9 @@ final class PdfOcrTranscriber
             }
         }
 
-        $this->logger->info('PdfOcrTranscriber: vision-OCR fallback applied', [
-            'pagesMissingText' => count($missing),
+        $this->logger->info('PdfOcrTranscriber: vision-OCR applied', [
+            'forceVision' => $forceVision,
+            'pagesTargeted' => count($missing),
             'pagesTranscribed' => $ocrCount,
         ]);
 
