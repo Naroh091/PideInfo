@@ -694,6 +694,16 @@ php bin/console app:requests:notify-expiring
 
 ---
 
+### `app:usage-hints:hide-expired`
+
+Desactiva (`isActive=false`) las novedades (`UsageHint`) cuya fecha `hideAt` ya se ha alcanzado. `hideAt` es opcional (vacío = no caduca) y se fija desde el panel admin (Novedades). Pensado para ejecutarse a diario por cron (`App\Schedule`, `0 0 * * *`). La consulta de visibilidad (`UsageHintRepository::findPendingForUser`) también excluye las caducadas, así que dejan de mostrarse al instante aunque el comando aún no haya corrido.
+
+```bash
+php bin/console app:usage-hints:hide-expired
+```
+
+---
+
 ## Public bodies y canales de envío
 
 ### `app:public-bodies:assign-portal-amb`
