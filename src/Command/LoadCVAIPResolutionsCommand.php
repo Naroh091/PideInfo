@@ -84,6 +84,7 @@ class LoadCVAIPResolutionsCommand extends Command
             ->addOption('force', null, InputOption::VALUE_NONE, 'Overwrite existing resolutions (by default existing resolutions are skipped)')
             ->addOption('scrape', null, InputOption::VALUE_NONE, 'Use full HTML pagination scraper instead of RSS (slower, fetches all historical resolutions)')
             ->addOption('missing-pdf', null, InputOption::VALUE_NONE, 'Process existing resolutions that have a sourceUrl but no extracted text')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of every PDF page (for unreliable text layers). No-op for CVAIP: its text is extracted from Word documents, not PDFs.')
         ;
     }
 
@@ -96,6 +97,7 @@ class LoadCVAIPResolutionsCommand extends Command
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
         $async = $input->getOption('async');
+        $vision = $input->getOption('vision');
         $onlyNew = $input->getOption('only-missing-url');
 
         $scrape = $input->getOption('scrape');
@@ -107,7 +109,7 @@ class LoadCVAIPResolutionsCommand extends Command
         $io->title('CVAIP Resolution Loader (País Vasco)');
 
         if ($input->getOption('missing-pdf')) {
-            return $this->processMissingPdfs(Resolution::SOURCE_CVAIP, $async, $skipAnalysis, $skipVectors, $limit, $io);
+            return $this->processMissingPdfs(Resolution::SOURCE_CVAIP, $async, $skipAnalysis, $skipVectors, $limit, $io, $vision);
         }
 
         // Step 1: Setup vector store
@@ -401,6 +403,7 @@ class LoadCVAIPResolutionsCommand extends Command
                         skipAnalysis: $skipAnalysis,
                         skipVectors: $skipVectors,
                         skipPdf: true, // Text already extracted from Word during scrape
+                        forceVision: $vision, // No-op while skipPdf is true (CVAIP is Word-based)
                     ));
                     $stats['dispatched']++;
                 }

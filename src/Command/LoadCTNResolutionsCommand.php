@@ -77,6 +77,7 @@ class LoadCTNResolutionsCommand extends Command
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of every PDF page (for unreliable text layers); no-op for Word-based sources')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('url', null, InputOption::VALUE_REQUIRED, 'Override JSON source URL')
             ->addOption('pdf-path', null, InputOption::VALUE_REQUIRED, 'Local directory containing PDF files (skips HTTP download)')
@@ -94,6 +95,7 @@ class LoadCTNResolutionsCommand extends Command
         $skipAnalysis = $input->getOption('skip-analysis');
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
+        $vision = $input->getOption('vision');
         $async = $input->getOption('async');
         $url = $input->getOption('url');
         $pdfPath = $input->getOption('pdf-path');
@@ -111,7 +113,7 @@ class LoadCTNResolutionsCommand extends Command
         $io->title('CTN Resolution Loader');
 
         if ($input->getOption('missing-pdf')) {
-            return $this->processMissingPdfs(Resolution::SOURCE_CTN, $async, $skipAnalysis, $skipVectors, $limit, $io);
+            return $this->processMissingPdfs(Resolution::SOURCE_CTN, $async, $skipAnalysis, $skipVectors, $limit, $io, $vision);
         }
 
         // Step 1: Setup vector store
@@ -214,12 +216,13 @@ class LoadCTNResolutionsCommand extends Command
                             skipAnalysis: $skipAnalysis,
                             skipVectors: $skipVectors,
                             skipPdf: $skipPdf,
+                            forceVision: $vision,
                         ));
                         $stats['dispatched']++;
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats, $pdfPath);
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $vision, $io, $stats, $pdfPath);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
@@ -272,7 +275,7 @@ class LoadCTNResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function processInline(array $dtos, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats, ?string $pdfPath = null): void
+    private function processInline(array $dtos, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, bool $vision, SymfonyStyle $io, array &$stats, ?string $pdfPath = null): void
     {
         foreach ($dtos as $dto) {
             $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTN);
@@ -285,7 +288,7 @@ class LoadCTNResolutionsCommand extends Command
                     if ($pdfPath !== null) {
                         $this->processLocalPdf($resolution, $pdfPath, $io, $stats);
                     } elseif ($resolution->getSourceUrl()) {
-                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $vision);
                     } else {
                         $stats['skippedPdf']++;
                     }

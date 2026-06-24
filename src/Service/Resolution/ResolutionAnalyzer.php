@@ -8,12 +8,17 @@ use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ChatRequest;
+use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\Llm\LlmClient;
+use App\Service\Document\PdfRasterizer;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Process\Process;
 
 final class ResolutionAnalyzer
 {
     private const SECTION_HEADER_REGEX = '/^[ \t]*[IVXivx]+\.\s+[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]+?[ \t]*$/m';
+
+    private const PAGE_IMAGE_DPI = 200;
 
     public function __construct(
         private readonly LlmClient $llmClient,
@@ -21,6 +26,7 @@ final class ResolutionAnalyzer
         private readonly LoggerInterface $logger,
         private readonly Tracer $tracer,
         private readonly PromptStore $promptStore,
+        private readonly PdfRasterizer $pdfRasterizer,
     ) {
     }
 
@@ -156,10 +162,10 @@ final class ResolutionAnalyzer
      *
      * @return array{formatted_text: string, summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, subject: ?string}
      */
-    public function analyze(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false): array
+    public function analyze(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false, ?string $pdfBytes = null): array
     {
         $formatted = $this->formatText($cleanedText, flex: $flex);
-        $analysis = $this->extractAnalysis($cleanedText, flex: $flex, skipResolutionDate: $skipResolutionDate);
+        $analysis = $this->extractAnalysis($cleanedText, flex: $flex, skipResolutionDate: $skipResolutionDate, pdfBytes: $pdfBytes);
 
         return array_merge($formatted, $analysis);
     }
@@ -343,28 +349,40 @@ final class ResolutionAnalyzer
      *
      * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
-    public function extractAnalysis(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false): array
+    public function extractAnalysis(string $cleanedText, bool $flex = false, bool $skipResolutionDate = false, ?string $pdfBytes = null): array
     {
         return $this->tracer->span(
             name: 'resolution.extractAnalysis',
             attributes: ['text.length' => strlen($cleanedText)],
-            fn: fn () => $this->doExtractAnalysis($cleanedText, $flex, $skipResolutionDate),
+            fn: fn () => $this->doExtractAnalysis($cleanedText, $flex, $skipResolutionDate, $pdfBytes),
         );
     }
 
     /**
      * @return array{summary: string, keypoints: string[], resolution_date: ?string, claim_date: ?string, claim_reason: ?string, subject: ?string, info_request_date: ?string, complained_administration: ?string, outcome: ?string, limits: array<string>, inadmission_causes: array<string>}
      */
-    private function doExtractAnalysis(string $cleanedText, bool $flex, bool $skipResolutionDate): array
+    private function doExtractAnalysis(string $cleanedText, bool $flex, bool $skipResolutionDate, ?string $pdfBytes = null): array
     {
+        // When extracting the resolution date, attach the first and last page as
+        // images so the model can read the signature stamp / footer / margin date
+        // that text extraction and cleaning often strip. The prompt tells it to
+        // prioritise those images for the date.
+        $imageParts = (!$skipResolutionDate && $pdfBytes !== null)
+            ? $this->firstLastPageImageParts($pdfBytes)
+            : [];
+        $withImages = $imageParts !== [];
+
         $customSuffix = $skipResolutionDate
             ? "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO."
             : "\n\nResponde ÚNICAMENTE con un JSON válido con esta estructura exacta:\n{\"summary\": \"resumen en texto plano\", \"keypoints\": [\"punto 1\", \"punto 2\", ...], \"resolution_date\": \"YYYY-MM-DD o null\", \"claim_date\": \"YYYY-MM-DD o null\", \"claim_reason\": \"frase corta o null\", \"subject\": \"asunto en castellano o null\", \"info_request_date\": \"YYYY-MM-DD o null\", \"complained_administration\": \"nombre o null\", \"outcome\": \"código del enum o null\", \"limits\": [\"código\", ...], \"inadmission_causes\": [\"código\", ...]}\nSÓLO RESPONDE CON EL JSON, SIN NINGÚN OTRO TEXTO.";
         $prompt = $this->buildExtractAnalysisPrompt(skipResolutionDate: $skipResolutionDate, customSuffix: $customSuffix);
 
+        $userText = "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText;
+
         $result = $this->llmClient->chatJson(new ChatRequest(
             systemPrompt: $prompt,
-            userText: "TEXTO DE LA RESOLUCIÓN:\n\n" . $cleanedText,
+            userParts: $withImages ? array_merge([ContentPart::text($userText)], $imageParts) : null,
+            userText: $withImages ? null : $userText,
             temperature: 1.0,
             jsonSchema: $this->buildExtractAnalysisSchema(skipResolutionDate: $skipResolutionDate),
             schemaName: 'resolution_analysis',
@@ -375,6 +393,65 @@ final class ResolutionAnalyzer
         ));
 
         return $this->normalizeExtractAnalysisResult($result);
+    }
+
+    /**
+     * Rasterize the first and last page of a PDF to PNG image parts for the
+     * vision model. Returns [] for non-PDF bytes or on any rasterization failure.
+     *
+     * @return list<ContentPart>
+     */
+    private function firstLastPageImageParts(string $pdfBytes): array
+    {
+        if (!str_starts_with($pdfBytes, '%PDF-')) {
+            return [];
+        }
+
+        try {
+            $pageCount = $this->pdfPageCount($pdfBytes);
+
+            $parts = [];
+            $first = $this->pdfRasterizer->rasterizePageFromContent($pdfBytes, 1, self::PAGE_IMAGE_DPI);
+            if ($first !== null) {
+                $parts[] = ContentPart::inlineData('image/png', base64_encode($first));
+            }
+            if ($pageCount > 1) {
+                $last = $this->pdfRasterizer->rasterizePageFromContent($pdfBytes, $pageCount, self::PAGE_IMAGE_DPI);
+                if ($last !== null) {
+                    $parts[] = ContentPart::inlineData('image/png', base64_encode($last));
+                }
+            }
+
+            return $parts;
+        } catch (\Throwable $e) {
+            $this->logger->warning('Could not rasterize first/last page for date extraction', ['error' => $e->getMessage()]);
+
+            return [];
+        }
+    }
+
+    private function pdfPageCount(string $pdfBytes): int
+    {
+        $tmpFile = tempnam(sys_get_temp_dir(), 'res_pages_');
+        if ($tmpFile === false) {
+            return 1;
+        }
+
+        try {
+            file_put_contents($tmpFile, $pdfBytes);
+
+            $process = new Process(['pdfinfo', $tmpFile]);
+            $process->setTimeout(10);
+            $process->run();
+
+            if ($process->isSuccessful() && preg_match('/^Pages:\s+(\d+)/m', $process->getOutput(), $m)) {
+                return max(1, (int) $m[1]);
+            }
+
+            return 1;
+        } finally {
+            @unlink($tmpFile);
+        }
     }
 
     /**
@@ -633,11 +710,13 @@ FOOTER;
 
     public function buildExtractAnalysisPrompt(bool $skipResolutionDate = false, string $customSuffix = ''): CompiledPrompt
     {
+        // The [resolution_date] guidance (including the "prioritise the attached
+        // first/last page images" instruction) lives in the prompt template itself
+        // now, so it is no longer injected as a variable here.
         return $this->promptStore->compile('pideinfo-resolution-extract-analysis', [
             'outcomes_block' => self::renderEnumBlock(Resolution::getOutcomeLabels()),
             'limits_block' => self::renderEnumBlock(Resolution::getLimitLabels()),
             'causes_block' => self::renderEnumBlock(Resolution::getInadmissionCauseLabels()),
-            'resolution_date_block' => $skipResolutionDate ? '' : "[resolution_date]\nFecha de firma de la resolución del organismo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece.\n\n",
             'custom_suffix' => $customSuffix,
         ]);
     }
@@ -846,6 +925,35 @@ FOOTER;
      *
      * @param array<string, mixed> $result Raw or normalized result from extractAnalysis / batchExtractAnalysis.
      */
+    /**
+     * A resolution cannot be signed before the claim was filed or before the
+     * citizen requested the information. Reject a candidate date that violates
+     * this, comparing against the dates in the same result (falling back to the
+     * values already stored on the entity).
+     *
+     * @param array<string, mixed> $result
+     */
+    private function resolutionDateIsCoherent(\DateTimeImmutable $candidate, array $result, Resolution $resolution): bool
+    {
+        foreach (['claim_date' => 'getClaimDate', 'info_request_date' => 'getInfoRequestDate'] as $key => $getter) {
+            $other = null;
+            if (!empty($result[$key]) && is_string($result[$key])) {
+                try {
+                    $other = new \DateTimeImmutable($result[$key]);
+                } catch (\Exception) {
+                    $other = null;
+                }
+            }
+            $other ??= $resolution->{$getter}();
+
+            if ($other !== null && $candidate < $other) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public function applyAnalysisResult(Resolution $resolution, array $result): void
     {
         if (isset($result['summary']) && is_string($result['summary'])) {
@@ -863,10 +971,18 @@ FOOTER;
         $existingDateSource = ($resolution->getSourceMetadata() ?? [])['FECHA_RESOLUCION'] ?? null;
         if (!empty($result['resolution_date']) && is_string($result['resolution_date']) && $existingDateSource === null) {
             try {
-                $resolution->setResolutionDate(new \DateTimeImmutable($result['resolution_date']));
-                $meta = $resolution->getSourceMetadata() ?? [];
-                $meta['FECHA_RESOLUCION'] = 'LLM';
-                $resolution->setSourceMetadata($meta);
+                $candidate = new \DateTimeImmutable($result['resolution_date']);
+                if ($this->resolutionDateIsCoherent($candidate, $result, $resolution)) {
+                    $resolution->setResolutionDate($candidate);
+                    $meta = $resolution->getSourceMetadata() ?? [];
+                    $meta['FECHA_RESOLUCION'] = 'LLM';
+                    $resolution->setSourceMetadata($meta);
+                } else {
+                    $this->logger->info('LLM resolution date rejected: incoherent with claim/info-request dates', [
+                        'reference' => $resolution->getReferenceNumber(),
+                        'resolution_date' => $candidate->format('Y-m-d'),
+                    ]);
+                }
             } catch (\Exception) {
             }
         }

@@ -142,12 +142,12 @@ Los adjuntos con otros tipos MIME se descartan silenciosamente.
 
 Una vez creados los documentos y despachados a la cola asíncrona, siguen el pipeline estándar de procesamiento de documentos (ver [document-processing.md](document-processing.md)):
 
-1. **Análisis con IA** — Gemini extrae tipo de documento, número de referencia, organismo público, fechas y estado
+1. **Análisis con IA** — el LLM extrae tipo de documento, número de referencia, organismo público, fechas y estado
 2. **Emparejamiento con la solicitud** — primero por número de referencia y, después, por coincidencia de palabras clave
 3. **Actualizaciones de estado** — acuse de recibo → marcar como en tramitación; resolución → marcar como estimada/desestimada, etc.
 4. **Registro en el timeline** — todos los cambios crean entradas `StatusHistory` y `DeadlineHistory`
 
-El documento con el texto del cuerpo del correo es especialmente útil para el emparejamiento por IA: los correos de las administraciones suelen incluir el número de referencia y el contexto que ayudan a Gemini a identificar a qué solicitud de acceso pertenecen los documentos adjuntos.
+El documento con el texto del cuerpo del correo es especialmente útil para el emparejamiento por IA: los correos de las administraciones suelen incluir el número de referencia y el contexto que ayudan a la IA a identificar a qué solicitud de acceso pertenecen los documentos adjuntos.
 
 ## Visualización y gestión: vista Comunicaciones
 
