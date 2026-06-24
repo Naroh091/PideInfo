@@ -15,6 +15,7 @@ final readonly class ProcessResolutionMessage
         public bool $forceAnalysis = false,
         public bool $flex = false,
         public string $analysisMode = 'all', // 'all', 'format', 'analyze'
+        public bool $forceVision = false,
     ) {
     }
 }

@@ -66,6 +66,7 @@ class AnalyzeResolutionsCommand extends Command
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filter by source (CTBG, CTG, CTAR, CTCYL, ...)')
             ->addOption('slow', null, InputOption::VALUE_NONE, 'Rate limit to 2 resolutions per minute')
             ->addOption('re-extract', null, InputOption::VALUE_NONE, 'Re-extract text from stored PDF/DOCX files before analysis')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of EVERY page when re-extracting (for PDFs whose embedded text layer is unreliable). Implies --re-extract; runs on the workers.')
             ->addOption('flex', null, InputOption::VALUE_NONE, 'Use Gemini Flex inference (50% cheaper, 1-15 min latency)')
             ->addOption('format-only', null, InputOption::VALUE_NONE, 'Only format text to HTML (skip summary/keypoints extraction)')
             ->addOption('analyze-only', null, InputOption::VALUE_NONE, 'Only extract summary/keypoints (skip HTML formatting)')
@@ -87,6 +88,11 @@ class AnalyzeResolutionsCommand extends Command
         $source = $input->getOption('source');
         $slow = $input->getOption('slow');
         $reExtract = $input->getOption('re-extract');
+        $vision = $input->getOption('vision');
+        // --vision only takes effect during re-extraction, so it implies it.
+        if ($vision) {
+            $reExtract = true;
+        }
         $flex = $input->getOption('flex');
         $formatOnly = $input->getOption('format-only');
         $analyzeOnly = $input->getOption('analyze-only');
@@ -148,8 +154,9 @@ class AnalyzeResolutionsCommand extends Command
                     forceAnalysis: $force,
                     flex: $flex,
                     analysisMode: $mode,
+                    forceVision: $vision,
                 ));
-                $io->success("Dispatched re-extraction for $reference");
+                $io->success("Dispatched re-extraction for $reference" . ($vision ? ' (vision)' : ''));
                 return Command::SUCCESS;
             }
 
@@ -157,7 +164,7 @@ class AnalyzeResolutionsCommand extends Command
         }
 
         if ($async || $reExtract) {
-            return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $mode, $io);
+            return $this->dispatchAsync($force, $reExtract, $source, $limit, $flex, $mode, $vision, $io);
         }
 
         return $this->processInBatches($force, $source, $limit, $dryRun, $cleanOnly, $slow, $flex, $mode, $batchSize, $io);
@@ -458,7 +465,7 @@ class AnalyzeResolutionsCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $flex, string $mode, SymfonyStyle $io): int
+    private function dispatchAsync(bool $force, bool $reExtract, ?string $source, ?int $limit, bool $flex, string $mode, bool $vision, SymfonyStyle $io): int
     {
         $qb = $reExtract
             ? $this->buildReExtractQueryBuilder($source)
@@ -482,6 +489,7 @@ class AnalyzeResolutionsCommand extends Command
                 forceAnalysis: $force,
                 flex: $flex,
                 analysisMode: $mode,
+                forceVision: $vision,
             ));
             $dispatched++;
         }

@@ -544,6 +544,10 @@ php bin/console app:resolutions:analyze [opciones]
 | `--analyze-only` | Solo extrae resumen/keypoints (omite formateo HTML) |
 | `--source=X` | Filtrar por fuente (`CTBG`, `CTG`, `CTAR`, …) |
 | `--async` | Despachar a workers de Messenger en vez de procesar inline |
+| `--re-extract` | Re-extraer el texto desde el PDF/DOCX almacenado antes de analizar (se ejecuta en los workers) |
+| `--vision` | Forzar la transcripción con el LLM de visión de **todas** las páginas al re-extraer (para PDFs cuya capa de texto embebida no es fiable). Implica `--re-extract` y se ejecuta en los workers. Sube el tope de páginas OCR de 30 a 60 por documento. |
+
+**`--vision`:** a diferencia del *fallback* de OCR por visión (que solo transcribe las páginas sin capa de texto), `--vision` transcribe **cada** página con el modelo de visión, ignorando la capa de texto embebida. Pensado para resoluciones cuyo `pdftotext` devuelve texto basura (glifos mal mapeados, firmas que contaminan el cuerpo). Combínalo con `--reference=X` o `--source=X` para acotar el lote, ya que cada página es una llamada al LLM.
 
 **Filtro de `--format-only`:** sin `--force`, selecciona las resoluciones que **aún no tienen resumen** (`summary IS NULL`) **o** cuyo `full_text` **todavía no contiene HTML** (`<p>`/`<h2>`). Esto cubre las resoluciones ya analizadas (con resumen) cuyo texto nunca llegó a formatearse, que el filtro basado solo en `summary` se saltaba. El criterio del HTML coincide con el que usa la plantilla `templates/resolution/show.html.twig` para decidir si renderiza el texto como HTML o como texto plano. Con `--force` se reformatea todo sin filtrar.
 
