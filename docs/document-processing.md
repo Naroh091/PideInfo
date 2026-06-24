@@ -37,14 +37,14 @@ Tamaño máximo de archivo: 50 MB.
 
 `src/Service/AI/DocumentAnalyzer.php`
 
-El analizador lee el documento desde S3, lo codifica en base64 y lo envía a través de `LlmClient`, que enruta al cliente compatible con OpenAI según `USE_CUSTOM_MODEL`. Hay presente un modelo el modelo más pequeño configurado mediante `el modelo_MID_MODEL` para un análisis rápido y rentable en la ruta de el modelo.
+El analizador lee el documento desde S3, lo codifica en base64 y lo envía a través de `LlmClient` al cliente compatible con OpenAI (`CustomModelClient`, modelo `CUSTOM_MODEL`) para un análisis rápido y rentable.
 
-**Tratamiento de PDF en el backend personalizado.** Las APIs de chat compatibles con OpenAI solo aceptan imágenes vía `image_url`, por lo que los PDF no pueden reenviarse tal cual (el decodificador de imágenes upstream no consigue identificar los bytes). Cuando `USE_CUSTOM_MODEL=true` y el documento es un PDF, `DocumentAnalyzer` intenta primero `PdfTextExtractor::extractFullTextFromContent` y decide qué payload enviar en función de si el texto extraído es utilizable:
+**Tratamiento de PDF en el backend personalizado.** Las APIs de chat compatibles con OpenAI solo aceptan imágenes vía `image_url`, por lo que los PDF no pueden reenviarse tal cual (el decodificador de imágenes upstream no consigue identificar los bytes). Cuando el documento es un PDF, `DocumentAnalyzer` intenta primero `PdfTextExtractor::extractFullTextFromContent` y decide qué payload enviar en función de si el texto extraído es utilizable:
 
 - **PDFs con texto seleccionable** (la extracción devuelve al menos 200 caracteres y un ratio alfanumérico/no-espacio ≥ 0.5): se envía únicamente el texto extraído. Se omite la rasterización para mantener el payload pequeño.
 - **PDFs escaneados o solo imagen** (extracción vacía, demasiado corta o mayoritariamente glifos basura): las primeras 30 páginas se rasterizan a PNG mediante `PdfRasterizer` (que ejecuta `pdftoppm` de `poppler-utils`) y se adjuntan como partes `image_url`, junto con cualquier texto parcial que haya salido del extractor.
 
-La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isExtractedTextUseful()`. el modelo recibe los datos inline originales `application/pdf` sin cambios — su backend rasteriza de forma nativa. Las imágenes simples y los documentos `text/plain` no se ven afectados por esta rama.
+La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isExtractedTextUseful()`. Las imágenes simples y los documentos `text/plain` no se ven afectados por esta rama.
 
 ### Fallback de OCR por visión en el pipeline de resoluciones
 
@@ -57,11 +57,28 @@ Muchas resoluciones de los órganos de transparencia (de forma notable las del *
 
 Se respeta un tope de páginas a transcribir por documento (`MAX_OCR_PAGES = 30`) para acotar el coste. El *fallback* se aplica por igual en la ruta **inline** (`ResolutionProcessingTrait::extractText()`) y en la **asíncrona** (`ProcessResolutionHandler::extractText()`), que delegan ambas en el mismo servicio para mantener la paridad.
 
+**Forzar visión en TODAS las páginas (`--vision`):** además del *fallback* automático (que solo transcribe las páginas sin capa de texto), se puede forzar la transcripción por visión de **todas** las páginas pasando `forceVision = true` a `PdfOcrTranscriber::extractTextWithOcr()`. Esto ignora la capa de texto embebida (útil cuando `pdftotext` devuelve glifos mal mapeados). El flag está expuesto como `--vision` en:
+- `app:resolutions:analyze --vision` (re-extracción de resoluciones ya cargadas; implica `--re-extract`).
+- Todos los `app:*:load-resolutions --vision` (extracción en el momento de la carga), tanto inline como con `--async`. `$vision` se enhebra por `processInline()`/`downloadAndProcessPdf()`/`processMissingPdfs()` en la ruta inline y por `ProcessResolutionMessage::$forceVision` en la asíncrona. **No-op en fuentes Word** (CVAIP).
+
+Las importaciones nocturnas programadas (`App\Schedule`) usan `--vision` para todas las fuentes basadas en PDF; CVAIP queda excluida por ser Word.
+
+### Fecha de la resolución por visión (adjunto en el análisis)
+
+La fecha de la resolución a menudo solo aparece en el **sello de firma electrónica** (repetido en cada pie de página), en un **margen lateral** o en el **título**, y la limpieza de texto (`cleanRawText`, dedup de líneas repetidas de `ResolutionAnalyzer::cleanText`) la elimina antes de que el LLM la vea. Un regex por fuente no escala a los 13 consejos, así que en lugar de re-extraer la fecha aparte, se le da contexto visual al **mismo** paso de análisis:
+
+- `ResolutionAnalyzer::extractAnalysis()` / `analyze()` aceptan un parámetro opcional `?string $pdfBytes`. Cuando se proporciona (y no se omite la fecha), `ResolutionAnalyzer` rasteriza la **primera y la última página** con `PdfRasterizer::rasterizePageFromContent()` (200 DPI) y las adjunta como imágenes (`ContentPart::inlineData`) a la llamada `llm.chat` de la traza `resolution.extractAnalysis`. No hay llamada LLM adicional ni doble extracción.
+- El prompt (`pideinfo-resolution-extract-analysis`, bloque `[resolution_date]`) instruye al modelo a **dar prioridad a las imágenes adjuntas** para la fecha (sello de firma, pie, margen, título), por encima del texto. El bloque vive en el prompt (Langfuse y el bundle `config/prompts/resolution/extract-analysis.md`), ya no se inyecta como variable.
+- Quien pasa los bytes: la ruta inline de carga (`ResolutionProcessingTrait::analyzeResolution`), la asíncrona (`ProcessResolutionHandler::analyzeResolution`) y `AnalyzeResolutionsCommand` (rutas inline). Todos leen el PDF de `resolutions.storage` por `pdfStoragePath` (helper `readStoredPdfBytes`); devuelven `null` para fuentes Word, que siguen siendo solo-texto.
+- **Coherencia:** `applyAnalysisResult()` descarta una fecha de resolución anterior a la `claimDate`/`infoRequestDate` (cronológicamente imposible) en vez de fijarla.
+
+Así, re-analizar (`app:resolutions:analyze`) basta para rellenar/corregir la fecha por visión, sin un comando de fechas aparte.
+
 **Estructura de la llamada a la API:**
-- Modelo: `generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- Temperatura: 0.1 en la ruta Gemini (casi determinista para una clasificación consistente); el backend personalizado usa siempre `CUSTOM_MODEL_TEMP`
-- Formato de respuesta: JSON
-- Timeout: 120 segundos (los documentos pueden ser grandes)
+- Backend: todas las llamadas (texto y visión) pasan por `LlmClient` → `CustomModelClient`, una API **compatible con OpenAI** configurada con `CUSTOM_MODEL` / `CUSTOM_MODEL_ENDPOINT` / `CUSTOM_MODEL_API_KEY`. Ya no hay ruta directa a Gemini para análisis/visión.
+- Formato de respuesta: JSON vía `response_format` (`json_schema` cuando se pasa esquema, si no `json_object`).
+- Temperatura: el backend **ignora la temperatura por petición** y aplica siempre `CUSTOM_MODEL_TEMP` (por defecto `1`).
+- Timeout: 600 segundos (los documentos pueden ser grandes).
 
 ### Qué extrae la IA
 
@@ -297,7 +314,7 @@ La `WEBHOOK_URL` se configura en las vars de `wrangler.jsonc`. `WEBHOOK_SECRET` 
 
 ## Gestión de errores
 
-Si el análisis de el modelo falla:
+Si el análisis del modelo falla:
 - El mensaje de error se almacena en `document.processingError`
 - El documento se marca como no procesado
 - El documento sigue accesible para clasificación manual

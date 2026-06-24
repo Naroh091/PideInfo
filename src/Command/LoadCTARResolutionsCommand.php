@@ -78,6 +78,7 @@ class LoadCTARResolutionsCommand extends Command
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of every PDF page (for unreliable text layers); no-op for Word-based sources')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('only-missing-url', null, InputOption::VALUE_NONE, 'Only process resolutions that have no sourceUrl in DB')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop when more than 10 already-existing resolutions are found (for incremental imports)')
@@ -94,6 +95,7 @@ class LoadCTARResolutionsCommand extends Command
         $skipAnalysis = $input->getOption('skip-analysis');
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
+        $vision = $input->getOption('vision');
         $async = $input->getOption('async');
 
         $force = $input->getOption('force');
@@ -104,7 +106,7 @@ class LoadCTARResolutionsCommand extends Command
         $io->title('CTAR Resolution Loader (Aragón)');
 
         if ($input->getOption('missing-pdf')) {
-            return $this->processMissingPdfs(Resolution::SOURCE_CTAR, $async, $skipAnalysis, $skipVectors, $limit, $io);
+            return $this->processMissingPdfs(Resolution::SOURCE_CTAR, $async, $skipAnalysis, $skipVectors, $limit, $io, $vision);
         }
 
         // Step 1: Setup vector store
@@ -231,12 +233,13 @@ class LoadCTARResolutionsCommand extends Command
                             skipAnalysis: $skipAnalysis,
                             skipVectors: $skipVectors,
                             skipPdf: $skipPdf,
+                            forceVision: $vision,
                         ));
                         $stats['dispatched']++;
                     }
                 }
             } elseif (!$skipPdf || !$skipAnalysis || !$skipVectors) {
-                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $io, $stats);
+                $this->processInline($upsertedDtos, $skipPdf, $skipAnalysis, $skipVectors, $vision, $io, $stats);
                 try {
                     $this->entityManager->flush();
                 } catch (\Exception $e) {
@@ -301,7 +304,7 @@ class LoadCTARResolutionsCommand extends Command
     /**
      * @param ResolutionData[] $dtos
      */
-    private function processInline(array $dtos, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io, array &$stats): void
+    private function processInline(array $dtos, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, bool $vision, SymfonyStyle $io, array &$stats): void
     {
         foreach ($dtos as $dto) {
             $resolution = $this->resolutionRepository->findByReferenceAndSource($dto->referenceNumber, Resolution::SOURCE_CTAR);
@@ -311,7 +314,7 @@ class LoadCTARResolutionsCommand extends Command
 
             try {
                 if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
-                    $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                    $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $vision);
                 } elseif (!$resolution->getSourceUrl()) {
                     $stats['skippedPdf']++;
                 }

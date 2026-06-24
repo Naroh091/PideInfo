@@ -100,7 +100,7 @@ Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en 
 
 **Servicio `ComplaintDraftGenerator`** (`src/Service/Complaint/`) se encarga de lo relativo al flujo de chat: construir el preámbulo de la conversación (historial + indicaciones de este turno + borrador actual para `rewrite`) y despachar a `ComplaintGenerator::generateStream()` / `generateAlegationResponseStream()` con ese preámbulo inyectado como `userDirections`. El andamiaje jurídico (secciones, citas, recuperación RAG) sigue en `ComplaintGenerator` — la nueva clase es un orquestador ligero. `suggest_ideas` y `free_chat` usan cuatro prompts nuevos en `config/prompts/complaint/draft-*.md` y `config/prompts/alegation/draft-*.md`.
 
-**Pipeline de streaming.** SSE sigue la misma forma que `app_complaint_create_stream`: eventos `chunk`, `done`, `error`; requiere `USE_CUSTOM_MODEL=true` (la ruta de Gemini no soporta streaming). El legado no-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) y su hermano SSE se mantienen para las tools MCP y el agente.
+**Pipeline de streaming.** SSE sigue la misma forma que `app_complaint_create_stream`: eventos `chunk`, `done`, `error`. El legado no-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) y su hermano SSE se mantienen para las tools MCP y el agente.
 
 **Rutas legadas.** `/reclamacion/asistente` (`app_complaint_assistant`) y `/reclamacion/redactar` (`app_complaint_draft`) ahora devuelven 301 a la vista unificada. Sus plantillas (`interactive.html.twig`, `draft.html.twig`) no se usan y se conservan solo como referencia hasta la primera pasada de limpieza.
 

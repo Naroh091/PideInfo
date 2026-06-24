@@ -59,6 +59,7 @@ trait ResolutionProcessingTrait
         bool $skipVectors,
         ?int $limit,
         SymfonyStyle $io,
+        bool $forceVision = false,
     ): int {
         $qb = $this->resolutionRepository->createQueryBuilder('r')
             ->where('r.source = :source')
@@ -89,6 +90,7 @@ trait ResolutionProcessingTrait
                     skipAnalysis: $skipAnalysis,
                     skipVectors: $skipVectors,
                     skipPdf: false,
+                    forceVision: $forceVision,
                 ));
             }
             $io->success(sprintf('Dispatched %d resolutions to workers.', $count));
@@ -108,7 +110,7 @@ trait ResolutionProcessingTrait
             $io->text(sprintf('  [%d/%d] %s — %s', $processed + $errors + 1, $count, $ref, $resolution->getSourceUrl()));
 
             try {
-                $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $forceVision);
             } catch (\Throwable $e) {
                 $this->logger->error('PDF phase failed', ['reference' => $ref, 'error' => $e->getMessage()]);
                 $io->text('  <comment>PDF error: ' . $e->getMessage() . '</comment>');
@@ -153,7 +155,7 @@ trait ResolutionProcessingTrait
         return Command::SUCCESS;
     }
 
-    private function downloadAndProcessPdf(Resolution $resolution, string $documentUrl, SymfonyStyle $io): void
+    private function downloadAndProcessPdf(Resolution $resolution, string $documentUrl, SymfonyStyle $io, bool $forceVision = false): void
     {
         try {
             $extension = strtolower(pathinfo(parse_url($documentUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
@@ -186,7 +188,7 @@ trait ResolutionProcessingTrait
             $text = match ($extension) {
                 'docx' => $this->extractTextFromDocx($tmpFile),
                 'doc' => $this->extractTextFromDoc($tmpFile),
-                default => $this->extractText($tmpFile),
+                default => $this->extractText($tmpFile, $forceVision),
             };
             @unlink($tmpFile);
 
@@ -233,7 +235,7 @@ trait ResolutionProcessingTrait
         $cleanedText = $this->analyzer->cleanText($fullText);
 
         try {
-            $result = $this->analyzer->analyze($cleanedText);
+            $result = $this->analyzer->analyze($cleanedText, pdfBytes: $this->readStoredPdfBytes($resolution));
 
             $resolution->setFullText($result['formatted_text']);
             $this->analyzer->applyAnalysisResult($resolution, $result);
@@ -252,6 +254,27 @@ trait ResolutionProcessingTrait
             ]);
             $io->text('  <comment>Analysis error: ' . $e->getMessage() . '</comment>');
         }
+    }
+
+    /**
+     * Read the stored PDF bytes for a resolution, or null when there is no stored
+     * PDF (e.g. Word-based sources) or it is unreadable/invalid. Used to attach the
+     * first/last page to the analysis call for date extraction.
+     */
+    private function readStoredPdfBytes(Resolution $resolution): ?string
+    {
+        $path = $resolution->getPdfStoragePath();
+        if ($path === null || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
+            return null;
+        }
+
+        try {
+            $content = $this->resolutionsStorage->read($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return ($content !== '' && str_starts_with($content, '%PDF-')) ? $content : null;
     }
 
     private function vectorizeResolution(Resolution $resolution, SymfonyStyle $io): void
@@ -341,11 +364,12 @@ trait ResolutionProcessingTrait
         }
     }
 
-    private function extractText(string $filePath): string
+    private function extractText(string $filePath, bool $forceVision = false): string
     {
         // Delegates to the shared extractor, which transcribes via vision-LLM any
         // pages that lack a text layer (image-only scans) and merges them back in.
-        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath);
+        // With $forceVision, every page is transcribed by the vision model.
+        return $this->pdfOcrTranscriber->extractTextWithOcr($filePath, $forceVision);
     }
 
     private function extractTextFromDoc(string $filePath): string

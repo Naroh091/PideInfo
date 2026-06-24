@@ -11,7 +11,10 @@ Extrae de 3 a 7 frases completas con los argumentos jurídicos clave (precedente
 Evita que las frases se parezcan demasiado, si se parecen condénsalas en una.
 Evita formalidades comunes (por ejemplo, "La ley reconoce el derecho de acceso a la información pública")
 
-{{resolution_date_block}}### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
+[resolution_date]
+Fecha de firma de la resolución del organismo de transparencia. Suele aparecer al final del documento, junto a la firma, o en el encabezado. Formato ISO 8601 (YYYY-MM-DD). Null solo si de verdad no aparece. IMPORTANTE: se adjuntan las imágenes de la primera y la última página del documento. Da PRIORIDAD a buscar esta fecha en esas imágenes (sello de firma electrónica, pie de página o margen lateral, o título de la resolución), porque el texto extraído puede haberla perdido. No la confundas con la fecha de la solicitud de información ni con la fecha de la reclamación.
+
+### [info_request_date] Y [complained_administration] — EXTRACCIÓN CONJUNTA
 
 Estos dos campos aparecen casi SIEMPRE en la misma frase, en el PRIMER PUNTO del apartado «ANTECEDENTES» (o equivalente). Búscalos ahí antes que en cualquier otro sitio.
 

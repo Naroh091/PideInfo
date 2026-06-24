@@ -76,6 +76,7 @@ class LoadCTRMResolutionsCommand extends Command
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of every PDF page (for unreliable text layers); no-op for Word-based sources')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers')
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Process a specific resolution by reference number (skips API fetch)')
             ->addOption('update', null, InputOption::VALUE_NONE, 'Stop after a streak of consecutive already-existing resolutions (counter resets when a new one is found, so interleaved new entries still get imported)')
@@ -92,6 +93,7 @@ class LoadCTRMResolutionsCommand extends Command
         $skipAnalysis = $input->getOption('skip-analysis');
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
+        $vision = $input->getOption('vision');
         $async = $input->getOption('async');
 
         $reference = $input->getOption('reference');
@@ -99,11 +101,11 @@ class LoadCTRMResolutionsCommand extends Command
         $io->title('CTRM Resolution Loader');
 
         if ($input->getOption('missing-pdf')) {
-            return $this->processMissingPdfs(Resolution::SOURCE_CTRM, $async, $skipAnalysis, $skipVectors, $limit, $io);
+            return $this->processMissingPdfs(Resolution::SOURCE_CTRM, $async, $skipAnalysis, $skipVectors, $limit, $io, $vision);
         }
 
         if ($reference) {
-            return $this->processSpecificResolution($reference, $skipPdf, $skipAnalysis, $skipVectors, $io);
+            return $this->processSpecificResolution($reference, $skipPdf, $skipAnalysis, $skipVectors, $vision, $io);
         }
 
         // Step 1: Setup vector store
@@ -197,6 +199,7 @@ class LoadCTRMResolutionsCommand extends Command
                     skipAnalysis: $skipAnalysis,
                     skipVectors: $skipVectors,
                     skipPdf: $skipPdf,
+                    forceVision: $vision,
                 ));
                 $stats['dispatched']++;
             }
@@ -212,7 +215,7 @@ class LoadCTRMResolutionsCommand extends Command
 
                 try {
                     if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
-                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $vision);
                     } elseif (!$resolution->getSourceUrl()) {
                         $stats['skippedPdf']++;
                     }
@@ -382,7 +385,7 @@ class LoadCTRMResolutionsCommand extends Command
         return $isNew;
     }
 
-    private function processSpecificResolution(string $reference, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, SymfonyStyle $io): int
+    private function processSpecificResolution(string $reference, bool $skipPdf, bool $skipAnalysis, bool $skipVectors, bool $vision, SymfonyStyle $io): int
     {
         $resolution = $this->resolutionRepository->findByReferenceAndSource($reference, Resolution::SOURCE_CTRM);
         if (!$resolution) {
@@ -393,7 +396,7 @@ class LoadCTRMResolutionsCommand extends Command
         $io->section($reference);
 
         if (!$skipPdf && $resolution->getSourceUrl()) {
-            $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+            $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $vision);
         } elseif (!$resolution->getSourceUrl()) {
             $io->warning('No source URL available');
         }

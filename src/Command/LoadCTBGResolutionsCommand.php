@@ -82,6 +82,7 @@ class LoadCTBGResolutionsCommand extends Command
             ->addOption('skip-analysis', null, InputOption::VALUE_NONE, 'Skip AI analysis step')
             ->addOption('skip-vectors', null, InputOption::VALUE_NONE, 'Skip vectorization step')
             ->addOption('skip-pdf', null, InputOption::VALUE_NONE, 'Skip PDF download and text extraction')
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Force vision-LLM transcription of every PDF page (for unreliable text layers); no-op for Word-based sources')
             ->addOption('national-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached national Excel file')
             ->addOption('local-excel', null, InputOption::VALUE_REQUIRED, 'Path to cached local Excel file')
             ->addOption('async', null, InputOption::VALUE_NONE, 'Dispatch processing to Messenger workers (6x faster)')
@@ -102,12 +103,13 @@ class LoadCTBGResolutionsCommand extends Command
         $skipAnalysis = $input->getOption('skip-analysis');
         $skipVectors = $input->getOption('skip-vectors');
         $skipPdf = $input->getOption('skip-pdf');
+        $vision = $input->getOption('vision');
         $async = $input->getOption('async');
 
         $io->title('CTBG Resolution Loader');
 
         if ($input->getOption('missing-pdf')) {
-            return $this->processMissingPdfs(Resolution::SOURCE_CTBG, $async, $skipAnalysis, $skipVectors, $limit, $io);
+            return $this->processMissingPdfs(Resolution::SOURCE_CTBG, $async, $skipAnalysis, $skipVectors, $limit, $io, $vision);
         }
 
         if (!in_array($source, ['national', 'local', 'all'], true)) {
@@ -246,6 +248,7 @@ class LoadCTBGResolutionsCommand extends Command
                     skipAnalysis: $skipAnalysis,
                     skipVectors: $skipVectors,
                     skipPdf: $skipPdf,
+                    forceVision: $vision,
                 ));
                 $stats['dispatched']++;
             }
@@ -262,7 +265,7 @@ class LoadCTBGResolutionsCommand extends Command
 
                 try {
                     if (!$skipPdf && $resolution->getSourceUrl() && empty($resolution->getFullText())) {
-                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io);
+                        $this->downloadAndProcessPdf($resolution, $resolution->getSourceUrl(), $io, $vision);
                     } elseif (!$resolution->getSourceUrl()) {
                         $stats['skippedPdf']++;
                     }

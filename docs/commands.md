@@ -13,6 +13,7 @@ Todos los `app:*:load-resolutions` aceptan, además de las opciones específicas
 | `--update` | Para imports incrementales: el importador continúa procesando hasta encontrar una racha **consecutiva** de resoluciones ya existentes (50–100 según la fuente). El contador se reinicia cada vez que aparece una nueva, así que las resoluciones nuevas intercaladas en listados desordenados (CTPD, CTPDA…) o en posiciones "antiguas" del orden por fecha (GAIP, CTBG) se siguen importando. |
 | `--force` | Sobrescribe resoluciones existentes (por defecto se omiten). |
 | `--missing-pdf` | Reprocesa resoluciones existentes que tienen `sourceUrl` pero no texto extraído. |
+| `--vision` | Fuerza la transcripción con el LLM de visión de **todas** las páginas del PDF al extraer texto (para PDFs cuya capa de texto embebida no es fiable). Se aplica tanto en la ruta inline como en la asíncrona (`--async`). **No-op en fuentes basadas en Word** (p. ej. CVAIP, cuyo texto se extrae del documento Word, no de un PDF). Cada página es una llamada al LLM, así que sube el coste; acótalo con `--limit`. |
 
 ---
 
@@ -787,7 +788,7 @@ php bin/console app:rename-complaint-status
 
 ### `app:debug:document-analysis`
 
-Analiza un documento con el LLM activo (`USE_CUSTOM_MODEL` decide entre Gemini y modelo propio) y muestra la cadena de razonamiento. Pensado para depurar prompts y outputs.
+Analiza un documento con el LLM (modelo personalizado compatible con OpenAI, vía `LlmClient`) y muestra la cadena de razonamiento. Pensado para depurar prompts y outputs.
 
 ```bash
 php bin/console app:debug:document-analysis

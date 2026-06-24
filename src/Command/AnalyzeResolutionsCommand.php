@@ -9,6 +9,7 @@ use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\ResolutionAnalyzer;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use League\Flysystem\FilesystemOperator;
 use Symfony\AI\Platform\Vector\Vector;
 use Symfony\AI\Store\Document\Metadata;
 use Symfony\AI\Store\Document\VectorDocument;
@@ -42,9 +43,32 @@ class AnalyzeResolutionsCommand extends Command
         private readonly EmbeddingGenerator $embeddingGenerator,
         #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $vectorStore,
+        #[Autowire(service: 'resolutions.storage')]
+        private readonly FilesystemOperator $resolutionsStorage,
     ) {
         $this->entityManager = $managerRegistry->getManager();
         parent::__construct();
+    }
+
+    /**
+     * Read the stored PDF bytes for a resolution, or null when there is no stored
+     * PDF (e.g. Word-based sources) or it is unreadable/invalid. Used to attach the
+     * first/last page to the analysis call for date extraction.
+     */
+    private function readStoredPdfBytes(Resolution $resolution): ?string
+    {
+        $path = $resolution->getPdfStoragePath();
+        if ($path === null || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
+            return null;
+        }
+
+        try {
+            $content = $this->resolutionsStorage->read($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return ($content !== '' && str_starts_with($content, '%PDF-')) ? $content : null;
     }
 
     private function resetEntityManager(): void
@@ -350,11 +374,12 @@ class AnalyzeResolutionsCommand extends Command
                         $io->text(sprintf('  Calling API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
 
                         $t0 = microtime(true);
+                        $pdfBytes = $this->readStoredPdfBytes($resolution);
                         $result = match ($mode) {
                             'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
-                            'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                            'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
                             'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
-                            default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                            default => $this->analyzer->analyze($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
                         };
                         $elapsed = microtime(true) - $t0;
                         $io->text(sprintf('  <info>API responded in %.1fs</info>', $elapsed));
@@ -440,11 +465,12 @@ class AnalyzeResolutionsCommand extends Command
                 };
                 $io->text(sprintf('  Calling LLM API (%s%s)...', $modeLabel, $flex ? ', flex' : ''));
 
+                $pdfBytes = $this->readStoredPdfBytes($resolution);
                 $result = match ($mode) {
                     'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
-                    'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                    'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
                     'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
-                    default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                    default => $this->analyzer->analyze($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
                 };
 
                 $this->applyResult($resolution, $result, $mode, $io);

@@ -347,16 +347,38 @@ final class ProcessResolutionHandler
         }
     }
 
+    /**
+     * Read the stored PDF bytes for a resolution, or null when there is no
+     * stored PDF (e.g. Word-based sources) or it is unreadable/invalid. Used to
+     * attach the first/last page to the analysis call for date extraction.
+     */
+    private function readStoredPdfBytes(Resolution $resolution): ?string
+    {
+        $path = $resolution->getPdfStoragePath();
+        if ($path === null || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
+            return null;
+        }
+
+        try {
+            $content = $this->resolutionsStorage->read($path);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return ($content !== '' && str_starts_with($content, '%PDF-')) ? $content : null;
+    }
+
     private function analyzeResolution(Resolution $resolution, bool $flex = false, string $mode = 'all'): void
     {
         $cleanedText = $this->analyzer->cleanText($resolution->getFullText());
+        $pdfBytes = $this->readStoredPdfBytes($resolution);
 
         try {
             $result = match ($mode) {
                 'format' => $this->analyzer->formatText($cleanedText, flex: $flex),
-                'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex),
+                'analyze' => $this->analyzer->extractAnalysis($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
                 'non-complete' => $this->analyzer->extractNonCompleteAnalysis($cleanedText, flex: $flex),
-                default => $this->analyzer->analyze($cleanedText, flex: $flex),
+                default => $this->analyzer->analyze($cleanedText, flex: $flex, pdfBytes: $pdfBytes),
             };
 
             if (isset($result['formatted_text'])) {
