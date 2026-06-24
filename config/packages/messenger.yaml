@@ -48,6 +48,7 @@ framework:
             Symfony\Component\Notifier\Message\SmsMessage: mail
             App\Message\ProcessDocumentMessage: analysis
             App\Message\ProcessDocumentBatchMessage: analysis
+            App\Message\ProcessCriterionMessage: analysis
             App\Message\GenerateDocumentEmbeddingsMessage: analysis
             App\Message\WarmSuccessAnalysisMessage: analysis
             App\Message\WarmActivitySummaryMessage: analysis

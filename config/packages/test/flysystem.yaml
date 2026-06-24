@@ -4,3 +4,5 @@ flysystem:
             adapter: 'memory'
         documents.storage:
             adapter: 'memory'
+        criteria.storage:
+            adapter: 'memory'
