@@ -25,11 +25,12 @@ La deduplicación basada en hash es uniforme en todas las rutas de ingesta: subi
 | Formato | Tipos MIME |
 |--------|-----------|
 | PDF | `application/pdf` |
-| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document`, `application/msword` |
+| Word | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (.docx), `application/msword` (.doc) — se extrae el texto (`WordTextExtractor`: PhpWord para .docx, `antiword` para .doc) y se envía como texto al modelo |
+| Texto | `text/plain` (.txt) — se envía inline como texto |
 | Imágenes | `image/jpeg`, `image/png`, `image/gif` |
 | ZIP | `application/zip` (el contenido se extrae y procesa individualmente) |
 
-Tamaño máximo de archivo: 50 MB.
+Tamaño máximo de **subida**: 50 MB. Tamaño máximo para **análisis con IA**: 14 MB (`DocumentAnalyzer::MAX_FILE_SIZE`); los ficheros entre 14 y 50 MB se almacenan pero el análisis falla con un error registrado en `processingError`.
 
 ## Análisis con IA 
 
@@ -45,6 +46,8 @@ El analizador lee el documento desde S3, lo codifica en base64 y lo envía a tra
 - **PDFs escaneados o solo imagen** (extracción vacía, demasiado corta o mayoritariamente glifos basura): las primeras 30 páginas se rasterizan a PNG mediante `PdfRasterizer` (que ejecuta `pdftoppm` de `poppler-utils`) y se adjuntan como partes `image_url`, junto con cualquier texto parcial que haya salido del extractor.
 
 La comprobación "¿es útil el texto extraído?" vive en `DocumentAnalyzer::isExtractedTextUseful()`. Las imágenes simples y los documentos `text/plain` no se ven afectados por esta rama.
+
+**Documentos Word (.doc/.docx).** Tampoco pueden reenviarse como binario al backend OpenAI-compatible, así que `DocumentAnalyzer` extrae el texto con `WordTextExtractor` (PhpWord para .docx, `antiword` para .doc) y lo envía como una parte de texto. Si la extracción no devuelve texto, se envía solo el contexto. `text/plain` se inlinea directamente como texto.
 
 ### Fallback de OCR por visión en el pipeline de resoluciones
 
@@ -284,7 +287,7 @@ Existing AI pipeline (same as manual uploads)
 ### Tratamiento de documentos de email
 
 - El cuerpo del email se almacena como documento `text/plain` y es analizado por el modelo para extraer números de referencia y contexto
-- Los adjuntos se filtran por tipos MIME permitidos (PDF, imágenes, Word)
+- Los adjuntos se filtran por tipos MIME permitidos (PDF, imágenes, Word, texto)
 - Todos los documentos del mismo email comparten un `emailGroupId` en su campo JSON `sourceMetadata`
 - `Document.sourceType` se establece a `'email'` para distinguirlo de subidas manuales y de la sincronización del portal
 - `Document.sourceMetadata` almacena: `{from, subject, date, emailGroupId, emailHash}` para emails, o metadatos específicos del portal para documentos sincronizados desde el portal

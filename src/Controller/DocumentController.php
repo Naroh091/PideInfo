@@ -83,6 +83,7 @@ class DocumentController extends AbstractController
             'image/gif',
             'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
             'application/zip',
             'application/x-zip-compressed',
         ];

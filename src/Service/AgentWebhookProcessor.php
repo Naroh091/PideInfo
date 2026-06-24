@@ -25,6 +25,7 @@ class AgentWebhookProcessor
         'image/png',
         'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain',
     ];
 
     /** Marker used by promoteExternalId to detect already-final CTBG refs. */
@@ -768,6 +769,7 @@ class AgentWebhookProcessor
             'image/png' => 'png',
             'application/msword' => 'doc',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+            'text/plain' => 'txt',
             default => 'bin',
         };
 
