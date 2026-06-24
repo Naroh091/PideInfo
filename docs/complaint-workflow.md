@@ -262,6 +262,23 @@ Cada `ApplicableLaw` se mapea a un `ComplaintOrganism` — el consejo de transpa
 
 La entidad `ComplaintOrganism` guarda el nombre del organismo, el nombre corto, la web, la URL del formulario de reclamación, el email y la dirección.
 
+### Organismos extinguidos y sucesión
+
+Los cambios en las leyes de transparencia han disuelto algunos consejos (p.ej. Madrid y Murcia), cuyas competencias asumió otro órgano vigente. Para distinguir el organismo histórico del actual, `ComplaintOrganism` incorpora:
+
+- `extinct` (bool, por defecto `false`) — marca el organismo como disuelto.
+- `extinctionDate` (date, opcional) — fecha de extinción.
+- `successor` — auto-referencia (`ManyToOne` a `ComplaintOrganism`) al órgano vigente que asumió sus competencias; el lado inverso es la colección `predecessors`.
+
+Estos campos se editan desde EasyAdmin (`ComplaintOrganismCrudController`). Las resoluciones históricas se conservan asignadas al organismo que las emitió; no hay reasignación automática.
+
+En la página de detalle de un organismo (la lista de resoluciones filtrada por organismo, `templates/resolution/index.html.twig`), bajo la línea «Resoluciones emitidas por …» del HERO se muestra una línea discreta y permanente (no es un aviso):
+
+- Si el organismo está **extinguido** y tiene sucesor: «{sucesor} asumió las competencias del extinguido {este organismo} a partir del XX/XX/XXXX», con el nombre del sucesor enlazado a su detalle.
+- Si el organismo es **sucesor** (tiene `predecessors`): una línea por predecesor, «{este organismo} asumió las competencias del extinguido {predecesor} a partir del XX/XX/XXXX», con el nombre del predecesor enlazado a su detalle.
+- La fecha solo se muestra cuando hay `extinctionDate`.
+- Los organismos extinguidos siguen apareciendo en el selector de organismos, marcados con el sufijo «(extinguido)».
+
 ## Integración con la línea temporal
 
 Cada evento de reclamación crea una entrada en `StatusHistory` con `statusType = 'complaint'`. Estas aparecen en la línea temporal unificada de la página de detalle de la solicitud junto con los cambios de estado principales y las acciones judiciales.

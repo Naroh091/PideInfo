@@ -40,6 +40,7 @@
                 <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
                 <span class="text-slate-700 font-medium">{{ activeOrganism.name }}</span>
             </nav>
+
             <div class="flex items-center justify-between gap-4">
                 <div class="flex-1 min-w-0">
                     <div class="organism-title-select">
@@ -50,7 +51,7 @@
                                         data-shortname="{{ organism.shortName }}"
                                         data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}"
                                         {{ activeOrganism.id == organism.id ? 'selected' }}>
-                                    {{ organism.name }}
+                                    {{ organism.name }}{{ organism.extinct ? ' (extinguido)' }}
                                 </option>
                             {% endfor %}
                         </select>
@@ -59,6 +60,34 @@
                         <p class="text-sm text-slate-400 italic mt-1">{{ activeOrganism.autonomousCommunity.name }}</p>
                     {% endif %}
                     <p class="text-sm text-slate-500 mt-1">Resoluciones emitidas por {{ activeOrganism.shortName ?? activeOrganism.name }}</p>
+
+                    {% if activeOrganism.extinct and activeOrganism.successor %}
+                        {% set successor = activeOrganism.successor %}
+                        <p class="flex items-start gap-1.5 text-sm text-slate-400 mt-1.5">
+                            <i data-lucide="git-merge" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>
+                                {%- if successor.slug -%}
+                                    <a href="{{ path('app_resoluciones_organismo', { slug: successor.slug }) }}" class="text-primary-600 hover:text-primary-700 underline underline-offset-2">{{ successor.name }}</a>
+                                {%- else -%}
+                                    {{ successor.name }}
+                                {%- endif %} asumió las competencias del extinguido {{ activeOrganism.name }}{% if activeOrganism.extinctionDate %} a partir del {{ activeOrganism.extinctionDate|date('d/m/Y') }}{% endif %}.
+                            </span>
+                        </p>
+                    {% endif %}
+
+                    {% for predecessor in activeOrganism.predecessors %}
+                        <p class="flex items-start gap-1.5 text-sm text-slate-400 mt-1.5">
+                            <i data-lucide="git-merge" class="w-3.5 h-3.5 mt-0.5 shrink-0"></i>
+                            <span>
+                                {{ activeOrganism.name }} asumió las competencias del extinguido
+                                {%- if predecessor.slug %}
+                                    <a href="{{ path('app_resoluciones_organismo', { slug: predecessor.slug }) }}" class="text-primary-600 hover:text-primary-700 underline underline-offset-2">{{ predecessor.name }}</a>
+                                {%- else %}
+                                    {{ predecessor.name }}
+                                {%- endif %}{% if predecessor.extinctionDate %} a partir del {{ predecessor.extinctionDate|date('d/m/Y') }}{% endif %}.
+                            </span>
+                        </p>
+                    {% endfor %}
                 </div>
                 {% if activeOrganism.image %}
                     {% if activeOrganism.url %}
@@ -114,7 +143,7 @@
                         <option value="{{ organism.slug ? path('app_resoluciones_organismo', { slug: organism.slug }) : '' }}"
                                 data-shortname="{{ organism.shortName }}"
                                 data-ccaa="{{ organism.autonomousCommunity ? organism.autonomousCommunity.name : '' }}">
-                            {{ organism.name }}
+                            {{ organism.name }}{{ organism.extinct ? ' (extinguido)' }}
                         </option>
                     {% endfor %}
                 </select>
