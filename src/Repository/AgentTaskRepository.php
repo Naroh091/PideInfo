@@ -35,6 +35,25 @@ class AgentTaskRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * All non-terminal tasks (pending/claimed/in_progress) for a user, newest
+     * first. Used by the MCP list_active_submissions tool so an agent that lost
+     * a taskId can recover the submissions still in flight.
+     *
+     * @return AgentTask[]
+     */
+    public function findActiveForUser(User $user): array
+    {
+        return $this->createQueryBuilder('t')
+            ->andWhere('t.user = :user')
+            ->andWhere('t.status NOT IN (:terminal)')
+            ->setParameter('user', $user)
+            ->setParameter('terminal', AgentTask::TERMINAL_STATUSES)
+            ->orderBy('t.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findLatestForRequest(\App\Entity\AccessRequest $request, string $type): ?AgentTask
     {
         return $this->createQueryBuilder('t')

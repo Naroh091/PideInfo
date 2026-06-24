@@ -970,7 +970,10 @@ GRANTED_PENDING;
         );
     }
 
-    public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft): Document
+    /**
+     * @param array<string, mixed> $extraMetadata merged into aiMetadata (e.g. the MCP channel tag)
+     */
+    public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft, array $extraMetadata = []): Document
     {
         $filename = sprintf(
             'respuesta_alegaciones_%s_%s.txt',
@@ -990,14 +993,15 @@ GRANTED_PENDING;
         $document->setAccessRequest($accessRequest);
         $document->setUploadedBy($accessRequest->getUser());
         $document->setProcessed(true);
-        $document->setAiMetadata([
+        $document->setAiMetadata(array_merge([
+            'origin' => 'ai',
             'transparencyCouncil' => $draft->transparencyCouncil,
             'applicableLaw' => $draft->applicableLaw,
             'citedResolutions' => array_map(fn($r) => $r->toArray(), $draft->citedResolutions),
             'citedCriteria' => $draft->citedCriteria,
             'successAnalysis' => $draft->successAnalysis?->toArray(),
             'generatedAt' => (new \DateTime())->format('c'),
-        ]);
+        ], $extraMetadata));
 
         $this->entityManager->persist($document);
         $this->entityManager->flush();

@@ -12,10 +12,9 @@ use App\Service\AI\Chat\ChatAttachmentParser;
 use App\Service\AI\Chat\ChatHistoryStore;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
-use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\Chat\DraftSimilarResolutionsProvider;
+use App\Service\AI\Chat\RequestDraftApplier;
 use App\Service\AI\Llm\ContentPart;
-use App\Service\AI\ResolutionRetriever;
-use App\Service\AI\Vector;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Document\DocumentContentsCollector;
@@ -63,8 +62,8 @@ final class AssistantChatController extends AbstractController
         private readonly ComplaintPromptComposer $complaintPromptComposer,
         private readonly ComplaintGenerator $complaintGenerator,
         private readonly DocumentContentsCollector $documentContentsCollector,
-        private readonly EmbeddingGenerator $embeddingGenerator,
-        private readonly ResolutionRetriever $resolutionRetriever,
+        private readonly RequestDraftApplier $requestDraftApplier,
+        private readonly DraftSimilarResolutionsProvider $similarResolutionsProvider,
     ) {
     }
 
@@ -88,12 +87,12 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $similar = $this->loadSimilarResolutions($accessRequest);
+        $similar = $this->similarResolutionsProvider->forRequest($accessRequest);
         $systemPrompt = $this->requestPromptComposer->compose($accessRequest, $similar);
 
         $historyKey = self::CHAT_HISTORY_KEY_REQUEST;
         $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
-        $previousDraft = $this->snapshotDraft($accessRequest);
+        $previousDraft = $this->requestDraftApplier->snapshot($accessRequest);
         $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
 
         $turn = new AssistantChatTurn(
@@ -116,7 +115,7 @@ final class AssistantChatController extends AbstractController
                     return null;
                 }
 
-                $normalized = $this->applyRequestDraft($accessRequest, $draft);
+                $normalized = $this->requestDraftApplier->apply($accessRequest, $draft);
                 $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();
 
@@ -290,57 +289,6 @@ final class AssistantChatController extends AbstractController
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function snapshotDraft(AccessRequest $ar): array
-    {
-        if ($ar->getRegDestination() !== null) {
-            return [
-                'title' => (string) $ar->getTitle(),
-                'expone' => (string) ($ar->getExpone() ?? ''),
-                'solicita' => (string) ($ar->getSolicita() ?? ''),
-            ];
-        }
-        return [
-            'title' => (string) $ar->getTitle(),
-            'body_text' => (string) ($ar->getDescription() ?? ''),
-        ];
-    }
-
-    /**
-     * @param array<string, mixed> $draft
-     * @return array<string, mixed>
-     */
-    private function applyRequestDraft(AccessRequest $ar, array $draft): array
-    {
-        $title = mb_substr(trim((string) ($draft['title'] ?? '')), 0, 255);
-        $ar->setTitle($title);
-
-        if ($ar->getRegDestination() !== null) {
-            $expone = mb_substr($this->plain((string) ($draft['expone'] ?? '')), 0, 4000);
-            $solicita = mb_substr($this->plain((string) ($draft['solicita'] ?? '')), 0, 4000);
-            $ar->setExpone($expone);
-            $ar->setSolicita($solicita);
-            $ar->setDescription(mb_substr(
-                trim("EXPONE:\n" . $expone . "\n\nSOLICITA:\n" . $solicita),
-                0,
-                8500,
-            ));
-            return ['title' => $title, 'expone' => $expone, 'solicita' => $solicita];
-        }
-
-        $body = mb_substr($this->plain((string) ($draft['body_text'] ?? '')), 0, 3000);
-        $ar->setDescription($body);
-        return ['title' => $title, 'body_text' => $body];
-    }
-
-    private function plain(string $text): string
-    {
-        $clean = strip_tags($text);
-        return trim($clean);
-    }
-
-    /**
      * Builds the textual user turn to persist into chat history, folding the
      * attached parts back into the message text. Without this, the next turn
      * sees only the typed message ("Sí") and not the CSV/PDF/etc. it was
@@ -445,34 +393,5 @@ final class AssistantChatController extends AbstractController
             ar: $ar,
             metadataKey: $key,
         );
-    }
-
-    /**
-     * @return array<int, array<string, mixed>>
-     */
-    private function loadSimilarResolutions(AccessRequest $ar): array
-    {
-        $title = trim((string) $ar->getTitle());
-        $description = trim((string) $ar->getDescription());
-        $organism = $ar->getPublicBody()->getName();
-        $query = trim(implode('. ', array_filter([$title, $description])));
-        if ($query === '') {
-            $query = $organism . '. ' . ((string) ($ar->getApplicableLaw()?->getName() ?? ''));
-        }
-
-        try {
-            $embedding = $this->embeddingGenerator->generate(mb_substr($query, 0, 4000));
-            return $this->resolutionRetriever->retrieveSimilarCasesByVector(
-                new Vector($embedding),
-                3,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
-        } catch (\Throwable) {
-            return $this->resolutionRetriever->retrieveSimilarCases(
-                $query,
-                3,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
-        }
     }
 }

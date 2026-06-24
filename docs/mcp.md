@@ -71,17 +71,34 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `get_status_history`         | mcp:read       | Historial cronológico de cambios de una solicitud (incluye notas tagueadas `[mcp/...]`). |
 | `list_upcoming_deadlines`    | mcp:read       | Solicitudes con plazo en los próximos N días o vencido.                          |
 | `list_public_bodies`         | mcp:read       | Búsqueda de organismos por nombre — devuelve UUIDs aptos para `create_access_request`. |
-| `search_resolutions`         | mcp:read       | Búsqueda semántica en CTBG (vector store).                                       |
+| `search_public_bodies`       | mcp:read       | Organismos a los que se puede enviar una solicitud, con canal (Portal/REG), `requiresRegDestination` y ley aplicable resuelta. Usa el id en `start_request_draft`. |
+| `list_reg_destinations`      | mcp:read       | Unidades DIR3 activas (canal REG / RED SARA) de un organismo, para el `regDestinationId` que piden `start_request_draft` / `submit_request`. |
+| `list_applicable_laws`       | mcp:read       | Catálogo de leyes de transparencia (plazo, sentido del silencio, organismo de reclamación). Datos públicos. |
+| `list_complaint_organisms`   | mcp:read       | Catálogo de consejos de transparencia / órganos de reclamación (CCAA, vía de presentación, contacto). Datos públicos. |
+| `search_resolutions`         | mcp:read       | Búsqueda semántica en CTBG (vector store). Con `analyzeTopN>0` activa el análisis profundo de dos fases (lee el texto completo de hasta N resoluciones, máx. 4) y devuelve un argumento aplicable por cada una; reutiliza `ResolutionSearchPipeline`. |
+| `search_criteria`            | mcp:read       | Criterios Interpretativos del CTBG (art. 14/18 LTAIBG) aplicables a un argumento, leídos en profundidad. Vía `CriteriaSearchPipeline`. |
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
 | `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
+| `suggest_next_action`        | mcp:read       | Dado el estado de una solicitud, sugiere el siguiente paso accionable y qué tool MCP usar (redactar/enviar/reclamar/responder alegaciones/seguimiento). |
+| `analyze_request_success`    | mcp:read       | Probabilidad de éxito (0-100) de una solicitud en borrador, con resumen/fortalezas/debilidades. Mismo `AccessRequestSuccessAnalyzer` que la web. |
+| `analyze_complaint_success`  | mcp:read       | Probabilidad de éxito (0-100) de una reclamación analizando el expediente. Mismo `Complaint\SuccessAnalyzer` que la web. |
+| `get_submission_status`      | mcp:read       | Estado de una tarea de envío/presentación (taskId). Devuelve `isTerminal` + `pollAfterSeconds` + `nextAction` para que el agente sondee y avise al usuario. Owner-scoped sobre `AgentTask`. |
+| `list_active_submissions`    | mcp:read       | Tareas de envío/presentación en curso (no terminales) del usuario, para recuperar un taskId perdido. |
 | `read_document`              | mcp:documents  | Lee un documento: mode=text devuelve texto extraído (PDF → texto, plano → texto); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos). Cachea texto en `Document.extractedText`. |
 | `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. mode=text devuelve texto; mode=url devuelve pre-signed URLs de descarga. Sin límite de documentos. |
-| `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
+| `upload_document`            | mcp:documents  | Aporta un documento (PDF/imagen) inline en base64 (máx. 1 MiB) al expediente; lo encola en el pipeline de procesado. Para archivos mayores, vía web. |
+| `create_access_request`      | mcp:write      | Crea solicitud nueva YA enviada (estado `sent`, calcula plazo según `ApplicableLaw`). Para redactar antes de enviar, usa `start_request_draft`. |
+| `start_request_draft`        | mcp:write      | Crea un borrador (estado `pending`) para un destinatario, sobre el que se conversa con `draft_request_message`. Para REG requiere `regDestinationId`. |
+| `draft_request_message`      | mcp:write      | Una vuelta de conversación para redactar/ajustar una solicitud en borrador. Devuelve respuesta + borrador aplicado + probabilidad de éxito. Hilo de chat compartido con la web (vía `AgentChatTurnRunner`). |
+| `draft_complaint_message`    | mcp:write      | Una vuelta de conversación para redactar una reclamación (`mode=complaint`) o respuesta a alegaciones (`mode=alegation_response`). Lienzo efímero: reenvía `currentBodyHtml`; guarda con `save_complaint_draft`. |
+| `save_complaint_draft`       | mcp:write      | Persiste el lienzo efímero como `Document` (reclamación → upsert idempotente; alegaciones → nuevo). Tag `aiMetadata['origin']=mcp/{client_id}`. |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |
 | `generate_complaint_draft`   | mcp:write      | Borrador de reclamación con citas (vía `ComplaintGenerator` + `LlmClient`). Carga el texto extraído de todos los documentos del expediente vía `DocumentContentsCollector`; reutiliza el análisis de éxito cacheado en `AccessRequest.metadata['success_analysis']`. |
-| `file_complaint`             | mcp:write      | Presenta reclamación: crea `AccessRequestComplaint` con deadline +3 meses, transiciona la solicitud a `reclaimed` y registra `StatusHistory`/`DeadlineHistory`. |
+| `submit_request`             | mcp:write      | Despacha una solicitud en borrador al agente de escritorio para firmarla y presentarla (Portal/REG). Crea una `AgentTask` (vía `RequestDispatcher`, compartido con la web) con `payload['origin']=[mcp/{client_id}]`. Devuelve taskId. |
+| `present_complaint`          | mcp:write      | Despacha al agente de escritorio para PRESENTAR (firmar y registrar en CTBG/autonómico o REG) una reclamación ya guardada (vía `ComplaintPresenter`, compartido con la web). Distinto de `file_complaint`. Devuelve taskId. |
+| `file_complaint`             | mcp:write      | REGISTRA como ya presentada una reclamación que el usuario presentó manualmente: crea `AccessRequestComplaint` con deadline +3 meses, transiciona a `reclaimed` y registra `StatusHistory`/`DeadlineHistory`. No despacha al agente (para eso, `present_complaint`). |
 | `update_complaint_status`    | mcp:write      | Registra resolución del CTBG (granted/denied/archived); fija `complianceDeadlineAt` opcional. |
 | `add_reminder`               | mcp:write      | Recordatorio en una fecha futura (opcionalmente vinculado a una solicitud).      |
 
@@ -104,11 +121,26 @@ read_document(documentId: "uuid", mode: "url")
 
 Para archivos pequeños, `mode=url` también devuelve la URL — el cliente elige explícitamente el modo.
 
+## Redacción conversacional (turn-based)
+
+MCP es request/response (sin SSE), así que la redacción conversacional de la web (`AssistantChatController`, streaming) se expone **por turnos**: cada llamada a `draft_request_message` / `draft_complaint_message` es una vuelta. Internamente reutilizan el mismo motor `AgentChatOrchestrator` drenado sin streaming por `AgentChatTurnRunner`, el mismo `ChatHistoryStore` (hilo **compartido** con la web: `request:{uuid}` y `complaint:{uuid}:{mode}`) y los mismos composers. El borrador de solicitud se aplica con `RequestDraftApplier` (compartido con el controlador). La probabilidad de éxito viene incluida en cada respuesta y también como tools sueltas (`analyze_*_success`).
+
+- **Solicitud**: `start_request_draft` (crea el borrador `pending`) → `draft_request_message` (N vueltas) → `submit_request`.
+- **Reclamación**: el lienzo es **efímero** — `draft_complaint_message` devuelve el HTML pero NO persiste; reenvía `currentBodyHtml` en cada vuelta y guarda con `save_complaint_draft` antes de `present_complaint`. En la primera vuelta el modelo propone un `plan` (FASE 1) antes de generar.
+
+## Envío y seguimiento (asíncrono por sondeo)
+
+El envío real lo realiza el **agente de escritorio** del usuario (firma Cl@ve/certificado); el servidor solo encola una `AgentTask`. `submit_request` y `present_complaint` reutilizan exactamente la lógica de los controladores web (`RequestDispatcher` y `ComplaintPresenter`, extraídos para no divergir; `SubmissionGuard` evita duplicados). Como `/api/agent/tasks/{id}` está tras el firewall JWT (no alcanzable por MCP), el seguimiento se hace con `get_submission_status` (owner-scoped sobre `AgentTask`).
+
+Contrato de sondeo (sin server-push): cada respuesta lleva `isTerminal` y `pollAfterSeconds`; mientras `isTerminal=false` el agente debe volver a llamar tras ese intervalo, y en terminal (`done`/`failed`/`uncertain`) avisar al usuario (y transmitir `errorMessage`). El mapeo estado→etiqueta espeja el modal de progreso web. Casos borde: sin agente de escritorio activo la tarea queda en `pending` (no es error); el terminal `uncertain` exige verificación humana antes de reenviar (`confirmUncertain=true`).
+
 ## Auditoría
 
 Toda mutación originada por MCP queda trazada:
 
-- `StatusHistory.notes` se prefija con `[mcp/{client_id}]` para identificar el canal y el cliente.
+- `StatusHistory.notes` / `DeadlineHistory` se prefijan con `[mcp/{client_id}]` cuando hay una **transición de estado** (`update_request_status`, `extend_request_deadline`, `file_complaint`, `update_complaint_status`).
+- Las tools que **editan contenido o crean artefactos** (no cambian estado) etiquetan el canal en el propio artefacto, no en `StatusHistory`: el borrador (`metadata['created_via']`), el turno de chat del asistente (`channel`), el documento (`aiMetadata['origin']`) y la `AgentTask` de envío (`payload['origin']`). Ver `docs/mcp_caveats.md`.
+- La `StatusHistory` que marca una solicitud como `sent`/reclamada al COMPLETAR el envío la escribe el agente de escritorio con su propio tag `[agent/...]` — el `payload['origin']=[mcp/...]` identifica que el despacho se originó por MCP.
 - Los registros DCR se persisten en `oauth2_dynamic_client_metadata` con `dynamic = true`.
 
 ## Aplicaciones conectadas (panel del usuario)

@@ -27,7 +27,6 @@ use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
 use App\Service\Submission\RegAdministrationLevel;
-use App\Service\Submission\RegPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Omines\DataTablesBundle\DataTableFactory;
 use Psr\Log\LoggerInterface;
@@ -605,8 +604,7 @@ class AccessRequestController extends AbstractController
         Request $request,
         string $batchId,
         ChannelResolver $channelResolver,
-        RegPayloadBuilder $regPayloadBuilder,
-        \App\Service\AccessRequest\SubmissionGuard $submissionGuard,
+        \App\Service\Submission\RequestDispatcher $requestDispatcher,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
@@ -760,80 +758,42 @@ class AccessRequestController extends AbstractController
                 if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
                     continue;
                 }
-                if (trim($accessRequest->getTitle()) === '' || trim($accessRequest->getDescription()) === '') {
-                    $this->entityManager->rollback();
-                    return new JsonResponse([
-                        'error' => 'incomplete_draft',
-                        'accessRequestId' => $accessRequest->getId()->toRfc4122(),
-                    ], Response::HTTP_BAD_REQUEST);
-                }
 
-                // REG asunto hard-caps at 80 chars (portal truncates silently);
-                // reject before the agent even gets the task.
-                if ($accessRequest->getRegDestination() !== null
-                    && mb_strlen($accessRequest->getTitle()) > 80
-                ) {
-                    $this->entityManager->rollback();
-                    return new JsonResponse([
-                        'error' => 'title_too_long_for_reg',
-                        'accessRequestId' => $accessRequest->getId()->toRfc4122(),
-                        'limit' => 80,
-                        'actualLength' => mb_strlen($accessRequest->getTitle()),
-                    ], Response::HTTP_BAD_REQUEST);
-                }
-
-                $body = $accessRequest->getPublicBody();
-                $channel = $channelResolver->resolveTaskType($body);
-                $decision = $submissionGuard->evaluate($accessRequest, $channel, $confirmUncertain);
-                if (!$decision->allowed) {
-                    if ($decision->reason === 'uncertain_needs_confirmation') {
-                        $uncertainNeedsConfirm[] = $accessRequest->getId()->toRfc4122();
+                // Per-draft task minting is shared with the MCP submit_request
+                // tool via RequestDispatcher. Map its blocking reasons back to
+                // the controller's existing batch semantics.
+                try {
+                    $task = $requestDispatcher->dispatchOne($accessRequest, $user, $confirmUncertain);
+                } catch (\App\Service\Submission\DispatchBlockedException $e) {
+                    switch ($e->reason) {
+                        case \App\Service\Submission\DispatchBlockedException::REASON_INCOMPLETE_DRAFT:
+                            $this->entityManager->rollback();
+                            return new JsonResponse([
+                                'error' => 'incomplete_draft',
+                                'accessRequestId' => $e->context['accessRequestId'] ?? $accessRequest->getId()->toRfc4122(),
+                            ], Response::HTTP_BAD_REQUEST);
+                        case \App\Service\Submission\DispatchBlockedException::REASON_TITLE_TOO_LONG_FOR_REG:
+                            $this->entityManager->rollback();
+                            return new JsonResponse([
+                                'error' => 'title_too_long_for_reg',
+                                'accessRequestId' => $e->context['accessRequestId'] ?? $accessRequest->getId()->toRfc4122(),
+                                'limit' => $e->context['limit'] ?? 80,
+                                'actualLength' => $e->context['actualLength'] ?? mb_strlen($accessRequest->getTitle()),
+                            ], Response::HTTP_BAD_REQUEST);
+                        case \App\Service\Submission\DispatchBlockedException::REASON_UNCERTAIN_NEEDS_CONFIRMATION:
+                            $uncertainNeedsConfirm[] = $accessRequest->getId()->toRfc4122();
+                            continue 2;
+                        default:
+                            // 'active_task' → ya hay un envío en vuelo: se omite en silencio.
+                            continue 2;
                     }
-                    // 'active_task' → ya hay un envío en vuelo: se omite en silencio.
-                    continue;
                 }
-                $task = new AgentTask($user, $channel);
-                $task->setAccessRequest($accessRequest);
-                $task->setMode(AgentTask::MODE_AUTO);
 
-                if ($channel === AgentTask::TYPE_SUBMIT_REQUEST_REG) {
-                    /** @var \App\Entity\RegDestination $destination */
-                    $destination = $accessRequest->getRegDestination();
-                    $task->setPayload($regPayloadBuilder->build($accessRequest, $user, $destination));
-                } else {
-                    $ptPayload = [
-                        'access_request_id' => $accessRequest->getId()->toRfc4122(),
-                        'public_body_id' => $body->getId()->toRfc4122(),
-                        'public_body_name' => $body->getName(),
-                        'transparency_portal_url' => $body->getTransparencyPortalUrl(),
-                        'transparency_portal_amb_id' => $body->getTransparencyPortalAmbId(),
-                        'title' => $accessRequest->getTitle(),
-                        'description' => $accessRequest->getDescription(),
-                        'applicable_law' => $accessRequest->getApplicableLaw()->getId()->toRfc4122(),
-                        // Mínimo para que el wizard PT supere su validación de
-                        // contacto. El resto de campos (provincia, municipio,
-                        // CP, dirección) se rellenan a mano en el primer envío
-                        // y el perfil persistente de Firefox los recuerda.
-                        'solicitante' => [
-                            'email' => $user->getEmail(),
-                        ],
-                    ];
-                    // Reconciliación: si existe un borrador de un intento
-                    // anterior, el agente lo reutiliza en vez de acuñar otro.
-                    if ($decision->reconcileIdBorr !== null) {
-                        $ptPayload['reconcile_idBorr'] = $decision->reconcileIdBorr;
-                    }
-                    $task->setPayload($ptPayload);
-                }
-                $this->entityManager->persist($task);
                 $dispatched++;
                 $createdTasks[] = [
                     'task' => $task,
                     'bodyName' => $accessRequest->getPublicBody()->getName(),
                 ];
-                // Un despacho nuevo supersede la incertidumbre anterior; se
-                // re-pondrá si este intento también queda incierto.
-                $accessRequest->setMetadataValue('submission_uncertain', null);
             }
             if ($uncertainNeedsConfirm !== []) {
                 $this->entityManager->rollback();

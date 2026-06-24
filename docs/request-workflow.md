@@ -257,6 +257,8 @@ denied / delayed
 
 Cuando una solicitud se presenta a través del agente (canal Transparencia AGE o REG/RED SARA) o cuando se presenta una reclamación vía agente (CTBG), el sistema crea una entidad `AgentTask` que el agente retira y ejecuta. Esta sección describe los mecanismos que evitan el doble registro.
 
+> **Núcleo compartido web↔MCP.** El acuñado de la `AgentTask` por solicitud vive en `App\Service\Submission\RequestDispatcher::dispatchOne()` (canal, `SubmissionGuard`, payload REG/Transparencia, `reconcile_idBorr`). Lo usan tanto `AccessRequestController::dispatchBatch()` (que conserva su preámbulo HTTP: snapshot del lienzo, `em->clear()`, gate de perfil, diagnóstico de precondiciones) como la tool MCP `submit_request`. Los bloqueos se propagan como `DispatchBlockedException` (`incomplete_draft`, `title_too_long_for_reg`, `active_task`, `uncertain_needs_confirmation`), que cada consumidor mapea a su forma de error. La tool MCP añade `payload['origin']='[mcp/{client_id}]'`.
+
 ### El desenlace `uncertain` de `AgentTask`
 
 `AgentTask` tiene tres estados terminales: `done`, `failed` y **`uncertain`**.
