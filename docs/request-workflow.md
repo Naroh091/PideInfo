@@ -349,6 +349,8 @@ El timeline en la página de detalle de la solicitud renderiza estos registros d
 
 La barra lateral del detalle (`RequestStatusSidebar`) incluye, junto al bloque "Plazos", un bloque **"Recordatorios"** que lista los recordatorios pendientes del expediente: los `CustomDeadline` (fecha + descripción propias, con enlaces a crear/editar/eliminar vía `app_solicitudes_deadline_*`) y los avisos ligeros `Reminder` ("recuérdamelo", `ReminderRepository::findAllPendingForRequest()`).
 
+**Recordatorio automático de solicitudes sin enviar.** El comando diario `app:requests:notify-pending` (`App\Schedule`, `0 10 * * *`) detecta solicitudes que llevan 3 días en estado `pending` (registradas pero sin confirmar como enviadas) y envía un email al usuario explicándole cómo pasarlas a «Enviada». Ver `docs/commands.md` para las opciones (`--days`, `--at-least`, `--dry-run`) y la salvaguarda `metadata['pending_reminder_sent_at']`.
+
 ## Relación con `AccessRequestComplaint`
 
 Una reclamación se modela como una entidad separada (`AccessRequestComplaint`) con una relación **1:1 opcional** con `AccessRequest` (`AccessRequest::$complaint`, `inversedBy: 'complaint'`). La relación es ortogonal al workflow principal de la solicitud — la solicitud y la reclamación avanzan en máquinas de estado independientes:

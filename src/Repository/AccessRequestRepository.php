@@ -167,6 +167,43 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
+     * Solicitudes que siguen en estado "Pendiente" (registradas pero sin
+     * confirmar como enviadas) y que se registraron hace $days días.
+     *
+     * Como `pending` es el estado inicial y el workflow no permite volver a él
+     * (solo pending → sent), el tiempo en pending equivale al tiempo desde
+     * `createdAt` mientras el estado siga siendo `pending`.
+     *
+     * - Por defecto hace match EXACTO al día (createdAt dentro del día natural
+     *   que cae hace $days días), de modo que cada solicitud dispara el aviso
+     *   una sola vez.
+     * - Con $atLeast = true incluye todas las de $days o más días (pensado para
+     *   la primera ejecución, que debe capturar el backlog).
+     *
+     * @return AccessRequest[]
+     */
+    public function findPendingRegisteredDaysAgo(int $days, bool $atLeast = false): array
+    {
+        $today = new \DateTimeImmutable('today');
+        $upper = $today->modify(sprintf('-%d days', $days - 1)); // inicio del día (hoy - (N-1))
+
+        $qb = $this->createQueryBuilder('ar')
+            ->where('ar.status = :pending')
+            ->andWhere('ar.createdAt < :upper')
+            ->setParameter('pending', AccessRequest::STATUS_PENDING)
+            ->setParameter('upper', $upper)
+            ->orderBy('ar.createdAt', 'ASC');
+
+        if (!$atLeast) {
+            $lower = $today->modify(sprintf('-%d days', $days)); // inicio del día (hoy - N)
+            $qb->andWhere('ar.createdAt >= :lower')
+                ->setParameter('lower', $lower);
+        }
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
      * @return AccessRequest[]
      */
     public function findExpiringToday(): array

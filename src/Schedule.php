@@ -27,6 +27,7 @@ class Schedule implements ScheduleProviderInterface
             ->add(RecurringMessage::cron('* * * * *', new CheckCustomDeadlinesMessage()))
             ->add(RecurringMessage::cron('0 7 * * *', new UpdateExpiredRequestsMessage()))
             ->add(RecurringMessage::cron('0 9 * * *', new RunCommandMessage('app:requests:notify-expiring')))
+            ->add(RecurringMessage::cron('0 10 * * *', new RunCommandMessage('app:requests:notify-pending')))
             ->add(RecurringMessage::cron('0 0 * * *', new RunCommandMessage('app:usage-hints:hide-expired')))
 
             ->add(RecurringMessage::cron('0 1 * * *', new RunCommandMessage('app:cvaip:load-resolutions --async')))

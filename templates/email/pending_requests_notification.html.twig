@@ -1,0 +1,83 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Tienes una solicitud de transparencia pendiente - PideInfo{% endblock %}
+
+{% block body %}
+    {% if hasImage %}
+        <div class="text-center" style="margin-bottom: 20px;">
+            <img src="cid:pendingImage" alt="Recordatorio de solicitud pendiente" style="max-width: 100%; height: auto; border-radius: 12px;">
+        </div>
+    {% endif %}
+
+    <p class="greeting">Hola {{ user.firstName }},</p>
+
+    {% if accessRequests|length == 1 %}
+        {% set req = accessRequests[0] %}
+        <p class="message">
+            Has registrado la solicitud <strong>{{ req.title ?: '(Solicitud sin título)' }}</strong> el día
+            <strong>{{ req.createdAt|date('d/m/Y') }}</strong>, pero aún no hemos obtenido
+            confirmación de que esté enviada.
+        </p>
+
+        <div class="info-box info-box-highlight" style="margin-bottom: 24px;">
+            <p class="info-label">Solicitud</p>
+            <p class="info-value">{{ req.title ?: '(Solicitud sin título)' }}</p>
+
+            <div style="margin-top: 12px;">
+                <p class="info-label">Organismo</p>
+                <p class="info-value">{{ req.publicBody.name }}</p>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <p class="info-label">Fecha de registro</p>
+                <p class="info-value">{{ req.createdAt|date('d/m/Y') }}</p>
+            </div>
+
+            <div class="button-container" style="margin: 16px 0 0 0;">
+                <a href="{{ url('app_solicitudes_show', {id: req.id}) }}" class="button" style="display:inline-block;padding:10px 24px;background-color:#0284c7;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:10px;">Ver solicitud</a>
+            </div>
+        </div>
+    {% else %}
+        <p class="message">
+            Registraste las siguientes solicitudes hace unos días, pero aún no hemos obtenido
+            confirmación de que estén enviadas:
+        </p>
+
+        {% for req in accessRequests %}
+        <div class="info-box info-box-highlight" style="margin-bottom: 16px;">
+            <p class="info-label">Solicitud</p>
+            <p class="info-value">{{ req.title ?: '(Solicitud sin título)' }}</p>
+
+            <div style="margin-top: 12px;">
+                <p class="info-label">Organismo</p>
+                <p class="info-value">{{ req.publicBody.name }}</p>
+            </div>
+
+            <div style="margin-top: 12px;">
+                <p class="info-label">Fecha de registro</p>
+                <p class="info-value">{{ req.createdAt|date('d/m/Y') }}</p>
+            </div>
+
+            <div class="button-container" style="margin: 16px 0 0 0;">
+                <a href="{{ url('app_solicitudes_show', {id: req.id}) }}" class="button" style="display:inline-block;padding:10px 24px;background-color:#0284c7;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:10px;">Ver solicitud</a>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <p class="message" style="margin-top: 8px;">¿Cómo {{ accessRequests|length == 1 ? 'la' : 'las' }} pones al día?</p>
+
+    <ul style="margin: 0 0 16px 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.6;">
+        <li style="margin-bottom: 8px;">
+            Si la has enviado a mano, sube el <strong>justificante del registro</strong> para moverla
+            al estado <strong>«Enviada»</strong>.
+        </li>
+        <li style="margin-bottom: 8px;">
+            Si la has enviado mediante el <strong>Agente</strong>, comprueba que esté bien conectado y
+            que no aparecen errores en la pantalla de la solicitud, y puedes probar a volver a enviarla.
+        </li>
+        <li style="margin-bottom: 0;">
+            También puedes editarla a mano para ponerla en estado <strong>«Enviada»</strong>.
+        </li>
+    </ul>
+{% endblock %}
