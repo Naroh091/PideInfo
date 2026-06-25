@@ -220,9 +220,6 @@
     {# Onboarding banner for new users #}
     {% include 'dashboard/_onboarding_banner.html.twig' %}
 
-    {# Novedades (dismissable usage hints) #}
-    {% include 'dashboard/_usage_hints.html.twig' %}
-
     {# ─────────────────── HERO ─────────────────── #}
     {% set h = 'now'|date('H')|number_format(0) %}
     {% set salutation = h < 6 ? 'Buenas noches' : (h < 13 ? 'Buenos días' : (h < 21 ? 'Buenas tardes' : 'Buenas noches')) %}
@@ -264,6 +261,9 @@
             {{ component('StatusStats') }}
         </section>
     {% endif %}
+
+    {# Novedades (dismissable usage hints) — between the stats strip and the resumen #}
+    {% include 'dashboard/_usage_hints.html.twig' %}
 
     {# AI activity summary — last 24 h. Sits between the stats strip and the
        agenda; hidden when there's no activity. #}
