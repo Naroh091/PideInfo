@@ -694,6 +694,33 @@ php bin/console app:requests:notify-expiring
 
 ---
 
+### `app:requests:notify-pending`
+
+Envía un email de recordatorio a las personas usuarias que registraron una solicitud que **sigue en estado `pending`** (creada pero sin confirmar como enviada; ver `docs/request-workflow.md`). El email les explica cómo pasarla a «Enviada»: subir el justificante del registro, revisar el envío vía Agente, o cambiar el estado a mano. Pensado para ejecutarse a diario por cron (`App\Schedule`, `0 10 * * *`).
+
+Como `pending` es el estado inicial y el workflow no permite volver a él, el tiempo en pending equivale al tiempo desde `AccessRequest.createdAt`. El finder es `AccessRequestRepository::findPendingRegisteredDaysAgo()`.
+
+Opciones:
+
+- `--days=3` — umbral en días desde el registro (por defecto 3).
+- `--at-least` — incluye todas las de N o más días en lugar de exactamente N. **Úsalo solo en la primera ejecución** para capturar el backlog acumulado.
+- `--dry-run` — muestra a quién se enviaría sin enviar ni marcar nada.
+
+Para evitar reenvíos, cada solicitud avisada se marca con `metadata['pending_reminder_sent_at']` y se omite en ejecuciones posteriores. El match exacto a 3 días ya hace que el aviso se dispare una sola vez; la marca es una salvaguarda adicional para `--at-least`. Si existe `public/images/emails/pending-reminder.png`, se embebe en el correo (`cid:pendingImage`); si no, el email se envía sin imagen.
+
+```bash
+# Operación diaria normal (match exacto a 3 días):
+php bin/console app:requests:notify-pending
+
+# Primera ejecución: avisar de todo el backlog (≥ 3 días):
+php bin/console app:requests:notify-pending --at-least
+
+# Previsualizar sin enviar:
+php bin/console app:requests:notify-pending --at-least --dry-run
+```
+
+---
+
 ### `app:usage-hints:hide-expired`
 
 Desactiva (`isActive=false`) las novedades (`UsageHint`) cuya fecha `hideAt` ya se ha alcanzado. `hideAt` es opcional (vacío = no caduca) y se fija desde el panel admin (Novedades). Pensado para ejecutarse a diario por cron (`App\Schedule`, `0 0 * * *`). La consulta de visibilidad (`UsageHintRepository::findPendingForUser`) también excluye las caducadas, así que dejan de mostrarse al instante aunque el comando aún no haya corrido.
