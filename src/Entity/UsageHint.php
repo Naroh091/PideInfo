@@ -24,7 +24,7 @@ class UsageHint
     #[ORM\Column(length: 200)]
     private string $title;
 
-    /** Contenido en Markdown (se renderiza con el filtro markdown_to_html). */
+    /** Contenido en HTML (editado con Trix en el admin, se renderiza con |raw). */
     #[ORM\Column(type: Types::TEXT)]
     private string $content;
 

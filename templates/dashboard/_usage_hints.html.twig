@@ -1,46 +1,135 @@
-{# Dismissable "Novedades" block: pending UsageHints for the current user.
-   Each hint can be closed individually; the dismissal is persisted on the
-   user (User.dismissedHints) via POST app_usage_hint_dismiss. #}
+{# Bloque "Novedades" descartable: UsageHints pendientes para el usuario actual.
+   Diseñado como banda ligera para armonizar con el bloque "Resumen" contiguo.
+   Cada novedad se cierra individualmente; el descarte se persiste en el usuario
+   (User.dismissedHints) vía POST app_usage_hint_dismiss.
+   El contenido se guarda en HTML (editado con Trix) y se renderiza con |raw. #}
 {% if usageHints|length > 0 %}
-<div id="usage-hints-block" class="mb-6">
-    <div class="card border-primary-200 bg-gradient-to-br from-primary-50 via-white to-white shadow-sm">
-        <div class="card-body">
-            <div class="flex items-center gap-2 mb-4">
-                <div class="w-8 h-8 rounded-lg bg-primary-100 flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="sparkles" class="w-4 h-4 text-primary-600"></i>
-                </div>
-                <h2 class="text-base font-bold text-slate-800">Novedades</h2>
-            </div>
+<div id="usage-hints-block" class="usage-hints">
+    <header class="usage-hints-head">
+        <span class="usage-hints-eyebrow">
+            <i data-lucide="sparkles" class="w-3 h-3"></i>
+            Novedades
+        </span>
+    </header>
 
-            <div class="space-y-4">
-                {% for hint in usageHints %}
-                    <div class="usage-hint flex items-start justify-between gap-4 {{ not loop.last ? 'pb-4 border-b border-slate-100' : '' }}"
-                         data-hint-id="{{ hint.id }}">
-                        <div class="min-w-0">
-                            <p class="font-semibold text-slate-800 text-sm">{{ hint.title }}</p>
-                            <div class="text-sm text-slate-600 mt-1 leading-relaxed [&_p]:m-0 [&_strong]:text-slate-700">
-                                {{ hint.content|markdown_to_html }}
-                            </div>
-                            {% if hint.linkUrl %}
-                                <a href="{{ hint.linkUrl }}"
-                                   class="inline-flex items-center gap-1 mt-2 text-sm text-primary-600 font-medium hover:underline">
-                                    {{ hint.linkLabel ?: 'Saber más' }}
-                                    <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-                                </a>
-                            {% endif %}
-                        </div>
-                        <button type="button"
-                                class="usage-hint-dismiss btn btn-ghost btn-sm flex-shrink-0 text-slate-400 hover:text-slate-600 cursor-pointer"
-                                title="No volver a mostrar"
-                                data-dismiss-url="{{ path('app_usage_hint_dismiss', {id: hint.id}) }}">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
+    <div class="usage-hints-list">
+        {% for hint in usageHints %}
+            <div class="usage-hint" data-hint-id="{{ hint.id }}">
+                <div class="usage-hint-body">
+                    <p class="usage-hint-title">{{ hint.title }}</p>
+                    <div class="usage-hint-content">
+                        {{ hint.content|raw }}
                     </div>
-                {% endfor %}
+                    {% if hint.linkUrl %}
+                        <a href="{{ hint.linkUrl }}" class="usage-hint-link">
+                            {{ hint.linkLabel ?: 'Saber más' }}
+                            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+                        </a>
+                    {% endif %}
+                </div>
+                <button type="button"
+                        class="usage-hint-dismiss"
+                        title="No volver a mostrar"
+                        data-dismiss-url="{{ path('app_usage_hint_dismiss', {id: hint.id}) }}">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
-        </div>
+        {% endfor %}
     </div>
 </div>
+
+<style>
+    .usage-hints {
+        background: white;
+        border: 1px solid rgb(226 232 240);
+        border-radius: 1rem;
+        padding: 1.1rem 1.4rem 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+    .usage-hints-head {
+        margin-bottom: .75rem;
+    }
+    .usage-hints-eyebrow {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .85rem;
+        font-weight: 600;
+        color: rgb(2 132 199);
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    .usage-hints-list {
+        display: flex;
+        flex-direction: column;
+    }
+    .usage-hint {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .85rem 0;
+        border-top: 1px solid rgb(241 245 249);
+    }
+    .usage-hint:first-child {
+        padding-top: 0;
+        border-top: none;
+    }
+    .usage-hint:last-child {
+        padding-bottom: 0;
+    }
+    .usage-hint-body {
+        min-width: 0;
+        font-family: 'DM Sans', sans-serif;
+    }
+    .usage-hint-title {
+        font-size: .9rem;
+        font-weight: 600;
+        color: rgb(30 41 59);
+    }
+    .usage-hint-content {
+        font-size: .85rem;
+        line-height: 1.6;
+        color: rgb(71 85 105);
+        margin-top: .15rem;
+    }
+    .usage-hint-content > div,
+    .usage-hint-content p {
+        margin: 0;
+    }
+    .usage-hint-content strong { font-weight: 600; color: rgb(51 65 85); }
+    .usage-hint-content em { font-style: italic; }
+    .usage-hint-content a { color: rgb(2 132 199); text-decoration: underline; }
+    .usage-hint-content ul,
+    .usage-hint-content ol { margin: .35rem 0; padding-left: 1.15rem; }
+    .usage-hint-content ul { list-style: disc; }
+    .usage-hint-content ol { list-style: decimal; }
+    .usage-hint-link {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-top: .5rem;
+        font-size: .85rem;
+        font-weight: 500;
+        color: rgb(2 132 199);
+    }
+    .usage-hint-link:hover { text-decoration: underline; }
+    .usage-hint-dismiss {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: .5rem;
+        color: rgb(148 163 184);
+        cursor: pointer;
+        transition: color .12s ease, background .12s ease;
+    }
+    .usage-hint-dismiss:hover {
+        color: rgb(71 85 105);
+        background: rgb(241 245 249);
+    }
+</style>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -60,14 +149,9 @@
                     const hint = btn.closest('.usage-hint');
                     hint.remove();
 
-                    // Hide the whole block when the last hint is dismissed,
-                    // and tidy the divider of the (new) last hint.
-                    const remaining = block.querySelectorAll('.usage-hint');
-                    if (remaining.length === 0) {
+                    // Ocultar todo el bloque cuando se descarta la última novedad.
+                    if (block.querySelectorAll('.usage-hint').length === 0) {
                         block.remove();
-                    } else {
-                        const last = remaining[remaining.length - 1];
-                        last.classList.remove('pb-4', 'border-b', 'border-slate-100');
                     }
                 } catch (e) {
                     btn.disabled = false;
