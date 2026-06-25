@@ -15,6 +15,7 @@ use App\Service\Resolution\ResolutionAnalyzer;
 use App\Service\Resolution\CtpdWebReader;
 use App\Service\Resolution\PublicBodyResolver;
 use App\Service\Resolution\ResolutionDateExtractor;
+use App\Service\Resolution\ResolutionPdfProvider;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Psr\Log\LoggerInterface;
@@ -49,6 +50,7 @@ final class ProcessResolutionHandler
         private readonly LoggerInterface $logger,
         private readonly \App\Observability\Tracer $tracer,
         private readonly PdfOcrTranscriber $pdfOcrTranscriber,
+        private readonly ResolutionPdfProvider $resolutionPdfProvider,
     ) {
     }
 
@@ -109,11 +111,16 @@ final class ProcessResolutionHandler
             $this->logger->error('Metadata extraction step failed', ['reference' => $ref, 'error' => $e->getMessage()]);
         }
 
-        // Block C: Step 2 — AI Analysis if needed (use keypoints as indicator — summary may be pre-filled from API)
+        // Block C: Step 2 — AI Analysis if needed.
+        // The dispatch query (AnalyzeResolutionsCommand) selects resolutions by
+        // empty summary, so the gate must agree: in summary-producing modes a
+        // missing summary OR missing keypoints triggers re-analysis. 'format'
+        // doesn't produce a summary, so it keeps the keypoints-only check.
         try {
             $needsAnalysis = $message->forceAnalysis || match ($message->analysisMode) {
                 'non-complete' => $resolution->getInadmissionCauses() === null,
-                default => empty($resolution->getKeypoints()),
+                'format' => empty($resolution->getKeypoints()),
+                default => empty($resolution->getKeypoints()) || empty(trim($resolution->getSummary())),
             };
             if (!$message->skipAnalysis && !empty(trim($resolution->getFullText())) && $needsAnalysis) {
                 $this->analyzeResolution($resolution, $message->flex, $message->analysisMode);
@@ -347,31 +354,10 @@ final class ProcessResolutionHandler
         }
     }
 
-    /**
-     * Read the stored PDF bytes for a resolution, or null when there is no
-     * stored PDF (e.g. Word-based sources) or it is unreadable/invalid. Used to
-     * attach the first/last page to the analysis call for date extraction.
-     */
-    private function readStoredPdfBytes(Resolution $resolution): ?string
-    {
-        $path = $resolution->getPdfStoragePath();
-        if ($path === null || strtolower(pathinfo($path, PATHINFO_EXTENSION)) !== 'pdf') {
-            return null;
-        }
-
-        try {
-            $content = $this->resolutionsStorage->read($path);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        return ($content !== '' && str_starts_with($content, '%PDF-')) ? $content : null;
-    }
-
     private function analyzeResolution(Resolution $resolution, bool $flex = false, string $mode = 'all'): void
     {
         $cleanedText = $this->analyzer->cleanText($resolution->getFullText());
-        $pdfBytes = $this->readStoredPdfBytes($resolution);
+        $pdfBytes = $this->resolutionPdfProvider->getPdfBytes($resolution);
 
         try {
             $result = match ($mode) {
