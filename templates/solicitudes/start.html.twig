@@ -30,6 +30,7 @@
         }
         .choice-card.choice-register .choice-icon { background: #f1f5f9; color: #475569; }
         .choice-card.choice-submit   .choice-icon { background: #ecfeff; color: #0e7490; }
+        .choice-card.choice-draft    .choice-icon { background: #f0fdf4; color: #16a34a; }
 
         /* When the register card is acting as a dropzone we tint the border
            and bg, and keep the link clickable for users who don't drag. */
@@ -47,6 +48,26 @@
             gap: .35rem;
         }
         .choice-register-dropzone-hint i { color: #0284c7; }
+        .choice-badge {
+            align-self: flex-start;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            margin-bottom: .6rem;
+            padding: .2rem .6rem;
+            border-radius: 999px;
+            background: #ecfeff;
+            border: 1px solid #a5f3fc;
+            color: #0e7490;
+            font-size: .72rem;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+        .choice-card.choice-register .choice-badge {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+            color: #475569;
+        }
         .choice-card h3 {
             font-weight: 600;
             color: #0f172a;
@@ -69,6 +90,7 @@
             gap: .35rem;
         }
         .choice-card.choice-register .choice-cta { color: #475569; }
+        .choice-card.choice-draft    .choice-cta { color: #16a34a; }
     </style>
 {% endblock %}
 
@@ -81,18 +103,26 @@
     <span class="text-slate-800 font-medium">NUEVA SOLICITUD</span>
 </nav>
 
-<div class="max-w-4xl">
+<div>
     <div class="mb-6">
         <h1 class="text-2xl font-semibold text-slate-800 mb-1">Nueva solicitud</h1>
         <p class="text-slate-500">Elige cómo quieres empezar.</p>
     </div>
 
-    <div class="grid md:grid-cols-2 gap-4">
-        <a href="{{ path('app_solicitudes_submit_form') }}" class="choice-card choice-submit">
+    <div class="grid md:grid-cols-7 gap-4 items-stretch">
+        <a href="{{ path('app_solicitudes_submit_form') }}" class="choice-card choice-submit md:col-span-3">
             <div class="choice-icon"><i data-lucide="send" class="w-5 h-5"></i></div>
+            <span class="choice-badge"><span aria-hidden="true">🤖</span> Requiere el Agente de PideInfo</span>
             <h3>Quiero redactarla con asistencia de IA y que PideInfo la envíe por mí</h3>
             <p>Redactas la solicitud y eliges a qué organismos enviarla. PideInfo se la entrega al Portal de Transparencia o al REG en tu nombre, usando tu certificado digital.</p>
-            <span class="choice-cta">Realizar y enviar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+            <span class="choice-cta">Redactar y enviar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
+        </a>
+
+        <a href="{{ path('app_solicitudes_draft_only') }}" class="choice-card choice-draft md:col-span-2">
+            <div class="choice-icon"><i data-lucide="pen-line" class="w-5 h-5"></i></div>
+            <h3>Quiero redactarla con IA sin enviarla</h3>
+            <p>Redacta tu solicitud con ayuda de la IA y guárdala. Puedes enviarla manualmente más adelante.</p>
+            <span class="choice-cta">Solo redactar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
         </a>
 
         {# The register card doubles as a dropzone wired to the same
@@ -100,12 +130,14 @@
            navigates to /solicitudes/nueva/registrar; dropping a file kicks
            off the upload + orphan-link flow inline. #}
         <div data-controller="file-uploader"
-             data-file-uploader-url-value="{{ path('app_document_upload') }}">
+             data-file-uploader-url-value="{{ path('app_document_upload') }}"
+             class="md:col-span-2 flex flex-col">
             <a href="{{ path('app_solicitudes_register') }}"
-               class="choice-card choice-register"
+               class="choice-card choice-register grow"
                data-file-uploader-target="dropzone"
                data-action="dragover->file-uploader#dragOver dragenter->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop">
                 <div class="choice-icon"><i data-lucide="clipboard-list" class="w-5 h-5"></i></div>
+                <span class="choice-badge"><span aria-hidden="true">📎</span> O arrastra documentos aquí</span>
                 <h3>Ya la envié, sólo quiero registrarla</h3>
                 <p>Anota una solicitud que ya presentaste por tu cuenta para hacerle seguimiento en PideInfo. Tú indicas el organismo, la fecha y, si la tienes, la referencia del expediente.</p>
                 <span class="choice-register-dropzone-hint">
@@ -274,7 +306,7 @@
 
     <p class="text-xs text-slate-400 mt-6">
         <i data-lucide="info" class="w-3.5 h-3.5 inline mr-1"></i>
-        Para "Realizar y enviar" necesitas tener el agente local de PideInfo conectado, ya que es quien firma con tu certificado.
+        Para "Redactar y enviar" necesitas tener el agente local de PideInfo conectado, ya que es quien firma con tu certificado.
     </p>
 </div>
 {% endblock %}
