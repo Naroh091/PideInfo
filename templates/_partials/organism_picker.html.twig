@@ -1,0 +1,82 @@
+{# Shared "elegir organismo" cascade picker markup, used by both the
+   "Realizar" and "Solo redactar" pages. Requires the styles partial
+   (_partials/organism_picker_styles.html.twig) in the page's stylesheets.
+
+   Params:
+     reg_levels  — RegAdministrationLevel::choices() (key => label)
+     draft_only  — bool; when true the picker creates draft-only requests
+                   (POSTs `draftOnly: true` to the shared initiate endpoint) #}
+<div class="picker-grid"
+     data-controller="realizar-picker"
+     data-realizar-picker-load-url-value="{{ path('app_solicitudes_realizar_bodies_json') }}"
+     data-realizar-picker-facets-url-value="{{ path('app_solicitudes_realizar_facets_json') }}"
+     data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}"
+     data-realizar-picker-units-url-template-value="{{ path('app_solicitudes_realizar_units_json', {'publicBody': '__body__'}) }}"
+     data-realizar-picker-draft-only-value="{{ (draft_only|default(false)) ? 'true' : 'false' }}">
+
+    <section class="picker-card">
+        <div class="picker-step">
+            <label for="realizar-nivel-select" class="picker-card-label">Nivel de administración</label>
+            <select id="realizar-nivel-select"
+                    class="picker-select"
+                    data-realizar-picker-target="nivel"
+                    data-action="realizar-picker#nivelChanged">
+                <option value="">Elige un nivel…</option>
+                {% for key, label in reg_levels %}
+                    <option value="{{ key }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="picker-step" data-realizar-picker-target="facetStep" hidden>
+            <label for="realizar-facet-select" class="picker-card-label" data-realizar-picker-target="facetLabel">Ámbito</label>
+            <select id="realizar-facet-select"
+                    class="picker-select"
+                    data-realizar-picker-target="facet"
+                    data-action="realizar-picker#facetChanged"></select>
+        </div>
+
+        <div class="picker-step">
+            <label for="realizar-organism-select" class="picker-card-label">Organismo</label>
+            <select id="realizar-organism-select"
+                    autocomplete="off"
+                    data-realizar-picker-target="select"
+                    data-action="realizar-picker#organismChanged"
+                    placeholder="Empieza a escribir el nombre del organismo..."></select>
+        </div>
+
+        <div class="picker-step" data-realizar-picker-target="unitStep" hidden>
+            <label for="realizar-unit-select" class="picker-card-label">Unidad de destino (REG)</label>
+            <select id="realizar-unit-select" data-realizar-picker-target="unit"></select>
+            <p class="picker-help" style="margin-top:.5rem;">Selecciona la unidad concreta (p. ej. una concejalía). Si el organismo tiene oficinas territoriales, puedes filtrar al escribir.</p>
+        </div>
+
+        <button type="button"
+                class="picker-add-btn"
+                data-realizar-picker-target="addButton"
+                data-action="realizar-picker#addTarget"
+                disabled>
+            <i data-lucide="plus" class="w-4 h-4"></i> Añadir destinatario
+        </button>
+
+        <p class="picker-help">
+            <b>¿No encuentras el tuyo?</b> Enviamos automáticamente al Portal de Transparencia (AGE) y a las unidades del REG / RED SARA del catálogo DIR3. Si tu organismo no está, podrás registrarlo desde "Ya la envié".
+        </p>
+
+        <div class="picker-cta-row">
+            <a href="{{ path('app_solicitudes_new') }}" class="btn btn-secondary">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Atrás
+            </a>
+            <button type="button"
+                    class="btn btn-primary"
+                    data-realizar-picker-target="continueButton"
+                    data-action="realizar-picker#submit"
+                    disabled>
+                Continuar a la redacción
+                <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
+            </button>
+        </div>
+    </section>
+
+    <aside data-realizar-picker-target="preview"></aside>
+</div>
