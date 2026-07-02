@@ -132,7 +132,9 @@ Una solicitud puede crearse de tres maneras:
 
 El picker de "Realizar solicitud" (`templates/solicitudes/realizar/picker.html.twig`,
 controlador Stimulus `assets/controllers/realizar_picker_controller.js`) guía al usuario en
-4 pasos:
+4 pasos. El marcado y los estilos de la cascada viven en dos parciales compartidos
+(`templates/_partials/organism_picker.html.twig` y `_partials/organism_picker_styles.html.twig`)
+que reutiliza también "Solo redactar" (véase más abajo):
 
 1. **Nivel de administración** (obligatorio): Estado, Autonómica, Local, Justicia,
    Universidades, Otras Instituciones. Definidos en
@@ -161,6 +163,17 @@ derecho y resetea la cascada— y repite para enviar a varios organismos. "Conti
 
 Detalle de diseño:
 `docs/superpowers/specs/2026-06-07-regdestination-cascade-selector-design.md`.
+
+**"Solo redactar" (borrador sin envío).** `/solicitudes/nueva/redactar`
+(`app_solicitudes_draft_only`, `templates/solicitudes/draft-only-picker.html.twig`) usa el
+**mismo picker en cascada** —incluido el selector de Unidad de destino (`RegDestination`) para
+organismos REG— reutilizando los parciales compartidos y el controlador `realizar-picker` con
+`data-realizar-picker-draft-only-value="true"`. "Continuar" hace el mismo
+`POST /solicitudes/nueva/realizar/iniciar` pero con `{ targets, draftOnly: true }`; en ese modo
+`initiateDrafts` marca cada solicitud con la metadata `draft_only` y **omite la comprobación de
+datos personales REG** (se difiere al momento de "Enviar" desde el lienzo, ya que el borrador no
+se despacha todavía). Ambos flujos aterrizan en el mismo lienzo de redacción
+(`app_solicitudes_realizar_draft`).
 
 **Asistente de redacción.** El canvas "Realizar" alberga un único asistente conversacional (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; controlador Stimulus `assistant-chat`). El modelo **decide automáticamente** en cada turno si responder con una pregunta o actuar sobre el canvas:
 - El system prompt codifica una política de tres acciones y pide al modelo que emita la respuesta conversacional, después un marcador literal `===DECISION===` y luego un bloque JSON `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.

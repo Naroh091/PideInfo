@@ -4,64 +4,7 @@
 
 {% block stylesheets %}
     {{ parent() }}
-    <style>
-        .picker-band { margin: 0 0 1.5rem; }
-        .picker-title {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-weight: 400;
-            line-height: 1.05;
-            letter-spacing: -.018em;
-            color: rgb(15 23 42);
-            font-size: clamp(1.85rem, 3.5vw, 2.6rem);
-            margin: .25rem 0 .5rem;
-        }
-        .picker-title em { font-style: italic; color: var(--color-primary-600, #0284c7); }
-        .picker-sub {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .92rem; color: rgb(100 116 139);
-            line-height: 1.55; max-width: 38rem;
-        }
-
-        .picker-card {
-            background: #ffffff;
-            border: 1px solid rgb(226 232 240);
-            border-radius: .85rem;
-            padding: 1.5rem 1.5rem 1.75rem;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
-            max-width: 36rem;
-        }
-        .picker-card-label {
-            font-family: 'Inter', sans-serif;
-            font-size: .72rem; letter-spacing: .07em; text-transform: uppercase;
-            font-weight: 700;
-            color: rgb(100 116 139);
-            margin-bottom: .55rem;
-        }
-        .picker-card .ts-control {
-            border-radius: .55rem;
-            border-color: rgb(203 213 225);
-            min-height: 2.7rem;
-            padding: .35rem .55rem;
-            font-family: 'DM Sans', sans-serif;
-        }
-        .picker-card .ts-control input { font-size: .95rem; }
-        .picker-card .ts-control:hover { border-color: rgb(186 230 253); }
-        .picker-card .ts-wrapper.focus .ts-control {
-            border-color: var(--color-primary-500, #0ea5e9);
-            box-shadow: 0 0 0 3px rgba(14, 165, 233, .15);
-        }
-        .picker-card .ts-dropdown {
-            border-radius: .55rem;
-            box-shadow: 0 16px 40px -20px rgba(15, 23, 42, .25);
-        }
-
-        .picker-cta-row {
-            margin-top: 1.5rem;
-            display: flex; justify-content: space-between; gap: .75rem; align-items: center;
-            flex-wrap: wrap;
-        }
-        .picker-cta-row .btn { min-width: 11rem; justify-content: center; }
-    </style>
+    {% include '_partials/organism_picker_styles.html.twig' %}
 {% endblock %}
 
 {% block content %}
@@ -78,38 +21,11 @@
 <header class="picker-band">
     <h1 class="picker-title">¿A qué organismo va dirigida tu <em>solicitud</em>?</h1>
     <p class="picker-sub">
-        Elige el organismo o escribe su nombre. Si no existe todavía en la base de datos, lo crearemos para ti.
-        Después podrás redactar tu solicitud con ayuda de la IA y guardarla. No se enviará automáticamente.
+        Elige el organismo y, si es del REG, la unidad de destino. Después redactarás tu
+        solicitud con ayuda de la IA y la guardaremos como borrador. No se enviará
+        automáticamente: podrás enviarla más adelante cuando tú quieras.
     </p>
 </header>
 
-<form method="post"
-      action="{{ path('app_solicitudes_draft_only_submit') }}"
-      data-controller="draft-only-picker"
-      data-draft-only-picker-bodies-value="{{ bodyNames|json_encode }}">
-    <input type="hidden" name="_token" value="{{ csrf_token('draft_only') }}">
-
-    <div class="picker-card">
-        <label for="draft-organism-select" class="picker-card-label">Organismo</label>
-        <select id="draft-organism-select"
-                name="organism_name"
-                autocomplete="off"
-                data-draft-only-picker-target="select"
-                placeholder="Escribe el nombre del organismo..."></select>
-
-        <div class="picker-cta-row">
-            <a href="{{ path('app_solicitudes_new') }}" class="btn btn-secondary">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Atrás
-            </a>
-            <button type="submit"
-                    class="btn btn-primary"
-                    data-draft-only-picker-target="submit"
-                    disabled>
-                Continuar a la redacción
-                <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
-            </button>
-        </div>
-    </div>
-</form>
-
+{% include '_partials/organism_picker.html.twig' with {'reg_levels': reg_levels, 'draft_only': true} %}
 {% endblock %}
