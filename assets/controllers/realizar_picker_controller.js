@@ -25,6 +25,10 @@ export default class extends Controller {
         initiateUrl: String,
         unitsUrlTemplate: String,
         csrfToken: String,
+        // When true the picker creates draft-only requests (not queued for
+        // sending): the initiate POST carries `draftOnly: true` and the copy
+        // reflects "guardar" rather than "enviar".
+        draftOnly: Boolean,
     };
 
     connect() {
@@ -261,13 +265,16 @@ export default class extends Controller {
     // ── Panel derecho ──
     _renderTargets() {
         if (!this.hasPreviewTarget) return;
+        const emptyBody = this.draftOnlyValue
+            ? 'Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos para los que redactaremos tu solicitud.'
+            : 'Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos a los que enviaremos tu solicitud.';
         if (this.selectedTargets.length === 0) {
             this.previewTarget.innerHTML = `
                 <div class="preview-empty">
                     <div class="preview-empty-icon"><i data-lucide="users" class="w-5 h-5"></i></div>
                     <div>
                         <p class="preview-empty-title">Aún no has añadido destinatarios</p>
-                        <p class="preview-empty-body">Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos a los que enviaremos tu solicitud.</p>
+                        <p class="preview-empty-body">${emptyBody}</p>
                     </div>
                 </div>`;
             this._reIcons();
@@ -343,7 +350,7 @@ export default class extends Controller {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ targets }),
+            body: JSON.stringify({ targets, draftOnly: this.draftOnlyValue }),
         });
         if (response.status === 422) {
             const data = await response.json().catch(() => ({}));
