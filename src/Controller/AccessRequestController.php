@@ -133,77 +133,15 @@ class AccessRequestController extends AbstractController
     }
 
     #[Route('/nueva/redactar', name: 'app_solicitudes_draft_only', methods: ['GET'])]
-    public function draftOnlyPicker(PublicBodyRepository $publicBodyRepository): Response
+    public function draftOnlyPicker(): Response
     {
-        $bodies = $publicBodyRepository->findAllOrdered();
-        $bodyNames = array_map(fn(PublicBody $b) => $b->getName(), $bodies);
-
+        // Same cascade picker as "Realizar" (Nivel → Ámbito → Organismo →
+        // Unidad REG). It POSTs to the shared initiate endpoint with
+        // `draftOnly: true`, so the requests are flagged as drafts and the REG
+        // personal-data gate is deferred to the "Enviar" action.
         return $this->render('solicitudes/draft-only-picker.html.twig', [
-            'bodyNames' => $bodyNames,
+            'reg_levels' => RegAdministrationLevel::choices(),
         ]);
-    }
-
-    #[Route('/nueva/redactar', name: 'app_solicitudes_draft_only_submit', methods: ['POST'])]
-    public function draftOnlySubmit(
-        Request $request,
-        PublicBodyRepository $publicBodyRepository,
-        ApplicableLawResolver $applicableLawResolver,
-        DeadlineCalculator $deadlineCalculator,
-    ): Response {
-        if (!$this->isCsrfTokenValid('draft_only', (string) $request->request->get('_token'))) {
-            throw $this->createAccessDeniedException('Invalid CSRF token.');
-        }
-
-        /** @var \App\Entity\User $user */
-        $user = $this->getUser();
-
-        $organismName = trim((string) $request->request->get('organism_name', ''));
-        if ($organismName === '') {
-            $this->addFlash('error', 'Por favor, indica el nombre del organismo.');
-            $bodies = $publicBodyRepository->findAllOrdered();
-            return $this->render('solicitudes/draft-only-picker.html.twig', [
-                'bodyNames' => array_map(fn(PublicBody $b) => $b->getName(), $bodies),
-            ]);
-        }
-
-        // Look up existing body (case-insensitive); create a minimal one if not found.
-        $publicBody = $publicBodyRepository->findOneByNameInsensitive($organismName);
-        if ($publicBody === null) {
-            $publicBody = new PublicBody();
-            $publicBody->setName($organismName);
-            $this->entityManager->persist($publicBody);
-        }
-
-        $law = $applicableLawResolver->resolveFor($publicBody);
-        if ($law === null) {
-            $this->addFlash('error', 'No se pudo determinar la ley aplicable para este organismo.');
-            $bodies = $publicBodyRepository->findAllOrdered();
-            return $this->render('solicitudes/draft-only-picker.html.twig', [
-                'bodyNames' => array_map(fn(PublicBody $b) => $b->getName(), $bodies),
-            ]);
-        }
-
-        $sentAt = new \DateTimeImmutable('today');
-        $deadline = $deadlineCalculator->calculate($sentAt, $law);
-
-        $accessRequest = new AccessRequest();
-        $accessRequest->setUser($user);
-        $accessRequest->setOrganization($user->getOrganization());
-        $accessRequest->setTitle('');
-        $accessRequest->setDescription('');
-        $accessRequest->setPublicBody($publicBody);
-        $accessRequest->setApplicableLaw($law);
-        $accessRequest->setSentAt($sentAt);
-        $accessRequest->setDeadlineAt($deadline);
-        $accessRequest->setOriginalDeadlineAt($deadline);
-        $accessRequest->setStatus(AccessRequest::STATUS_PENDING);
-        $accessRequest->setMetadataValue('draft_batch_id', Uuid::v7()->toRfc4122());
-        $accessRequest->setMetadataValue('draft_only', true);
-
-        $this->entityManager->persist($accessRequest);
-        $this->entityManager->flush();
-
-        return $this->redirectToRoute('app_solicitudes_realizar_draft', ['id' => $accessRequest->getId()]);
     }
 
     #[Route('/nueva/realizar/organismos.json', name: 'app_solicitudes_realizar_bodies_json', methods: ['GET'])]
@@ -320,6 +258,12 @@ class AccessRequestController extends AbstractController
 
         $payload = json_decode($request->getContent(), true) ?? [];
 
+        // Draft-only mode (from /nueva/redactar): the picker is identical, but the
+        // resulting requests are flagged `draft_only` and we skip the REG personal-
+        // data gate — the user isn't sending yet, so we defer that prompt to the
+        // "Enviar" action on the drafting page.
+        $draftOnly = (bool) ($payload['draftOnly'] ?? false);
+
         // Two payload shapes supported:
         //   - legacy: { publicBodyIds: [uuid, ...] }                                 (AGE only)
         //   - new:    { targets: [{publicBodyId, regDestinationId?}, ...] }          (mixed)
@@ -398,7 +342,7 @@ class AccessRequestController extends AbstractController
                 break;
             }
         }
-        if ($needsRegProfile && !$user->hasCompleteRegProfile()) {
+        if (!$draftOnly && $needsRegProfile && !$user->hasCompleteRegProfile()) {
             return new JsonResponse([
                 'error' => 'needs_profile',
                 'profileFormUrl' => $this->generateUrl('app_user_personal_data', ['_fragment' => 1]),
@@ -433,6 +377,9 @@ class AccessRequestController extends AbstractController
                 $accessRequest->setStatus(AccessRequest::STATUS_PENDING);
 
                 $accessRequest->setMetadataValue('draft_batch_id', $batchId);
+                if ($draftOnly) {
+                    $accessRequest->setMetadataValue('draft_only', true);
+                }
 
                 $this->entityManager->persist($accessRequest);
                 $created[] = $accessRequest;
