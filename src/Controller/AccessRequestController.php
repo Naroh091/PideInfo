@@ -879,7 +879,7 @@ class AccessRequestController extends AbstractController
                 $t = $entry['task'];
                 $tasks[] = [
                     'taskId'    => $t->getId()->toRfc4122(),
-                    'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $t->getId()->toRfc4122()]),
+                    'statusUrl' => $this->generateUrl('app_agent_task_status', ['id' => $t->getId()->toRfc4122()]),
                     'bodyName'  => $entry['bodyName'],
                 ];
             }
