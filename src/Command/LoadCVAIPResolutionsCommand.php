@@ -171,7 +171,7 @@ class LoadCVAIPResolutionsCommand extends Command
                     continue;
                 }
 
-                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $batchIdx + 1, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $io, $stats);
+                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $batchIdx + 1, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $vision, $io, $stats);
 
                 $io->text(sprintf('  <info>Batch done — %d processed, %d new, %d updated, %d errors so far</info>',
                     $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
@@ -212,7 +212,7 @@ class LoadCVAIPResolutionsCommand extends Command
                     continue;
                 }
 
-                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $pageIdx, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $io, $stats);
+                $stopUpdate = $this->upsertAndProcessBatch($batchResults, $pageIdx, $updateMode, $existingCount, $stopUpdate, $async, $skipAnalysis, $skipVectors, $force, $vision, $io, $stats);
 
                 $io->text(sprintf('  <info>Page %d done — %d processed, %d new, %d updated, %d errors so far</info>',
                     $pageIdx, $stats['processed'], $stats['created'], $stats['updated'], $stats['errors']));
@@ -351,6 +351,7 @@ class LoadCVAIPResolutionsCommand extends Command
         bool $skipAnalysis,
         bool $skipVectors,
         bool $force,
+        bool $vision,
         SymfonyStyle $io,
         array &$stats,
     ): bool {
