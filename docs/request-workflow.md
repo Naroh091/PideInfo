@@ -183,6 +183,8 @@ se despacha todavía). Ambos flujos aterrizan en el mismo lienzo de redacción
 
 El prompt de generación de la solicitud se gestiona en Langfuse bajo el nombre `pideinfo-request-generate-request-chat`, con fallback bundled en `config/prompts/request/generate-request-chat.md`. El protocolo de chat (política de decisión `reply`/`generate`/`rewrite`, formato JSON de salida y los bloques de canal REG/Portal) se mantiene inline en `RequestPromptComposer`; solo el contenido de dominio (rol, guía de canal, marco de resoluciones y reglas de redacción) procede del prompt gestionado. Es el mismo patrón que el flujo de reclamaciones.
 
+**Generación vía MCP (`generate_access_request`).** Un cliente MCP puede generar un borrador `pending` en una sola llamada, sin el chat interactivo: la tool construye la `AccessRequest` (organismo + `RegDestination` + ley), invoca `RequestDraftGenerator` —que reutiliza `RequestPromptComposer` y la normalización de draft `applyDraft` compartida con `AssistantChatController`— y llama a `LlmClient::chatJson()` una vez. El borrador queda etiquetado con `metadata.generated_via = mcp/{client_id}` y listo para revisar/enviar. El destinatario REG se localiza antes con `search_reg_destinations` (búsqueda semántica DIR3). Véase `docs/mcp.md`.
+
 **Creación automática a partir de documentos.** Cuando una persona usuaria sube un documento clasificado como solicitud (`DocumentType::Request`) o acuse de recibo (`DocumentType::Receipt`), y no se encuentra ninguna solicitud que coincida, el sistema la crea automáticamente. La IA extrae el título, la descripción, el organismo público, la ley aplicable y la fecha de envío a partir del documento.
 
 En el momento de la creación:

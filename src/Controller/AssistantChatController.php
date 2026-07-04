@@ -15,8 +15,9 @@ use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AI\ResolutionRetriever;
-use App\Service\AI\Vector;
+use App\Service\AccessRequest\RequestDraftGenerator;
 use App\Service\Complaint\ComplaintDraftGenerator;
+use Symfony\AI\Platform\Vector\Vector;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Document\DocumentContentsCollector;
 use Doctrine\ORM\EntityManagerInterface;
@@ -65,6 +66,7 @@ final class AssistantChatController extends AbstractController
         private readonly DocumentContentsCollector $documentContentsCollector,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly ResolutionRetriever $resolutionRetriever,
+        private readonly RequestDraftGenerator $requestDraftGenerator,
     ) {
     }
 
@@ -321,31 +323,9 @@ final class AssistantChatController extends AbstractController
      */
     private function applyRequestDraft(AccessRequest $ar, array $draft): array
     {
-        $title = mb_substr(trim((string) ($draft['title'] ?? '')), 0, 255);
-        $ar->setTitle($title);
-
-        if ($ar->getRegDestination() !== null) {
-            $expone = mb_substr($this->plain((string) ($draft['expone'] ?? '')), 0, 4000);
-            $solicita = mb_substr($this->plain((string) ($draft['solicita'] ?? '')), 0, 4000);
-            $ar->setExpone($expone);
-            $ar->setSolicita($solicita);
-            $ar->setDescription(mb_substr(
-                trim("EXPONE:\n" . $expone . "\n\nSOLICITA:\n" . $solicita),
-                0,
-                8500,
-            ));
-            return ['title' => $title, 'expone' => $expone, 'solicita' => $solicita];
-        }
-
-        $body = mb_substr($this->plain((string) ($draft['body_text'] ?? '')), 0, 3000);
-        $ar->setDescription($body);
-        return ['title' => $title, 'body_text' => $body];
-    }
-
-    private function plain(string $text): string
-    {
-        $clean = strip_tags($text);
-        return trim($clean);
+        // Single source of truth for draft normalisation, shared with the
+        // one-shot MCP generation path ({@see RequestDraftGenerator}).
+        return $this->requestDraftGenerator->applyDraft($ar, $draft);
     }
 
     /**
