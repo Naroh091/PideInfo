@@ -10,6 +10,7 @@ use App\Entity\RegDestination;
 use App\Repository\AutonomousCommunityRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\RegDestinationRepository;
+use App\Service\AI\RegDestinationIndexer;
 use App\Service\Submission\Dir3Parser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -90,6 +91,7 @@ class ImportRegDestinationsCommand extends Command
         private readonly PublicBodyRepository $publicBodyRepository,
         private readonly RegDestinationRepository $regDestinationRepository,
         private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
+        private readonly RegDestinationIndexer $regDestinationIndexer,
     ) {
         parent::__construct();
     }
@@ -101,7 +103,8 @@ class ImportRegDestinationsCommand extends Command
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Parse and report but do not persist anything.')
             ->addOption('no-disable', null, InputOption::VALUE_NONE, 'Skip soft-disabling RegDestinations missing from this run.')
             ->addOption('strict-public-body', null, InputOption::VALUE_NONE, 'Fail if a row references a Raíz that does not match any existing PublicBody by code or name (instead of creating a stub).')
-            ->addOption('delimiter', null, InputOption::VALUE_REQUIRED, 'CSV delimiter override.', null);
+            ->addOption('delimiter', null, InputOption::VALUE_REQUIRED, 'CSV delimiter override.', null)
+            ->addOption('embed', null, InputOption::VALUE_NONE, 'After importing, (re)index touched destinations into the ai_reg_destinations semantic store and drop disabled ones. Embedding is opt-in because it calls the embedding API for every touched row.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -112,6 +115,7 @@ class ImportRegDestinationsCommand extends Command
         $dryRun = (bool) $input->getOption('dry-run');
         $noDisable = (bool) $input->getOption('no-disable');
         $strict = (bool) $input->getOption('strict-public-body');
+        $embed = (bool) $input->getOption('embed');
         $delimiter = $input->getOption('delimiter');
 
         if (!is_file($path) || !is_readable($path)) {
@@ -178,6 +182,8 @@ class ImportRegDestinationsCommand extends Command
         ];
         $warnings = [];
         $seenUnitCodes = [];
+        /** @var list<RegDestination> $touchedDestinations Collected only when --embed, to re-index after the flush. */
+        $touchedDestinations = [];
         $batchSize = 500;
         $batchCounter = 0;
 
@@ -401,6 +407,9 @@ class ImportRegDestinationsCommand extends Command
                 }
             }
             $seenUnitCodes[$unit['code']] = true;
+            if ($embed && !$dryRun) {
+                $touchedDestinations[] = $destination;
+            }
 
             if (!$dryRun && ++$batchCounter >= $batchSize) {
                 $progress->setMessage('flushing…');
@@ -467,6 +476,8 @@ class ImportRegDestinationsCommand extends Command
         $stats['public_body_ccaa_cleared'] = $bodyCcaaCleared;
 
         // --- Soft-disable destinations not seen this run ---
+        /** @var list<RegDestination> $disabledThisRun Collected only when --embed, to drop from the semantic store. */
+        $disabledThisRun = [];
         if (!$noDisable && $seenUnitCodes !== []) {
             $io->writeln('Marcando unidades ausentes como deshabilitadas…');
             $today = new \DateTimeImmutable('today');
@@ -480,6 +491,9 @@ class ImportRegDestinationsCommand extends Command
                 }
                 $existing->setDisabledAt($today);
                 $stats['destination_disabled']++;
+                if ($embed) {
+                    $disabledThisRun[] = $existing;
+                }
             }
         }
 
@@ -489,6 +503,24 @@ class ImportRegDestinationsCommand extends Command
         } else {
             $io->writeln('Flush final…');
             $this->em->flush();
+
+            if ($embed) {
+                $io->writeln('Reindexando destinos en el store semántico…');
+                // Drop disabled destinations so search never returns dead units.
+                foreach ($disabledThisRun as $disabled) {
+                    $this->regDestinationIndexer->remove($disabled);
+                }
+                // Re-embed everything touched this run, in batches.
+                $chunks = array_chunk($touchedDestinations, 50);
+                $reindexed = 0;
+                foreach ($chunks as $chunk) {
+                    $reindexed += $this->regDestinationIndexer->indexBatch($chunk);
+                }
+                $stats['destination_reindexed'] = $reindexed;
+                $stats['destination_deindexed'] = count($disabledThisRun);
+            } else {
+                $io->note('Sin --embed: el store semántico no se ha tocado. Ejecuta `app:reg:embed-destinations` para (re)indexar.');
+            }
         }
 
         $io->section('Summary');

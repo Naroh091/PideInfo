@@ -71,19 +71,50 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `get_status_history`         | mcp:read       | Historial cronológico de cambios de una solicitud (incluye notas tagueadas `[mcp/...]`). |
 | `list_upcoming_deadlines`    | mcp:read       | Solicitudes con plazo en los próximos N días o vencido.                          |
 | `list_public_bodies`         | mcp:read       | Búsqueda de organismos por nombre — devuelve UUIDs aptos para `create_access_request`. |
+| `search_reg_destinations`    | mcp:read       | Búsqueda **semántica** en texto libre de destinos REG (unidades DIR3). Mapea "servicio de salud de la Junta de Andalucía" → "Consejería de Salud · Andalucía". Devuelve `id` (regDestinationId) y `submissionTargetId` (publicBodyId) para `generate_access_request`. |
+| `get_applicable_law`         | mcp:read       | Ley de transparencia aplicable a un organismo (estatal o autonómica).            |
 | `search_resolutions`         | mcp:read       | Búsqueda semántica en CTBG (vector store).                                       |
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
 | `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
 | `read_document`              | mcp:documents  | Lee un documento: mode=text devuelve texto extraído (PDF → texto, plano → texto); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos). Cachea texto en `Document.extractedText`. |
 | `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. mode=text devuelve texto; mode=url devuelve pre-signed URLs de descarga. Sin límite de documentos. |
-| `create_access_request`      | mcp:write      | Crea solicitud nueva (calcula plazo según `ApplicableLaw`).                      |
+| `create_access_request`      | mcp:write      | Registra una solicitud **ya enviada** (`status = sent`, calcula plazo según `ApplicableLaw`, deja traza de creación). |
+| `generate_access_request`    | mcp:write      | **Genera con IA** el borrador de una solicitud (distinto de crear). Crea `AccessRequest` en `status = pending`, texto redactado server-side (mismo prompt Langfuse que la web), con el `RegDestination` adjunto, lista para revisar y **enviar después** por REG. Si el organismo tiene canal REG exige `regDestinationId` (de `search_reg_destinations`); si no, genera borrador portal/email. Etiqueta `metadata.generated_via = mcp/{client_id}`. |
 | `update_request_status`      | mcp:write      | Cambia el estado, deja traza tagueada con `[mcp/{client_id}]` en `StatusHistory`. |
 | `extend_request_deadline`    | mcp:write      | Aplica la prórroga legal y registra `DeadlineHistory` + `StatusHistory` (`[mcp/...]`). |
 | `generate_complaint_draft`   | mcp:write      | Borrador de reclamación con citas (vía `ComplaintGenerator` + `LlmClient`). Carga el texto extraído de todos los documentos del expediente vía `DocumentContentsCollector`; reutiliza el análisis de éxito cacheado en `AccessRequest.metadata['success_analysis']`. |
 | `file_complaint`             | mcp:write      | Presenta reclamación: crea `AccessRequestComplaint` con deadline +3 meses, transiciona la solicitud a `reclaimed` y registra `StatusHistory`/`DeadlineHistory`. |
 | `update_complaint_status`    | mcp:write      | Registra resolución del CTBG (granted/denied/archived); fija `complianceDeadlineAt` opcional. |
 | `add_reminder`               | mcp:write      | Recordatorio en una fecha futura (opcionalmente vinculado a una solicitud).      |
+
+### Crear vs generar una solicitud
+
+Son dos operaciones distintas:
+
+- **`create_access_request`** — *contabilidad*: registra una solicitud que el usuario **ya presentó** por su cuenta. Nace en `status = sent`, con plazo calculado y traza de creación.
+- **`generate_access_request`** — *redacción asistida*: produce un **borrador** (`status = pending`) que aún **no se ha enviado**. El texto lo redacta la IA server-side (mismo `RequestPromptComposer` + prompt Langfuse `pideinfo-request-generate-request-chat` que la web) en una única llamada `LlmClient::chatJson()`. El envío efectivo por REG es un paso posterior (fuera de estas tools).
+
+Flujo recomendado para preparar un envío por REG:
+
+1. `search_reg_destinations(query: "…")` → elige un destino; usa su `id` (`regDestinationId`) y `submissionTargetId` (`publicBodyId`).
+2. `generate_access_request(publicBodyId, regDestinationId, prompt: "qué quieres pedir")` → borrador `pending` listo para revisar/enviar.
+
+Para el canal REG el borrador se redacta como `title` + `expone` + `solicita` (máx. 80/4000/4000); para portal/email como `title` + `description` (máx. 255/3000). La normalización vive en `RequestDraftGenerator::applyDraft`, compartida con el chat en streaming (`AssistantChatController`).
+
+### Store semántico de destinos REG
+
+`search_reg_destinations` consulta un store pgvector propio (`ai_reg_destinations`, `halfvec(3072)`, índice HNSW cosine), registrado en `config/packages/ai_postgres_store.yaml` como `reg_destinations` — mismo patrón que `ai_resolutions` / `ai_documents`. El texto embebido por destino (organismo visible + raíz + organismo intermedio + unidad + oficina + comunidad/provincia/nivel) lo construye `RegDestinationTextBuilder`; el retriever es `RegDestinationRetriever`.
+
+Indexado (`app:reg:embed-destinations`):
+
+```bash
+bin/console app:reg:embed-destinations            # incremental: sólo los que faltan en el store
+bin/console app:reg:embed-destinations --force    # re-embebe todos
+bin/console app:reg:embed-destinations --comunidad "Andalucía"
+```
+
+El importador `app:reg:import-destinations --embed` reindexa los destinos tocados y borra del store los que quedan deshabilitados. Sin `--embed` el store no se toca (embeber es opt-in porque llama a la API de embeddings por cada fila).
 
 ## Recursos
 
