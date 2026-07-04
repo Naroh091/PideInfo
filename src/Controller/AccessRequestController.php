@@ -26,6 +26,8 @@ use App\Service\AI\ResolutionRetriever;
 use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
+use App\Service\Submission\DestinationSearch;
+use App\Service\Submission\DestinationSearchFilters;
 use App\Service\Submission\RegAdministrationLevel;
 use App\Service\Submission\RegPayloadBuilder;
 use Doctrine\ORM\EntityManagerInterface;
@@ -209,6 +211,64 @@ class AccessRequestController extends AbstractController
         return new JsonResponse([
             'facetType' => $facetType,
             'options' => array_values($options),
+        ]);
+    }
+
+    /**
+     * Unified, paginated, faceted destination search for the picker modal —
+     * REG units ∪ Portal/AGE bodies, matched by name and DIR3 code, with an
+     * optional semantic boost on the first page. Replaces the organismos.json +
+     * unidades.json cascade.
+     */
+    #[Route('/nueva/realizar/destinos.json', name: 'app_solicitudes_realizar_destinations_json', methods: ['GET'])]
+    public function destinationsSearchJson(
+        Request $request,
+        DestinationSearch $destinationSearch,
+    ): JsonResponse {
+        $q = (string) $request->query->get('q', '');
+        $limit = max(1, min(50, (int) $request->query->get('limit', 20)));
+        $offset = max(0, (int) $request->query->get('offset', 0));
+
+        $filters = new DestinationSearchFilters(
+            nivel: $request->query->get('nivel') ?: null,
+            comunidad: $request->query->get('comunidad') ?: null,
+            provincia: $request->query->get('provincia') ?: null,
+        );
+
+        $result = $destinationSearch->search($q, $filters, $limit, $offset);
+
+        return new JsonResponse([
+            'items' => array_map(static fn ($candidate) => $candidate->toArray(), $result->items),
+            'hasMore' => $result->hasMore,
+            'nextOffset' => $result->nextOffset,
+            'count' => $result->count,
+        ]);
+    }
+
+    /**
+     * Facet options for the destination modal: administrative levels, and the
+     * distinct comunidades / provincias to narrow the search. `comunidad` (raw
+     * label) scopes the provincia list; `nivel` (UI key) scopes both.
+     */
+    #[Route('/nueva/realizar/destinos-facetas.json', name: 'app_solicitudes_realizar_destinations_facets_json', methods: ['GET'])]
+    public function destinationFacetsJson(
+        Request $request,
+        RegDestinationRepository $regDestinationRepository,
+        PublicBodyRepository $publicBodyRepository,
+    ): JsonResponse {
+        $nivelKey = $request->query->get('nivel') ?: null;
+        $nivelKey = ($nivelKey !== null && RegAdministrationLevel::isValid($nivelKey)) ? $nivelKey : null;
+        $nivelRaw = $nivelKey !== null ? RegAdministrationLevel::nivelFor($nivelKey) : null;
+        $comunidad = $request->query->get('comunidad') ?: null;
+
+        $comunidades = $nivelKey !== null
+            ? $publicBodyRepository->findComunidadesForNivel($nivelKey)
+            : $regDestinationRepository->findAllDistinctComunidades();
+
+        return new JsonResponse([
+            'nivels' => RegAdministrationLevel::choices(),
+            'comunidades' => array_values($comunidades),
+            'provincias' => array_values($regDestinationRepository->findProvinciasForComunidad($comunidad, $nivelRaw)),
         ]);
     }
 

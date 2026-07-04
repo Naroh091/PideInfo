@@ -1,144 +1,286 @@
 import { Controller } from '@hotwired/stimulus';
-import TomSelect from 'tom-select';
 
 /**
- * Picker para "Realizar solicitud":
- *   - tom-select remoto contra /solicitudes/nueva/realizar/organismos.json
- *   - badge "Portal Transparencia" o "REG" en cada opción
- *   - tarjeta de previsualización a la derecha (single) o chips (multi)
- *   - para organismos REG (requiresRegDestination=true), un segundo selector de
- *     Unidad por organismo dentro de la previsualización
- *   - "Continuar" hace POST a /iniciar con `targets:[{publicBodyId, regDestinationId?}]`
+ * Picker para "Realizar solicitud".
  *
- * Targets / values declared as before; new value:
- *   unitsUrlTemplate → ruta de unidades, con {id} para el publicBody
+ * Reemplaza la antigua cascada (nivel → ámbito → organismo → unidad) por un
+ * modal de BÚSQUEDA UNIFICADA de destino:
+ *   - un único buscador contra /solicitudes/nueva/realizar/destinos.json que
+ *     casa por nombre Y código DIR3, mezcla unidades REG y cuerpos Portal/AGE,
+ *     filtra por nivel/comunidad/provincia y pagina por offset (carga más al
+ *     hacer scroll, con IntersectionObserver + botón de respaldo).
+ *   - cada resultado seleccionado se acumula como destinatario a la derecha.
+ *   - "Continuar" hace POST a /iniciar con `targets:[{publicBodyId, regDestinationId?}]`.
+ *
+ * El gate de datos personales REG (needs_profile) y el modo draft-only se
+ * conservan sin cambios respecto a la versión en cascada.
  */
 export default class extends Controller {
-    static targets = [
-        'nivel', 'facet', 'facetStep', 'facetLabel',
-        'select', 'unit', 'unitStep',
-        'addButton', 'continueButton', 'preview',
-    ];
+    static targets = ['addButton', 'continueButton', 'preview'];
     static values = {
-        loadUrl: String,
-        facetsUrl: String,
+        destinationsUrl: String,
+        destinationFacetsUrl: String,
         initiateUrl: String,
-        unitsUrlTemplate: String,
         csrfToken: String,
-        // When true the picker creates draft-only requests (not queued for
-        // sending): the initiate POST carries `draftOnly: true` and the copy
-        // reflects "guardar" rather than "enviar".
+        // Cuando es true el picker crea solicitudes solo-borrador: el POST lleva
+        // `draftOnly: true` y el copy dice "redactaremos" en vez de "enviaremos".
         draftOnly: Boolean,
     };
 
-    connect() {
-        // Destinatarios acumulados: [{publicBodyId, regDestinationId?, name, channel, channelLabel, levelLabel, unitLabel?, law?}]
-        this.selectedTargets = [];
-        this.currentBody = null;     // organismo elegido en paso 3 (objeto JSON del endpoint)
-        this.currentUnit = null;     // {id, displayLabel} elegido en paso 4
+    static PAGE_SIZE = 20;
+    static DEBOUNCE_MS = 250;
 
-        this._mountOrganismSelect();
+    connect() {
+        // [{publicBodyId, regDestinationId?, name, channel, channelLabel, levelLabel, unitLabel?, law?}]
+        this.selectedTargets = [];
         this._renderTargets();
-        this._updateAddButton();
         this._updateContinueButton();
     }
 
     disconnect() {
-        if (this.organismTs) this.organismTs.destroy();
-        if (this.unitTs) this.unitTs.destroy();
+        this._closeDestinationModal();
     }
 
-    // ── Paso 1: nivel ──
-    nivelChanged() {
-        const nivel = this.nivelTarget.value;
-        this.currentBody = null;
-        this.currentUnit = null;
-        this._clearOrganism();
-        this._clearUnit();
+    // ─────────────────────────────────────────────────────────────
+    //  Modal de búsqueda de destino
+    // ─────────────────────────────────────────────────────────────
+    openDestinationModal() {
+        if (this._modal) return;
 
-        if (!nivel) {
-            this.facetStepTarget.hidden = true;
-            this._updateAddButton();
-            return;
-        }
+        const overlay = document.createElement('div');
+        overlay.className = 'destino-modal-overlay';
+        overlay.innerHTML = `
+            <div class="destino-modal" role="dialog" aria-modal="true" aria-labelledby="destino-modal-title">
+                <header class="destino-modal-head">
+                    <div>
+                        <p class="profile-modal-eyebrow">Añadir destinatario</p>
+                        <h2 class="destino-modal-title" id="destino-modal-title">Busca el organismo o la unidad de destino</h2>
+                    </div>
+                    <button type="button" class="profile-modal-close" data-role="close" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </header>
+                <div class="destino-modal-search">
+                    <i data-lucide="search" class="w-4 h-4 destino-modal-search-icon"></i>
+                    <input type="search" data-role="q" autocomplete="off" spellcheck="false"
+                        placeholder="Nombre o código DIR3 (p. ej. «medio ambiente Galicia» o «A12048934»)" />
+                </div>
+                <div class="destino-modal-facets">
+                    <select data-role="nivel" aria-label="Nivel de administración"></select>
+                    <select data-role="comunidad" aria-label="Comunidad autónoma"></select>
+                    <select data-role="provincia" aria-label="Provincia"></select>
+                </div>
+                <div class="destino-modal-results" data-role="results">
+                    <ul class="destino-list" data-role="list"></ul>
+                    <div class="destino-status" data-role="loading" hidden>Buscando…</div>
+                    <div class="destino-status" data-role="empty" hidden>No hay destinos que coincidan. Prueba con otro término o quita filtros.</div>
+                    <div class="destino-sentinel" data-role="sentinel"></div>
+                    <button type="button" class="destino-more" data-role="more" hidden>Cargar más</button>
+                </div>
+            </div>`;
 
-        fetch(`${this.facetsUrlValue}?nivel=${encodeURIComponent(nivel)}`, { credentials: 'same-origin' })
-            .then((r) => r.json())
-            .then((json) => {
-                const options = json.options || [];
-                if ((json.facetType || 'none') === 'none' || options.length === 0) {
-                    this.facetStepTarget.hidden = true;
-                    return;
-                }
-                // El número del paso lo pone el contador CSS; aquí solo el texto.
-                this.facetLabelTarget.textContent = json.facetType === 'ministerio'
-                    ? 'Ministerio' : 'Comunidad autónoma';
-                this.facetTarget.innerHTML = '<option value="">Todos</option>'
-                    + options.map((o) => `<option value="${this._escape(o)}">${this._escape(o)}</option>`).join('');
-                this.facetStepTarget.hidden = false;
-            })
-            .catch(() => { this.facetStepTarget.hidden = true; });
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+        this._reIcons();
 
-        this._updateAddButton();
-    }
-
-    // ── Paso 2: ámbito ──
-    facetChanged() {
-        this.currentBody = null;
-        this.currentUnit = null;
-        this._clearOrganism();
-        this._clearUnit();
-        this._updateAddButton();
-    }
-
-    // ── Paso 3: organismo ──
-    organismChanged() {
-        const id = this.organismTs ? this.organismTs.getValue() : '';
-        this.currentUnit = null;
-        this._clearUnit();
-        this.currentBody = id ? (this.bodiesById.get(id) || null) : null;
-
-        if (this.currentBody && this.currentBody.requiresRegDestination) {
-            this._mountUnitSelect(this.currentBody);
-            this.unitStepTarget.hidden = false;
-        } else {
-            this.unitStepTarget.hidden = true;
-        }
-        this._updateAddButton();
-    }
-
-    // ── Añadir destinatario al panel ──
-    addTarget() {
-        if (!this._canAdd()) return;
-        const b = this.currentBody;
-        const entry = {
-            publicBodyId: b.id,
-            name: b.name,
-            channel: b.channel,
-            channelLabel: b.channelLabel,
-            levelLabel: b.levelLabel,
-            law: b.applicableLaw || null,
+        const $ = (role) => overlay.querySelector(`[data-role="${role}"]`);
+        this._modal = {
+            overlay,
+            q: $('q'),
+            nivel: $('nivel'),
+            comunidad: $('comunidad'),
+            provincia: $('provincia'),
+            list: $('list'),
+            loading: $('loading'),
+            empty: $('empty'),
+            sentinel: $('sentinel'),
+            more: $('more'),
         };
-        if (b.requiresRegDestination) {
-            entry.regDestinationId = this.currentUnit.id;
-            entry.unitLabel = this.currentUnit.displayLabel;
+        this._offset = 0;
+        this._hasMore = false;
+        this._loading = false;
+        this._searchSeq = 0;
+        this._debounce = null;
+
+        // Cierre.
+        overlay.querySelector('[data-role="close"]').addEventListener('click', () => this._closeDestinationModal());
+        overlay.addEventListener('click', (ev) => { if (ev.target === overlay) this._closeDestinationModal(); });
+        this._onKeydown = (ev) => { if (ev.key === 'Escape') this._closeDestinationModal(); };
+        document.addEventListener('keydown', this._onKeydown);
+
+        // Búsqueda.
+        this._modal.q.addEventListener('input', () => {
+            clearTimeout(this._debounce);
+            this._debounce = setTimeout(() => this._search(true), this.constructor.DEBOUNCE_MS);
+        });
+        this._modal.nivel.addEventListener('change', () => { this._loadFacets(); this._search(true); });
+        this._modal.comunidad.addEventListener('change', () => { this._loadFacets(); this._search(true); });
+        this._modal.provincia.addEventListener('change', () => this._search(true));
+        this._modal.more.addEventListener('click', () => this._search(false));
+
+        // Selección por delegación.
+        this._modal.list.addEventListener('click', (ev) => {
+            const li = ev.target.closest('[data-candidate]');
+            if (li) this._selectCandidate(JSON.parse(li.dataset.candidate));
+        });
+
+        // Carga incremental al hacer scroll.
+        if ('IntersectionObserver' in window) {
+            this._observer = new IntersectionObserver((entries) => {
+                if (entries.some((e) => e.isIntersecting) && this._hasMore && !this._loading) {
+                    this._search(false);
+                }
+            }, { root: this._modal.overlay.querySelector('[data-role="results"]'), rootMargin: '120px' });
+            this._observer.observe(this._modal.sentinel);
         }
-        // Evitar duplicado exacto (mismo organismo + misma unidad).
+
+        this._loadFacets();
+        this._search(true);
+        this._modal.q.focus();
+    }
+
+    _closeDestinationModal() {
+        if (!this._modal) return;
+        if (this._observer) { this._observer.disconnect(); this._observer = null; }
+        if (this._onKeydown) { document.removeEventListener('keydown', this._onKeydown); this._onKeydown = null; }
+        clearTimeout(this._debounce);
+        document.body.style.overflow = '';
+        this._modal.overlay.remove();
+        this._modal = null;
+    }
+
+    async _loadFacets() {
+        if (!this._modal) return;
+        const params = new URLSearchParams();
+        if (this._modal.nivel.value) params.set('nivel', this._modal.nivel.value);
+        if (this._modal.comunidad.value) params.set('comunidad', this._modal.comunidad.value);
+
+        try {
+            const json = await fetch(`${this.destinationFacetsUrlValue}?${params.toString()}`, { credentials: 'same-origin' })
+                .then((r) => r.json());
+            if (!this._modal) return;
+
+            // Nivel (solo la primera vez, para no perder la selección).
+            if (this._modal.nivel.options.length === 0) {
+                const nivels = json.nivels || {};
+                this._modal.nivel.innerHTML = '<option value="">Todos los niveles</option>'
+                    + Object.entries(nivels).map(([k, v]) => `<option value="${this._escape(k)}">${this._escape(v)}</option>`).join('');
+            }
+            this._fillSelect(this._modal.comunidad, json.comunidades || [], 'Todas las comunidades', this._modal.comunidad.value);
+            this._fillSelect(this._modal.provincia, json.provincias || [], 'Todas las provincias', this._modal.provincia.value);
+        } catch (_e) { /* facetas opcionales: si fallan, la búsqueda libre sigue funcionando */ }
+    }
+
+    _fillSelect(select, options, allLabel, keep) {
+        const has = options.includes(keep);
+        select.innerHTML = `<option value="">${this._escape(allLabel)}</option>`
+            + options.map((o) => `<option value="${this._escape(o)}">${this._escape(o)}</option>`).join('');
+        select.value = has ? keep : '';
+    }
+
+    async _search(reset) {
+        if (!this._modal || this._loading) return;
+        if (reset) {
+            this._offset = 0;
+            this._modal.list.innerHTML = '';
+        }
+        this._loading = true;
+        const seq = ++this._searchSeq;
+        this._modal.loading.hidden = false;
+        this._modal.empty.hidden = true;
+        this._modal.more.hidden = true;
+
+        const params = new URLSearchParams({
+            q: this._modal.q.value.trim(),
+            limit: String(this.constructor.PAGE_SIZE),
+            offset: String(this._offset),
+        });
+        if (this._modal.nivel.value) params.set('nivel', this._modal.nivel.value);
+        if (this._modal.comunidad.value) params.set('comunidad', this._modal.comunidad.value);
+        if (this._modal.provincia.value) params.set('provincia', this._modal.provincia.value);
+
+        try {
+            const json = await fetch(`${this.destinationsUrlValue}?${params.toString()}`, { credentials: 'same-origin' })
+                .then((r) => r.json());
+            // Stale guard: ignora respuestas de búsquedas ya superadas.
+            if (!this._modal || seq !== this._searchSeq) return;
+
+            const items = json.items || [];
+            items.forEach((c) => this._modal.list.appendChild(this._renderCandidate(c)));
+            this._reIcons();
+
+            this._hasMore = !!json.hasMore;
+            this._offset = json.nextOffset || (this._offset + this.constructor.PAGE_SIZE);
+            this._modal.more.hidden = !this._hasMore;
+            this._modal.empty.hidden = this._modal.list.children.length > 0;
+        } catch (_e) {
+            if (this._modal && seq === this._searchSeq) {
+                this._modal.empty.hidden = this._modal.list.children.length > 0;
+            }
+        } finally {
+            if (this._modal && seq === this._searchSeq) {
+                this._loading = false;
+                this._modal.loading.hidden = true;
+            } else {
+                this._loading = false;
+            }
+        }
+    }
+
+    _renderCandidate(c) {
+        const li = document.createElement('li');
+        li.className = 'picker-option destino-option';
+        li.setAttribute('role', 'button');
+        li.tabIndex = 0;
+        li.dataset.candidate = JSON.stringify(c);
+
+        const badgeClass = c.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg';
+        const badge = c.channelLabel
+            ? `<span class="channel-badge ${badgeClass} channel-badge-sm">${this._escape(c.channelLabel)}</span>` : '';
+        const sem = c.semantic ? '<span class="destino-semantic" title="Sugerencia semántica"><i data-lucide="sparkles" class="w-3 h-3"></i></span>' : '';
+        const context = [c.comunidad, c.provincia, c.kind === 'reg' ? c.raizName : null]
+            .filter(Boolean).map((s) => this._escape(s)).join(' · ');
+        const code = c.dir3 ? `<span class="picker-option-dir3">${this._escape(c.dir3)}</span>` : '';
+        const law = c.applicableLaw
+            ? `<span class="picker-option-meta">${this._escape(c.applicableLaw.shortCode || c.applicableLaw.name)}${c.applicableLaw.deadlineLabel ? ' · ' + this._escape(c.applicableLaw.deadlineLabel) : ''}</span>`
+            : '';
+
+        li.innerHTML = `
+            <div class="picker-option-row">
+                <span class="picker-option-name">${sem}${this._escape(c.displayLabel || c.name)}</span>
+                ${badge}
+            </div>
+            <div class="picker-option-row destino-option-sub">
+                ${code}
+                ${context ? `<span class="picker-option-meta">${context}</span>` : ''}
+            </div>
+            ${law ? `<div class="picker-option-row">${law}</div>` : ''}`;
+
+        li.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this._selectCandidate(c); }
+        });
+        return li;
+    }
+
+    _selectCandidate(c) {
+        const entry = {
+            publicBodyId: c.publicBodyId,
+            name: c.name,
+            channel: c.channel,
+            channelLabel: c.channelLabel,
+            levelLabel: c.nivelLabel,
+            law: c.applicableLaw || null,
+        };
+        if (c.regDestinationId) {
+            entry.regDestinationId = c.regDestinationId;
+            entry.unitLabel = c.displayLabel;
+        }
         const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
             && (t.regDestinationId || null) === (entry.regDestinationId || null));
         if (!dup) this.selectedTargets.push(entry);
 
-        // Reset de la cascada para añadir otro.
-        this.nivelTarget.value = '';
-        this.facetStepTarget.hidden = true;
-        this.unitStepTarget.hidden = true;
-        this._clearOrganism();
-        this._clearUnit();
-        this.currentBody = null;
-        this.currentUnit = null;
-
+        this._closeDestinationModal();
         this._renderTargets();
-        this._updateAddButton();
         this._updateContinueButton();
     }
 
@@ -151,123 +293,18 @@ export default class extends Controller {
         }
     }
 
-    // ── Helpers de montaje ──
-    _mountOrganismSelect() {
-        this.bodiesById = new Map();
-        const escape = (s) => this._escape(s);
-
-        this.organismTs = new TomSelect(this.selectTarget, {
-            valueField: 'id',
-            labelField: 'name',
-            searchField: ['name'],
-            maxItems: 1,
-            preload: 'focus',
-            plugins: { dropdown_input: {} },
-            load: (query, callback) => {
-                const params = new URLSearchParams({ q: query, limit: '25' });
-                const nivel = this.nivelTarget.value;
-                if (nivel) params.set('nivel', nivel);
-                const facet = this.hasFacetTarget && !this.facetStepTarget.hidden ? this.facetTarget.value : '';
-                if (facet) {
-                    params.set(nivel === 'estado' ? 'ministerio' : 'comunidad', facet);
-                }
-                fetch(`${this.loadUrlValue}?${params.toString()}`, { credentials: 'same-origin' })
-                    .then((r) => r.json())
-                    .then((json) => {
-                        const bodies = (json && json.bodies) || [];
-                        bodies.forEach((b) => this.bodiesById.set(b.id, b));
-                        callback(bodies);
-                    })
-                    .catch(() => callback());
-            },
-            render: {
-                option: (data, esc) => {
-                    const law = data.applicableLaw?.shortCode || '';
-                    const deadline = data.applicableLaw?.deadlineLabel || '';
-                    const territory = (data.level === 'autonomous' || data.level === 'local') && data.autonomousCommunity
-                        ? data.autonomousCommunity : '';
-                    const metaParts = [territory, deadline, law].filter(Boolean).map(escape);
-                    const meta = metaParts.length ? `<span class="picker-option-meta">${metaParts.join(' · ')}</span>` : '';
-                    const badge = data.channelLabel
-                        ? `<span class="channel-badge ${data.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg'} channel-badge-sm">${escape(data.channelLabel)}</span>`
-                        : '';
-                    return `<div class="picker-option"><div class="picker-option-row"><span class="picker-option-name">${escape(data.name)}</span>${badge}</div>${meta}</div>`;
-                },
-            },
-            onChange: () => this.organismChanged(),
-        });
-    }
-
-    _mountUnitSelect(body) {
-        if (this.unitTs) { this.unitTs.destroy(); this.unitTs = null; }
-        const url = (this.unitsUrlTemplateValue || '').replace('__body__', body.id);
-        this.unitTs = new TomSelect(this.unitTarget, {
-            valueField: 'id',
-            labelField: 'displayLabel',
-            searchField: ['displayLabel', 'name', 'dir3', 'oficinaName', 'oficinaDir3', 'raizName', 'raizDir3', 'provincia'],
-            maxItems: 1,
-            preload: 'focus',
-            maxOptions: 100,
-            plugins: { dropdown_input: {} },
-            load: (q, cb) => {
-                fetch(`${url}?q=${encodeURIComponent(q)}&limit=100`, { credentials: 'same-origin' })
-                    .then((r) => r.json())
-                    .then((json) => {
-                        this._unitsById = this._unitsById || new Map();
-                        (json.units || []).forEach((u) => this._unitsById.set(u.id, u));
-                        cb(json.units || []);
-                    })
-                    .catch(() => cb());
-            },
-            render: {
-                option: (data, esc) => {
-                    const line = (code, name) => `<div class="picker-option-row"><span class="picker-option-dir3">${esc(code || '—')}</span><span class="picker-option-name">${esc(name || '—')}</span></div>`;
-                    return `<div class="picker-option picker-option-tree">
-                        <div class="picker-option-line picker-option-line-unit">${line(data.dir3, data.name)}</div>
-                        <div class="picker-option-line picker-option-line-oficina">${line(data.oficinaDir3, data.oficinaName)}</div>
-                        <div class="picker-option-line picker-option-line-raiz">${line(data.raizDir3, data.raizName)}${data.provincia ? `<span class="picker-option-meta">${esc(data.provincia)}</span>` : ''}</div>
-                    </div>`;
-                },
-            },
-            onChange: (value) => {
-                const u = value && this._unitsById ? this._unitsById.get(value) : null;
-                this.currentUnit = u ? { id: u.id, displayLabel: u.displayLabel } : null;
-                this._updateAddButton();
-            },
-        });
-    }
-
-    _clearOrganism() {
-        if (this.organismTs) { this.organismTs.clear(true); this.organismTs.clearOptions(); }
-        this.unitStepTarget.hidden = true;
-    }
-
-    _clearUnit() {
-        if (this.unitTs) { this.unitTs.destroy(); this.unitTs = null; }
-        this.currentUnit = null;
-    }
-
-    // ── Estado de botones ──
-    _canAdd() {
-        if (!this.currentBody) return false;
-        if (this.currentBody.requiresRegDestination && !this.currentUnit) return false;
-        return true;
-    }
-
-    _updateAddButton() {
-        if (this.hasAddButtonTarget) this.addButtonTarget.disabled = !this._canAdd();
-    }
-
     _updateContinueButton() {
         if (this.hasContinueButtonTarget) this.continueButtonTarget.disabled = this.selectedTargets.length === 0;
     }
 
-    // ── Panel derecho ──
+    // ─────────────────────────────────────────────────────────────
+    //  Panel derecho de destinatarios
+    // ─────────────────────────────────────────────────────────────
     _renderTargets() {
         if (!this.hasPreviewTarget) return;
         const emptyBody = this.draftOnlyValue
-            ? 'Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos para los que redactaremos tu solicitud.'
-            : 'Completa el formulario y pulsa "Añadir destinatario". Aquí verás la lista de organismos a los que enviaremos tu solicitud.';
+            ? 'Pulsa "Añadir destinatario" y busca el organismo. Aquí verás la lista para los que redactaremos tu solicitud.'
+            : 'Pulsa "Añadir destinatario" y busca el organismo. Aquí verás la lista a los que enviaremos tu solicitud.';
         if (this.selectedTargets.length === 0) {
             this.previewTarget.innerHTML = `
                 <div class="preview-empty">
@@ -313,6 +350,9 @@ export default class extends Controller {
         this._reIcons();
     }
 
+    // ─────────────────────────────────────────────────────────────
+    //  Envío (sin cambios respecto a la cascada)
+    // ─────────────────────────────────────────────────────────────
     async submit(event) {
         event.preventDefault();
         if (this.selectedTargets.length === 0) return;
@@ -332,9 +372,6 @@ export default class extends Controller {
             window.location.href = json.firstDraftUrl;
         } catch (err) {
             if (err && err.code === 'needs_profile') {
-                // Pause the flow, collect the missing REG personal data via a
-                // modal, then retry the initiate POST without making the user
-                // re-select the organisms.
                 await this._handleNeedsProfile(err.profileFormUrl, targets);
                 return;
             }
@@ -380,7 +417,6 @@ export default class extends Controller {
             modal.close();
 
             if (!submitted) {
-                // User dismissed the modal — re-enable the continue button.
                 this.continueButtonTarget.disabled = false;
                 this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
                 return;
@@ -423,11 +459,6 @@ export default class extends Controller {
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons();
         }
-
-        // Re-trigger Stimulus on the injected form so the reg-address-form
-        // controller mounts its Tom-Select pickers. The Stimulus application
-        // observes the DOM, but injected nodes need a tick to be picked up;
-        // we just rely on the MutationObserver here.
 
         const form = overlay.querySelector('form');
         const errorBox = overlay.querySelector('.profile-modal-error');
