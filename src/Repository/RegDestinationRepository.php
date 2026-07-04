@@ -25,6 +25,55 @@ class RegDestinationRepository extends ServiceEntityRepository
     }
 
     /**
+     * Load destinations by id, keyed by their RFC-4122 string id, so the
+     * semantic retriever can re-order DB rows to match vector relevance.
+     *
+     * @param list<string> $ids
+     *
+     * @return array<string, RegDestination>
+     */
+    public function findByIds(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('rd')
+            ->where('rd.id IN (:ids)')
+            ->setParameter('ids', $ids)
+            ->getQuery()
+            ->getResult();
+
+        $map = [];
+        foreach ($rows as $destination) {
+            $map[$destination->getId()->toRfc4122()] = $destination;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Stream active (non-disabled) destinations for the indexer, optionally
+     * scoped to a comunidad. Uses toIterable() so a full corpus re-index does
+     * not hydrate every row at once.
+     *
+     * @return iterable<RegDestination>
+     */
+    public function iterateActive(?string $comunidad = null): iterable
+    {
+        $qb = $this->createQueryBuilder('rd')
+            ->where('rd.disabledAt IS NULL')
+            ->orderBy('rd.id', 'ASC');
+
+        if ($comunidad !== null && $comunidad !== '') {
+            $qb->andWhere('rd.comunidad = :comunidad')
+                ->setParameter('comunidad', $comunidad);
+        }
+
+        return $qb->getQuery()->toIterable();
+    }
+
+    /**
      * Active (non-disabled) units the picker should surface under a given
      * PublicBody, optionally filtered by provincia and / or name substring.
      * Filter is on `submissionTarget` — that's the "visible" body, which may
