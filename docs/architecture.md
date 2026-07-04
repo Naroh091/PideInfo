@@ -189,7 +189,8 @@ Diseño clave: el agente es delgado — solo descarga y reenvía. PideInfo es la
 Además del flujo agent→web descrito arriba, existe un canal **inverso** para tareas iniciadas desde la web:
 
 - Cola persistente: tabla `agent_task` (entidad `AgentTask`, repositorio `AgentTaskRepository::claimAtomically`).
-- API JSON con JWT bajo `/api/agent/tasks` (`AgentTaskApiController`): `pending`, `get`, `claim`, `progress`, `complete`.
+- API JSON con JWT bajo `/api/agent/tasks` (`AgentTaskApiController`): `pending`, `get`, `claim`, `progress`, `complete`. Es exclusiva del agente de escritorio (firewall `api`: `stateless` + JWT).
+- Estado para el navegador bajo `/panel/agent/tasks/{id}/estado` (`AgentTaskStatusController`, ruta `app_agent_task_status`): mismo dato de estado que `get`, pero servido por el firewall `main` (sesión de cookie) para que el modal `agentPresent` pueda sondearlo sin JWT. No puede vivir bajo `/api/` porque ese firewall respondería `401 "JWT Token not found"` a una sesión de cookie.
 - Wake-up vía esquema URL custom `pideinfo://<action>/<task_id>` registrado en el SO (`agent/protocol/registration.py`). Single-instance + relay vía socket Unix / named pipe (`agent/protocol/single_instance.py`).
 - Dispatcher por tipo en `agent/tasks/`. Hoy solo `present_complaint`: descarga el PDF y abre la sede del CTBG. Fase 2b sustituirá esa acción por automatización Playwright completa.
 
