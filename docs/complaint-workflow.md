@@ -125,7 +125,7 @@ Flujo:
 
 Cuando el usuario pulsa **Presentar (auto)** o **Presentar (supervisado)**, en vez de redirigir a una página diferente se muestra el modal de progreso compartido (`templates/_partials/_agent_present_modal.html.twig`), gestionado por el store Alpine `agentPresent` (registrado en `templates/layouts/app.html.twig`).
 
-El modal realiza un `POST` al endpoint de presentación para crear el `AgentTask` y, a continuación, sondea `GET /api/agent/tasks/{id}` cada 2 segundos. El ciclo de vida de la tarea se representa con estas etiquetas:
+El modal realiza un `POST` al endpoint de presentación para crear el `AgentTask` y, a continuación, sondea `GET /panel/agent/tasks/{id}/estado` (`app_agent_task_status`) cada 2 segundos. Este endpoint de estado se sirve por el firewall `main` (sesión de cookie), **no** por `/api/` — ese firewall es `stateless` + JWT y respondería `401 "JWT Token not found"` al polling del navegador; el `AgentTaskApiController` bajo `/api/` sigue siendo exclusivo del agente de escritorio autenticado con JWT. El ciclo de vida de la tarea se representa con estas etiquetas:
 
 | Estado de la tarea | Etiqueta mostrada |
 |--------------------|-------------------|

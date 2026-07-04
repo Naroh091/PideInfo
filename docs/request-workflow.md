@@ -307,7 +307,7 @@ La auto-reconciliación de REG y CTBG (canales sin borrador) queda como trabajo 
 
 ### Modal de progreso unificado (envío masivo)
 
-Cuando el usuario confirma el envío a uno o varios organismos, el endpoint `app_solicitudes_realizar_dispatch` crea un `AgentTask` por organismo y devuelve `tasks: [{taskId, statusUrl, bodyName}]`. El modal de progreso compartido (`templates/_partials/_agent_present_modal.html.twig`, store Alpine `agentPresent` registrado en `templates/layouts/app.html.twig`) se abre automáticamente y muestra **una fila de progreso por organismo**, sondeando `GET /api/agent/tasks/{id}` cada 2 segundos para cada una.
+Cuando el usuario confirma el envío a uno o varios organismos, el endpoint `app_solicitudes_realizar_dispatch` crea un `AgentTask` por organismo y devuelve `tasks: [{taskId, statusUrl, bodyName}]`. El modal de progreso compartido (`templates/_partials/_agent_present_modal.html.twig`, store Alpine `agentPresent` registrado en `templates/layouts/app.html.twig`) se abre automáticamente y muestra **una fila de progreso por organismo**, sondeando `GET /panel/agent/tasks/{id}/estado` (`app_agent_task_status`) cada 2 segundos para cada una. Ese endpoint de estado vive bajo el firewall `main` (sesión de cookie); no bajo `/api/`, que es `stateless` + JWT y devolvería `401 "JWT Token not found"` al navegador.
 
 El ciclo de vida de cada tarea se representa con estas etiquetas:
 

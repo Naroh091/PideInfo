@@ -612,7 +612,7 @@ class ComplaintController extends AbstractController
         return new JsonResponse([
             'taskId' => $task->getId()->toRfc4122(),
             'schemeUrl' => 'pideinfo://present-complaint/' . $task->getId()->toRfc4122(),
-            'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $task->getId()->toRfc4122()]),
+            'statusUrl' => $this->generateUrl('app_agent_task_status', ['id' => $task->getId()->toRfc4122()]),
         ]);
     }
 
@@ -771,7 +771,7 @@ class ComplaintController extends AbstractController
         return new JsonResponse([
             'taskId'    => $task->getId()->toRfc4122(),
             'schemeUrl' => 'pideinfo://present-complaint-reg/' . $task->getId()->toRfc4122(),
-            'statusUrl' => $this->generateUrl('api_agent_tasks_get', ['id' => $task->getId()->toRfc4122()]),
+            'statusUrl' => $this->generateUrl('app_agent_task_status', ['id' => $task->getId()->toRfc4122()]),
         ]);
     }
 
