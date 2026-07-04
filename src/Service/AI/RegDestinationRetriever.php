@@ -53,6 +53,12 @@ final class RegDestinationRetriever
 
         [$where, $params] = $this->buildWhere($comunidad, $provincia);
 
+        // Unique destination ids in relevance order + best score per id. The
+        // store query is lazy (the DB round-trip happens while iterating), so
+        // the iteration must live INSIDE the try — otherwise a missing/broken
+        // store table would surface as a 500 instead of degrading to no hits.
+        $ids = [];
+        $scores = [];
         try {
             $documents = $this->store->query(new VectorQuery(new Vector($embedding)), array_filter([
                 // Cast a wider net; we drop hits with no live DB row.
@@ -60,21 +66,18 @@ final class RegDestinationRetriever
                 'where' => $where,
                 'params' => $params === [] ? null : $params,
             ], static fn ($v) => $v !== null));
+
+            foreach ($documents as $document) {
+                $metadata = $document->getMetadata();
+                $id = $metadata['regDestinationId'] ?? null;
+                if (!is_string($id) || $id === '' || isset($ids[$id])) {
+                    continue;
+                }
+                $ids[$id] = true;
+                $scores[$id] = $document->getScore();
+            }
         } catch (\Throwable) {
             return [];
-        }
-
-        // Unique destination ids in relevance order + best score per id.
-        $ids = [];
-        $scores = [];
-        foreach ($documents as $document) {
-            $metadata = $document->getMetadata();
-            $id = $metadata['regDestinationId'] ?? null;
-            if (!is_string($id) || $id === '' || isset($ids[$id])) {
-                continue;
-            }
-            $ids[$id] = true;
-            $scores[$id] = $document->getScore();
         }
 
         if ($ids === []) {

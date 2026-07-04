@@ -128,47 +128,51 @@ Una solicitud puede crearse de tres maneras:
 - **AGE Portal de Transparencia** cuando `PublicBody.transparencyPortalAmbId !== null` (el `idAmb` del wizard; el agente construye con él la URL `/procedimiento/formulario?idProc=133628&idAmb={ID}`). El campo informativo `transparencyPortalUrl` no determina el canal.
 - **REG / RED SARA** cuando el organismo tiene al menos un `RegDestination` activo importado desde DIR3 (véase `docs/documentacion-procesos-envio/redsara_reg.md`). Los borradores REG recogen `expone` y `solicita` (máx. 4000 caracteres cada uno) en lugar de una única descripción, y requieren la dirección postal y el teléfono de la persona usuaria (`/perfil/datos-personales`) antes del envío.
 
-#### Selección de destinatario (picker en cascada)
+#### Selección de destinatario (modal de búsqueda unificada)
 
 El picker de "Realizar solicitud" (`templates/solicitudes/realizar/picker.html.twig`,
-controlador Stimulus `assets/controllers/realizar_picker_controller.js`) guía al usuario en
-4 pasos. El marcado y los estilos de la cascada viven en dos parciales compartidos
-(`templates/_partials/organism_picker.html.twig` y `_partials/organism_picker_styles.html.twig`)
-que reutiliza también "Solo redactar" (véase más abajo):
+controlador Stimulus `assets/controllers/realizar_picker_controller.js`) usa un **modal de
+búsqueda de destino** (sustituye a la antigua cascada nivel→ámbito→organismo→unidad). El marcado
+y los estilos viven en dos parciales compartidos (`templates/_partials/organism_picker.html.twig`
+y `_partials/organism_picker_styles.html.twig`) que reutiliza también "Solo redactar".
 
-1. **Nivel de administración** (obligatorio): Estado, Autonómica, Local, Justicia,
-   Universidades, Otras Instituciones. Definidos en
-   `src/Service/Submission/RegAdministrationLevel.php`.
-2. **Ámbito** (opcional, depende del nivel): desplegable de **ministerios** para Estado,
-   o de **comunidades autónomas** para Autonómica / Local / Justicia. Servido por
-   `GET /solicitudes/nueva/realizar/facetas.json?nivel={clave}`
-   (`app_solicitudes_realizar_facets_json`).
-3. **Organismo** (obligatorio): autocompletar contra
-   `GET /solicitudes/nueva/realizar/organismos.json` (`app_solicitudes_realizar_bodies_json`),
-   que filtra los cuerpos enviables por `nivel` + ámbito (`ministerio` o `comunidad`). Incluye
-   cuerpos REG/RED SARA y cuerpos del Portal de Transparencia AGE; estos últimos solo aparecen
-   en el nivel Estado.
-4. **Unidad** (solo organismos REG): la `RegDestination` concreta (p. ej. una concejalía de un
-   Ayuntamiento), servida por
-   `GET /solicitudes/nueva/realizar/organismos/{publicBody}/unidades.json`
-   (`app_solicitudes_realizar_units_json`).
+El usuario pulsa **"Añadir destinatario"** y busca en un único campo por **nombre o código
+DIR3** (p. ej. «medio ambiente Galicia» o «A12048934» — la cascada anterior no encontraba por
+código y ocultaba unidades tras el organismo paraguas, p. ej. las 333 unidades de "Comunidad
+Autónoma de Galicia"). El modal:
 
-El filtrado se deriva en tiempo de consulta de `RegDestination.nivelAdministracion`,
-`RegDestination.comunidad` y la Raíz (`RegDestination.publicBody`); no se denormaliza nada en
-`PublicBody` (cuyo `level` solo distingue estado/autonómica/local). El usuario completa la
-cascada, pulsa **"Añadir destinatario"** —que apila el organismo junto a su unidad en el panel
-derecho y resetea la cascada— y repite para enviar a varios organismos. "Continuar" hace
-`POST /solicitudes/nueva/realizar/iniciar` (`app_solicitudes_realizar_initiate`) con
-`{ targets: [{ publicBodyId, regDestinationId? }] }`, sin cambios respecto al flujo anterior.
+- Consulta `GET /solicitudes/nueva/realizar/destinos.json?q&nivel&comunidad&provincia&limit&offset`
+  (`app_solicitudes_realizar_destinations_json`), servido por `App\Service\Submission\DestinationSearch`.
+- Devuelve una lista **unificada** de candidatos de dos granos mutuamente excluyentes: unidades
+  **REG** (`reg_destination` cuyo `submissionTarget` no es un cuerpo Portal) y cuerpos
+  **Portal/AGE** (`transparencyPortalAmbId`). La partición respeta `ChannelResolver` (Portal
+  tiene prioridad sobre REG), así que un cuerpo con portal aparece una vez como portal y sus
+  unidades REG quedan ocultas.
+- Casa **tokenizando** la query: cada palabra debe aparecer (AND) en `name`, `dir3Code`,
+  `comunidad` o `provincia` (sin acentos, vía `unaccent`), de modo que «medio ambiente galicia»
+  encuentra una unidad de Galicia llamada «…MEDIO AMBIENTE…» aunque «Galicia» no esté en el
+  nombre sino en la comunidad. Con facetas `nivel/comunidad/provincia` (opciones en
+  `.../destinos-facetas.json`) y **paginación por offset** (carga más al hacer scroll con
+  `IntersectionObserver`, más botón "Cargar más").
+- En la primera página, cuando hay pocas coincidencias literales, **prepende** sugerencias
+  semánticas del store `ai_reg_destinations` (`RegDestinationRetriever`), solo si no coinciden ya
+  con el predicado keyword (para no duplicar entre páginas). Degrada a keyword si el store está
+  vacío.
+
+Cada candidato seleccionado se apila en el panel derecho; se pueden añadir varios. "Continuar"
+hace `POST /solicitudes/nueva/realizar/iniciar` (`app_solicitudes_realizar_initiate`) con
+`{ targets: [{ publicBodyId, regDestinationId? }] }` (portal → solo `publicBodyId`; REG →
+`publicBodyId` = submissionTarget + `regDestinationId`), **sin cambios** en `initiateDrafts`.
 
 Detalle de diseño:
-`docs/superpowers/specs/2026-06-07-regdestination-cascade-selector-design.md`.
+`docs/superpowers/specs/2026-07-04-mcp-generate-request-reg-destinations-design.md` (store REG) y
+el plan del modal unificado. Los endpoints antiguos `organismos.json` / `facetas.json` /
+`unidades.json` siguen existiendo (los consumía la cascada) pero el picker ya no los usa.
 
 **"Solo redactar" (borrador sin envío).** `/solicitudes/nueva/redactar`
 (`app_solicitudes_draft_only`, `templates/solicitudes/draft-only-picker.html.twig`) usa el
-**mismo picker en cascada** —incluido el selector de Unidad de destino (`RegDestination`) para
-organismos REG— reutilizando los parciales compartidos y el controlador `realizar-picker` con
-`data-realizar-picker-draft-only-value="true"`. "Continuar" hace el mismo
+**mismo modal de búsqueda** reutilizando los parciales compartidos y el controlador
+`realizar-picker` con `data-realizar-picker-draft-only-value="true"`. "Continuar" hace el mismo
 `POST /solicitudes/nueva/realizar/iniciar` pero con `{ targets, draftOnly: true }`; en ese modo
 `initiateDrafts` marca cada solicitud con la metadata `draft_only` y **omite la comprobación de
 datos personales REG** (se difiere al momento de "Enviar" desde el lienzo, ya que el borrador no

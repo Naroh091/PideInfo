@@ -346,6 +346,127 @@
         font-size: .88rem;
     }
 
+    /* ── Destination search modal (replaces the cascade) ── */
+    .destino-modal-overlay {
+        position: fixed; inset: 0;
+        background: rgba(15, 23, 42, .55);
+        display: flex; align-items: flex-start; justify-content: center;
+        padding: 2.5rem 1rem;
+        z-index: 60;
+        overflow-y: auto;
+    }
+    .destino-modal {
+        background: #ffffff;
+        border-radius: 1rem;
+        box-shadow: 0 30px 60px -20px rgba(15, 23, 42, .35);
+        width: 100%;
+        max-width: 44rem;
+        max-height: min(85vh, 46rem);
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .destino-modal-head {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        gap: 1rem;
+        padding: 1.5rem 1.6rem 1rem;
+    }
+    .destino-modal-title {
+        font-family: 'DM Serif Display', Georgia, serif;
+        font-weight: 400;
+        font-size: clamp(1.25rem, 2.3vw, 1.5rem);
+        line-height: 1.15;
+        color: rgb(15 23 42);
+        margin: 0;
+    }
+    .destino-modal-search {
+        position: relative;
+        padding: 0 1.6rem .75rem;
+    }
+    .destino-modal-search-icon {
+        position: absolute;
+        left: 2.3rem; top: 50%; transform: translateY(-60%);
+        color: rgb(148 163 184);
+        pointer-events: none;
+    }
+    .destino-modal-search input {
+        width: 100%;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .98rem;
+        padding: .7rem .9rem .7rem 2.5rem;
+        border: 1px solid rgb(203 213 225);
+        border-radius: .65rem;
+        outline: none;
+    }
+    .destino-modal-search input:focus {
+        border-color: var(--color-primary-500, #0ea5e9);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, .15);
+    }
+    .destino-modal-facets {
+        display: flex; flex-wrap: wrap; gap: .5rem;
+        padding: 0 1.6rem 1rem;
+        border-bottom: 1px solid rgb(241 245 249);
+    }
+    .destino-modal-facets select {
+        flex: 1 1 8rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .84rem;
+        padding: .45rem .6rem;
+        border: 1px solid rgb(226 232 240);
+        border-radius: .5rem;
+        background: rgb(248 250 252);
+        color: rgb(51 65 85);
+        cursor: pointer;
+    }
+    .destino-modal-results {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        padding: .5rem .9rem 1rem;
+    }
+    .destino-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+    .destino-option {
+        cursor: pointer;
+        border: 1px solid transparent;
+        border-radius: .6rem;
+        padding: .6rem .7rem;
+        transition: background .12s, border-color .12s;
+    }
+    .destino-option:hover, .destino-option:focus-visible {
+        background: rgb(248 250 252);
+        border-color: rgb(226 232 240);
+        outline: none;
+    }
+    .destino-option-sub { gap: .55rem; margin-top: .15rem; align-items: center; }
+    .destino-semantic {
+        display: inline-flex; align-items: center;
+        margin-right: .35rem;
+        color: var(--color-accent-500, #f59e0b);
+        vertical-align: middle;
+    }
+    .destino-status {
+        font-family: 'DM Sans', sans-serif;
+        font-size: .88rem; color: rgb(100 116 139);
+        text-align: center;
+        padding: 1.1rem 0;
+    }
+    .destino-sentinel { height: 1px; }
+    .destino-more {
+        display: block; width: 100%;
+        margin-top: .4rem;
+        padding: .55rem;
+        font-family: 'DM Sans', sans-serif;
+        font-size: .86rem; font-weight: 600;
+        color: var(--color-primary-700, #0369a1);
+        background: rgb(248 250 252);
+        border: 1px solid rgb(226 232 240);
+        border-radius: .55rem;
+        cursor: pointer;
+    }
+    .destino-more:hover { background: rgb(241 245 249); }
+    @media (max-width: 640px) {
+        .destino-modal { max-height: 92vh; }
+        .destino-modal-overlay { padding: 1rem .5rem; }
+    }
+
     /* ── Cascade form (issue #82): 4-step stepper ── */
     .picker-step { margin-bottom: 0; }
     .picker-step[hidden] { display: none; }

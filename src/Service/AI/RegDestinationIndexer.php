@@ -142,7 +142,7 @@ final class RegDestinationIndexer
     private function toVectorDocument(RegDestination $destination, string $text, array $embedding): VectorDocument
     {
         return new VectorDocument(
-            id: Uuid::v7(),
+            id: Uuid::v7()->toRfc4122(),
             vector: new Vector($embedding),
             metadata: new Metadata([
                 Metadata::KEY_TEXT => $text,

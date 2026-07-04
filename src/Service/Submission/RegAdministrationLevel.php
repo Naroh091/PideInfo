@@ -74,6 +74,21 @@ final class RegAdministrationLevel
         return self::NIVEL[$key] ?? null;
     }
 
+    /**
+     * Human label for a raw `RegDestination.nivelAdministracion` value (the
+     * inverse of {@see nivelFor}). Falls back to the raw string for values
+     * outside the catalogue.
+     */
+    public static function labelForNivel(?string $rawNivel): string
+    {
+        if ($rawNivel === null || $rawNivel === '') {
+            return '';
+        }
+        $key = array_search($rawNivel, self::NIVEL, true);
+
+        return $key !== false ? self::LABELS[$key] : $rawNivel;
+    }
+
     public static function facetType(string $key): string
     {
         return self::FACET[$key] ?? self::FACET_NONE;

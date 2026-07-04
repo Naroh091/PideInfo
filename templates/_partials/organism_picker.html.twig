@@ -1,66 +1,38 @@
-{# Shared "elegir organismo" cascade picker markup, used by both the
-   "Realizar" and "Solo redactar" pages. Requires the styles partial
+{# Shared destination picker markup, used by both the "Realizar" and
+   "Solo redactar" pages. Requires the styles partial
    (_partials/organism_picker_styles.html.twig) in the page's stylesheets.
 
+   The old nivel→ámbito→organismo→unidad cascade has been replaced by a unified
+   destination-search modal (see realizar_picker_controller.js): one search that
+   matches by name AND DIR3 code across REG units and Portal/AGE bodies, with
+   facets and progressive loading.
+
    Params:
-     reg_levels  — RegAdministrationLevel::choices() (key => label)
      draft_only  — bool; when true the picker creates draft-only requests
                    (POSTs `draftOnly: true` to the shared initiate endpoint) #}
 <div class="picker-grid"
      data-controller="realizar-picker"
-     data-realizar-picker-load-url-value="{{ path('app_solicitudes_realizar_bodies_json') }}"
-     data-realizar-picker-facets-url-value="{{ path('app_solicitudes_realizar_facets_json') }}"
+     data-realizar-picker-destinations-url-value="{{ path('app_solicitudes_realizar_destinations_json') }}"
+     data-realizar-picker-destination-facets-url-value="{{ path('app_solicitudes_realizar_destinations_facets_json') }}"
      data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}"
-     data-realizar-picker-units-url-template-value="{{ path('app_solicitudes_realizar_units_json', {'publicBody': '__body__'}) }}"
      data-realizar-picker-draft-only-value="{{ (draft_only|default(false)) ? 'true' : 'false' }}">
 
     <section class="picker-card">
         <div class="picker-step">
-            <label for="realizar-nivel-select" class="picker-card-label">Nivel de administración</label>
-            <select id="realizar-nivel-select"
-                    class="picker-select"
-                    data-realizar-picker-target="nivel"
-                    data-action="realizar-picker#nivelChanged">
-                <option value="">Elige un nivel…</option>
-                {% for key, label in reg_levels %}
-                    <option value="{{ key }}">{{ label }}</option>
-                {% endfor %}
-            </select>
+            <span class="picker-card-label">Destinatarios</span>
+            <p class="picker-help" style="margin-top:.25rem;">
+                Busca el organismo o la unidad concreta por nombre o por código DIR3. Puedes añadir varios: crearemos una solicitud independiente para cada uno.
+            </p>
+            <button type="button"
+                    class="picker-add-btn"
+                    data-realizar-picker-target="addButton"
+                    data-action="realizar-picker#openDestinationModal">
+                <i data-lucide="search" class="w-4 h-4"></i> Añadir destinatario
+            </button>
         </div>
-
-        <div class="picker-step" data-realizar-picker-target="facetStep" hidden>
-            <label for="realizar-facet-select" class="picker-card-label" data-realizar-picker-target="facetLabel">Ámbito</label>
-            <select id="realizar-facet-select"
-                    class="picker-select"
-                    data-realizar-picker-target="facet"
-                    data-action="realizar-picker#facetChanged"></select>
-        </div>
-
-        <div class="picker-step">
-            <label for="realizar-organism-select" class="picker-card-label">Organismo</label>
-            <select id="realizar-organism-select"
-                    autocomplete="off"
-                    data-realizar-picker-target="select"
-                    data-action="realizar-picker#organismChanged"
-                    placeholder="Empieza a escribir el nombre del organismo..."></select>
-        </div>
-
-        <div class="picker-step" data-realizar-picker-target="unitStep" hidden>
-            <label for="realizar-unit-select" class="picker-card-label">Unidad de destino (REG)</label>
-            <select id="realizar-unit-select" data-realizar-picker-target="unit"></select>
-            <p class="picker-help" style="margin-top:.5rem;">Selecciona la unidad concreta (p. ej. una concejalía). Si el organismo tiene oficinas territoriales, puedes filtrar al escribir.</p>
-        </div>
-
-        <button type="button"
-                class="picker-add-btn"
-                data-realizar-picker-target="addButton"
-                data-action="realizar-picker#addTarget"
-                disabled>
-            <i data-lucide="plus" class="w-4 h-4"></i> Añadir destinatario
-        </button>
 
         <p class="picker-help">
-            <b>¿No encuentras el tuyo?</b> Enviamos automáticamente al Portal de Transparencia (AGE) y a las unidades del REG / RED SARA del catálogo DIR3. Si tu organismo no está, podrás registrarlo desde "Ya la envié".
+            <b>¿No encuentras el tuyo?</b> Buscamos en el Portal de Transparencia (AGE) y en las unidades del REG / RED SARA del catálogo DIR3. Si tu organismo no está, podrás registrarlo desde "Ya la envié".
         </p>
 
         <div class="picker-cta-row">
