@@ -17,7 +17,12 @@
         {% set draftOrigin = doc.aiMetadata.origin|default('ai') %}
         {% set draftEditRoute = draftOrigin == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
         {% set displayName = isDraft ? 'Borrador de la reclamación' : doc.displayFilename %}
-        <div class="docs-row{% if draftFiled %} opacity-75{% endif %}" data-document-id="{{ doc.id }}">
+        {% set isProcedural = doc.type and doc.type.isProcedural() %}
+        <div class="docs-row{% if draftFiled %} opacity-75{% endif %}{% if isProcedural %} docs-row--muted{% endif %}"
+             data-document-id="{{ doc.id }}"
+             data-doc-type="{{ doc.type.value }}"
+             data-doc-name="{{ doc.customName ?? '' }}"
+             data-doc-derived="{{ displayName }}">
             <span class="docs-icon">
                 <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
             </span>
@@ -65,6 +70,11 @@
                        title="Descargar">
                         <i data-lucide="download" class="w-3.5 h-3.5"></i>
                     </a>
+                    <button type="button"
+                            title="Renombrar o reclasificar"
+                            onclick="editDocument(this)">
+                        <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                    </button>
                     {% if not isZip %}
                         <button type="button"
                                 title="Reprocesar documento"

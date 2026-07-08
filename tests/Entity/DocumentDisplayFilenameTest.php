@@ -48,6 +48,23 @@ final class DocumentDisplayFilenameTest extends TestCase
         );
     }
 
+    public function testCustomNameOverridesDerivedName(): void
+    {
+        $doc = $this->doc('informe.pdf', DocumentType::Response)
+            ->setCustomName('Resguardo reclamación CTBG');
+
+        $this->assertSame('Resguardo reclamación CTBG', $doc->getDisplayFilename());
+    }
+
+    public function testBlankCustomNameFallsBackToDerivedName(): void
+    {
+        $doc = $this->doc('informe.pdf', DocumentType::Response)
+            ->setCustomName('   ');
+
+        $this->assertNull($doc->getCustomName());
+        $this->assertSame('Respuesta - informe.pdf', $doc->getDisplayFilename());
+    }
+
     private function doc(string $filename, DocumentType $type): Document
     {
         return (new Document())

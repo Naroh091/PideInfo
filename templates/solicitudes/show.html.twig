@@ -882,6 +882,14 @@
         .docs-row:hover { background: rgb(248 250 252); }
         .docs-row:hover .docs-actions { opacity: 1; }
 
+        /* "Documentación de mero trámite" (acuses, inicios de tramitación,
+           prórrogas, traslados, afectación a terceros): same layout, resumen
+           and order, just a lighter visual weight so it doesn't compete with
+           the core procedure documents. */
+        .docs-row--muted .docs-name { color: rgb(100 116 139); font-weight: 400; }
+        .docs-row--muted .docs-icon { opacity: .55; }
+        .docs-row--muted .docs-summary { color: rgb(148 163 184); }
+
         .docs-icon {
             display: inline-flex; align-items: center; justify-content: center;
             color: rgb(148 163 184);
@@ -2021,6 +2029,134 @@
         </div>
     </div>
 </div>
+
+{# Renombrar / reclasificar documento #}
+<div id="editDocModal" class="modal-backdrop hidden">
+    <div class="modal-content max-w-lg">
+        <div class="modal-header">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                    <i data-lucide="pencil" class="w-5 h-5 text-primary-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800">Editar documento</h3>
+                    <p class="text-sm text-slate-500">Cambia el nombre o corrige la fase / tipo</p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-body space-y-4">
+            <div>
+                <label for="editDocName" class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                <input type="text" id="editDocName"
+                       class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none">
+                <p class="text-xs text-slate-400 mt-1">Déjalo vacío para usar el nombre automático.</p>
+            </div>
+            <div>
+                <label for="editDocType" class="block text-sm font-medium text-slate-700 mb-1">Tipo / fase</label>
+                <select id="editDocType"
+                        class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500 outline-none">
+                    {% for phase, opts in document_type_groups() %}
+                        <optgroup label="{{ phase }}">
+                            {% for o in opts %}
+                                <option value="{{ o.value }}">{{ o.label }}</option>
+                            {% endfor %}
+                        </optgroup>
+                    {% endfor %}
+                </select>
+                <p class="text-xs text-slate-400 mt-1">Elegir un tipo de la otra fase mueve el documento a esa fase.</p>
+            </div>
+            <p id="editDocError" class="text-sm text-red-600 hidden"></p>
+            <input type="hidden" id="editDocToken" value="{{ csrf_token('edit-document') }}">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeEditDoc()">Cancelar</button>
+            <button type="button" id="editDocSave" class="btn btn-primary" onclick="submitDocEdit()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let editDocCurrentId = null;
+    let editDocOriginalType = null;
+
+    window.editDocument = function(btn) {
+        const row = btn.closest('[data-document-id]');
+        if (!row) return;
+        editDocCurrentId = row.dataset.documentId;
+        editDocOriginalType = row.dataset.docType || '';
+        const nameInput = document.getElementById('editDocName');
+        nameInput.value = row.dataset.docName || '';
+        nameInput.placeholder = row.dataset.docDerived || 'Nombre del documento';
+        const typeSelect = document.getElementById('editDocType');
+        // Unprocessed docs have no matching option; leave the select untouched
+        // and only submit a type when the user actually picks one (see submit).
+        typeSelect.value = editDocOriginalType;
+        document.getElementById('editDocError').classList.add('hidden');
+        document.getElementById('editDocModal').classList.remove('hidden');
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    window.closeEditDoc = function() {
+        document.getElementById('editDocModal').classList.add('hidden');
+        editDocCurrentId = null;
+    };
+
+    window.submitDocEdit = async function() {
+        if (!editDocCurrentId) return;
+        const saveBtn = document.getElementById('editDocSave');
+        const errEl = document.getElementById('editDocError');
+        const selectedType = document.getElementById('editDocType').value;
+        const payload = {
+            name: document.getElementById('editDocName').value,
+            _token: document.getElementById('editDocToken').value
+        };
+        // Only reclassify when the user actually changed the type, so a
+        // rename-only save never rewrites the type (matters for Unprocessed docs
+        // whose current type has no option in the select).
+        if (selectedType && selectedType !== editDocOriginalType) {
+            payload.type = selectedType;
+        }
+        saveBtn.disabled = true;
+        errEl.classList.add('hidden');
+        try {
+            const resp = await fetch('/documentos/' + editDocCurrentId + '/editar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify(payload)
+            });
+            if (resp.ok) {
+                window.closeEditDoc();
+                await window.refreshDocumentsList();
+            } else {
+                const err = await resp.json().catch(() => ({}));
+                errEl.textContent = err.error || 'Error al guardar los cambios';
+                errEl.classList.remove('hidden');
+            }
+        } catch (e) {
+            errEl.textContent = 'Error de conexión';
+            errEl.classList.remove('hidden');
+        } finally {
+            saveBtn.disabled = false;
+        }
+    };
+
+    // Re-fetch the documents fragment and swap it in place (same source the
+    // file-uploader uses after an upload) so a rename / reclassification shows
+    // without a full page reload.
+    window.refreshDocumentsList = async function() {
+        const container = document.getElementById('documents-list');
+        if (!container || !container.dataset.documentsUrl) return;
+        try {
+            const resp = await fetch(container.dataset.documentsUrl, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (resp.ok) {
+                container.innerHTML = await resp.text();
+                if (window.lucide) window.lucide.createIcons();
+            }
+        } catch (e) { /* keep the stale list on failure */ }
+    };
+</script>
 
 {% include '_partials/document_actions_js.html.twig' %}
 
