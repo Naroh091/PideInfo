@@ -70,6 +70,28 @@ enum DocumentType: string
     }
 
     /**
+     * "Documentación de mero trámite": administrative documents that keep the
+     * expediente moving but carry little substantive signal (acuses de recibo,
+     * inicios de tramitación, prórrogas/ampliaciones, traslados, afectación a
+     * terceros). The UI de-emphasises these versus the core procedure documents
+     * (solicitudes, respuestas/resoluciones, reclamaciones, resoluciones de
+     * reclamación, alegaciones).
+     */
+    public function isProcedural(): bool
+    {
+        return in_array($this, [
+            self::Receipt,                  // Acuse de recibo
+            self::ComplaintReceipt,         // Acuse recibo reclamación
+            self::ProcessingStart,          // Inicio de tramitación
+            self::ComplaintProcessingStart, // Inicio tramitación reclamación
+            self::Extension,                // Prórroga
+            self::ComplaintExtension,       // Ampliación de reclamación
+            self::Redirection,              // Traslado a otro órgano
+            self::ThirdPartyRights,         // Afectación derechos terceros
+        ], true);
+    }
+
+    /**
      * Map AI-extracted document type to enum value.
      */
     public static function fromAiValue(string $aiValue): self

@@ -512,6 +512,63 @@ class DocumentController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/editar', name: 'app_document_edit', methods: ['POST'])]
+    public function edit(Request $request, Document $document): JsonResponse
+    {
+        // Same access rule as download/delete (uploader, admin, or request voter).
+        if (!$this->canAccessDocument($document)) {
+            return new JsonResponse(['error' => 'No tienes acceso a este documento'], Response::HTTP_FORBIDDEN);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        if (!$this->isCsrfTokenValid('edit-document', $data['_token'] ?? '')) {
+            return new JsonResponse(['error' => 'Token CSRF inválido'], Response::HTTP_FORBIDDEN);
+        }
+
+        $typeChanged = false;
+
+        // Rename: empty string clears the override and falls back to the derived name.
+        if (array_key_exists('name', $data)) {
+            $document->setCustomName(is_string($data['name']) ? $data['name'] : null);
+        }
+
+        // Reclassify. Changing the type moves the document between the request /
+        // complaint phase (the phase is derived from DocumentType::isComplaintRelated()).
+        if (array_key_exists('type', $data) && $data['type'] !== null && $data['type'] !== '') {
+            $newType = DocumentType::tryFrom((string) $data['type']);
+            if ($newType === null || $newType === DocumentType::Unprocessed) {
+                return new JsonResponse(['error' => 'Tipo de documento no válido'], Response::HTTP_BAD_REQUEST);
+            }
+            if ($newType !== $document->getType()) {
+                $document->setType($newType);
+                $typeChanged = true;
+            }
+        }
+
+        // This is a manual metadata correction only: unlike linkToRequest(), we do
+        // NOT re-run status/deadline side effects, which would double-apply them.
+        // The manual type persists a later "Reprocesar" because ProcessDocumentHandler
+        // treats any non-Unprocessed type as a preassignment that wins over the AI.
+        $this->entityManager->flush();
+
+        // A type change alters the document's semantics; refresh embeddings so the
+        // ai_documents metadata stays current (mirrors linkToRequest()).
+        if ($typeChanged && $document->getExtractedText()) {
+            $this->messageBus->dispatch(new GenerateDocumentEmbeddingsMessage($document->getId()));
+        }
+
+        return new JsonResponse([
+            'success' => true,
+            'document' => [
+                'id' => (string) $document->getId(),
+                'name' => $document->getDisplayFilename(),
+                'type' => $document->getType()->value,
+                'typeLabel' => $document->getTypeLabel(),
+            ],
+        ]);
+    }
+
     #[Route('/status', name: 'app_document_status', methods: ['POST'])]
     public function checkStatus(Request $request): JsonResponse
     {

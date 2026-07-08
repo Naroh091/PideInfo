@@ -235,6 +235,21 @@ El `referenceNumber` extraído se guarda como `externalId` de la entidad corresp
 
 Los documentos se pueden reprocesar haciendo clic en el botón de refrescar en la página de detalle de la solicitud. Esto despacha un nuevo `ProcessDocumentMessage` para el documento. El handler vuelve a ejecutar el análisis de IA y reaplica las actualizaciones de estado.
 
+## Edición manual de documentos (renombrar / reclasificar)
+
+Desde la lista de documentos de una solicitud, cada documento tiene un botón de lápiz que abre el modal "Editar documento" (`POST /documentos/{id}/editar`, `DocumentController::edit()`). Permite:
+
+- **Renombrar**: fija `Document.customName`, un nombre visible que anula el derivado `"{TipoLabel} - {original}"`. Se guarda vacío ⇒ vuelve al nombre automático. Como `getDisplayFilename()` devuelve `customName` cuando está presente, el nombre elegido **sobrevive a un reprocesado** (el handler vuelve a llamar a `setOriginalFilename(getDisplayFilename())`).
+- **Reclasificar / mover de fase**: cambia `Document.type`. La "fase" de un documento (solicitud vs. reclamación) **se deriva por completo de `DocumentType::isComplaintRelated()`**, así que asignar un tipo de la otra fase mueve el documento a la sección correcta (p. ej. corregir el resguardo de una reclamación mal clasificado como documento de la solicitud → `ComplaintReceipt`). El desplegable se construye desde el enum vía la extensión Twig `document_type_groups()` (agrupado en "Fase de solicitud" / "Fase de reclamación"; `Unprocessed` no es asignable a mano).
+
+El endpoint valida propiedad (`canAccessDocument()`) y token CSRF (`edit-document`). Es una **corrección de metadatos**: a diferencia de `link`, **no** reejecuta efectos de estado/plazo (evita duplicarlos). Si cambia el tipo y hay texto extraído, refresca los embeddings (`GenerateDocumentEmbeddingsMessage`). El tipo fijado a mano **persiste a un reprocesado posterior** porque `ProcessDocumentHandler` trata cualquier tipo distinto de `Unprocessed` como preasignado y lo prioriza sobre la IA (salvo el refinamiento Alegaciones/Complaint→Audiencia).
+
+Tras guardar, la lista se refresca sin recargar la página volviendo a pedir el fragmento `app_solicitudes_documents_fragment`.
+
+### Documentación de mero trámite (atenuada)
+
+`DocumentType::isProcedural()` marca la documentación administrativa de bajo valor informativo — acuses de recibo (solicitud y reclamación), inicios de tramitación (solicitud y reclamación), prórrogas/ampliaciones, traslados a otro órgano y afectación a terceros. En la lista de documentos estos se muestran con **menor peso visual** (clase `docs-row--muted`: nombre/icono atenuados) conservando su resumen y su posición, para no competir con la documentación básica de procedimiento (solicitudes, respuestas/resoluciones, reclamaciones, resoluciones de reclamación, alegaciones).
+
 ## Gestión de documentos huérfanos
 
 Los documentos subidos sin estar enlazados a una solicitud (o que la IA no ha podido emparejar) están disponibles en el modal "Importar documento sin asignar". El modal muestra:

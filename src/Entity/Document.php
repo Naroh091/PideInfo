@@ -28,6 +28,13 @@ class Document
     #[ORM\Column(length: 255)]
     private string $originalFilename;
 
+    /**
+     * User-defined display name that overrides the derived
+     * "<TypeLabel> - <original>" filename. Null = use the derived name.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $customName = null;
+
     #[ORM\Column(length: 255)]
     private string $storedFilename;
 
@@ -102,6 +109,18 @@ class Document
     public function setOriginalFilename(string $originalFilename): static
     {
         $this->originalFilename = $originalFilename;
+        return $this;
+    }
+
+    public function getCustomName(): ?string
+    {
+        return $this->customName;
+    }
+
+    public function setCustomName(?string $customName): static
+    {
+        $customName = $customName !== null ? trim($customName) : null;
+        $this->customName = $customName === '' ? null : $customName;
         return $this;
     }
 
@@ -329,6 +348,12 @@ class Document
      */
     public function getDisplayFilename(): string
     {
+        // A user-defined name always wins over the derived name and survives
+        // reprocessing (ProcessDocumentHandler re-derives via this method).
+        if ($this->customName !== null && $this->customName !== '') {
+            return $this->customName;
+        }
+
         if ($this->type === DocumentType::Unprocessed || $this->type === DocumentType::Other) {
             return $this->originalFilename;
         }
