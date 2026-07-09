@@ -306,6 +306,8 @@ Los documentos subidos sin estar enlazados a una solicitud (o que la IA no ha po
 
 El usuario hace clic en "Enlazar" para enlazar un documento huérfano a la solicitud actual a través de `POST /documentos/{id}/link`.
 
+Al enlazar manualmente, el documento aplica sus **efectos de estado completos** (mismo `DocumentEffectsApplier` que el pipeline automático) **solo si es el documento más actual**: si el expediente ya contiene otro documento con fecha posterior cuyo tipo también cambia el estado (`DocumentType::affectsState()`), se enlaza sin efectos para no pisar un estado más reciente (`DocumentEffectsApplier::isMostRecentStateChanging()`). Las fechas comparan por `documentDate` con fallback a `createdAt`.
+
 ## Procesamiento de email entrante
 
 Los usuarios pueden recibir una dirección de email virtual (por ejemplo, `usuario-df49302da@pideinfo.es`) que proporcionan a las administraciones públicas. Los correos enviados a esta dirección se procesan automáticamente y sus adjuntos entran en el pipeline de documentos.

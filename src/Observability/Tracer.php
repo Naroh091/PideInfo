@@ -73,20 +73,30 @@ final class Tracer
 
     /**
      * Open a child span and run the callable inside its scope. Generic wrapper for
-     * non-LLM internal steps (retrieval, batched loops, etc.).
+     * non-LLM internal steps (retrieval, batched loops, tool executions, etc.).
      *
      * @template T
      * @param array<string, mixed> $attributes
      * @param callable():T $fn
+     * @param ?callable(T, SpanInterface):void $captureOutput Receives the result + active span to set output attributes.
      * @return T
      */
-    public function span(string $name, array $attributes, callable $fn): mixed
+    public function span(string $name, array $attributes, callable $fn, ?callable $captureOutput = null): mixed
     {
         $span = $this->startSpan($name, SpanKind::KIND_INTERNAL, $attributes);
         $scope = $span?->activate();
 
         try {
-            return $fn();
+            $result = $fn();
+            if ($captureOutput !== null && $span !== null) {
+                try {
+                    $captureOutput($result, $span);
+                } catch (\Throwable) {
+                    // never let observability hooks break the call
+                }
+            }
+
+            return $result;
         } catch (\Throwable $e) {
             $this->recordException($span, $e);
             throw $e;

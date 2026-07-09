@@ -39,6 +39,36 @@ final class DocumentEffectsApplier
     }
 
     /**
+     * Whether a manually linked document is the most recent state-changing
+     * document of its expediente. If another document with a LATER date also
+     * mutates state, applying this one's effects would overwrite a newer
+     * status — the caller must then link without effects.
+     *
+     * Dates compare by documentDate, falling back to createdAt (upload time).
+     */
+    public static function isMostRecentStateChanging(Document $document): bool
+    {
+        $accessRequest = $document->getAccessRequest();
+        if ($accessRequest === null) {
+            return true;
+        }
+
+        $referenceDate = $document->getDocumentDate() ?? $document->getCreatedAt();
+
+        foreach ($accessRequest->getDocuments() as $other) {
+            if ($other->getId()->equals($document->getId()) || !$other->getType()->affectsState()) {
+                continue;
+            }
+            $otherDate = $other->getDocumentDate() ?? $other->getCreatedAt();
+            if ($otherDate > $referenceDate) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param array<string, mixed> $analysis
      */
     public function apply(AccessRequest $accessRequest, Document $document, array $analysis): void
