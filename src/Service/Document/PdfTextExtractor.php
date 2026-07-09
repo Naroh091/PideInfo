@@ -119,6 +119,23 @@ class PdfTextExtractor
     }
 
     /**
+     * Content variant of extractPageTexts() for callers that hold the PDF
+     * bytes (e.g. the read_document_pages agent tool).
+     *
+     * @return array<int, string> Map of 1-indexed page number → raw page text.
+     */
+    public function extractPageTextsFromContent(string $pdfBytes): array
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'pdfx_');
+        try {
+            file_put_contents($tmp, $pdfBytes);
+            return $this->extractPageTexts($tmp);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /**
      * Extract per-page text (1-indexed) WITHOUT the all-or-nothing readability
      * discard used by extractPages(). Pages that have no text layer come back as
      * empty strings, so callers (e.g. the vision-OCR fallback) can detect exactly

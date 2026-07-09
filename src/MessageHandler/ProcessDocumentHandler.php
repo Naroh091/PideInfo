@@ -3,20 +3,15 @@
 namespace App\MessageHandler;
 
 use App\Entity\AccessRequest;
-use App\Entity\AccessRequestComplaint;
 use App\Entity\Document;
 use App\Enum\DocumentType;
 use App\Message\GenerateDocumentEmbeddingsMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
-use App\Repository\ApplicableLawRepository;
-use App\Repository\AutonomousCommunityRepository;
-use App\Repository\PublicBodyRepository;
-use App\Service\AccessRequest\AccessRequestManager;
-use App\Service\AI\DocumentAnalyzer;
-use App\Service\Submission\ApplicableLawResolver;
-use App\Service\Complaint\HearingProcessManager;
+use App\Service\AI\DocumentAgent\AgenticDocumentAnalyzer;
 use App\Service\Complaint\SuccessAnalysisWarmer;
+use App\Service\Document\AccessRequestMatcher;
+use App\Service\Document\DocumentEffectsApplier;
 use App\Service\UserNotificationManager;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -28,18 +23,14 @@ final class ProcessDocumentHandler
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly DocumentAnalyzer $documentAnalyzer,
+        private readonly AgenticDocumentAnalyzer $documentAnalyzer,
         private readonly AccessRequestRepository $accessRequestRepository,
-        private readonly PublicBodyRepository $publicBodyRepository,
-        private readonly ApplicableLawRepository $applicableLawRepository,
-        private readonly AutonomousCommunityRepository $autonomousCommunityRepository,
-        private readonly AccessRequestManager $accessRequestManager,
-        private readonly ApplicableLawResolver $applicableLawResolver,
+        private readonly AccessRequestMatcher $matcher,
+        private readonly DocumentEffectsApplier $effectsApplier,
         private readonly UserNotificationManager $notificationManager,
         private readonly LoggerInterface $logger,
         private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
         private readonly MessageBusInterface $messageBus,
-        private readonly HearingProcessManager $hearingProcessManager,
     ) {
     }
 
@@ -63,8 +54,22 @@ final class ProcessDocumentHandler
                 'filename' => $document->getOriginalFilename(),
             ]);
 
-            // Analyze with AI
-            $analysis = $this->documentAnalyzer->analyze($document);
+            // PRE-MATCH (sin IA): si el documento ya viene enlazado (reproceso,
+            // dropzone sobre un expediente, webhook del agente) o su metadata
+            // trae el expediente del portal, el agente analiza CON el
+            // inventario de ese expediente — la clave para distinguir
+            // solicitud vs acuse y clasificar la fase de reclamación.
+            $accessRequest = $document->getAccessRequest();
+            if ($accessRequest === null) {
+                $sourceRef = $document->getSourceMetadata()['expedienteRef'] ?? null;
+                $accessRequest = $this->matcher->matchByReferences($document->getUploadedBy(), [$sourceRef]);
+                if ($accessRequest) {
+                    $document->setMatchMethod(Document::MATCH_REFERENCE);
+                }
+            }
+
+            // Analyze with AI (agentic; falls back to one-shot internally)
+            $analysis = $this->documentAnalyzer->analyze($document, $accessRequest);
 
             $this->logger->info('AI analysis result', [
                 'documentType' => $analysis['documentType'] ?? null,
@@ -103,14 +108,15 @@ final class ProcessDocumentHandler
             // Rename to <TypeLabel> - <original>
             $document->setOriginalFilename($document->getDisplayFilename());
 
-            // Try to find or create an access request
-            $accessRequest = $this->findOrCreateAccessRequest($document, $analysis);
+            // POST-MATCH: try to find or create an access request when the
+            // pre-match didn't resolve one.
+            $accessRequest = $accessRequest ?? $this->findOrCreateAccessRequest($document, $analysis);
 
             if ($accessRequest) {
                 $document->setAccessRequest($accessRequest);
 
                 // Update access request based on document type
-                $this->updateAccessRequestFromDocument($accessRequest, $document, $analysis);
+                $this->effectsApplier->apply($accessRequest, $document, $analysis);
             }
 
             $document->setProcessed(true);
@@ -170,608 +176,56 @@ final class ProcessDocumentHandler
             return $document->getAccessRequest();
         }
 
+        // Agentic match: the agent reviewed the user's registered requests
+        // (search_user_requests) and proposed one. Validate ownership — the
+        // id comes from the model and is never trusted blindly.
+        $matchedRequestId = $analysis['matchedRequestId'] ?? null;
+        if ($matchedRequestId) {
+            $matched = $this->accessRequestRepository->find($matchedRequestId);
+            if ($matched && $matched->getUser() === $user) {
+                $this->logger->info('Matched request agentically', [
+                    'accessRequestId' => (string) $matched->getId(),
+                ]);
+                $document->setMatchMethod(Document::MATCH_REFERENCE);
+                return $matched;
+            }
+        }
+
         // Try to find by reference number (AI-extracted or from source metadata)
         $referenceNumber = $analysis['referenceNumber'] ?? null;
         $sourceRef = $document->getSourceMetadata()['expedienteRef'] ?? null;
 
-        foreach (array_filter(array_unique([$referenceNumber, $sourceRef])) as $ref) {
-            $existing = $this->accessRequestRepository->findByExternalId($ref, $user);
-            if ($existing) {
-                $this->logger->info('Matched request by reference number', [
-                    'referenceNumber' => $ref,
-                    'accessRequestId' => (string) $existing->getId(),
-                ]);
-                $document->setMatchMethod(Document::MATCH_REFERENCE);
-                return $existing;
-            }
+        $existing = $this->matcher->matchByReferences($user, [$referenceNumber, $sourceRef]);
+        if ($existing) {
+            $document->setMatchMethod(Document::MATCH_REFERENCE);
+            return $existing;
         }
 
         // Try to find by keywords in title/description (for related documents with different reference numbers)
-        $keywords = $this->extractKeywords($analysis);
-        if (!empty($keywords)) {
-            $existing = $this->accessRequestRepository->findByKeywords($keywords, $user);
-            if ($existing) {
-                $this->logger->info('Matched request by keywords', [
-                    'keywords' => $keywords,
-                    'accessRequestId' => (string) $existing->getId(),
-                ]);
-                $document->setMatchMethod(Document::MATCH_KEYWORDS);
-                return $existing;
-            }
+        $existing = $this->matcher->matchByKeywords($user, $analysis);
+        if ($existing) {
+            $document->setMatchMethod(Document::MATCH_KEYWORDS);
+            return $existing;
         }
 
         // For certain document types, we should create a new access request
         if ($analysis['documentType'] === DocumentType::Request ||
             $analysis['documentType'] === DocumentType::Receipt) {
 
-            // Find autonomous community from extracted code
-            $autonomousCommunity = null;
-            $ccaaCode = $analysis['autonomousCommunityCode'] ?? null;
-            if ($ccaaCode) {
-                $autonomousCommunity = $this->autonomousCommunityRepository->findByCode($ccaaCode);
-                $this->logger->info('AI extracted autonomous community', [
-                    'code' => $ccaaCode,
-                    'found' => $autonomousCommunity !== null,
-                ]);
-            }
-
-            // Find or create public body
-            $publicBody = null;
-            $publicBodyName = $analysis['publicBodyName'] ?? null;
-            $this->logger->info('AI extracted public body', ['publicBodyName' => $publicBodyName]);
-            if ($publicBodyName) {
-                $publicBody = $this->publicBodyRepository->findOneByNameLike($publicBodyName);
-
-                // Auto-create if not found
-                if (!$publicBody) {
-                    $publicBody = new \App\Entity\PublicBody();
-                    $publicBody->setName($publicBodyName);
-                    $publicBody->setLevel('other');
-                    // Set autonomous community if we detected one
-                    if ($autonomousCommunity) {
-                        $publicBody->setAutonomousCommunity($autonomousCommunity);
-                    }
-                    $this->entityManager->persist($publicBody);
-                    $this->logger->info('Created new public body from document', [
-                        'name' => $publicBodyName,
-                        'autonomousCommunity' => $ccaaCode,
-                    ]);
-                }
-            }
-
-            // Find applicable law — preserves the original priority:
-            //   1) CCAA-derived law (resolver does findByAutonomousCommunity).
-            //   2) AI-extracted law name (acts as a tiebreaker for bodies
-            //      whose CCAA-derived law isn't found in the catalogue).
-            //   3) State law (resolver default).
-            $applicableLaw = null;
-            if ($publicBody && $publicBody->getAutonomousCommunity()) {
-                $applicableLaw = $this->applicableLawResolver->resolveFor($publicBody);
-                if ($applicableLaw && $applicableLaw->getAutonomousCommunity()) {
-                    $this->logger->info('Found applicable law by autonomous community', [
-                        'law' => $applicableLaw->getShortCode(),
-                        'ccaa' => $ccaaCode,
-                    ]);
-                } else {
-                    // Resolver fell straight to state — null it so the AI
-                    // hint below gets a chance.
-                    $applicableLaw = null;
-                }
-            }
-
-            if (!$applicableLaw) {
-                $lawName = $analysis['applicableLaw'] ?? null;
-                if ($lawName) {
-                    $applicableLaw = $this->applicableLawRepository->findOneByNameLike($lawName);
-                }
-            }
-
-            // Use defaults if not found
-            if (!$publicBody) {
-                // Get first public body as fallback (user can edit later)
-                $publicBody = $this->publicBodyRepository->findOneBy([]);
-            }
-            if (!$applicableLaw) {
-                $applicableLaw = $this->applicableLawResolver->resolveFor($publicBody);
-            }
-
-            if (!$publicBody || !$applicableLaw) {
-                $this->logger->warning('Cannot create access request: missing public body or law');
-                return null;
-            }
-
-            // Determine sent date
-            $sentAt = null;
-            if (!empty($analysis['documentDate'])) {
-                try {
-                    $sentAt = new \DateTimeImmutable($analysis['documentDate']);
-                } catch (\Exception) {
-                    $sentAt = new \DateTimeImmutable();
-                }
-            } else {
-                $sentAt = new \DateTimeImmutable();
-            }
-
-            // Create new access request
-            $accessRequest = $this->accessRequestManager->create(
-                user: $user,
-                title: $analysis['requestTitle'] ?? 'Solicitud importada - ' . $document->getOriginalFilename(),
-                description: $analysis['requestDescription'] ?? $analysis['summary'] ?? '',
-                publicBody: $publicBody,
-                applicableLaw: $applicableLaw,
-                sentAt: $sentAt,
-                externalId: $referenceNumber ?? $sourceRef,
+            $accessRequest = $this->matcher->createFromAnalysis(
+                $user,
+                $analysis,
+                $document,
+                $referenceNumber ?? $sourceRef,
             );
 
-            $this->logger->info('Created new access request from document', [
-                'accessRequestId' => (string) $accessRequest->getId(),
-                'title' => $accessRequest->getTitle(),
-            ]);
+            if ($accessRequest) {
+                $document->setMatchMethod(Document::MATCH_CREATED);
+            }
 
-            $document->setMatchMethod(Document::MATCH_CREATED);
             return $accessRequest;
         }
 
         return null;
-    }
-
-    /**
-     * @param array<string, mixed> $analysis
-     */
-    private function updateAccessRequestFromDocument(
-        AccessRequest $accessRequest,
-        Document $document,
-        array $analysis
-    ): void {
-        $documentType = $analysis['documentType'];
-
-        // Parse the document date once — used for timeline ordering
-        $eventDate = null;
-        if (!empty($analysis['documentDate'])) {
-            try {
-                $eventDate = new \DateTimeImmutable($analysis['documentDate']);
-            } catch (\Exception) {}
-        }
-
-        // Resolved statuses — don't regress the primary status past these
-        $isResolved = in_array($accessRequest->getStatus(), [
-            AccessRequest::STATUS_GRANTED,
-            AccessRequest::STATUS_GRANTED_COMPLETED,
-            AccessRequest::STATUS_DENIED,
-            AccessRequest::STATUS_DELAYED,
-        ], true);
-
-        // Determine if this is a complaint-related document
-        $isComplaintDocument = in_array($documentType, [
-            DocumentType::Complaint,
-            DocumentType::ComplaintReceipt,
-            DocumentType::ComplaintProcessingStart,
-            DocumentType::ComplaintResolution,
-            DocumentType::Alegaciones,
-            DocumentType::AlegationResponse,
-            DocumentType::Subsanacion,
-            DocumentType::SubsanacionResponse,
-            DocumentType::Audiencia,
-            DocumentType::ComplaintExtension,
-        ], true);
-
-        $referenceNumber = $analysis['referenceNumber'] ?? null;
-
-        if ($referenceNumber) {
-            if ($isComplaintDocument) {
-                $complaint = $this->ensureComplaint($accessRequest);
-                $complaint->setExternalId($referenceNumber);
-            } else {
-                // For request documents, the reference number is the request's file number
-                if (!$accessRequest->getExternalId()) {
-                    $accessRequest->setExternalId($referenceNumber);
-                }
-            }
-        }
-
-        // Handle different document types
-        switch ($documentType) {
-            case DocumentType::Receipt:
-                // Mark as acknowledged — only if not already resolved
-                if (!$isResolved && $accessRequest->getStatus() === AccessRequest::STATUS_SENT) {
-                    $previousStatus = $accessRequest->getStatus();
-                    $accessRequest->setStatus(AccessRequest::STATUS_PROCESSING);
-                    if ($eventDate) {
-                        $accessRequest->setAcknowledgedAt($eventDate);
-                    }
-                    $this->recordStatusChange($accessRequest, 'status', AccessRequest::STATUS_PROCESSING, 'Acuse de recibo recibido', $eventDate, $previousStatus);
-                }
-                break;
-
-            case DocumentType::Response:
-                // Update status based on AI analysis. The analyzer's
-                // accessRequestStatus hint (derived from documentType labels
-                // like 'inadmitida'/'parcialmente_concedida') takes precedence
-                // over the freeform 'status' field when both are present.
-                $rawAnalysisStatus = $analysis['status'] ?? null;
-                $status = ($analysis['accessRequestStatus'] ?? null)
-                    ?: $this->mapAnalysisStatusToAccessRequestStatus($rawAnalysisStatus);
-                if ($status && $accessRequest->getStatus() !== $status) {
-                    $previousStatus = $accessRequest->getStatus();
-                    $accessRequest->setStatus($status);
-                    $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
-
-                    // Clear deadline suspension if resolved
-                    if ($accessRequest->isDeadlineSuspended()) {
-                        $accessRequest->setDeadlineSuspendedAt(null);
-                        $accessRequest->setSuspendedDaysRemaining(null);
-                        $accessRequest->setThirdPartyStatus(AccessRequest::THIRD_PARTY_RECEIVED);
-                    }
-
-                    $this->recordStatusChange($accessRequest, 'status', $status, $analysis['summary'] ?? 'Resolución recibida', $eventDate, $previousStatus);
-                }
-                // Persist the orthogonal "what did the admin decide" signal so
-                // it survives later transitions (e.g. granted_completed pisando
-                // partially_granted). 'concedida_completada' carries no
-                // partial/total signal — preserve any prior result.
-                $resolutionResult = $this->mapAnalysisStatusToResolutionResult($rawAnalysisStatus);
-                if ($resolutionResult !== null && $accessRequest->getResolutionResult() === null) {
-                    $accessRequest->setResolutionResult($resolutionResult);
-                } elseif ($resolutionResult !== null && $rawAnalysisStatus !== 'concedida_completada') {
-                    $accessRequest->setResolutionResult($resolutionResult);
-                }
-                break;
-
-            case DocumentType::Extension:
-                // Handle extension (prórroga) using the law's configured extension period
-                if ($analysis['isExtension'] ?? false) {
-                    $explicitNewDeadline = null;
-
-                    // If the AI extracted an explicit new deadline date, use it
-                    if (!empty($analysis['newDeadlineDate'])) {
-                        try {
-                            $explicitNewDeadline = new \DateTimeImmutable($analysis['newDeadlineDate']);
-                        } catch (\Exception) {}
-                    }
-
-                    // Use law-based extension (e.g., 1 calendar month for Ley 19/2013)
-                    $this->accessRequestManager->extendDeadlineByLaw(
-                        $accessRequest,
-                        $document,
-                        $explicitNewDeadline
-                    );
-                }
-                break;
-
-            case DocumentType::Redirection:
-                if (($analysis['isRedirection'] ?? false) && !empty($analysis['redirectedToPublicBody'])) {
-                    $newPublicBodyName = $analysis['redirectedToPublicBody'];
-                    $newPublicBody = $this->publicBodyRepository->findOneByNameLike($newPublicBodyName);
-
-                    if (!$newPublicBody) {
-                        $newPublicBody = new \App\Entity\PublicBody();
-                        $newPublicBody->setName($newPublicBodyName);
-                        $newPublicBody->setLevel('other');
-                        $this->entityManager->persist($newPublicBody);
-                    }
-
-                    if ($newPublicBody->getId() !== $accessRequest->getPublicBody()->getId()) {
-                        if (!$accessRequest->wasRedirected()) {
-                            $accessRequest->setOriginalPublicBody($accessRequest->getPublicBody());
-                        }
-
-                        $accessRequest->setPublicBody($newPublicBody);
-                        $accessRequest->setRedirectedAt($eventDate ?? new \DateTimeImmutable());
-
-                        $this->recordStatusChange(
-                            $accessRequest,
-                            'status',
-                            AccessRequest::STATUS_PROCESSING,
-                            sprintf(
-                                'Solicitud trasladada a %s (art. 19.1 Ley 19/2013). Órgano original: %s',
-                                $newPublicBody->getName(),
-                                $accessRequest->getOriginalPublicBody()->getName()
-                            ),
-                            $eventDate
-                        );
-                    }
-                }
-                break;
-
-            case DocumentType::ThirdPartyRights:
-                if (($analysis['isThirdPartyRights'] ?? false) ||
-                    $accessRequest->getThirdPartyStatus() === AccessRequest::THIRD_PARTY_NONE) {
-
-                    $notificationDate = $eventDate ?? new \DateTimeImmutable();
-
-                    $this->accessRequestManager->suspendForThirdPartyAllegations(
-                        $accessRequest,
-                        $notificationDate,
-                        $document,
-                        15
-                    );
-
-                    $this->recordStatusChange(
-                        $accessRequest,
-                        'status',
-                        AccessRequest::STATUS_PROCESSING,
-                        'Plazo suspendido por afectación a derechos de terceros (art. 19.3 Ley 19/2013)',
-                        $eventDate
-                    );
-                }
-                break;
-
-            case DocumentType::ProcessingStart:
-                if (($analysis['isProcessingStart'] ?? false) || !empty($analysis['processingStartDate'])) {
-                    $processingStartDate = null;
-                    if (!empty($analysis['processingStartDate'])) {
-                        try { $processingStartDate = new \DateTimeImmutable($analysis['processingStartDate']); } catch (\Exception) {}
-                    }
-                    $processingStartDate = $processingStartDate ?? $eventDate ?? new \DateTimeImmutable();
-
-                    $this->accessRequestManager->startProcessing(
-                        $accessRequest,
-                        $processingStartDate,
-                        $document
-                    );
-
-                    $this->recordStatusChange(
-                        $accessRequest,
-                        'status',
-                        AccessRequest::STATUS_PROCESSING,
-                        sprintf(
-                            'Inicio de tramitación notificado. Plazo de 1 mes desde %s (art. 20.1 Ley 19/2013)',
-                            $processingStartDate->format('d/m/Y')
-                        ),
-                        $eventDate
-                    );
-                }
-                break;
-
-            case DocumentType::Complaint:
-                $existingComplaint = $accessRequest->getComplaint();
-                if ($existingComplaint === null || $existingComplaint->getFiledAt() === null) {
-                    $previousComplaintStatus = $accessRequest->getComplaintStatus();
-                    $complaint = $this->ensureComplaint($accessRequest);
-                    $complaintDate = $eventDate ?? new \DateTimeImmutable();
-
-                    $complaint->setFiledAt($complaintDate);
-                    $complaint->setDeadlineAt($complaintDate->modify('+3 months'));
-
-                    $organism = $accessRequest->getApplicableLaw()->getComplaintOrganism();
-                    $this->recordStatusChange(
-                        $accessRequest,
-                        'complaint',
-                        AccessRequestComplaint::STATUS_RECLAIMED,
-                        sprintf(
-                            'Reclamación presentada el %s%s',
-                            $complaintDate->format('d/m/Y'),
-                            $organism ? ' ante ' . ($organism->getShortName() ?? $organism->getName()) : ''
-                        ),
-                        $eventDate,
-                        $previousComplaintStatus,
-                    );
-                }
-                break;
-
-            case DocumentType::ComplaintReceipt:
-                $complaint = $this->ensureComplaint($accessRequest);
-                $receiptDate = $eventDate ?? new \DateTimeImmutable();
-                $complaint->setDeadlineAt($receiptDate->modify('+3 months'));
-
-                $this->recordStatusChange(
-                    $accessRequest,
-                    'complaint',
-                    AccessRequestComplaint::STATUS_RECLAIMED,
-                    sprintf('Acuse de recibo de reclamación recibido el %s', $receiptDate->format('d/m/Y')),
-                    $eventDate
-                );
-                break;
-
-            case DocumentType::ComplaintProcessingStart:
-                $complaint = $this->ensureComplaint($accessRequest);
-                $processingDate = $eventDate ?? new \DateTimeImmutable();
-                $complaint->setDeadlineAt($processingDate->modify('+3 months'));
-
-                $this->recordStatusChange(
-                    $accessRequest,
-                    'complaint',
-                    AccessRequestComplaint::STATUS_RECLAIMED,
-                    sprintf('Inicio de tramitación de reclamación notificado el %s. Plazo de 3 meses.', $processingDate->format('d/m/Y')),
-                    $eventDate
-                );
-                break;
-
-            case DocumentType::ComplaintResolution:
-                $rawComplaintStatus = $analysis['status'] ?? null;
-                $status = $this->mapAnalysisStatusToComplaintStatus($rawComplaintStatus);
-                if ($status) {
-                    $complaint = $this->ensureComplaint($accessRequest);
-                    $previousComplaintStatus = $complaint->getStatus();
-                    $complaint->setStatus($status);
-                    $complaintResult = $this->mapAnalysisStatusToComplaintResult($rawComplaintStatus);
-                    if ($complaintResult !== null) {
-                        $complaint->setComplaintResult($complaintResult);
-                    }
-                    $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
-                }
-                break;
-
-            case DocumentType::Alegaciones:
-                if ($accessRequest->getComplaint() === null) {
-                    $this->ensureComplaint($accessRequest);
-                    $this->recordStatusChange(
-                        $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                        'Alegaciones de la Administración recibidas durante proceso de reclamación', $eventDate
-                    );
-                }
-                break;
-
-            case DocumentType::Subsanacion:
-                $this->ensureComplaint($accessRequest);
-                $this->recordStatusChange(
-                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                    'Subsanación solicitada por el organismo de transparencia', $eventDate
-                );
-                break;
-
-            case DocumentType::SubsanacionResponse:
-                $this->ensureComplaint($accessRequest);
-                $this->recordStatusChange(
-                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                    'Subsanación presentada ante el organismo de transparencia', $eventDate
-                );
-                break;
-
-            case DocumentType::Audiencia:
-                $complaint = $this->ensureComplaint($accessRequest);
-                $hearing = $this->hearingProcessManager->registerFromDocument($complaint, $document, $analysis);
-                $this->recordStatusChange(
-                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                    $this->hearingProcessManager->buildTimelineNote($hearing), $eventDate
-                );
-                break;
-
-            case DocumentType::ComplaintExtension:
-                $this->ensureComplaint($accessRequest);
-                $this->recordStatusChange(
-                    $accessRequest, 'complaint', AccessRequestComplaint::STATUS_RECLAIMED,
-                    'Ampliación de reclamación presentada ante el organismo de transparencia', $eventDate
-                );
-                break;
-        }
-    }
-
-    private function mapAnalysisStatusToAccessRequestStatus(?string $status): ?string
-    {
-        return match ($status) {
-            'concedida' => AccessRequest::STATUS_GRANTED,
-            'concedida_completada' => AccessRequest::STATUS_GRANTED_COMPLETED,
-            'parcialmente_concedida' => AccessRequest::STATUS_PARTIALLY_GRANTED,
-            'denegada' => AccessRequest::STATUS_DENIED,
-            'inadmitida' => AccessRequest::STATUS_INADMITTED,
-            'en_tramite' => AccessRequest::STATUS_PROCESSING,
-            'pendiente' => AccessRequest::STATUS_PENDING,
-            'silencio' => AccessRequest::STATUS_DELAYED,
-            default => null,
-        };
-    }
-
-    /**
-     * Maps the AI's analysis label to the orthogonal "what did the admin
-     * decide" signal. 'concedida_completada' is intentionally absent — it only
-     * tells us the user already received the documentation, not whether the
-     * grant was total or partial. Callers must preserve any prior result.
-     */
-    private function mapAnalysisStatusToResolutionResult(?string $status): ?string
-    {
-        return match ($status) {
-            'concedida' => AccessRequest::RESULT_GRANTED,
-            'concedida_completada' => AccessRequest::RESULT_GRANTED,
-            'parcialmente_concedida' => AccessRequest::RESULT_PARTIALLY_GRANTED,
-            'denegada' => AccessRequest::RESULT_DENIED,
-            'inadmitida' => AccessRequest::RESULT_INADMITTED,
-            'silencio' => AccessRequest::RESULT_SILENCE,
-            default => null,
-        };
-    }
-
-    private function mapAnalysisStatusToComplaintStatus(?string $status): ?string
-    {
-        return match ($status) {
-            'concedida' => AccessRequestComplaint::STATUS_GRANTED,
-            'estimada' => AccessRequestComplaint::STATUS_GRANTED,
-            'estimada_parcialmente' => AccessRequestComplaint::STATUS_GRANTED,
-            'denegada' => AccessRequestComplaint::STATUS_DENIED,
-            'desestimada' => AccessRequestComplaint::STATUS_DENIED,
-            'inadmitida' => AccessRequestComplaint::STATUS_DENIED,
-            'archivada' => AccessRequestComplaint::STATUS_ARCHIVED,
-            default => null,
-        };
-    }
-
-    /**
-     * Maps the AI's analysis label for a complaint resolution to the
-     * orthogonal "what did the council decide" signal.
-     */
-    private function mapAnalysisStatusToComplaintResult(?string $status): ?string
-    {
-        return match ($status) {
-            'concedida' => AccessRequestComplaint::RESULT_UPHELD,
-            'estimada' => AccessRequestComplaint::RESULT_UPHELD,
-            'estimada_parcialmente' => AccessRequestComplaint::RESULT_PARTIALLY_UPHELD,
-            'denegada' => AccessRequestComplaint::RESULT_DISMISSED,
-            'desestimada' => AccessRequestComplaint::RESULT_DISMISSED,
-            'inadmitida' => AccessRequestComplaint::RESULT_INADMITTED,
-            'archivada' => AccessRequestComplaint::RESULT_ARCHIVED,
-            default => null,
-        };
-    }
-
-    private function ensureComplaint(AccessRequest $accessRequest): AccessRequestComplaint
-    {
-        $complaint = $accessRequest->getComplaint();
-        if ($complaint === null) {
-            $complaint = new AccessRequestComplaint();
-            $complaint->setAccessRequest($accessRequest);
-            $accessRequest->setComplaint($complaint);
-            $this->entityManager->persist($complaint);
-        }
-        return $complaint;
-    }
-
-    private function recordStatusChange(
-        AccessRequest $accessRequest,
-        string $statusType,
-        string $toStatus,
-        string $notes,
-        ?\DateTimeImmutable $eventDate = null,
-        ?string $fromStatus = null,
-    ): void {
-        if ($fromStatus === null) {
-            $fromStatus = match ($statusType) {
-                'status' => $accessRequest->getStatus(),
-                'complaint' => $accessRequest->getComplaintStatus(),
-                'courtStatus' => $accessRequest->getCourtStatus(),
-                default => 'unknown',
-            };
-        }
-
-        // Delegate the audit row + notification dispatch to the canonical
-        // entry point. Keeps the "every status change writes history AND
-        // fires a notification" invariant in a single place.
-        $this->accessRequestManager->recordStatusEvent(
-            $accessRequest, $statusType, $fromStatus, $toStatus, $notes, $eventDate,
-        );
-    }
-
-    /**
-     * Extract keywords from AI analysis that can be used to match related documents.
-     * Looks for contract IDs, platform identifiers, and other unique references.
-     *
-     * @param array<string, mixed> $analysis
-     * @return string[]
-     */
-    private function extractKeywords(array $analysis): array
-    {
-        $keywords = [];
-        $text = ($analysis['requestDescription'] ?? '') . ' ' . ($analysis['requestTitle'] ?? '');
-
-        // Extract contract/platform identifiers (e.g., "2020/011739", "VCM-036")
-        if (preg_match_all('/\b\d{4}\/\d{5,}\b/', $text, $matches)) {
-            $keywords = array_merge($keywords, $matches[0]);
-        }
-
-        // Extract line/route codes (e.g., "VCM-036", "DIV-123")
-        if (preg_match_all('/\b[A-Z]{2,4}-\d{2,4}\b/', $text, $matches)) {
-            $keywords = array_merge($keywords, $matches[0]);
-        }
-
-        // Extract expedition numbers (e.g., "AYTOZAM-SEIS-4420/2025")
-        if (preg_match_all('/\b[A-Z]+-[A-Z]+-\d+\/\d{4}\b/', $text, $matches)) {
-            $keywords = array_merge($keywords, $matches[0]);
-        }
-
-        // Extract NIF/CIF references
-        if (preg_match_all('/\b[A-Z]\d{7,8}[A-Z0-9]?\b/', $text, $matches)) {
-            $keywords = array_merge($keywords, $matches[0]);
-        }
-
-        return array_unique($keywords);
     }
 }

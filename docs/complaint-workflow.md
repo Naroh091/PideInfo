@@ -236,6 +236,24 @@ Cuando se desestima la reclamación:
 - Se fija `resolvedAt`
 - El ciudadano puede acudir a la vía judicial (`courtStatus` → `in_court`)
 
+### Comunicaciones Consejo–Administración
+
+Durante la tramitación, el Consejo y la administración reclamada intercambian documentación en la que el ciudadano no es parte: el requerimiento de remisión del expediente y de alegaciones, el justificante REGAGE con el que la administración presenta sus alegaciones o el expediente completo, aceptaciones de competencia, etc. Estos documentos se clasifican como `DocumentType::ComplaintInterAdmin` (valor IA `comunicacion_consejo_administracion`): pertenecen a la fase de reclamación, son documentación de mero trámite (atenuada en la UI) y **no producen ningún cambio de estado ni plazo** — solo una entrada en el timeline (sin notificación al usuario). No confundir con `alegaciones`: ese tipo se reserva al escrito de alegaciones en sí (emitido por la administración, `origin = administracion`). Cuando la administración remite el **expediente completo** en un único PDF, las alegaciones suelen ir en las últimas páginas: el análisis lo marca como compuesto (`isComposite` + `subdocuments`) y lo clasifica por la pieza relevante.
+
+## Vía judicial
+
+Si el ciudadano acude a lo contencioso-administrativo, los documentos judiciales tienen su propia fase ("Fase judicial" en la lista de documentos, `DocumentType::isCourtRelated()`), sin entidad propia: los efectos operan sobre `AccessRequest.courtStatus`:
+
+| Tipo | Valor IA | Efecto |
+|------|----------|--------|
+| `CourtAppeal` | `recurso_contencioso` | `courtStatus` → `in_court` (vía `AccessRequestManager::changeStatus`, `StatusHistory::TYPE_COURT`) |
+| `CourtRuling` | `sentencia` | `courtOutcome` estimatorio/parcial ⇒ `court_granted`; desestimatorio/inadmision ⇒ `court_denied` (fija `resolvedAt`); sin fallo ⇒ solo timeline |
+| `CourtOrder` | `auto_judicial` / `auto` / `providencia` | Solo timeline |
+| `CourtHearingNotice` | `senalamiento` | Solo timeline |
+| `CourtOther` | `escrito_judicial` | Solo timeline |
+
+En los documentos judiciales el `referenceNumber` es el número de procedimiento (p. ej. "PO 123/2026") y **no** se escribe en el `externalId` de la solicitud ni de la reclamación.
+
 ## Plazos de la reclamación
 
 | Plazo | Duración | Disparador |
