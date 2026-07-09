@@ -21,7 +21,13 @@ enum DocumentType: string
     case SubsanacionResponse = 'subsanacion_response';
     case Audiencia = 'audiencia';
     case ComplaintExtension = 'complaint_extension';
+    case ComplaintInterAdmin = 'comunicacion_consejo_administracion';
     case Court = 'court';
+    case CourtAppeal = 'court_appeal';
+    case CourtRuling = 'court_ruling';
+    case CourtOrder = 'court_order';
+    case CourtHearingNotice = 'court_hearing_notice';
+    case CourtOther = 'court_other';
     case Notification = 'notification';
     case Other = 'other';
     case Unprocessed = 'unprocessed';
@@ -46,7 +52,13 @@ enum DocumentType: string
             self::SubsanacionResponse => 'Subsanación presentada',
             self::Audiencia => 'Trámite de audiencia',
             self::ComplaintExtension => 'Ampliación de reclamación',
+            self::ComplaintInterAdmin => 'Comunicación Consejo–Administración',
             self::Court => 'Documento judicial',
+            self::CourtAppeal => 'Recurso contencioso-administrativo',
+            self::CourtRuling => 'Sentencia judicial',
+            self::CourtOrder => 'Auto / providencia',
+            self::CourtHearingNotice => 'Señalamiento de vista',
+            self::CourtOther => 'Escrito judicial',
             self::Notification => 'Notificación',
             self::Other => 'Otro',
             self::Unprocessed => 'Sin procesar',
@@ -66,6 +78,25 @@ enum DocumentType: string
             self::SubsanacionResponse,
             self::Audiencia,
             self::ComplaintExtension,
+            self::ComplaintInterAdmin,
+        ], true);
+    }
+
+    /**
+     * Documentos de la vía judicial (recurso contencioso-administrativo tras
+     * la resolución de la reclamación). Forman su propia fase en la UI y sus
+     * efectos de estado operan sobre AccessRequest::courtStatus, nunca sobre
+     * el estado de la solicitud o de la reclamación.
+     */
+    public function isCourtRelated(): bool
+    {
+        return in_array($this, [
+            self::Court,
+            self::CourtAppeal,
+            self::CourtRuling,
+            self::CourtOrder,
+            self::CourtHearingNotice,
+            self::CourtOther,
         ], true);
     }
 
@@ -88,6 +119,7 @@ enum DocumentType: string
             self::ComplaintExtension,       // Ampliación de reclamación
             self::Redirection,              // Traslado a otro órgano
             self::ThirdPartyRights,         // Afectación derechos terceros
+            self::ComplaintInterAdmin,      // Comunicación Consejo–Administración
         ], true);
     }
 
@@ -120,6 +152,15 @@ enum DocumentType: string
             'subsanacion_respuesta' => self::SubsanacionResponse,
             'audiencia' => self::Audiencia,
             'ampliacion_reclamacion' => self::ComplaintExtension,
+            'comunicacion_consejo_administracion' => self::ComplaintInterAdmin,
+            'recurso_contencioso' => self::CourtAppeal,
+            'recurso_contencioso_administrativo' => self::CourtAppeal,
+            'sentencia' => self::CourtRuling,
+            'auto_judicial' => self::CourtOrder,
+            'auto' => self::CourtOrder,
+            'providencia' => self::CourtOrder,
+            'senalamiento' => self::CourtHearingNotice,
+            'escrito_judicial' => self::CourtOther,
             default => self::Other,
         };
     }
@@ -147,11 +188,15 @@ enum DocumentType: string
      * CTBG phase), so when the AI reads "audiencia" in the content it refines
      * an Alegaciones/Complaint preassignment. Without this, reprocessing a
      * misclassified audiencia document could never fix it (and the
-     * HearingProcess would never be registered).
+     * HearingProcess would never be registered). The same applies to the other
+     * document kinds that arrive in the CTBG "alegaciones" phase but are not
+     * the admin's alegaciones themselves: Consejo↔Administración
+     * communications (REGAGE justificantes, requerimientos de remisión) and
+     * the citizen's own response to the alegaciones.
      */
     public static function aiRefinesPreassigned(self $preassigned, self $aiType): bool
     {
-        return $aiType === self::Audiencia
+        return in_array($aiType, [self::Audiencia, self::ComplaintInterAdmin, self::AlegationResponse], true)
             && in_array($preassigned, [self::Alegaciones, self::Complaint], true);
     }
 }

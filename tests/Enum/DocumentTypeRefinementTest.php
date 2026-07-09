@@ -39,4 +39,26 @@ final class DocumentTypeRefinementTest extends TestCase
         // Dirección inversa: si el agente ya lo marcó como Audiencia, la IA no lo degrada.
         $this->assertFalse(DocumentType::aiRefinesPreassigned(DocumentType::Audiencia, DocumentType::Alegaciones));
     }
+
+    public function testAiCanRefineAlegacionesToInterAdminCommunication(): void
+    {
+        // La fase "alegaciones" del CTBG trae también los justificantes REGAGE y
+        // requerimientos Consejo↔Administración; el mapeo por fase los preasigna
+        // Alegaciones y solo el contenido permite distinguirlos.
+        $this->assertTrue(DocumentType::aiRefinesPreassigned(DocumentType::Alegaciones, DocumentType::ComplaintInterAdmin));
+        $this->assertTrue(DocumentType::aiRefinesPreassigned(DocumentType::Complaint, DocumentType::ComplaintInterAdmin));
+    }
+
+    public function testAiCanRefineAlegacionesToAlegationResponse(): void
+    {
+        // Cross-check de origen: unas "alegaciones" del ciudadano son su
+        // respuesta a las de la Administración.
+        $this->assertTrue(DocumentType::aiRefinesPreassigned(DocumentType::Alegaciones, DocumentType::AlegationResponse));
+    }
+
+    public function testInterAdminRefinementDoesNotApplyToOtherPreassignments(): void
+    {
+        $this->assertFalse(DocumentType::aiRefinesPreassigned(DocumentType::ComplaintResolution, DocumentType::ComplaintInterAdmin));
+        $this->assertFalse(DocumentType::aiRefinesPreassigned(DocumentType::Audiencia, DocumentType::ComplaintInterAdmin));
+    }
 }
