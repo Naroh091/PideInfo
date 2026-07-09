@@ -1,7 +1,5 @@
 # El Agente de PideInfo
 
-> **El Agente está actualmente en desarrollo.** Estamos trabajando en la versión final para Windows, macOS y Linux. Algunas funcionalidades descritas en esta guía pueden no estar disponibles todavía o cambiar antes del lanzamiento.
-
 El Agente de PideInfo es una aplicación que se ejecuta en tu ordenador y se encarga de toda la tramitación que requiere tu certificado digital:
 
 - **Envío de solicitudes** al Portal de Transparencia (AGE) y al Registro Electrónico Común (REG / RED SARA).
@@ -12,11 +10,15 @@ Funciona en segundo plano, conectándose a los portales con tu certificado digit
 
 ## Descarga
 
-El Agente es de código abierto. Puedes descargar la última versión para tu sistema operativo desde la página de releases:
+La forma más cómoda de instalarlo es desde la página **[Agente](/perfil/agente)** de tu cuenta: detecta tu sistema operativo y te ofrece la descarga correcta, y desde ahí mismo generas el token de conexión.
 
-**[https://github.com/Naroh091/PideInfo-Agent/releases](https://github.com/Naroh091/PideInfo-Agent/releases)**
+Si prefieres el enlace directo, estos apuntan siempre a la última versión publicada:
 
-Encontrarás binarios firmados para Windows, macOS (Apple Silicon e Intel) y Linux, junto con notas de cada versión. Si tienes conocimientos técnicos, también puedes compilarlo tú mismo desde el código fuente del propio repositorio.
+- **Windows 10 o posterior** — [PideInfo-Agent-windows-x64-setup.exe](https://github.com/Naroh091/PideInfo-Agent/releases/latest/download/PideInfo-Agent-windows-x64-setup.exe)
+- **macOS con Apple Silicon** (M1 y posteriores) — [PideInfo-Agent-macos-arm64.dmg](https://github.com/Naroh091/PideInfo-Agent/releases/latest/download/PideInfo-Agent-macos-arm64.dmg)
+- **Linux x86-64** — [PideInfo-Agent-linux-x64.AppImage](https://github.com/Naroh091/PideInfo-Agent/releases/latest/download/PideInfo-Agent-linux-x64.AppImage)
+
+Las notas de cada versión y el historial completo están en la [página de releases](https://github.com/Naroh091/PideInfo-Agent/releases). El código fuente es público, así que si tienes conocimientos técnicos puedes compilarlo tú mismo desde el [repositorio](https://github.com/Naroh091/PideInfo-Agent).
 
 ## ¿Por qué necesito el Agente?
 
@@ -124,28 +126,27 @@ La comunicación entre el Agente y PideInfo está protegida mediante un token JW
 
 No se transmite ningún dato personal adicional, ni credenciales, ni información sobre otros servicios de tu ordenador.
 
-### Código abierto y auditable
+### Código público y auditable
 
-El Agente será de **código abierto**, publicado con una licencia que permite a cualquier persona inspeccionar, auditar y verificar exactamente qué hace el programa. Creemos que la transparencia en el software es tan importante como la transparencia en las administraciones públicas.
+El código fuente del Agente está publicado en [github.com/Naroh091/PideInfo-Agent](https://github.com/Naroh091/PideInfo-Agent), donde cualquier persona puede inspeccionarlo, auditarlo y verificar exactamente qué hace el programa. Creemos que la transparencia en el software es tan importante como la transparencia en las administraciones públicas.
 
-Si tienes conocimientos técnicos, podrás revisar el código fuente y comprobar por ti mismo que el Agente hace exactamente lo que dice: descargar documentos del portal y enviarlos a PideInfo, sin más.
+Si tienes conocimientos técnicos, puedes revisar el código y comprobar por ti mismo que el Agente hace exactamente lo que dice: descargar documentos del portal y enviarlos a PideInfo, sin más.
 
 ## Instalación y conexión
 
 ### Paso 1: Descargar el Agente
 
-Descarga el instalador correspondiente a tu sistema operativo desde [github.com/Naroh091/PideInfo-Agent/releases](https://github.com/Naroh091/PideInfo-Agent/releases) y ejecútalo:
+Ve a la página **[Agente](/perfil/agente)** de tu cuenta y pulsa el botón de descarga. Después, ejecuta lo que has descargado:
 
 - En **Windows**: doble clic en el `.exe` y sigue el asistente.
-- En **macOS**: monta el `.dmg`, arrastra la app a `/Applications` y ábrela. La primera vez puede pedir permiso para ejecutarse al venir firmada por un desarrollador externo a la App Store.
-- En **Linux**: usa el paquete `.deb` / `.rpm` o el binario portátil según tu distribución.
+- En **macOS**: monta el `.dmg` y arrastra la app a `/Applications`. Como no se distribuye a través de la App Store, la primera vez macOS te pedirá confirmación para abrirla: haz clic derecho sobre la app y elige **Abrir**.
+- En **Linux**: dale permiso de ejecución al `.AppImage` (`chmod +x PideInfo-Agent-linux-x64.AppImage`) y ejecútalo. Necesitas un escritorio con soporte de AppIndicator para ver el icono en la barra del sistema.
 
 ### Paso 2: Generar un token de conexión
 
-1. En PideInfo, abre el menú de tu usuario (esquina superior derecha).
-2. Haz clic en **Conectar agente**.
-3. En la ventana que aparece, pulsa **Generar token**.
-4. Copia el token — **solo se mostrará una vez**.
+1. En PideInfo, abre la página **[Agente](/perfil/agente)** — está en el menú de tu usuario, en la esquina superior derecha.
+2. En el recuadro **Token de conexión**, pulsa **Generar token**.
+3. Copia el token — **solo se mostrará una vez**.
 
 ### Paso 3: Introducir el token en el Agente
 
@@ -170,11 +171,11 @@ El icono cambia de color durante la sincronización: **azul** en reposo, **ámba
 
 ## Disponibilidad
 
-El Agente está disponible para los tres principales sistemas operativos. Encuentra los instaladores en [github.com/Naroh091/PideInfo-Agent/releases](https://github.com/Naroh091/PideInfo-Agent/releases):
+El Agente está disponible para los tres principales sistemas operativos, y puedes descargarlo desde la página **[Agente](/perfil/agente)**:
 
-- **Windows** (10 y posterior)
-- **macOS** (Apple Silicon y Intel)
-- **Linux** (distribuciones con soporte de AppIndicator)
+- **Windows** 10 o posterior, 64 bits
+- **macOS** con Apple Silicon (M1 y posteriores)
+- **Linux** x86-64, en distribuciones con soporte de AppIndicator
 
 ## Preguntas frecuentes
 
@@ -205,4 +206,12 @@ Sí. Son complementarios: el buzón virtual recibe correos de las administracion
 
 ### ¿Qué hago si el token expira?
 
-Genera un nuevo token desde el menú de tu usuario en PideInfo y repite el proceso de conexión en el Agente.
+Genera un token nuevo desde la página **[Agente](/perfil/agente)** y repite el paso 3 para introducirlo. Al generar uno nuevo, el anterior deja de ser válido, así que tendrás que reconectar cada equipo donde uses el Agente.
+
+### ¿Dónde veo lo que ha hecho el Agente?
+
+En la página **[Agente](/perfil/agente)**, debajo de las instrucciones, tienes el historial de todas sus tareas: qué solicitud o reclamación presentó, cuándo, con qué resultado y —si algo falló— qué ocurrió. Puedes filtrar por estado para ver de un vistazo los envíos fallidos o los que quedaron sin confirmar.
+
+### ¿Cómo desconecto el Agente?
+
+Desde **[Aplicaciones conectadas](/perfil/aplicaciones-conectadas)** puedes revocar el token en cualquier momento: el Agente dejará de poder comunicarse con tu cuenta hasta que generes uno nuevo.

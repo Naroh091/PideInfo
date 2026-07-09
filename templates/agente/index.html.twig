@@ -1,0 +1,456 @@
+{% extends 'layouts/app.html.twig' %}
+
+{% import '_macros/agent_task.html.twig' as agent_task %}
+
+{% block title %}Agente - PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>
+        .agente-step {
+            position: relative;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 1rem;
+            padding: 1.25rem 1rem 1rem;
+        }
+        .agente-step-num {
+            font-family: 'DM Serif Display', serif;
+            font-size: 2rem;
+            line-height: 1;
+            color: rgb(186 230 253);
+        }
+        .agente-step-icon {
+            position: absolute;
+            top: 1.25rem; right: 1rem;
+            color: rgb(2 132 199);
+        }
+        .agente-step-text {
+            font-size: .85rem;
+            color: rgb(51 65 85);
+            margin-top: .6rem;
+        }
+
+        .agente-chip {
+            display: inline-flex; align-items: center; gap: .35rem;
+            padding: .3rem .7rem;
+            border-radius: 999px;
+            border: 1px solid rgb(226 232 240);
+            background: white;
+            font-size: .8rem;
+            color: rgb(71 85 105);
+            text-decoration: none;
+            transition: background .12s ease, border-color .12s ease;
+        }
+        .agente-chip:hover { background: rgb(248 250 252); }
+        .agente-chip.active {
+            background: rgb(240 249 255);
+            border-color: rgb(125 211 252);
+            color: rgb(3 105 161);
+            font-weight: 600;
+        }
+        .agente-chip-count {
+            font-family: 'Inter', sans-serif;
+            font-size: .7rem;
+            font-feature-settings: "tnum";
+            color: rgb(148 163 184);
+        }
+        .agente-chip.active .agente-chip-count { color: rgb(2 132 199); }
+
+        .agente-mono {
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: .72rem;
+            color: rgb(148 163 184);
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div>
+
+    {# ── Cabecera ─────────────────────────────────────────────── #}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Agente</h1>
+            <p class="page-sub max-w-2xl">
+                Un programa que se ejecuta en tu ordenador y presenta tus solicitudes y reclamaciones
+                en el Portal de Transparencia y en el Registro Electrónico con tu certificado digital,
+                que nunca sale de tu equipo.
+            </p>
+        </div>
+        <a href="{{ path('app_guias_show', {slug: 'agente'}) }}" target="_blank" rel="noopener" class="btn btn-secondary">
+            <i data-lucide="book-open" class="w-4 h-4"></i>
+            Guía del Agente
+        </a>
+    </header>
+
+    {# ── Estado de la conexión ────────────────────────────────── #}
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-11 h-11 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="bot" class="w-5 h-5 text-primary-600"></i>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">Estado de la conexión</p>
+                    {% if agent.issuedAt %}
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Token emitido el {{ agent.issuedAt|date('d/m/Y H:i') }}
+                            {% if agent.invalidatedAt and agent.invalidatedAt >= agent.issuedAt %}
+                                · Revocado el {{ agent.invalidatedAt|date('d/m/Y H:i') }}
+                            {% endif %}
+                        </p>
+                    {% else %}
+                        <p class="text-xs text-slate-500 mt-0.5">Todavía no has generado ningún token.</p>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                {% if agent.connected %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-medium">
+                        <i data-lucide="check-circle" class="w-3 h-3"></i>
+                        Conectado
+                    </span>
+                    <a href="{{ path('app_connected_apps') }}" class="text-xs text-slate-500 hover:text-red-600 underline">
+                        Revocar el token
+                    </a>
+                {% else %}
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium">
+                        <i data-lucide="circle" class="w-3 h-3"></i>
+                        Sin conectar
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {# ── Cómo conectarlo: 4 pasos ─────────────────────────────────
+       Sólo para quien todavía no ha conectado el agente: a quien ya lo
+       tiene funcionando le sobra el tutorial. #}
+    {% if not agent.connected %}
+    <h2 class="text-lg font-semibold text-slate-900 mb-3">Cómo conectarlo</h2>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div class="agente-step">
+            <i data-lucide="download" class="w-4 h-4 agente-step-icon"></i>
+            <div class="agente-step-num">1</div>
+            <p class="agente-step-text">Descarga el agente e inícialo en tu ordenador. Verás su icono en la barra del sistema.</p>
+        </div>
+        <div class="agente-step">
+            <i data-lucide="key" class="w-4 h-4 agente-step-icon"></i>
+            <div class="agente-step-num">2</div>
+            <p class="agente-step-text">Genera aquí abajo tu token de conexión. Sólo se muestra una vez.</p>
+        </div>
+        <div class="agente-step">
+            <i data-lucide="clipboard-paste" class="w-4 h-4 agente-step-icon"></i>
+            <div class="agente-step-num">3</div>
+            <p class="agente-step-text">En el agente, pulsa <strong>Conectar</strong>, pega el token y guarda.</p>
+        </div>
+        <div class="agente-step">
+            <i data-lucide="send" class="w-4 h-4 agente-step-icon"></i>
+            <div class="agente-step-num">4</div>
+            <p class="agente-step-text">Listo. Envía solicitudes desde el navegador y el agente las presentará por ti.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Descarga y token, lado a lado ────────────────────────── #}
+    <div class="grid lg:grid-cols-2 gap-6 mb-10">
+
+    {# ── Descarga ─────────────────────────────────────────────── #}
+    {#
+        `releases/latest/download/<asset>` redirige siempre al binario de la
+        última release publicada. Los assets del repo no llevan la versión en
+        el nombre, así que estas URLs no caducan y no hace falta consultar la
+        API de GitHub.
+    #}
+    {% set releases = 'https://github.com/Naroh091/PideInfo-Agent/releases' %}
+    {% set downloads = {
+        windows: {label: 'Windows', icon: 'monitor', asset: 'PideInfo-Agent-windows-x64-setup.exe'},
+        macos:   {label: 'macOS (Apple Silicon)', icon: 'command', asset: 'PideInfo-Agent-macos-arm64.dmg'},
+        linux:   {label: 'Linux (AppImage)', icon: 'terminal', asset: 'PideInfo-Agent-linux-x64.AppImage'},
+    } %}
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5"
+             x-data="{
+                os: null,
+                init() {
+                    const ua = (navigator.userAgent || '').toLowerCase();
+                    // Sin agente de escritorio para móvil: no destacamos nada.
+                    if (/android|iphone|ipad|ipod/.test(ua)) return;
+                    const plat = (navigator.userAgentData?.platform || navigator.platform || ua).toLowerCase();
+                    if (plat.includes('win')) this.os = 'windows';
+                    else if (plat.includes('mac')) this.os = 'macos';
+                    else if (plat.includes('linux') || plat.includes('x11')) this.os = 'linux';
+                    this.$nextTick(() => window.lucide && window.lucide.createIcons());
+                }
+             }">
+        <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900">Descarga el agente</h2>
+                <p class="text-sm text-slate-500 mt-0.5">Siempre te descargarás la última versión publicada.</p>
+            </div>
+            <a href="{{ releases }}/latest" target="_blank" rel="noopener"
+               class="text-xs text-slate-500 hover:text-primary-600 underline inline-flex items-center gap-1">
+                Ver notas de la versión
+                <i data-lucide="arrow-up-right" class="w-3 h-3"></i>
+            </a>
+        </div>
+
+        {# Sin detección (o móvil): las tres por igual. #}
+        <div x-show="!os" class="flex flex-wrap gap-2">
+            {% for key, d in downloads %}
+                <a href="{{ releases }}/latest/download/{{ d.asset }}" class="btn btn-outline btn-sm">
+                    <i data-lucide="download" class="w-4 h-4 mr-1"></i>
+                    {{ d.label }}
+                </a>
+            {% endfor %}
+        </div>
+
+        {# Con detección: el SO del usuario como acción primaria. #}
+        <template x-if="os">
+            <div>
+                {% for key, d in downloads %}
+                    <a x-show="os === '{{ key }}'" x-cloak
+                       href="{{ releases }}/latest/download/{{ d.asset }}"
+                       class="btn btn-primary">
+                        <i data-lucide="download" class="w-4 h-4 mr-1.5"></i>
+                        Descargar para {{ d.label }}
+                    </a>
+                {% endfor %}
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-3 text-xs text-slate-500">
+                    <span>También disponible para:</span>
+                    {% for key, d in downloads %}
+                        <a x-show="os !== '{{ key }}'" x-cloak
+                           href="{{ releases }}/latest/download/{{ d.asset }}"
+                           class="text-primary-600 hover:text-primary-700 underline">{{ d.label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </template>
+    </section>
+
+    {# ── Generador de token ───────────────────────────────────── #}
+    <section class="bg-white rounded-2xl border border-slate-200 p-5"
+             x-data="{
+                token: '',
+                loading: false,
+                copied: false,
+                error: '',
+                async generateToken() {
+                    this.loading = true;
+                    this.error = '';
+                    try {
+                        const response = await fetch('{{ path('app_agent_token_generate') }}', {
+                            method: 'POST',
+                            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        });
+                        if (!response.ok) throw new Error('Error al generar el token');
+                        const data = await response.json();
+                        this.token = data.token;
+                        this.$nextTick(() => window.lucide && window.lucide.createIcons());
+                    } catch (e) {
+                        this.error = e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async copyToken() {
+                    try {
+                        await navigator.clipboard.writeText(this.token);
+                    } catch (e) {
+                        const textarea = document.createElement('textarea');
+                        textarea.value = this.token;
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textarea);
+                    }
+                    this.copied = true;
+                    setTimeout(() => this.copied = false, 2000);
+                }
+             }">
+
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900">Token de conexión</h2>
+                <p class="text-sm text-slate-500 mt-0.5">
+                    Al generar un token nuevo, los anteriores dejan de ser válidos y tendrás que reconectar cada equipo.
+                </p>
+            </div>
+            <button type="button" @click="generateToken()" :disabled="loading" class="btn btn-primary btn-sm" x-show="!token">
+                <i data-lucide="key" class="w-4 h-4 mr-1"></i>
+                <span x-text="loading ? 'Generando…' : '{{ agent.issuedAt ? 'Generar nuevo token' : 'Generar token' }}'"></span>
+            </button>
+        </div>
+
+        <div x-show="error" x-cloak class="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" x-text="error"></div>
+
+        <div x-show="token" x-cloak class="mt-5">
+            <div class="flex items-start gap-2 mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5"></i>
+                <p class="text-xs text-amber-800">
+                    Este token sólo se mostrará una vez. Cópialo ahora y guárdalo en un lugar seguro.
+                </p>
+            </div>
+
+            <label class="block text-xs font-medium text-slate-500 mb-1">Token de conexión</label>
+            <div class="flex gap-2">
+                <code class="flex-1 block p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 font-mono break-all max-h-24 overflow-y-auto select-all" x-text="token"></code>
+                <button type="button" @click="copyToken()"
+                        class="flex-shrink-0 px-3 py-2 rounded-lg border transition-all duration-200"
+                        :class="copied ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'"
+                        :aria-label="copied ? 'Token copiado' : 'Copiar token'">
+                    <i x-show="!copied" data-lucide="copy" class="w-4 h-4"></i>
+                    <i x-show="copied" x-cloak data-lucide="check" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                <p class="text-xs font-medium text-slate-700 mb-2">Instrucciones:</p>
+                <ol class="text-xs text-slate-600 space-y-1 list-decimal list-inside">
+                    <li>Abre el agente de PideInfo en tu ordenador</li>
+                    <li>Haz clic en el icono del agente en la barra del sistema</li>
+                    <li>Selecciona <strong>Conectar</strong></li>
+                    <li>Pega el token copiado y haz clic en <strong>Guardar</strong></li>
+                </ol>
+            </div>
+        </div>
+    </section>
+
+    </div>{# /grid descarga + token #}
+
+    {# ── Historial de tareas ──────────────────────────────────── #}
+    <section>
+        <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900">Tareas del agente</h2>
+                <p class="text-sm text-slate-500 mt-0.5">Todo lo que el agente ha presentado o intentado presentar por ti.</p>
+            </div>
+        </div>
+
+        {% set filters = [
+            {key: null,        label: 'Todas',         count: counts['todas']},
+            {key: 'en_curso',  label: 'En curso',      count: counts['en_curso']},
+            {key: 'done',      label: 'Hecho',         count: counts['done']},
+            {key: 'failed',    label: 'Fallido',       count: counts['failed']},
+            {key: 'uncertain', label: 'Sin confirmar', count: counts['uncertain']},
+        ] %}
+        <div class="flex flex-wrap gap-2 mb-5">
+            {% for f in filters %}
+                <a href="{{ path('app_agente', f.key ? {estado: f.key} : {}) }}"
+                   class="agente-chip {{ estado == f.key ? 'active' }}">
+                    {{ f.label }}
+                    <span class="agente-chip-count">{{ f.count }}</span>
+                </a>
+            {% endfor %}
+        </div>
+
+        {% if tasks is empty %}
+            <div class="bg-white rounded-2xl border border-dashed border-slate-300 p-10 text-center">
+                <div class="w-12 h-12 mx-auto rounded-xl bg-slate-50 flex items-center justify-center mb-3">
+                    <i data-lucide="bot" class="w-6 h-6 text-slate-400"></i>
+                </div>
+                <p class="text-sm text-slate-600">
+                    {{ estado ? 'No hay tareas con este estado.' : 'Aún no hay tareas del agente.' }}
+                </p>
+                {% if not estado %}
+                    <p class="text-xs text-slate-500 mt-1">
+                        Cuando envíes una solicitud a través del agente, aparecerá aquí con su resultado.
+                    </p>
+                    <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary btn-sm mt-4">
+                        <i data-lucide="plus" class="w-4 h-4 mr-1"></i>
+                        Nueva solicitud
+                    </a>
+                {% endif %}
+            </div>
+        {% else %}
+            <ul class="space-y-3">
+                {% for task in tasks %}
+                    <li class="bg-white rounded-2xl border border-slate-200 p-5">
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-slate-900">{{ task.typeLabel }}</p>
+                                <p class="agente-mono mt-0.5">
+                                    Creada el {{ task.createdAt|date('d/m/Y H:i') }}
+                                    {% if task.completedAt %} · Finalizada el {{ task.completedAt|date('d/m/Y H:i') }}{% endif %}
+                                </p>
+                            </div>
+                            {{ agent_task.status_badge(task) }}
+                        </div>
+
+                        {% if task.accessRequest %}
+                            <a href="{{ path('app_solicitudes_show', {id: task.accessRequest.id}) }}"
+                               class="mt-3 flex items-start gap-2 p-3 rounded-lg bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-colors group">
+                                <i data-lucide="file-text" class="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5"></i>
+                                <span class="min-w-0">
+                                    <span class="block text-sm text-slate-800 group-hover:text-primary-700 truncate">{{ task.accessRequest.title }}</span>
+                                    <span class="block text-xs text-slate-500 truncate">{{ task.accessRequest.publicBody.name }}</span>
+                                </span>
+                                <i data-lucide="arrow-up-right" class="w-4 h-4 text-slate-300 flex-shrink-0 ml-auto group-hover:text-primary-600"></i>
+                            </a>
+                        {% endif %}
+
+                        {% if task.status in ['failed', 'uncertain'] %}
+                            <p class="mt-3 text-sm text-slate-600">{{ task.errorMessage|agent_error }}</p>
+                            {% if task.errorMessage %}
+                                <details class="mt-1.5">
+                                    <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">Detalle técnico</summary>
+                                    <code class="block mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 break-all whitespace-pre-wrap">{{ task.errorMessage }}</code>
+                                </details>
+                            {% endif %}
+                        {% elseif task.status == 'done' %}
+                            <p class="mt-3 text-sm text-slate-600">Presentación completada correctamente.</p>
+                        {% else %}
+                            <p class="mt-3 text-sm text-slate-600">El agente aún está trabajando en esta tarea.</p>
+                        {% endif %}
+
+                        {% if task.result %}
+                            {% set externalId = task.result.externalId|default(null) %}
+                            {% if externalId %}
+                                <p class="mt-2 text-sm text-slate-700">
+                                    <span class="text-slate-500">{{ task.type == 'submit_request_reg' or task.type == 'present_complaint_reg' ? 'Nº de registro (REGAGE)' : 'Nº de expediente' }}:</span>
+                                    <span class="font-mono">{{ externalId }}</span>
+                                </p>
+                            {% endif %}
+                            {% if task.result.sentAt|default(null) %}
+                                <p class="mt-1 text-sm text-slate-700">
+                                    <span class="text-slate-500">Presentada el</span> {{ task.result.sentAt|date('d/m/Y H:i') }}
+                                </p>
+                            {% endif %}
+                            <details class="mt-2">
+                                <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">Datos técnicos</summary>
+                                <pre class="mt-1 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 overflow-x-auto">{{ task.result|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE') b-or constant('JSON_UNESCAPED_SLASHES')) }}</pre>
+                            </details>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            {% set pages = (total / perPage)|round(0, 'ceil') %}
+            {% if pages > 1 %}
+                <nav class="flex items-center justify-between gap-4 mt-6" aria-label="Paginación">
+                    {% if page > 1 %}
+                        <a href="{{ path('app_agente', (estado ? {estado: estado} : {})|merge({pagina: page - 1})) }}" class="btn btn-ghost btn-sm">
+                            <i data-lucide="chevron-left" class="w-4 h-4 mr-1"></i>
+                            Anterior
+                        </a>
+                    {% else %}
+                        <span></span>
+                    {% endif %}
+
+                    <span class="text-xs text-slate-500">Página {{ page }} de {{ pages }} · {{ total }} tarea{{ total != 1 ? 's' }}</span>
+
+                    {% if page < pages %}
+                        <a href="{{ path('app_agente', (estado ? {estado: estado} : {})|merge({pagina: page + 1})) }}" class="btn btn-ghost btn-sm">
+                            Siguiente
+                            <i data-lucide="chevron-right" class="w-4 h-4 ml-1"></i>
+                        </a>
+                    {% else %}
+                        <span></span>
+                    {% endif %}
+                </nav>
+            {% endif %}
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

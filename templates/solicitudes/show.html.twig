@@ -1,5 +1,7 @@
 {% extends 'layouts/app.html.twig' %}
 
+{% import '_macros/agent_task.html.twig' as agent_task %}
+
 {% block title %}{{ request.title }} - PideInfo{% endblock %}
 
 {% block stylesheets %}
@@ -1340,32 +1342,10 @@
                     </div>
                     <div class="modal-body space-y-3 max-h-96 overflow-y-auto">
                         {% for task in agentTasks %}
-                            {% if task.type == 'submit_request_transparencia' %}
-                                {% set channelName = 'Portal de Transparencia' %}
-                            {% elseif task.type == 'submit_request_reg' %}
-                                {% set channelName = 'Registro Electrónico (REG)' %}
-                            {% elseif task.type == 'present_complaint' %}
-                                {% set channelName = 'Reclamación (CTBG)' %}
-                            {% else %}
-                                {% set channelName = task.type %}
-                            {% endif %}
-                            {% if task.status == 'uncertain' %}
-                                {% set badgeLabel = 'Sin confirmar' %}
-                                {% set badgeCls = 'bg-amber-50 text-amber-700 border-amber-200' %}
-                            {% elseif task.status == 'failed' %}
-                                {% set badgeLabel = 'Fallido' %}
-                                {% set badgeCls = 'bg-red-50 text-red-700 border-red-200' %}
-                            {% elseif task.status == 'done' %}
-                                {% set badgeLabel = 'Hecho' %}
-                                {% set badgeCls = 'bg-emerald-50 text-emerald-700 border-emerald-200' %}
-                            {% else %}
-                                {% set badgeLabel = 'En curso' %}
-                                {% set badgeCls = 'bg-sky-50 text-sky-700 border-sky-200' %}
-                            {% endif %}
                             <div class="border border-slate-200 rounded-lg p-3">
                                 <div class="flex items-center justify-between gap-3 mb-1">
-                                    <span class="text-sm font-medium text-slate-800">{{ channelName }}</span>
-                                    <span class="text-xs font-medium px-2 py-0.5 rounded-full border {{ badgeCls }}">{{ badgeLabel }}</span>
+                                    <span class="text-sm font-medium text-slate-800">{{ task.typeLabel }}</span>
+                                    {{ agent_task.status_badge(task) }}
                                 </div>
                                 <p class="text-xs text-slate-400 mb-1.5" style="font-family: 'JetBrains Mono', monospace;">
                                     {{ task.createdAt|date('d/m/Y H:i') }}

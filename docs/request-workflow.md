@@ -276,7 +276,7 @@ denied / delayed
 
 ## Despacho al agente y protección contra envíos duplicados
 
-Cuando una solicitud se presenta a través del agente (canal Transparencia AGE o REG/RED SARA) o cuando se presenta una reclamación vía agente (CTBG), el sistema crea una entidad `AgentTask` que el agente retira y ejecuta. Esta sección describe los mecanismos que evitan el doble registro.
+Cuando una solicitud se presenta a través del agente (canal Transparencia AGE o REG/RED SARA) o cuando se presenta una reclamación vía agente (CTBG), el sistema crea una entidad `AgentTask` que el agente retira y ejecuta. Esta sección describe los mecanismos que evitan el doble registro. El usuario puede consultar el historial completo de sus `AgentTask` —con estado, error y solicitud asociada— en `/perfil/agente`.
 
 ### El desenlace `uncertain` de `AgentTask`
 

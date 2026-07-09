@@ -1,7 +1,11 @@
 {# Banner mostrado en las páginas que ofrecen tramitación automática (envío
    de solicitudes al Portal de Transparencia o al REG, presentación de
    reclamaciones). Recuerda al usuario que la firma y el envío los realiza
-   el Agente local de PideInfo, instalable desde la guía pública. #}
+   el Agente local de PideInfo, y le lleva a /perfil/agente para conectarlo.
+
+   Se oculta a quien ya tiene el Agente conectado: para esa persona el aviso
+   es ruido en cada página de envío. #}
+{% if app.user and not app.user.agentConnected %}
 <aside class="agent-banner" role="note">
     <div class="agent-banner-icon" aria-hidden="true">
         <i data-lucide="bot" class="w-5 h-5"></i>
@@ -14,12 +18,9 @@
             presentar reclamaciones.
         </p>
     </div>
-    <a href="https://pideinfo.es/guias/agente"
-       target="_blank"
-       rel="noopener noreferrer"
-       class="agent-banner-cta">
-        <span>Instalar el Agente</span>
-        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+    <a href="{{ path('app_agente') }}" class="agent-banner-cta">
+        <span>Conectar el Agente</span>
+        <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
     </a>
 </aside>
 
@@ -74,3 +75,4 @@
         .agent-banner-cta { align-self: flex-start; }
     }
 </style>
+{% endif %}

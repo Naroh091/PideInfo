@@ -54,12 +54,10 @@
                 </a>
             {% endif %}
 
-            <button type="button"
-                    @click="open = false; $dispatch('open-agent-token-modal')"
-                    class="user-menu-item w-full text-left">
-                <i data-lucide="link" class="w-4 h-4"></i>
-                <span>Conectar agente</span>
-            </button>
+            <a href="{{ path('app_agente') }}" class="user-menu-item">
+                <i data-lucide="bot" class="w-4 h-4"></i>
+                <span>Agente</span>
+            </a>
             <button type="button"
                     @click="open = false; $dispatch('open-mcp-info-modal')"
                     class="user-menu-item w-full text-left">

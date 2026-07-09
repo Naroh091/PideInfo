@@ -150,7 +150,7 @@ final class ConnectedAppsController extends AbstractController
         $user->setAgentTokensInvalidatedAt(new \DateTimeImmutable());
         $this->em->flush();
 
-        $this->addFlash('success', 'Token del agente revocado. Genera uno nuevo desde "Conectar agente" si quieres reconectarlo.');
+        $this->addFlash('success', 'Token del agente revocado. Genera uno nuevo desde la página "Agente" si quieres reconectarlo.');
 
         return $this->redirectToRoute('app_connected_apps');
     }

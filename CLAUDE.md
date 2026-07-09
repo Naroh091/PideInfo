@@ -25,3 +25,6 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 # Dev environment
 
 - Virtual display + noVNC bridge for debugging the agent's headed browser flows (Cl@ve, FNMT cert picker, etc.): `start-vnc.sh {start|stop|restart|status}` (installed at `/usr/local/bin/start-vnc.sh`, not in the repo). Brings up Xvfb `:99`, `fluxbox` as window manager, `trayer` as XEMBED system tray (so the agent's `--tray` icon docks somewhere), `x11vnc`, and `websockify`. Listens only on `127.0.0.1` — port 6080 for noVNC (`http://localhost:6080/vnc.html`), 5900 for VNC. Run apps against it with `DISPLAY=:99`; combine with `HEADLESS_DISABLED=true` to force the agent to use a visible browser.
+
+# Design
+Check out design guidelines in `design/README.md` before building or reshaping any UI. It documents the page header, cards, status pills, buttons, empty states, colour semantics and copy conventions actually used by the app. Keep it in sync when the design system changes.
