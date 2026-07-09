@@ -11,13 +11,12 @@ use App\Message\ProcessDocumentBatchMessage;
 use App\Message\ProcessDocumentMessage;
 use App\Repository\AccessRequestRepository;
 use App\Repository\DocumentRepository;
-use App\Service\AccessRequest\AccessRequestManager;
+use App\Service\Document\DocumentEffectsApplier;
 use App\Service\Document\DocumentIngestionFilter;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Uid\Uuid;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -429,7 +428,7 @@ class DocumentController extends AbstractController
     public function linkToRequest(
         Request $request,
         Document $document,
-        AccessRequestManager $accessRequestManager
+        DocumentEffectsApplier $effectsApplier
     ): JsonResponse {
         /** @var User $user */
         $user = $this->getUser();
@@ -463,34 +462,15 @@ class DocumentController extends AbstractController
             $accessRequest->addAlternativeReference($docRefNumber);
         }
 
-        // Apply document type effects (extension, status change, etc.)
-        $documentType = $document->getType();
-        $analysis = $aiMetadata ?? [];
-        $analysis['documentType'] = $documentType;
-
-        // Handle status/deadline effects based on document type
-        if ($documentType === DocumentType::Extension && ($analysis['isExtension'] ?? false)) {
-            $explicitNewDeadline = null;
-            if (!empty($analysis['newDeadlineDate'])) {
-                try {
-                    $explicitNewDeadline = new \DateTimeImmutable($analysis['newDeadlineDate']);
-                } catch (\Exception) {}
-            }
-            $accessRequestManager->extendDeadlineByLaw($accessRequest, $document, $explicitNewDeadline);
-        } elseif ($documentType === DocumentType::Response) {
-            $statusMap = [
-                'concedida' => AccessRequest::STATUS_GRANTED,
-                'denegada' => AccessRequest::STATUS_DENIED,
-            ];
-            $newStatus = $statusMap[$analysis['status'] ?? ''] ?? null;
-            if ($newStatus && $accessRequest->getStatus() !== $newStatus) {
-                $accessRequestManager->changeStatus(
-                    $accessRequest,
-                    'status',
-                    $newStatus,
-                    $analysis['summary'] ?? 'Resolución enlazada manualmente'
-                );
-            }
+        // Apply the document's full state effects (status, deadlines,
+        // complaint/court status) through the shared applier — but only when
+        // this document is the most recent state-changing one: if the
+        // expediente already holds a LATER document that mutates state,
+        // applying this one's effects would overwrite a newer status.
+        if (DocumentEffectsApplier::isMostRecentStateChanging($document)) {
+            $analysis = $aiMetadata ?? [];
+            $analysis['documentType'] = $document->getType();
+            $effectsApplier->apply($accessRequest, $document, $analysis);
         }
 
         $this->entityManager->flush();

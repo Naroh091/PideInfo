@@ -100,7 +100,22 @@ final class AgenticDocumentAnalyzer
                     'document.filename' => $document->getOriginalFilename(),
                 ],
                 fn: fn () => $this->doAnalyze($document, $linkedRequest, $batchSiblings),
-                traceInput: $document->getOriginalFilename(),
+                captureOutput: function (array $analysis, SpanInterface $span): void {
+                    // Salida a nivel de traza: el análisis normalizado completo
+                    // (los enums se serializan a su value).
+                    $span->setAttribute(
+                        AttributeKeys::LANGFUSE_TRACE_OUTPUT,
+                        json_encode($analysis, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '',
+                    );
+                },
+                traceInput: json_encode([
+                    'filename' => $document->getOriginalFilename(),
+                    'mimeType' => $document->getMimeType(),
+                    'fileSize' => $document->getFileSize(),
+                    'linkedRequest' => $linkedRequest?->getTitle(),
+                    'preassignedType' => $document->getType()->value,
+                    'batchSiblings' => array_column($batchSiblings, 'filename'),
+                ], JSON_UNESCAPED_UNICODE) ?: $document->getOriginalFilename(),
             );
         } catch (\Throwable $e) {
             $this->logger->warning('Agentic document analysis failed, falling back to one-shot', [
@@ -129,6 +144,14 @@ final class AgenticDocumentAnalyzer
         $iterations = 0;
 
         while ($iterations < self::MAX_TOOL_ITERATIONS) {
+            // Documento huérfano: forzar que la primera llamada sea
+            // search_user_requests. Sin esto, el modelo tiende a responder
+            // directamente y el matching agéntico nunca ocurre (visto en
+            // producción: resolución identificable sin vincular).
+            $toolChoice = $iterations === 0 && $linkedRequest === null
+                ? ['type' => 'function', 'function' => ['name' => 'search_user_requests']]
+                : 'auto';
+
             $iteration = $iterations;
             $response = $this->tracer->generation(
                 name: 'doc-agent.tool-loop',
@@ -143,7 +166,7 @@ final class AgenticDocumentAnalyzer
                     ], JSON_UNESCAPED_UNICODE),
                     'agent.iteration' => $iteration,
                 ],
-                fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, 'auto'),
+                fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, $toolChoice),
                 captureOutput: function (array $r, SpanInterface $span): void {
                     $span->setAttribute('agent.response_type', $r['type']);
                     $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r['promptTokens'] ?? 0);
@@ -155,15 +178,20 @@ final class AgenticDocumentAnalyzer
                             $r['calls'] ?? [],
                         )));
                     } else {
-                        $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, mb_substr((string) ($r['content'] ?? ''), 0, 500));
+                        // Texto (a menudo el propio análisis): sin truncar.
+                        $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, (string) ($r['content'] ?? ''));
                     }
                 },
             );
 
             if ($response['type'] !== 'tool_calls') {
                 // El modelo respondió texto: si ya es un análisis JSON válido lo
-                // reutilizamos y nos ahorramos la generación final.
-                $candidate = json_decode((string) ($response['content'] ?? ''), true);
+                // reutilizamos y nos ahorramos la generación final. Gemma suele
+                // envolverlo en fences markdown — se limpian antes de decodificar.
+                $text = trim((string) ($response['content'] ?? ''));
+                $text = preg_replace('/^```(?:json)?\s*/', '', $text);
+                $text = preg_replace('/\s*```$/', '', $text);
+                $candidate = json_decode($text, true);
                 if (is_array($candidate) && isset($candidate['documentType'])) {
                     $loopAnswer = $candidate;
                 }
@@ -192,6 +220,9 @@ final class AgenticDocumentAnalyzer
 
                             return sprintf('Error ejecutando la herramienta "%s": %s', $toolName, $e->getMessage());
                         }
+                    },
+                    captureOutput: function (string $result, SpanInterface $span): void {
+                        $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, mb_substr($result, 0, 4000));
                     },
                 );
 
@@ -232,7 +263,9 @@ final class AgenticDocumentAnalyzer
                 captureOutput: function ($r, SpanInterface $span): void {
                     $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r->promptTokens ?? 0);
                     $span->setAttribute(AttributeKeys::GEN_AI_USAGE_OUTPUT_TOKENS, $r->completionTokens ?? 0);
-                    $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, mb_substr($r->content, 0, 1000));
+                    // El JSON final completo, sin truncar (era la causa del
+                    // output "cortado" en Langfuse).
+                    $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, $r->content);
                 },
             );
 
