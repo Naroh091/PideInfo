@@ -11,8 +11,8 @@ use Twig\TwigFunction;
 /**
  * Exposes the DocumentType catalogue to Twig so the manual reclassification
  * <select> can be built from the single source of truth (the enum), grouped by
- * phase (solicitud vs. reclamación). Unprocessed is excluded — it must not be
- * assignable by hand.
+ * phase (solicitud / reclamación / judicial). Unprocessed is excluded — it must
+ * not be assignable by hand.
  */
 final class DocumentTypeExtension extends AbstractExtension
 {
@@ -32,13 +32,18 @@ final class DocumentTypeExtension extends AbstractExtension
         $groups = [
             'Fase de solicitud' => [],
             'Fase de reclamación' => [],
+            'Fase judicial' => [],
         ];
 
         foreach (DocumentType::cases() as $case) {
             if ($case === DocumentType::Unprocessed) {
                 continue;
             }
-            $phase = $case->isComplaintRelated() ? 'Fase de reclamación' : 'Fase de solicitud';
+            $phase = match (true) {
+                $case->isCourtRelated() => 'Fase judicial',
+                $case->isComplaintRelated() => 'Fase de reclamación',
+                default => 'Fase de solicitud',
+            };
             $groups[$phase][] = ['value' => $case->value, 'label' => $case->label()];
         }
 

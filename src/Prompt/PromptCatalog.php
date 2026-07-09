@@ -37,6 +37,9 @@ final class PromptCatalog
             ['name' => 'pideinfo-resolution-keypoints-screen', 'commitMessage' => 'Agent: quick keypoints pre-filter before full-text resolution review'],
             ['name' => 'pideinfo-resolution-deep-review', 'commitMessage' => 'Agent: full-text resolution review for legal argumentation support'],
             ['name' => 'pideinfo-document-extract-for-drafting', 'commitMessage' => 'Agent: extract key facts from a document for the drafting context'],
+            // Agentic document analysis (inventory-aware, tools, origin/phase/composites)
+            ['name' => 'pideinfo-document-agent-analyze-system', 'commitMessage' => 'Doc agent: system rules (types incl. judicial/interadmin, origin, phase, composites, tools)'],
+            ['name' => 'pideinfo-document-agent-analyze-user', 'commitMessage' => 'Doc agent: user turn with expediente inventory and context blocks'],
         ];
     }
 }

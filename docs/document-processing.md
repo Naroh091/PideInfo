@@ -34,7 +34,35 @@ Tamaño máximo de **subida**: 50 MB. Tamaño máximo para **análisis con IA**:
 
 ## Análisis con IA 
 
-### Servicio DocumentAnalyzer
+### Análisis agéntico (AgenticDocumentAnalyzer)
+
+`src/Service/AI/DocumentAgent/AgenticDocumentAnalyzer.php`
+
+El análisis es **agéntico**: un loop de tool-calling (mismo patrón que `AgentChatOrchestrator`, sobre `CustomModelClient::chatWithTools`) que **siempre recibe el inventario del expediente** (tipos, fechas, orígenes y resúmenes de los documentos ya registrados, vía `CaseDocumentInventoryBuilder`) y termina con una llamada final con structured output (`DocumentAnalysisSchema`, `maxOutputTokens` 20k). El orden del handler es **pre-match → análisis → post-match**: antes de analizar se intenta resolver el expediente (documento ya enlazado o `sourceMetadata.expedienteRef`), de modo que el agente analice con contexto; si sigue huérfano, el post-match usa el `matchedRequestId` del agente (validando propietario), la referencia extraída y las keywords.
+
+Tools disponibles (en `src/Service/AI/DocumentAgent/Tool/`, autorizadas por `AnalysisToolContext` porque los workers de Messenger no tienen token de Security — las tools nunca aceptan IDs de usuario del modelo):
+
+| Tool | Uso |
+|------|-----|
+| `list_case_documents` | Refresca el inventario del expediente |
+| `read_case_document(documentId)` | Texto completo de otro documento del expediente (validado: mismo expediente y dueño) |
+| `read_document_pages(first, last)` | Texto por páginas del documento en análisis (≤10 págs/llamada) — para expedientes compuestos |
+| `search_user_requests(reference?, query?)` | Solicitudes registradas del dueño (organismo, fecha, expediente, materia) para el matching agéntico de huérfanos; el agente devuelve `matchedRequestId` |
+
+Novedades del análisis frente al one-shot:
+
+- **`origin`** (ciudadano / administracion / organismo_transparencia / organismo_judicial / otro): quién emite el documento. Solo se persiste en `aiMetadata`. Cross-check en `DocumentAnalysisNormalizer`: `alegaciones` + origen ciudadano ⇒ `respuesta_alegaciones`.
+- **`phase`** (solicitud / reclamacion / judicial), validada contra el tipo (el tipo gana).
+- **Justificantes REG**: `isRegistrationReceipt` + inventario ⇒ si el expediente ya tiene una solicitud, un justificante que la contiene se clasifica `acuse_recibo` (cinturón determinista en el normalizer con `hasRequestDocument`).
+- **Expedientes compuestos**: `isComposite` + `subdocuments[{pages,type,description}]`; se clasifica por la pieza de mayor relevancia jurídica (p. ej. las alegaciones al final de un expediente completo del CTBG).
+- **`publicBodyType`** (ayuntamiento / diputacion / consejeria_autonomica / ministerio / organismo_autonomo / universidad / otro): al crear el `PublicBody` se deriva su `level` (`AccessRequestMatcher::deriveLevel()`), en vez del antiguo `other` fijo.
+- **`courtOutcome`** (estimatorio / desestimatorio / parcial / inadmision) para sentencias.
+
+Prompts: `pideinfo-document-agent-analyze-system` / `-user` (`config/prompts/document/agent-analyze-*.md`). Trazas Langfuse: root `DocumentAnalysisAgent`, `doc-agent.tool-loop` por iteración, `doc-agent.tool.{name}` por ejecución de tool y `doc-agent.final`. Límites: 4 iteraciones de tools; si el modelo no llama a ninguna tool el resultado sigue siendo válido (inventario pre-inyectado + JSON por schema). Peor caso ~6 llamadas/documento — coincide con el burst del rate limiter `llm_api` (6 tokens, 1/s), que serializa sin fallar.
+
+**Fallback one-shot.** Cualquier fallo del loop agéntico (error del backend, JSON inválido tras retries) recurre automáticamente a `DocumentAnalyzer` (una única llamada con los prompts `analyze-single`/`-multi`, sin contexto de expediente), con `warning` en logs. Ambos caminos comparten `DocumentPartsBuilder` (payloads), `ComplaintReceiptSniffer` (override determinista de acuses CTBG) y `DocumentAnalysisNormalizer` (normalización), así que el fallback también entiende los campos nuevos si el modelo los emite.
+
+### Servicio DocumentAnalyzer (one-shot, fallback)
 
 `src/Service/AI/DocumentAnalyzer.php`
 
@@ -111,6 +139,14 @@ El prompt instruye al modelo a devolver un objeto JSON con:
 | `keyPoints` | array | Puntos clave del documento (para respuestas, reclamaciones, resoluciones de reclamación y respuestas a alegaciones) |
 | `hearing_days` | integer | Días para alegar cuando el documento abre un trámite de audiencia (`documentType = audiencia`) |
 | `hearing_days_type` | string | Tipo de días del trámite de audiencia: `business` (hábiles) o `calendar` (naturales); por defecto `business` |
+| `origin` | string | Quién emite el documento: `ciudadano`, `administracion`, `organismo_transparencia`, `organismo_judicial`, `otro` |
+| `phase` | string | Fase del procedimiento: `solicitud`, `reclamacion`, `judicial` (coherente con el tipo; el tipo gana) |
+| `isRegistrationReceipt` | boolean | Si el PDF contiene un justificante de registro (REG/REGAGE) |
+| `isComposite` | boolean | Si el PDF es un expediente compuesto por varias piezas |
+| `subdocuments` | array | Piezas de un expediente compuesto: `{pages, type, description}` |
+| `matchedRequestId` | string | UUID de la solicitud del usuario identificada por el agente (tool `search_user_requests`) |
+| `courtOutcome` | string | Fallo de una sentencia: `estimatorio`, `desestimatorio`, `parcial`, `inadmision` |
+| `publicBodyType` | string | Naturaleza del organismo: `ayuntamiento`, `diputacion`, `consejeria_autonomica`, `ministerio`, `organismo_autonomo`, `universidad`, `otro` — deriva `PublicBody.level` al crear el organismo |
 
 **Trámite de audiencia.** Cuando `documentType = audiencia` y el análisis trae `hearing_days`, ambos
 handlers (single y batch) delegan en `HearingProcessManager`, que crea de forma idempotente (clave: el
@@ -147,16 +183,22 @@ La IA clasifica los documentos en estos tipos:
 | `subsanacion_respuesta` | SubsanacionResponse | Subsanación presentada |
 | `audiencia` | Audiencia | Trámite de audiencia |
 | `ampliacion_reclamacion` | ComplaintExtension | Ampliación de reclamación |
+| `comunicacion_consejo_administracion` | ComplaintInterAdmin | Comunicación Consejo–Administración (requerimiento de remisión de expediente, justificante REGAGE de la administración ante el Consejo…) — procedural, sin efectos de estado |
+| `recurso_contencioso` (`recurso_contencioso_administrativo`) | CourtAppeal | Recurso contencioso-administrativo — fija `courtStatus = in_court` |
+| `sentencia` | CourtRuling | Sentencia judicial — `courtOutcome` estimatorio/parcial ⇒ `court_granted`; desestimatorio/inadmision ⇒ `court_denied`; sin fallo ⇒ solo timeline |
+| `auto_judicial` (`auto`, `providencia`) | CourtOrder | Auto / providencia — solo timeline |
+| `senalamiento` | CourtHearingNotice | Señalamiento de vista — solo timeline |
+| `escrito_judicial` | CourtOther | Escrito judicial — solo timeline |
 
 > Los labels `inadmitida` y `parcialmente_concedida` clasifican el sentido de la resolución (no son tipos de documento aparte). El normalizer en `DocumentAnalyzer::normalizeDocumentAnalysis` mapea ambos a `DocumentType::Response` y expone un `accessRequestStatus` extra que `ProcessDocumentHandler` aplica al `AccessRequest` (ver `AccessRequest::STATUS_INADMITTED` / `STATUS_PARTIALLY_GRANTED`).
 
 ### Análisis por lotes
 
-Cuando se suben varios archivos juntos (por ejemplo, el contenido de un ZIP), `ProcessDocumentBatchHandler` los envía todos a `DocumentAnalyzer::analyzeMultiple()` en una única llamada al modelo. Esto le da a la IA más contexto para clasificar correctamente documentos relacionados y extraer metadatos consistentes.
+Cuando se suben varios archivos juntos (por ejemplo, el contenido de un ZIP), `ProcessDocumentBatchHandler` los analiza **secuencialmente con el agente**, pasando a cada documento el contexto incremental del lote (`batchSiblings`: los anteriores ya clasificados con tipo y resumen, los pendientes por nombre). Es la clave del caso REG (justificante + solicitud en el mismo envío): al analizar el segundo documento, el primero ya consta como solicitud. En cuanto un análisis identifica el expediente (`matchedRequestId` o referencia), el resto del lote se analiza con el inventario real. Un documento fallido (p. ej. demasiado grande) no tumba el lote: se registra su `processingError` y se continúa. La llamada multi one-shot (`DocumentAnalyzer::analyzeMultiple()`) se conserva solo como fallback.
 
 ## Emparejamiento con solicitudes
 
-Tras el análisis, el handler intenta enlazar el documento con una solicitud de acceso existente usando tres estrategias, por orden:
+El matching vive en `App\Service\Document\AccessRequestMatcher` (compartido por ambos handlers). Antes del análisis se hace un **pre-match** sin IA (documento ya enlazado o `sourceMetadata.expedienteRef`); tras el análisis, si sigue huérfano, se prueban por orden: el **`matchedRequestId` propuesto por el agente** (tool `search_user_requests`, validando que la solicitud pertenece al dueño del documento; método registrado `MATCH_REFERENCE`) y después las estrategias clásicas:
 
 ### 1. Emparejamiento por número de referencia
 
@@ -221,8 +263,12 @@ Una vez que un documento se enlaza a una solicitud, el handler actualiza la soli
 | SubsanacionResponse | Asegura que existe la reclamación, registra entrada en el timeline |
 | Audiencia | Asegura que existe la reclamación, registra entrada en el timeline |
 | ComplaintExtension | Asegura que existe la reclamación, registra entrada en el timeline |
+| ComplaintInterAdmin | Asegura que existe la reclamación; solo timeline (sin cambio de estado ni notificación) |
+| CourtAppeal | `courtStatus` → `in_court` vía `AccessRequestManager::changeStatus` |
+| CourtRuling | `courtStatus` → `court_granted`/`court_denied` según `courtOutcome`; sin fallo, solo timeline |
+| CourtOrder / CourtHearingNotice / CourtOther / Court | Solo timeline (`statusType = courtStatus`) |
 
-Todos los cambios de estado crean entradas en `StatusHistory`. Los cambios de plazo crean entradas en `DeadlineHistory`.
+Todos los cambios de estado crean entradas en `StatusHistory`. Los cambios de plazo crean entradas en `DeadlineHistory`. Los efectos viven en `App\Service\Document\DocumentEffectsApplier`, compartido por el handler single y el batch (paridad garantizada). En los tipos judiciales el `referenceNumber` extraído (nº de procedimiento) **no** escribe el `externalId` de la solicitud ni de la reclamación.
 
 ### Número de expediente (`externalId`)
 
@@ -240,7 +286,7 @@ Los documentos se pueden reprocesar haciendo clic en el botón de refrescar en l
 Desde la lista de documentos de una solicitud, cada documento tiene un botón de lápiz que abre el modal "Editar documento" (`POST /documentos/{id}/editar`, `DocumentController::edit()`). Permite:
 
 - **Renombrar**: fija `Document.customName`, un nombre visible que anula el derivado `"{TipoLabel} - {original}"`. Se guarda vacío ⇒ vuelve al nombre automático. Como `getDisplayFilename()` devuelve `customName` cuando está presente, el nombre elegido **sobrevive a un reprocesado** (el handler vuelve a llamar a `setOriginalFilename(getDisplayFilename())`).
-- **Reclasificar / mover de fase**: cambia `Document.type`. La "fase" de un documento (solicitud vs. reclamación) **se deriva por completo de `DocumentType::isComplaintRelated()`**, así que asignar un tipo de la otra fase mueve el documento a la sección correcta (p. ej. corregir el resguardo de una reclamación mal clasificado como documento de la solicitud → `ComplaintReceipt`). El desplegable se construye desde el enum vía la extensión Twig `document_type_groups()` (agrupado en "Fase de solicitud" / "Fase de reclamación"; `Unprocessed` no es asignable a mano).
+- **Reclasificar / mover de fase**: cambia `Document.type`. La "fase" de un documento (solicitud / reclamación / judicial) **se deriva por completo de `DocumentType::isCourtRelated()` e `isComplaintRelated()`**, así que asignar un tipo de otra fase mueve el documento a la sección correcta (p. ej. corregir el resguardo de una reclamación mal clasificado como documento de la solicitud → `ComplaintReceipt`). El desplegable se construye desde el enum vía la extensión Twig `document_type_groups()` (agrupado en "Fase de solicitud" / "Fase de reclamación" / "Fase judicial"; `Unprocessed` no es asignable a mano).
 
 El endpoint valida propiedad (`canAccessDocument()`) y token CSRF (`edit-document`). Es una **corrección de metadatos**: a diferencia de `link`, **no** reejecuta efectos de estado/plazo (evita duplicarlos). Si cambia el tipo y hay texto extraído, refresca los embeddings (`GenerateDocumentEmbeddingsMessage`). El tipo fijado a mano **persiste a un reprocesado posterior** porque `ProcessDocumentHandler` trata cualquier tipo distinto de `Unprocessed` como preasignado y lo prioriza sobre la IA (salvo el refinamiento Alegaciones/Complaint→Audiencia).
 
@@ -248,7 +294,7 @@ Tras guardar, la lista se refresca sin recargar la página volviendo a pedir el 
 
 ### Documentación de mero trámite (atenuada)
 
-`DocumentType::isProcedural()` marca la documentación administrativa de bajo valor informativo — acuses de recibo (solicitud y reclamación), inicios de tramitación (solicitud y reclamación), prórrogas/ampliaciones, traslados a otro órgano y afectación a terceros. En la lista de documentos estos se muestran con **menor peso visual** (clase `docs-row--muted`: nombre/icono atenuados) conservando su resumen y su posición, para no competir con la documentación básica de procedimiento (solicitudes, respuestas/resoluciones, reclamaciones, resoluciones de reclamación, alegaciones).
+`DocumentType::isProcedural()` marca la documentación administrativa de bajo valor informativo — acuses de recibo (solicitud y reclamación), inicios de tramitación (solicitud y reclamación), prórrogas/ampliaciones, traslados a otro órgano, afectación a terceros y comunicaciones Consejo–Administración. En la lista de documentos estos se muestran con **menor peso visual** (clase `docs-row--muted`: nombre/icono atenuados) conservando su resumen y su posición, para no competir con la documentación básica de procedimiento (solicitudes, respuestas/resoluciones, reclamaciones, resoluciones de reclamación, alegaciones).
 
 ## Gestión de documentos huérfanos
 

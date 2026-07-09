@@ -1,8 +1,11 @@
 {% if request.documents|length > 0 %}
     {% set requestDocs = [] %}
     {% set complaintDocs = [] %}
+    {% set courtDocs = [] %}
     {% for doc in request.documents %}
-        {% if doc.type and doc.type.isComplaintRelated() %}
+        {% if doc.type and doc.type.isCourtRelated() %}
+            {% set courtDocs = courtDocs|merge([doc]) %}
+        {% elseif doc.type and doc.type.isComplaintRelated() %}
             {% set complaintDocs = complaintDocs|merge([doc]) %}
         {% else %}
             {% set requestDocs = requestDocs|merge([doc]) %}
@@ -102,6 +105,18 @@
         </div>
         <div class="docs-list">
             {% for doc in complaintDocs %}
+                {{ _self.document_item(doc, request) }}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if courtDocs|length > 0 %}
+        <div class="docs-group-label">
+            <span class="docs-group-label-name">Fase judicial</span>
+            <span class="docs-group-label-rule"></span>
+        </div>
+        <div class="docs-list">
+            {% for doc in courtDocs %}
                 {{ _self.document_item(doc, request) }}
             {% endfor %}
         </div>
