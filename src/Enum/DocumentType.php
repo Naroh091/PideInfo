@@ -101,6 +101,32 @@ enum DocumentType: string
     }
 
     /**
+     * Types whose processing mutates the request's state (status, deadlines,
+     * organism, complaint or court status) in DocumentEffectsApplier — as
+     * opposed to timeline-only or informational documents. Used to decide
+     * whether a manually linked document may apply its effects (only when no
+     * NEWER state-changing document exists in the expediente).
+     */
+    public function affectsState(): bool
+    {
+        return in_array($this, [
+            self::Receipt,
+            self::Response,
+            self::Extension,
+            self::Redirection,
+            self::ThirdPartyRights,
+            self::ProcessingStart,
+            self::Complaint,
+            self::ComplaintReceipt,
+            self::ComplaintProcessingStart,
+            self::ComplaintResolution,
+            self::Audiencia,
+            self::CourtAppeal,
+            self::CourtRuling,
+        ], true);
+    }
+
+    /**
      * "Documentación de mero trámite": administrative documents that keep the
      * expediente moving but carry little substantive signal (acuses de recibo,
      * inicios de tramitación, prórrogas/ampliaciones, traslados, afectación a

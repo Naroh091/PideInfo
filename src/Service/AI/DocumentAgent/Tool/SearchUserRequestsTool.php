@@ -31,7 +31,7 @@ final class SearchUserRequestsTool
 
     /**
      * @param string $reference Número de expediente o de registro a buscar (opcional)
-     * @param string $query     Texto libre para filtrar por organismo o materia solicitada (opcional)
+     * @param string $query     Palabras clave para puntuar por organismo o materia solicitada, p. ej. "alumbrado El Algar Cartagena" (opcional)
      */
     public function __invoke(string $reference = '', string $query = ''): string
     {
@@ -45,41 +45,76 @@ final class SearchUserRequestsTool
             }
         }
 
+        // Pool completo del usuario (acotado): la solicitud buscada puede ser
+        // antigua, no vale quedarse con las N más recientes antes de puntuar.
         $requests = $this->accessRequestRepository->findBy(
             ['user' => $owner],
             ['sentAt' => 'DESC'],
-            self::MAX_RESULTS * 2,
+            500,
         );
 
+        // La query se puntúa por tokens (no como substring literal): una
+        // descripción larga en lenguaje natural debe encontrar la solicitud
+        // que comparte organismo/materia aunque no coincida palabra por palabra.
         if ($query !== '') {
-            $needle = mb_strtolower($query);
-            $requests = array_values(array_filter($requests, function (AccessRequest $r) use ($needle) {
-                $haystack = mb_strtolower(implode(' ', [
-                    $r->getTitle(),
-                    (string) $r->getDescription(),
-                    $r->getPublicBody()->getName(),
-                    (string) $r->getExternalId(),
-                ]));
-
-                return str_contains($haystack, $needle);
-            }));
+            $tokens = $this->tokenize($query);
+            if ($tokens !== []) {
+                $scored = [];
+                foreach ($requests as $i => $request) {
+                    $haystack = mb_strtolower(implode(' ', [
+                        $request->getTitle(),
+                        $request->getDescription(),
+                        $request->getPublicBody()->getName(),
+                        (string) $request->getExternalId(),
+                    ]));
+                    $score = 0;
+                    foreach ($tokens as $token) {
+                        if (str_contains($haystack, $token)) {
+                            $score++;
+                        }
+                    }
+                    if ($score > 0) {
+                        $scored[] = [$score, $i, $request];
+                    }
+                }
+                // Mejor puntuación primero; a igualdad, la más reciente.
+                usort($scored, fn(array $a, array $b) => [$b[0], $a[1]] <=> [$a[0], $b[1]]);
+                $requests = array_column($scored, 2);
+            }
         }
 
+        $total = count($requests);
         $requests = array_slice($requests, 0, self::MAX_RESULTS);
 
         if ($requests === []) {
-            return $query !== '' || $reference !== ''
-                ? 'Ninguna solicitud del usuario coincide con esos criterios. Prueba sin filtros para ver todas.'
+            return $query !== ''
+                ? 'Ninguna solicitud del usuario coincide con esas palabras clave. Vuelve a llamar sin query para ver las más recientes.'
                 : 'El usuario no tiene solicitudes registradas todavía.';
         }
 
-        $lines = [sprintf('Solicitudes registradas del usuario (%d):', count($requests))];
+        $lines = [sprintf(
+            'Solicitudes del usuario%s (%d%s):',
+            $query !== '' ? ' ordenadas por afinidad con la búsqueda' : ' más recientes',
+            count($requests),
+            $total > count($requests) ? sprintf(' de %d — usa query para afinar', $total) : '',
+        )];
         foreach ($requests as $request) {
             $lines[] = $this->formatRequest($request);
         }
         $lines[] = 'Si una de ellas corresponde a este documento, devuelve su id en el campo matchedRequestId del análisis final.';
 
         return implode("\n", $lines);
+    }
+
+    /**
+     * @return list<string> lowercase keywords (≥4 chars, sin duplicados, máx. 12)
+     */
+    private function tokenize(string $query): array
+    {
+        $words = preg_split('/[^\p{L}\p{N}\/-]+/u', mb_strtolower($query)) ?: [];
+        $tokens = array_values(array_unique(array_filter($words, fn(string $w) => mb_strlen($w) >= 4)));
+
+        return array_slice($tokens, 0, 12);
     }
 
     private function formatRequest(AccessRequest $request): string
