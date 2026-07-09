@@ -74,6 +74,7 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `search_reg_destinations`    | mcp:read       | Búsqueda **semántica** en texto libre de destinos REG (unidades DIR3). Mapea "servicio de salud de la Junta de Andalucía" → "Consejería de Salud · Andalucía". Devuelve `id` (regDestinationId) y `submissionTargetId` (publicBodyId) para `generate_access_request`. |
 | `get_applicable_law`         | mcp:read       | Ley de transparencia aplicable a un organismo (estatal o autonómica).            |
 | `search_resolutions`         | mcp:read       | Búsqueda semántica en CTBG (vector store).                                       |
+| `search_resolutions_filtered` | mcp:read      | Búsqueda **estructurada** en todo el corpus de resoluciones (Elasticsearch, con fallback a Postgres): filtros exactos por organismo emisor (siglas), reclamado, resultado, límite art. 14, causa art. 18, fechas y tiempo en resolver, más texto libre opcional. Devuelve totales reales y desglose por resultado — para contar y filtrar; para precedentes similares a un caso usa `search_resolutions`. |
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
 | `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |

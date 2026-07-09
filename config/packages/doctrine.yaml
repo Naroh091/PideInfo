@@ -21,6 +21,8 @@ doctrine:
                 CAST: App\Doctrine\CastFunction
                 UNACCENT: App\Doctrine\UnaccentFunction
                 JSONB_CONTAINS: App\Doctrine\JsonbContainsFunction
+            numeric_functions:
+                DAYS_BETWEEN: App\Doctrine\DaysBetweenFunction
         mappings:
             App:
                 type: attribute

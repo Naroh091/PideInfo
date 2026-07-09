@@ -261,7 +261,28 @@ class Resolution
 
     public function isFavorable(): bool
     {
-        return in_array($this->outcome, [self::OUTCOME_FAVORABLE, self::OUTCOME_PARTIAL, self::OUTCOME_MEDIATION_AGREEMENT], true);
+        return in_array($this->outcome, self::getFavorableOutcomes(), true);
+    }
+
+    /**
+     * Outcomes counted as a win for the claimant when computing success rates.
+     *
+     * @return list<string>
+     */
+    public static function getFavorableOutcomes(): array
+    {
+        return [self::OUTCOME_FAVORABLE, self::OUTCOME_PARTIAL, self::OUTCOME_MEDIATION_AGREEMENT];
+    }
+
+    /**
+     * Outcomes counted as a loss. Everything else (archivo, desistimiento…) is
+     * not decisive and stays out of the success rate.
+     *
+     * @return list<string>
+     */
+    public static function getUnfavorableOutcomes(): array
+    {
+        return [self::OUTCOME_UNFAVORABLE, self::OUTCOME_INADMISSIBLE];
     }
 
     public function getSummary(): string
@@ -516,9 +537,19 @@ class Resolution
         return $this;
     }
 
+    /**
+     * Days the body took to resolve the complaint, or null when it cannot be known.
+     *
+     * DateInterval::$days is unsigned, so sources that publish a resolution date earlier
+     * than the claim date (bad data, ~1% of the corpus) would otherwise report a
+     * plausible-looking positive duration. Those rows have no meaningful value.
+     */
     public function getDaysToResolve(): ?int
     {
         if ($this->claimDate === null || $this->resolutionDate === null) {
+            return null;
+        }
+        if ($this->resolutionDate < $this->claimDate) {
             return null;
         }
         return $this->claimDate->diff($this->resolutionDate)->days;

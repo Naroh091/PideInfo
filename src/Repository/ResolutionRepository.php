@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Resolution;
+use App\Search\ResolutionSearchQuery;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -223,7 +224,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
                     SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
                     SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable_count,
-                    ROUND(AVG((resolution_date - claim_date)))::int AS avg_days
+                    ROUND(AVG(resolution_date - claim_date) FILTER (WHERE resolution_date >= claim_date))::int AS avg_days
                  FROM resolution"
             );
 
@@ -299,6 +300,35 @@ class ResolutionRepository extends ServiceEntityRepository
         );
     }
 
+    /**
+     * Autocomplete over the names of the public bodies that were complained about.
+     *
+     * @return array<array{keyword: string, count: int}>
+     */
+    public function searchPublicBodyNames(string $query = '', int $limit = 20): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        $where = "public_body_name IS NOT NULL AND public_body_name != ''";
+        $params = ['limit' => $limit];
+
+        if ($query !== '') {
+            $where .= ' AND LOWER(public_body_name) LIKE LOWER(:query)';
+            $params['query'] = '%' . $query . '%';
+        }
+
+        return $conn->fetchAllAssociative(
+            "SELECT public_body_name AS keyword, COUNT(*) AS count
+             FROM resolution
+             WHERE {$where}
+             GROUP BY public_body_name
+             ORDER BY count DESC
+             LIMIT :limit",
+            $params,
+            ['limit' => \Doctrine\DBAL\ParameterType::INTEGER]
+        );
+    }
+
     private function createFilteredQueryBuilder(array $filters): \Doctrine\ORM\QueryBuilder
     {
         $qb = $this->createQueryBuilder('r');
@@ -351,6 +381,23 @@ class ResolutionRepository extends ServiceEntityRepository
         if (!empty($filters['dateTo'])) {
             $qb->andWhere('r.resolutionDate <= :dateTo')
                 ->setParameter('dateTo', new \DateTimeImmutable($filters['dateTo']));
+        }
+
+        if (!empty($filters['resolveTime'])) {
+            [$min, $max] = ResolutionSearchQuery::RESOLVE_TIME_RANGES[$filters['resolveTime']]
+                ?? throw new \InvalidArgumentException(sprintf('Unknown resolve time range: %s', $filters['resolveTime']));
+
+            // Matches Resolution::getDaysToResolve(), which has no value for reversed dates.
+            $qb->andWhere('r.resolutionDate >= r.claimDate');
+
+            if ($min !== null) {
+                $qb->andWhere('DAYS_BETWEEN(r.resolutionDate, r.claimDate) >= :resolveTimeMin')
+                    ->setParameter('resolveTimeMin', $min);
+            }
+            if ($max !== null) {
+                $qb->andWhere('DAYS_BETWEEN(r.resolutionDate, r.claimDate) <= :resolveTimeMax')
+                    ->setParameter('resolveTimeMax', $max);
+            }
         }
 
         return $qb;
@@ -407,6 +454,22 @@ class ResolutionRepository extends ServiceEntityRepository
             $where[] = 'resolution_date <= :dateTo';
             $params['dateTo'] = $filters['dateTo'];
         }
+        if (!empty($filters['resolveTime'])) {
+            [$min, $max] = ResolutionSearchQuery::RESOLVE_TIME_RANGES[$filters['resolveTime']]
+                ?? throw new \InvalidArgumentException(sprintf('Unknown resolve time range: %s', $filters['resolveTime']));
+
+            // Matches Resolution::getDaysToResolve(), which has no value for reversed dates.
+            $where[] = 'resolution_date >= claim_date';
+
+            if ($min !== null) {
+                $where[] = '(resolution_date - claim_date) >= :resolveTimeMin';
+                $params['resolveTimeMin'] = $min;
+            }
+            if ($max !== null) {
+                $where[] = '(resolution_date - claim_date) <= :resolveTimeMax';
+                $params['resolveTimeMax'] = $max;
+            }
+        }
 
         $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -417,7 +480,7 @@ class ResolutionRepository extends ServiceEntityRepository
                 COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
                 SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
                 SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable_count,
-                ROUND(AVG((resolution_date - claim_date)))::int AS avg_days
+                ROUND(AVG(resolution_date - claim_date) FILTER (WHERE resolution_date >= claim_date))::int AS avg_days
              FROM resolution
              {$whereSql}",
             $params
@@ -465,7 +528,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG((r.resolution_date - r.claim_date)))::int AS avg_days
+                    ROUND(AVG(r.resolution_date - r.claim_date) FILTER (WHERE r.resolution_date >= r.claim_date))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level
@@ -517,7 +580,7 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN r.outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable,
                     SUM(CASE WHEN r.outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable,
                     SUM(CASE WHEN r.outcome = 'inadmissible' THEN 1 ELSE 0 END)::int AS inadmissible,
-                    ROUND(AVG((r.resolution_date - r.claim_date)))::int AS avg_days
+                    ROUND(AVG(r.resolution_date - r.claim_date) FILTER (WHERE r.resolution_date >= r.claim_date))::int AS avg_days
              FROM public_body pb
              JOIN resolution r ON LOWER(r.public_body_name) = LOWER(pb.name)
              GROUP BY pb.id, pb.name, pb.slug, pb.level

@@ -1,0 +1,120 @@
+fos_elastica:
+    clients:
+        default:
+            hosts: ['%env(ELASTICSEARCH_URL)%']
+
+    # Lets `fos:elastica:populate --pager-persister=async` push each page of the
+    # bulk reindex through Messenger instead of blocking the command.
+    messenger:
+        enabled: true
+
+    indexes:
+        resolutions:
+            index_name: 'pideinfo_resolutions_%kernel.environment%'
+
+            # fullText is indexed (searchable) but not stored in _source: we rehydrate
+            # entities from Postgres, so shipping megabytes of PDF text back is waste.
+            _source:
+                excludes: ['fullText']
+
+            settings:
+                number_of_shards: 1
+                number_of_replicas: 0
+                analysis:
+                    filter:
+                        spanish_stop:
+                            type: stop
+                            stopwords: _spanish_
+                        spanish_stemmer:
+                            type: stemmer
+                            language: light_spanish
+                    analyzer:
+                        spanish_text:
+                            type: custom
+                            tokenizer: standard
+                            filter: ['lowercase', 'asciifolding', 'spanish_stop', 'spanish_stemmer']
+                    normalizer:
+                        # Case- and accent-insensitive matching. Only ever used to *filter*:
+                        # aggregating on a folded field would show "contratacion publica"
+                        # in the autocomplete and feed that back as the filter value.
+                        # `trim` in both: keywords are stored with occasional stray whitespace,
+                        # and Postgres always compared/grouped over LOWER(TRIM(kw)).
+                        keyword_folded:
+                            type: custom
+                            filter: ['trim', 'lowercase', 'asciifolding']
+                        # Merges the case variants for the autocomplete buckets while keeping
+                        # accents, matching what `GROUP BY LOWER(TRIM(kw))` returns in Postgres.
+                        keyword_lowercase:
+                            type: custom
+                            filter: ['trim', 'lowercase']
+
+            properties:
+                # Duplicates _id, but _id fielddata is disabled in ES 8+ and we need a
+                # deterministic tie-breaker for the date sort.
+                id: { type: keyword }
+                referenceNumber:
+                    type: text
+                    analyzer: spanish_text
+                    fields:
+                        keyword: { type: keyword }
+                subject: { type: text, analyzer: spanish_text }
+                summary: { type: text, analyzer: spanish_text }
+                claimReason: { type: text, analyzer: spanish_text }
+                fullText: { type: text, analyzer: spanish_text }
+
+                # `lowercase` feeds the autocomplete (accents intact, case variants merged),
+                # `folded` does the filtering. A term query against `folded` normalizes the
+                # query value too, so the value the autocomplete hands back matches every variant.
+                keywords:
+                    type: keyword
+                    fields:
+                        lowercase: { type: keyword, normalizer: keyword_lowercase }
+                        folded: { type: keyword, normalizer: keyword_folded }
+                limits: { type: keyword }
+                inadmissionCauses: { type: keyword }
+                topics: { type: keyword }
+                outcome: { type: keyword }
+                source: { type: keyword }
+                scope: { type: keyword }
+                entityType: { type: keyword }
+
+                publicBodyName:
+                    type: text
+                    analyzer: spanish_text
+                    fields:
+                        # `keyword` keeps the name as published (autocomplete display),
+                        # `folded` collapses the case variants the sources publish
+                        # ("Ministerio del Interior" vs "MINISTERIO DEL INTERIOR"), which is
+                        # what the Postgres LOWER(x) = LOWER(y) comparison already did.
+                        keyword: { type: keyword }
+                        folded: { type: keyword, normalizer: keyword_folded }
+
+                complaintOrganism:
+                    type: object
+                    properties:
+                        id: { type: keyword }
+                        name: { type: keyword }
+                        shortName: { type: keyword }
+                        slug: { type: keyword }
+
+                # DateTimeImmutable is serialized as ISO-8601 by the auto transformer,
+                # so we rely on the default `strict_date_optional_time` format, which also
+                # accepts the plain `yyyy-MM-dd` values used by the date range filters.
+                resolutionDate: { type: date }
+                claimDate: { type: date }
+                infoRequestDate: { type: date }
+
+                # Computed by Resolution::getDaysToResolve() — no DB column involved.
+                daysToResolve: { type: integer }
+                entryYear: { type: integer }
+
+            persistence:
+                driver: orm
+                model: App\Entity\Resolution
+                identifier: id
+                provider:
+                    batch_size: 200
+                # Indexing happens through Messenger (App\Message\IndexResolutionMessage),
+                # never inside the request that wrote the entity.
+                listener:
+                    enabled: false

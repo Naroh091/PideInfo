@@ -840,3 +840,28 @@ Sube cada plantilla de prompt empaquetada en `config/prompts/` a Langfuse como u
 ```bash
 php bin/console app:langfuse:sync-prompts
 ```
+
+---
+
+## Búsqueda (Elasticsearch)
+
+Ver [search.md](search.md) para el detalle del índice y del flujo de sincronización.
+
+### `fos:elastica:populate`
+
+Recrea y repuebla el índice `resolutions` desde PostgreSQL. Necesario tras cambiar el mapping en `config/packages/fos_elastica.yaml` o al montar un entorno nuevo. Con ~46 000 resoluciones tarda unos minutos e indexa el texto completo de los PDFs.
+
+```bash
+php bin/console fos:elastica:populate --index=resolutions
+
+# Reparte cada página entre los workers de Messenger en vez de indexar en el propio proceso
+php bin/console fos:elastica:populate --index=resolutions --pager-persister=async
+```
+
+### `messenger:consume index`
+
+Consume la cola de indexación incremental (`App\Message\IndexResolutionMessage`), que se alimenta sola cada vez que se crea, edita o borra una resolución. En producción lo lanza supervisord (`index-worker`).
+
+```bash
+php bin/console messenger:consume index
+```

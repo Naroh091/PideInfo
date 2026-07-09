@@ -275,6 +275,9 @@ class MigrateToPublicBodyCommand extends Command
                 'Done. %d resolutions still unlinked (name mismatch).',
                 $stillUnlinked
             ));
+            // The bulk UPDATEs above rewrite resolution.public_body_name behind Doctrine's
+            // back, so the Elasticsearch index no longer matches those rows.
+            $io->note('Run `bin/console fos:elastica:populate --index=resolutions` to re-sync the search index.');
         }
 
         return Command::SUCCESS;
