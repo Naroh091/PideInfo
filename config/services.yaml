@@ -64,6 +64,15 @@ services:
     App\Security\OAuth2\OAuthTokenContext:
         public: true
 
+    # Resolution search: Elasticsearch first, Postgres as the safety net.
+    App\Search\FallbackResolutionSearch:
+        arguments:
+            $elastic: '@App\Search\ElasticResolutionSearch'
+            $doctrine: '@App\Search\DoctrineResolutionSearch'
+            $backend: '%env(RESOLUTION_SEARCH_BACKEND)%'
+
+    App\Search\ResolutionSearchInterface: '@App\Search\FallbackResolutionSearch'
+
 when@prod:
     services:
         Redis:

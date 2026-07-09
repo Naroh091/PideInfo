@@ -85,6 +85,7 @@ La documentación técnica detallada está disponible en el directorio [`docs/`]
 - [Procesamiento de documentos](docs/document-processing.md) — Cómo los documentos subidos son analizados por IA y enlazados automáticamente
 - [Correo entrante](docs/inbound-email.md) — Pipeline de email entrante (Cloudflare Email Routing → webhook)
 - [Servidor MCP](docs/mcp.md) — Endpoint MCP con transporte HTTP y OAuth2
+- [Búsqueda de resoluciones](docs/search.md) — Índice de Elasticsearch, filtros, sincronización asíncrona y fallback
 
 ## Instalación
 
@@ -93,10 +94,14 @@ composer install
 npm install && npm run build
 
 # Configura .env.local con:
-# DATABASE_URL, credenciales de AWS, GEMINI_API_KEY, MERCURE_URL
+# DATABASE_URL, credenciales de AWS, GEMINI_API_KEY, MERCURE_URL, ELASTICSEARCH_URL
 
+docker compose up -d database elasticsearch
 php bin/console doctrine:migrations:migrate
+php bin/console fos:elastica:populate --index=resolutions  # buscador de resoluciones
+
 php bin/console messenger:consume async  # para el procesamiento de documentos
+php bin/console messenger:consume index  # para mantener el índice al día
 ```
 
 ## Contexto legal

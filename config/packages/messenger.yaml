@@ -31,6 +31,17 @@ framework:
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
+            # Elasticsearch indexing. Kept off `async` so a backlog of LLM calls
+            # never delays the search index (and vice versa).
+            index:
+                dsn: '%env(MESSENGER_TRANSPORT_DSN)%'
+                options:
+                    queue_name: index
+                    use_notify: true
+                    check_delayed_interval: 60000
+                retry_strategy:
+                    max_retries: 3
+                    multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
             # sync: 'sync://'
 
@@ -55,3 +66,6 @@ framework:
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async
             App\Message\UpdateExpiredRequestsMessage: async
+            App\Message\IndexResolutionMessage: index
+            # Emitted by `fos:elastica:populate --pager-persister=async`
+            FOS\ElasticaBundle\Message\AsyncPersistPage: index

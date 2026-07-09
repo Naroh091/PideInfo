@@ -8,6 +8,7 @@ The flow of complaints when the request response is not what the user expects is
 The document processing is in docs/document-processing.md
 The inbound email pipeline is in docs/inbound-email.md
 The MCP server (HTTP transport + OAuth2) is in docs/mcp.md
+The Elasticsearch-backed resolution search is in docs/search.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 
 
@@ -16,6 +17,7 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 - All migrations must be idempotent.
 - Any updates must be reflected in the docs.
 - When adding a new resolution importer with source-specific text cleaning, its cleaner must also be registered in `CleanResolutionTextCommand::cleanForSource()` so that `app:resolutions:clean-text --source-only` can re-apply it.
+- Any new `Resolution` property that must be searchable has to be added to the index mapping in `config/packages/fos_elastica.yaml` **and** to `ResolutionIndexListener::INDEXED_FIELDS` (otherwise edits to it never reach Elasticsearch), followed by a `fos:elastica:populate --index=resolutions`.
 - All resolution ingestion commands must support the same processing features (PDF extraction, metadata extraction, text cleaning) in both inline and async (`--async`) modes. The async path in `ProcessResolutionHandler` must mirror what the command does inline.
 - MCP tools (`src/Mcp/Tool/`) must always filter by `Security::getUser()` and validate ownership before returning or mutating an entity. Mutation tools must record an audit entry through the existing `StatusHistory`/`DeadlineHistory` pipelines and tag the `notes` field with `[mcp/{client_id}]` (using `OAuthTokenContext::getClientId()`) so the channel is identifiable.
 - Never instantiate Gemini/OpenAI clients directly from MCP tools — go through `App\\Service\\AI\\Llm\\LlmClient` (or services that already do, e.g. `ComplaintGenerator`).

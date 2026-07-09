@@ -12,6 +12,7 @@ use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
 use App\Service\AI\Agent\Tool\ReadRequestDocumentsTool;
 use App\Service\AI\Agent\Tool\SaveUserPreferenceTool;
 use App\Service\AI\Agent\Tool\SearchCriteriaTool;
+use App\Service\AI\Agent\Tool\SearchResolutionsFilteredTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsTool;
 use App\Service\AI\Chat\AssistantChatRequest;
 use App\Service\AI\CustomModelClient;
@@ -138,6 +139,14 @@ Busca resoluciones del CTBG y órganos autonómicos que apoyen un argumento jur�
   - `search_resolutions("inadmisión por información ya publicada, [contexto del organismo]")`
 - Para silencio administrativo: `search_resolutions("reclamación por silencio administrativo, [tipo de información solicitada]")`
 
+### search_resolutions_filtered
+Busca resoluciones por **filtros exactos de metadatos** (organismo emisor, administración reclamada, resultado, límite del art. 14, causa de inadmisión del art. 18, fechas, tiempo en resolver) con texto libre opcional. Devuelve totales reales y desglose por resultado.
+
+**CÓMO USARLA:**
+- Para preguntas de datos del usuario: «¿cuántas reclamaciones contra X ha estimado el CTBG?», «resoluciones de la GAIP de 2024 sobre contratos», «casos donde se invocó seguridad nacional».
+- Como complemento cuando `search_resolutions` no encuentra nada: una pasada filtrada por el límite/causa concreta (`invokedLimit`/`inadmissionCause`) puede sacar doctrina que la búsqueda semántica no recuperó.
+- **NO sustituye a `search_resolutions` para fundamentar argumentos**: esta herramienta no lee los textos ni valora la aplicabilidad. Lo que encuentres aquí, verifícalo antes de citarlo como doctrina.
+
 ### search_criteria
 Busca **Criterios Interpretativos del CTBG** (p. ej. CI/006/2015 sobre información auxiliar) que definan cómo interpretar el límite o la causa de inadmisión invocada. Son doctrina fundacional, a menudo la base más sólida para desmontar el argumento de la Administración.
 
@@ -159,7 +168,7 @@ Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de esti
 **Protocolo obligatorio para generar o reescribir un borrador:**
 1. **Primero** lee los documentos con `read_request_documents` para identificar los argumentos exactos que ha invocado la Administración (límites del art.14, causas de inadmisión del art.18, etc.)
 2. **Para cada argumento concreto identificado**, llama a `search_resolutions` Y a `search_criteria` con ese argumento específico — una llamada de cada por argumento
-3. **Si `search_resolutions` o `search_criteria` no devuelven resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso"
+3. **Si `search_resolutions` o `search_criteria` no devuelven resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso". Como último recurso, `search_resolutions_filtered` con el código exacto (`inadmissionCause: "reelaboracion"`) lista la doctrina existente sobre esa causa
 4. Una vez tienes doctrina (resoluciones y/o criterios) por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
 5. NO busques doctrina antes de leer los documentos
 
@@ -198,6 +207,7 @@ TXT;
     public function __construct(
         private readonly CustomModelClient $customClient,
         private readonly SearchResolutionsTool $searchTool,
+        private readonly SearchResolutionsFilteredTool $filteredSearchTool,
         private readonly SearchCriteriaTool $criteriaTool,
         private readonly ReadRequestDocumentsTool $docTool,
         private readonly GetUserPreferencesTool $prefsTool,
@@ -207,7 +217,7 @@ TXT;
         private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
-        $toolInstances = [$searchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool];
+        $toolInstances = [$searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
     }

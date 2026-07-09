@@ -3,15 +3,18 @@
 namespace App\Service;
 
 use App\Entity\PublicBody;
+use App\Message\IndexResolutionMessage;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 final class PublicBodyMerger
 {
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly Connection $connection,
+        private readonly MessageBusInterface $messageBus,
     ) {
     }
 
@@ -71,9 +74,14 @@ final class PublicBodyMerger
             $loserNames = array_map(static fn (PublicBody $l) => $l->getName(), $losers);
             $loserNames = array_values(array_unique(array_filter($loserNames, static fn ($n) => $n !== null && $n !== '')));
             if ($loserNames !== []) {
-                $this->connection->executeStatement(
+                // Native UPDATE bypasses the Doctrine listener that keeps Elasticsearch in
+                // sync, and publicBodyName IS indexed — collect the ids and enqueue them
+                // ourselves. The doctrine Messenger transport shares this connection, so the
+                // messages join the transaction and roll back with it.
+                $renamedIds = $this->connection->fetchFirstColumn(
                     'UPDATE resolution SET public_body_name = :survivorName
-                     WHERE public_body_id = :survivor AND public_body_name IN (:loserNames)',
+                     WHERE public_body_id = :survivor AND public_body_name IN (:loserNames)
+                     RETURNING id',
                     [
                         'survivorName' => $survivor->getName(),
                         'survivor' => $survivorId,
@@ -81,6 +89,10 @@ final class PublicBodyMerger
                     ],
                     ['loserNames' => ArrayParameterType::STRING],
                 );
+
+                foreach ($renamedIds as $renamedId) {
+                    $this->messageBus->dispatch(new IndexResolutionMessage((string) $renamedId));
+                }
             }
 
             // Doctrine still has the loser entities loaded; remove them so any

@@ -28,7 +28,7 @@
 {% block body %}
 {% include '_partials/public_nav.html.twig' with { active_page: 'resoluciones' } %}
 
-{% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo or filters.limit or filters.inadmissionCause %}
+{% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo or filters.limit or filters.inadmissionCause or filters.resolveTime %}
 
 {# Header #}
 <header class="repo-header border-b border-slate-200/50 relative">
@@ -322,6 +322,20 @@
                             </select>
                         </div>
 
+                        {# Public body the complaint was filed against #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Organismo reclamado</label>
+                            <select name="publicBody"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Todos"
+                                    data-tom-select-remote-value="{{ path('app_resoluciones_reclamados_api') }}">
+                                <option value="">Todos</option>
+                                {% if filters.publicBody %}
+                                    <option value="{{ filters.publicBody }}" selected>{{ filters.publicBody }}</option>
+                                {% endif %}
+                            </select>
+                        </div>
+
                         {# Keyword #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 mb-2 block">Palabra clave</label>
@@ -373,6 +387,32 @@
                             </div>
                         </div>
 
+                        {# Time the body took to resolve the complaint #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Tiempo en resolver</label>
+                            <select name="resolveTime"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Cualquiera">
+                                <option value="">Cualquiera</option>
+                                {% for key, label in resolveTimeLabels %}
+                                    <option value="{{ key }}" {{ filters.resolveTime == key ? 'selected' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        {# Ordering: only meaningful once there is a query to score against #}
+                        {% if filters.search %}
+                            <div class="p-4">
+                                <label class="text-xs font-semibold text-slate-500 mb-2 block">Ordenar por</label>
+                                <select name="sort"
+                                        data-controller="tom-select"
+                                        data-tom-select-placeholder-value="Relevancia">
+                                    <option value="relevancia" {{ filters.sort != 'fecha' ? 'selected' }}>Relevancia</option>
+                                    <option value="fecha" {{ filters.sort == 'fecha' ? 'selected' }}>Más recientes</option>
+                                </select>
+                            </div>
+                        {% endif %}
+
                         {# Actions #}
                         <div class="p-4 flex flex-col gap-2">
                             <button type="submit" class="btn btn-primary btn-sm w-full">
@@ -392,6 +432,12 @@
 
             {# Results #}
             <main class="flex-1 min-w-0">
+                {% if searchDegraded|default(false) %}
+                    <div class="flex items-center gap-2 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                        <i data-lucide="triangle-alert" class="w-4 h-4 flex-shrink-0"></i>
+                        <span>El buscador avanzado no está disponible en este momento. Los resultados se muestran con la búsqueda básica: el texto libre es menos preciso y el orden por relevancia no se aplica.</span>
+                    </div>
+                {% endif %}
                 {% if hasFilters %}
                     <div class="flex items-center gap-2 mb-4 text-sm text-slate-500">
                         <i data-lucide="filter" class="w-4 h-4"></i>
@@ -423,6 +469,9 @@
                         {% endif %}
                         {% if filters.dateFrom or filters.dateTo %}
                             <span class="badge badge-secondary">{{ filters.dateFrom ?: '...' }} — {{ filters.dateTo ?: '...' }}</span>
+                        {% endif %}
+                        {% if filters.resolveTime %}
+                            <span class="badge badge-secondary">{{ resolveTimeLabels[filters.resolveTime]|default(filters.resolveTime) }}</span>
                         {% endif %}
                     </div>
                 {% endif %}

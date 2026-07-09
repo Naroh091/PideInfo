@@ -7,6 +7,8 @@ use App\Entity\Resolution;
 use App\Repository\ComplaintOrganismRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\ResolutionRepository;
+use App\Search\ResolutionSearchInterface;
+use App\Search\ResolutionSearchQuery;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -22,10 +24,11 @@ class ResolutionController extends AbstractController
         Request $request,
         ResolutionRepository $resolutionRepository,
         ComplaintOrganismRepository $organismRepository,
+        ResolutionSearchInterface $resolutionSearch,
     ): Response {
         $filters = $this->extractFilters($request);
 
-        return $this->renderList($resolutionRepository, $organismRepository, $filters, $request);
+        return $this->renderList($resolutionRepository, $organismRepository, $resolutionSearch, $filters, $request);
     }
 
     #[Route('/organismo/{slug}', name: 'app_resoluciones_organismo')]
@@ -34,6 +37,7 @@ class ResolutionController extends AbstractController
         Request $request,
         ResolutionRepository $resolutionRepository,
         ComplaintOrganismRepository $organismRepository,
+        ResolutionSearchInterface $resolutionSearch,
     ): Response {
         $organism = $organismRepository->findBySlug($slug);
         if (!$organism) {
@@ -43,7 +47,7 @@ class ResolutionController extends AbstractController
         $filters = $this->extractFilters($request);
         $filters['organism'] = $organism->getId()->toRfc4122();
 
-        return $this->renderList($resolutionRepository, $organismRepository, $filters, $request, [
+        return $this->renderList($resolutionRepository, $organismRepository, $resolutionSearch, $filters, $request, [
             'activeOrganism' => $organism,
         ]);
     }
@@ -55,6 +59,7 @@ class ResolutionController extends AbstractController
         ResolutionRepository $resolutionRepository,
         ComplaintOrganismRepository $organismRepository,
         PublicBodyRepository $publicBodyRepository,
+        ResolutionSearchInterface $resolutionSearch,
     ): Response {
         $publicBody = $publicBodyRepository->findOneBy(['slug' => $slug]);
         if (!$publicBody) {
@@ -68,13 +73,14 @@ class ResolutionController extends AbstractController
         $page = max(1, $request->query->getInt('page', 1));
         $limit = 50;
 
-        $resolutions = $resolutionRepository->findFilteredPaginated($filters, $page, $limit);
-        $total = $resolutionRepository->countFiltered($filters);
-        $totalPages = max(1, (int) ceil($total / $limit));
+        $query = ResolutionSearchQuery::fromArray($filters, $page, $limit);
+        $page = $query->page;
+        $result = $resolutionSearch->search($query);
+        $totalPages = $this->totalPages($result->total, $limit);
 
-        $contextFilters = ['publicBody' => $publicBody->getName(), 'publicBodyExact' => true];
-        $outcomeStats = $resolutionRepository->getOutcomeStats($contextFilters);
-        $cardStats = $resolutionRepository->getFilteredAggregates($contextFilters);
+        $contextQuery = $query->contextOnly();
+        $outcomeStats = $resolutionSearch->outcomeStats($contextQuery);
+        $cardStats = $resolutionSearch->aggregates($contextQuery);
 
         $distinctOrganisms = $resolutionRepository->getDistinctOrganismsForPublicBody($publicBody->getName());
         $yearlyBreakdown = $resolutionRepository->getYearlyBreakdown($publicBody->getName());
@@ -82,17 +88,18 @@ class ResolutionController extends AbstractController
 
         return $this->render('resolution/public_body.html.twig', [
             'publicBody' => $publicBody,
-            'resolutions' => $resolutions,
+            'resolutions' => $result->resolutions,
             'organisms' => $organismRepository->findAllOrdered(),
             'filters' => $filters,
             'page' => $page,
             'totalPages' => $totalPages,
-            'total' => $total,
+            'total' => $result->total,
             'outcomeStats' => $outcomeStats,
             'cardStats' => $cardStats,
             'distinctOrganisms' => $distinctOrganisms,
             'yearlyBreakdown' => $yearlyBreakdown,
             'topKeywords' => $topKeywords,
+            'searchDegraded' => $result->degraded,
         ]);
     }
 
@@ -153,15 +160,32 @@ class ResolutionController extends AbstractController
     }
 
     #[Route('/api/keywords', name: 'app_resoluciones_keywords_api')]
-    public function keywordsApi(Request $request, ResolutionRepository $resolutionRepository): JsonResponse
+    public function keywordsApi(Request $request, ResolutionSearchInterface $resolutionSearch): JsonResponse
     {
-        $query = $request->query->get('q', '');
-        $results = $resolutionRepository->searchKeywords($query);
+        return $this->json($this->toSuggestions(
+            $resolutionSearch->suggestKeywords($request->query->get('q', ''))
+        ));
+    }
 
-        return $this->json(array_map(fn (array $row) => [
+    #[Route('/api/reclamados', name: 'app_resoluciones_reclamados_api')]
+    public function publicBodiesApi(Request $request, ResolutionSearchInterface $resolutionSearch): JsonResponse
+    {
+        return $this->json($this->toSuggestions(
+            $resolutionSearch->suggestPublicBodies($request->query->get('q', ''))
+        ));
+    }
+
+    /**
+     * @param list<array{keyword: string, count: int}> $rows
+     *
+     * @return list<array{value: string, text: string}>
+     */
+    private function toSuggestions(array $rows): array
+    {
+        return array_map(fn (array $row) => [
             'value' => $row['keyword'],
             'text' => $row['keyword'] . ' (' . $row['count'] . ')',
-        ], $results));
+        ], $rows);
     }
 
     #[Route('/{id}', name: 'app_resoluciones_show', requirements: ['id' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])]
@@ -179,6 +203,15 @@ class ResolutionController extends AbstractController
         ]);
     }
 
+    /**
+     * Page count shown to the user, capped at the last page the search layer can
+     * actually serve — pages past the window would all repeat the same results.
+     */
+    private function totalPages(int $total, int $perPage): int
+    {
+        return max(1, min((int) ceil($total / $perPage), ResolutionSearchQuery::maxPage($perPage)));
+    }
+
     private function extractFilters(Request $request): array
     {
         return [
@@ -191,12 +224,15 @@ class ResolutionController extends AbstractController
             'dateTo' => $request->query->get('dateTo', ''),
             'limit' => $request->query->get('limit', ''),
             'inadmissionCause' => $request->query->get('inadmissionCause', ''),
+            'resolveTime' => $request->query->get('resolveTime', ''),
+            'sort' => $request->query->get('sort', ''),
         ];
     }
 
     private function renderList(
         ResolutionRepository $resolutionRepository,
         ComplaintOrganismRepository $organismRepository,
+        ResolutionSearchInterface $resolutionSearch,
         array $filters,
         Request $request,
         array $extra = [],
@@ -204,17 +240,16 @@ class ResolutionController extends AbstractController
         $page = max(1, $request->query->getInt('page', 1));
         $limit = 50;
 
-        $resolutions = $resolutionRepository->findFilteredPaginated($filters, $page, $limit);
-        $total = $resolutionRepository->countFiltered($filters);
-        $totalPages = max(1, (int) ceil($total / $limit));
-        $outcomeStats = $resolutionRepository->getOutcomeStats($filters);
+        $query = ResolutionSearchQuery::fromArray($filters, $page, $limit);
+        $page = $query->page;
+        $result = $resolutionSearch->search($query);
+        $totalPages = $this->totalPages($result->total, $limit);
         $globalStats = $resolutionRepository->getGlobalStats();
 
         // Card stats: only vary by organism/publicBody, never by search/keyword/date filters
         $isContextual = !empty($filters['organism']) || !empty($filters['publicBody']);
         if ($isContextual) {
-            $contextFilters = array_intersect_key($filters, array_flip(['organism', 'publicBody']));
-            $cardStats = $resolutionRepository->getFilteredAggregates($contextFilters);
+            $cardStats = $resolutionSearch->aggregates($query->contextOnly());
         } else {
             $cardStats = [
                 'totalCount' => $globalStats['totalCount'],
@@ -226,7 +261,7 @@ class ResolutionController extends AbstractController
         }
 
         return $this->render('resolution/index.html.twig', array_merge([
-            'resolutions' => $resolutions,
+            'resolutions' => $result->resolutions,
             'organisms' => $organismRepository->findAllOrdered(),
             'globalStats' => $globalStats,
             'cardStats' => $cardStats,
@@ -234,10 +269,12 @@ class ResolutionController extends AbstractController
             'filters' => $filters,
             'page' => $page,
             'totalPages' => $totalPages,
-            'total' => $total,
-            'outcomeStats' => $outcomeStats,
+            'total' => $result->total,
+            'outcomeStats' => $result->outcomeStats,
             'limitLabels' => Resolution::getLimitLabels(),
             'inadmissionCauseLabels' => Resolution::getInadmissionCauseLabels(),
+            'resolveTimeLabels' => ResolutionSearchQuery::getResolveTimeLabels(),
+            'searchDegraded' => $result->degraded,
         ], $extra));
     }
 }

@@ -116,6 +116,26 @@ un botón que lleve a llenarlo.
 Distingue «todavía no hay nada» de «no hay nada *con este filtro*»: son
 mensajes distintos, y solo el primero merece una llamada a la acción.
 
+### Barra de filtros
+
+La barra lateral de `/resoluciones` es el patrón de referencia: un `<form
+method="GET">` dentro de una tarjeta con `divide-y divide-slate-100`, un
+bloque `p-4` por filtro y una etiqueta `text-xs font-semibold text-slate-500`
+en caso de frase encima de cada control. Los desplegables usan el controlador
+Stimulus `tom-select`; los que tienen muchos valores posibles (palabra clave,
+organismo reclamado) cargan sus opciones por `data-tom-select-remote-value`
+apuntando a un endpoint JSON que devuelve `{value, text}`.
+
+Cada filtro activo se repite arriba de los resultados como un `badge
+badge-secondary`, y la lista completa gobierna el botón «Limpiar filtros».
+Cuando añadas un filtro nuevo, añádelo también a esos dos sitios: un filtro
+que no aparece entre los activos es un filtro que el usuario no sabe que ha
+dejado puesto.
+
+Un control que solo tiene sentido en cierto estado no se muestra deshabilitado,
+se oculta. El selector «Ordenar por» de resoluciones únicamente aparece cuando
+hay una búsqueda de texto libre, porque sin ella no hay relevancia que ordenar.
+
 ---
 
 ## Componentes

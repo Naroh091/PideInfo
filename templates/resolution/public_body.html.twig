@@ -411,6 +411,12 @@
 
             {# Results #}
             <main class="flex-1 min-w-0">
+                {% if searchDegraded|default(false) %}
+                    <div class="flex items-center gap-2 mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                        <i data-lucide="triangle-alert" class="w-4 h-4 flex-shrink-0"></i>
+                        <span>El buscador avanzado no está disponible en este momento. Los resultados se muestran con la búsqueda básica: el texto libre es menos preciso y el orden por relevancia no se aplica.</span>
+                    </div>
+                {% endif %}
                 {% if hasFilters %}
                     <div class="flex items-center gap-2 mb-4 text-sm text-slate-500">
                         <i data-lucide="filter" class="w-4 h-4"></i>

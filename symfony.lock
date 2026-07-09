@@ -59,6 +59,15 @@
             "config/routes/easyadmin.yaml"
         ]
     },
+    "friendsofsymfony/elastica-bundle": {
+        "version": "7.2",
+        "recipe": {
+            "repo": "github.com/symfony/recipes-contrib",
+            "branch": "main",
+            "version": "5.0",
+            "ref": "46c9cd2c1e07f0fcfd97e96f12b03b2e0845c4cd"
+        }
+    },
     "league/flysystem-bundle": {
         "version": "3.6",
         "recipe": {
