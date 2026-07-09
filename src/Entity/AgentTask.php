@@ -105,4 +105,25 @@ class AgentTask
     public function setResult(?array $r): self { $this->result = $r; return $this; }
 
     public function isTerminal(): bool { return in_array($this->status, self::TERMINAL_STATUSES, true); }
+
+    public function getStatusLabel(): string
+    {
+        return match ($this->status) {
+            self::STATUS_DONE => 'Hecho',
+            self::STATUS_FAILED => 'Fallido',
+            self::STATUS_UNCERTAIN => 'Sin confirmar',
+            default => 'En curso',
+        };
+    }
+
+    public function getTypeLabel(): string
+    {
+        return match ($this->type) {
+            self::TYPE_SUBMIT_REQUEST_PORTAL => 'Portal de Transparencia',
+            self::TYPE_SUBMIT_REQUEST_REG => 'Registro Electrónico (REG)',
+            self::TYPE_PRESENT_COMPLAINT => 'Reclamación (CTBG)',
+            self::TYPE_PRESENT_COMPLAINT_REG => 'Reclamación (REG)',
+            default => $this->type,
+        };
+    }
 }

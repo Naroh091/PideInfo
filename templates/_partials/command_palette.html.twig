@@ -352,7 +352,7 @@ function commandPalette() {
         { title: 'Ir a Resoluciones',       subtitle: 'Repositorio de resoluciones del CTBG',   icon: 'scale',         tone: 'tone-amber',   href: '{{ path('app_resoluciones_index') }}' },
         { title: 'Ir a Guías',              subtitle: 'Documentación y tutoriales',             icon: 'book-open',     tone: 'tone-slate',   href: '{{ path('app_guias_index') }}' },
         { title: 'Notificaciones',          subtitle: 'Bandeja de actividad',                   icon: 'bell',          tone: 'tone-slate',   href: '{{ path('app_notificaciones_index') }}' },
-        { title: 'Conectar agente',         subtitle: 'Token para el agente de portal',         icon: 'link',          tone: 'tone-primary', href: '#', event: 'open-agent-token-modal' },
+        { title: 'Agente',                  subtitle: 'Conectar el agente y ver sus tareas',    icon: 'bot',           tone: 'tone-primary', href: '{{ path('app_agente') }}' },
         { title: 'Servidor MCP',            subtitle: 'Conexión MCP para asistentes IA',        icon: 'cpu',           tone: 'tone-primary', href: '#', event: 'open-mcp-info-modal' },
     ];
     return {

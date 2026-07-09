@@ -691,6 +691,38 @@ body {
   }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Page header — la cabecera canónica de una sección de la app.
+   Antes estaba copiada en cada plantilla con un prefijo distinto
+   (.docs-header, .listas-header, .comms-header). Ver design/README.md.
+   ───────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgb(226 232 240);
+}
+
+.page-title {
+  font-family: 'DM Serif Display', Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(1.75rem, 3.5vw, 2.4rem);
+  line-height: 1.05;
+  letter-spacing: -.015em;
+  color: rgb(15 23 42);
+}
+
+.page-sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: .92rem;
+  color: rgb(100 116 139);
+  margin-top: .35rem;
+}
+
 /* Modern card styles */
 .card {
   @apply bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden transition-shadow duration-200;

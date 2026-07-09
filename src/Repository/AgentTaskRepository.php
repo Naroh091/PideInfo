@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\AgentTask;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\Tools\Pagination\Paginator;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
 
@@ -83,6 +84,80 @@ class AgentTaskRepository extends ServiceEntityRepository
             ->orderBy('t.createdAt', 'DESC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * Estados que agrupa cada valor del filtro `?estado=` de /perfil/agente.
+     * Sirve además de lista blanca: una clave desconocida significa "sin filtro".
+     */
+    public const STATUS_GROUPS = [
+        'en_curso' => [AgentTask::STATUS_PENDING, AgentTask::STATUS_CLAIMED, AgentTask::STATUS_IN_PROGRESS],
+        'done' => [AgentTask::STATUS_DONE],
+        'failed' => [AgentTask::STATUS_FAILED],
+        'uncertain' => [AgentTask::STATUS_UNCERTAIN],
+    ];
+
+    /**
+     * Historial paginado de tareas del usuario, de la más reciente a la más
+     * antigua. La solicitud se trae en la misma query: la vista pinta un enlace
+     * por tarea y sin el join haría N+1.
+     *
+     * @return array{items: AgentTask[], total: int}
+     */
+    public function findForUserPaginated(User $user, ?string $statusGroup, int $page, int $perPage = 25): array
+    {
+        $qb = $this->createQueryBuilder('t')
+            ->leftJoin('t.accessRequest', 'r')
+            ->addSelect('r')
+            ->andWhere('t.user = :user')
+            ->setParameter('user', $user)
+            ->orderBy('t.createdAt', 'DESC');
+
+        $statuses = self::STATUS_GROUPS[$statusGroup] ?? null;
+        if ($statuses !== null) {
+            $qb->andWhere('t.status IN (:statuses)')->setParameter('statuses', $statuses);
+        }
+
+        $qb->setFirstResult(($page - 1) * $perPage)->setMaxResults($perPage);
+
+        $paginator = new Paginator($qb->getQuery(), fetchJoinCollection: false);
+
+        return [
+            'items' => iterator_to_array($paginator),
+            'total' => count($paginator),
+        ];
+    }
+
+    /**
+     * Nº de tareas del usuario por grupo de estado, más la clave `todas`.
+     * Alimenta los contadores de los chips de filtro.
+     *
+     * @return array<string,int>
+     */
+    public function countByStatusGroupForUser(User $user): array
+    {
+        $rows = $this->createQueryBuilder('t')
+            ->select('t.status AS status, COUNT(t.id) AS total')
+            ->andWhere('t.user = :user')
+            ->setParameter('user', $user)
+            ->groupBy('t.status')
+            ->getQuery()
+            ->getArrayResult();
+
+        $counts = array_fill_keys(array_keys(self::STATUS_GROUPS), 0);
+        $counts['todas'] = 0;
+
+        foreach ($rows as $row) {
+            $total = (int) $row['total'];
+            $counts['todas'] += $total;
+            foreach (self::STATUS_GROUPS as $group => $statuses) {
+                if (in_array($row['status'], $statuses, true)) {
+                    $counts[$group] += $total;
+                }
+            }
+        }
+
+        return $counts;
     }
 
     /**

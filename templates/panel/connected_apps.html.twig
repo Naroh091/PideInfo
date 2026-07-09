@@ -48,12 +48,10 @@
                 {% endif %}
 
                 <div class="flex flex-wrap gap-2 mt-4">
-                    <button type="button"
-                            @click="$dispatch('open-agent-token-modal')"
-                            class="btn btn-primary btn-sm">
+                    <a href="{{ path('app_agente') }}" class="btn btn-primary btn-sm">
                         <i data-lucide="key" class="w-4 h-4 mr-1"></i>
                         {{ agent.connected ? 'Generar nuevo token' : 'Conectar' }}
-                    </button>
+                    </a>
                     {% if agent.connected %}
                         <form method="post" action="{{ path('app_connected_apps_revoke_agent') }}"
                               onsubmit="return confirm('¿Revocar el token actual del agente? Tendrás que generar uno nuevo y reconectarlo en cada equipo.');">

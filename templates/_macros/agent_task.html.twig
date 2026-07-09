@@ -1,0 +1,16 @@
+{#
+    Píldora de estado de una AgentTask. Fuente única de los colores: la usan
+    tanto la ficha de solicitud (modal "Intentos de envío") como /perfil/agente.
+#}
+{% macro status_badge(task) %}
+    {%- if task.status == 'done' -%}
+        {%- set cls = 'bg-emerald-50 text-emerald-700 border-emerald-200' -%}
+    {%- elseif task.status == 'failed' -%}
+        {%- set cls = 'bg-red-50 text-red-700 border-red-200' -%}
+    {%- elseif task.status == 'uncertain' -%}
+        {%- set cls = 'bg-amber-50 text-amber-700 border-amber-200' -%}
+    {%- else -%}
+        {%- set cls = 'bg-sky-50 text-sky-700 border-sky-200' -%}
+    {%- endif -%}
+    <span class="text-xs font-medium px-2 py-0.5 rounded-full border {{ cls }}">{{ task.statusLabel }}</span>
+{% endmacro %}
