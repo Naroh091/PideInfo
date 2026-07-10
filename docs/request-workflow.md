@@ -154,10 +154,23 @@ Autónoma de Galicia"). El modal:
   nombre sino en la comunidad. Con facetas `nivel/comunidad/provincia` (opciones en
   `.../destinos-facetas.json`) y **paginación por offset** (carga más al hacer scroll con
   `IntersectionObserver`, más botón "Cargar más").
-- En la primera página, cuando hay pocas coincidencias literales, **prepende** sugerencias
+- Los resultados keyword se **ordenan por relevancia** (`match_rank` en `searchUnifiedCandidates`):
+  `0` nombre exacto, `1` prefijo de nombre, `2` todos los tokens en el `name`, `3` solo casa por
+  `dir3`/`comunidad`/`provincia`. Esto evita que una coincidencia exacta (p. ej. «AGENCIA TURISMO
+  DE GALICIA») quede sepultada por debajo de otras. Query vacía (modo browse) = `match_rank 0`
+  constante → orden alfabético como antes.
+- En la primera página, cuando hay pocas coincidencias literales, incorpora sugerencias
   semánticas del store `ai_reg_destinations` (`RegDestinationRetriever`), solo si no coinciden ya
   con el predicado keyword (para no duplicar entre páginas). Degrada a keyword si el store está
-  vacío.
+  vacío. El **orden final** de la mezcla es: coincidencias literales fuertes (`match_rank ≤ 2`) →
+  sugerencias semánticas → coincidencias literales débiles (`match_rank 3`), de modo que un match
+  exacto siempre supera a un hit semántico flojo, conservando las sugerencias como descubrimiento
+  por debajo.
+- **Trabajo futuro (no implementado):** exportar los destinos a Elasticsearch, replicando el stack
+  de `Resolution` (índice en `fos_elastica.yaml` con analizador español, listener + mensaje +
+  handler de indexación, query factory, worker de populate/consume). Daría relevancia léxica BM25,
+  tolerancia a erratas/derivaciones y autocompletado, pero es una construcción mucho mayor y aun
+  así necesitaría una política de mezcla léxico↔semántica, así que se aplaza.
 
 Cada candidato seleccionado se apila en el panel derecho; se pueden añadir varios. "Continuar"
 hace `POST /solicitudes/nueva/realizar/iniciar` (`app_solicitudes_realizar_initiate`) con
