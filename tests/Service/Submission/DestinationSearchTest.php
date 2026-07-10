@@ -6,12 +6,23 @@ namespace App\Tests\Service\Submission;
 
 use App\Entity\PublicBody;
 use App\Entity\RegDestination;
+use App\Repository\ApplicableLawRepository;
+use App\Repository\AutonomousCommunityRepository;
+use App\Repository\PublicBodyRepository;
 use App\Repository\RegDestinationRepository;
+use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\RegDestinationRetriever;
+use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\DestinationCandidate;
 use App\Service\Submission\DestinationSearch;
+use App\Service\Submission\DestinationSearchFilters;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 use ReflectionMethod;
+use Symfony\AI\Platform\Vector\Vector;
+use Symfony\AI\Store\Document\Metadata;
+use Symfony\AI\Store\Document\VectorDocument;
+use Symfony\AI\Store\StoreInterface;
 
 /**
  * Covers the pure, high-risk logic of the unified destination search: the
@@ -103,6 +114,95 @@ final class DestinationSearchTest extends TestCase
         $this->assertSame('50\\%', $m->invoke(null, '50%'));
         $this->assertSame('a\\\\b', $m->invoke(null, 'a\\b'));
         $this->assertSame('A12048934', $m->invoke(null, 'A12048934'));
+    }
+
+    /**
+     * The merge must rank strong literal keyword hits (match_rank <= 2) ABOVE the
+     * semantic suggestions, with weak facet-only keyword hits (match_rank 3) below —
+     * so the exact match "AGENCIA TURISMO DE GALICIA" is no longer buried under
+     * loosely-related semantic bodies.
+     */
+    public function testStrongKeywordHitsOutrankSemanticWhichOutrankWeakKeyword(): void
+    {
+        // A semantically-similar body that does NOT satisfy the keyword predicate
+        // (its name lacks "turismo"), so the boost keeps it.
+        $body = (new PublicBody())->setName('Consellería de Sanidade');
+        $semanticDest = (new RegDestination($body, 'S99', 'Consellería de Sanidade'))
+            ->setNivelAdministracion('Administración Autonómica');
+        $semanticId = $semanticDest->getId()->toRfc4122();
+
+        $regRepo = $this->createMock(RegDestinationRepository::class);
+        $regRepo->method('searchUnifiedCandidates')->willReturn([
+            $this->keywordRow('AGENCIA TURISMO DE GALICIA', matchRank: 1),
+            $this->keywordRow('SERVICIO CON GALICIA EN LA COMUNIDAD', matchRank: 3),
+        ]);
+        $regRepo->method('findByIds')->willReturn([$semanticId => $semanticDest]);
+        // Steer the (real) law resolver to the state-law branch, which we stub to null.
+        $regRepo->method('bodyHasStateLevelDestination')->willReturn(true);
+
+        // Real retriever wired to a stubbed vector store: the final class can't be
+        // doubled, but its collaborators can, so we feed it one scored document.
+        $embeddings = $this->createMock(EmbeddingGenerator::class);
+        $embeddings->method('generate')->willReturn([0.1, 0.2, 0.3]);
+        $store = $this->createMock(StoreInterface::class);
+        $store->method('query')->willReturn([
+            new VectorDocument($semanticId, new Vector([0.1, 0.2, 0.3]), new Metadata([
+                'regDestinationId' => $semanticId,
+                'text' => 'Consellería de Sanidade',
+            ]), 0.41),
+        ]);
+        $retriever = new RegDestinationRetriever($store, $embeddings, $regRepo);
+
+        $publicBodyRepo = $this->createMock(PublicBodyRepository::class);
+        $publicBodyRepo->method('find')->willReturn(null); // → applicableLaw null for keyword rows
+
+        // Real (final) resolver with stubbed repos: no community + no state law → null.
+        $lawRepo = $this->createMock(ApplicableLawRepository::class);
+        $lawRepo->method('findStateLaw')->willReturn(null);
+        $lawResolver = new ApplicableLawResolver(
+            $lawRepo,
+            $regRepo,
+            $this->createMock(AutonomousCommunityRepository::class),
+        );
+
+        $service = new DestinationSearch($regRepo, $publicBodyRepo, $lawResolver, $retriever);
+
+        $result = $service->search(
+            'agencia turismo galicia',
+            new DestinationSearchFilters(nivel: null, comunidad: null, provincia: null),
+            20,
+            0,
+        );
+
+        $this->assertCount(3, $result->items);
+        $this->assertSame('AGENCIA TURISMO DE GALICIA', $result->items[0]->name);
+        $this->assertFalse($result->items[0]->semantic, 'the strong literal match must rank first');
+        $this->assertTrue($result->items[1]->semantic, 'the semantic hit follows the strong match');
+        $this->assertSame('SERVICIO CON GALICIA EN LA COMUNIDAD', $result->items[2]->name);
+        $this->assertFalse($result->items[2]->semantic, 'the weak facet-only keyword hit sinks below the semantic hit');
+    }
+
+    /**
+     * @return array<string, mixed> a raw searchUnifiedCandidates() row
+     */
+    private function keywordRow(string $name, int $matchRank): array
+    {
+        return [
+            'kind' => 'reg',
+            'public_body_id' => '019e2dae-c1c1-7a02-a5d0-c51e321db269',
+            'reg_destination_id' => '019e2dae-c1ee-7c1f-8847-6c97925fd303',
+            'name' => $name,
+            'display_label' => $name,
+            'dir3_code' => 'A12025020',
+            'comunidad' => 'Galicia',
+            'provincia' => 'Coruña, A',
+            'nivel_administracion' => 'Administración Autonómica',
+            'oficina_dir3' => null,
+            'oficina_name' => null,
+            'raiz_dir3' => 'A12002994',
+            'raiz_name' => 'Comunidad Autónoma de Galicia',
+            'match_rank' => $matchRank,
+        ];
     }
 
     public function testToInitiateTargetRegVsPortal(): void

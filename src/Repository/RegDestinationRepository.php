@@ -34,8 +34,10 @@ class RegDestinationRepository extends ServiceEntityRepository
      *  - PORTAL: bodies with a `transparencyPortalAmbId` (nivel = estado).
      *
      * Matches by name (accent-insensitive) OR dir3 code. Empty $query = browse.
-     * Ordered by a unique composite key so OFFSET pagination is stable across
-     * "load more" pages. Pass $limit + 1 to detect a further page.
+     * Ordered first by relevance `match_rank` (0 exact name, 1 name prefix, 2 all
+     * tokens in the name, 3 matched only via dir3/comunidad/provincia) then by a
+     * unique composite key so OFFSET pagination is stable across "load more"
+     * pages. Pass $limit + 1 to detect a further page.
      *
      * @param string      $query      free-text term; '' = browse mode
      * @param string|null $nivelValue raw RegDestination.nivelAdministracion (already mapped from the UI key), or null
@@ -66,6 +68,8 @@ class RegDestinationRepository extends ServiceEntityRepository
 
         $regTokens = '';
         $portalTokens = '';
+        $regNameTokens = '';
+        $portalNameTokens = '';
         foreach ($tokens as $i => $token) {
             $p = 't' . $i;
             $params[$p] = '%' . self::escapeLike($token) . '%';
@@ -76,12 +80,37 @@ class RegDestinationRepository extends ServiceEntityRepository
             $portalTokens .= "\n                  AND ( unaccent(lower(pb.name)) LIKE unaccent(lower(:$p))"
                 . " OR lower(pb.dir3_code) LIKE lower(:$p)"
                 . " OR unaccent(lower(coalesce(ac.name, ''))) LIKE unaccent(lower(:$p)) )";
+            // Name-only variants feed the relevance rank (all query tokens in the name).
+            $regNameTokens .= " AND unaccent(lower(rd.name)) LIKE unaccent(lower(:$p))";
+            $portalNameTokens .= " AND unaccent(lower(pb.name)) LIKE unaccent(lower(:$p))";
+        }
+
+        // Relevance rank so exact/prefix/all-tokens-in-name matches beat rows that
+        // only matched via dir3/comunidad/provincia. Lower = better. Empty query
+        // (browse mode) has no tokens → constant rank, keeping alphabetical order.
+        if ($tokens === []) {
+            $regRank = '0';
+            $portalRank = '0';
+        } else {
+            $qfull = trim($query);
+            $params['qfull'] = $qfull;
+            $params['qprefix'] = self::escapeLike($qfull) . '%';
+            $regRank = "CASE"
+                . " WHEN unaccent(lower(rd.name)) = unaccent(lower(:qfull)) THEN 0"
+                . " WHEN unaccent(lower(rd.name)) LIKE unaccent(lower(:qprefix)) THEN 1"
+                . " WHEN (TRUE$regNameTokens) THEN 2"
+                . " ELSE 3 END";
+            $portalRank = "CASE"
+                . " WHEN unaccent(lower(pb.name)) = unaccent(lower(:qfull)) THEN 0"
+                . " WHEN unaccent(lower(pb.name)) LIKE unaccent(lower(:qprefix)) THEN 1"
+                . " WHEN (TRUE$portalNameTokens) THEN 2"
+                . " ELSE 3 END";
         }
 
         $sql = <<<SQL
             SELECT kind, public_body_id, reg_destination_id, name, display_label,
                    dir3_code, comunidad, provincia, nivel_administracion,
-                   oficina_dir3, oficina_name, raiz_dir3, raiz_name
+                   oficina_dir3, oficina_name, raiz_dir3, raiz_name, match_rank
             FROM (
                 SELECT
                     'reg'                         AS kind,
@@ -102,7 +131,8 @@ class RegDestinationRepository extends ServiceEntityRepository
                     rd.oficina_name               AS oficina_name,
                     raiz.dir3_code                AS raiz_dir3,
                     raiz.name                     AS raiz_name,
-                    lower(rd.name)                AS sort_name
+                    lower(rd.name)                AS sort_name,
+                    $regRank                      AS match_rank
                 FROM reg_destination rd
                 JOIN public_body tgt  ON tgt.id  = rd.submission_target_id
                 JOIN public_body raiz ON raiz.id = rd.public_body_id
@@ -128,7 +158,8 @@ class RegDestinationRepository extends ServiceEntityRepository
                     NULL                            AS oficina_name,
                     pb.dir3_code                    AS raiz_dir3,
                     pb.name                         AS raiz_name,
-                    lower(pb.name)                  AS sort_name
+                    lower(pb.name)                  AS sort_name,
+                    $portalRank                     AS match_rank
                 FROM public_body pb
                 LEFT JOIN autonomous_community ac ON ac.id = pb.autonomous_community_id
                 WHERE pb.transparency_portal_amb_id IS NOT NULL
@@ -136,7 +167,7 @@ class RegDestinationRepository extends ServiceEntityRepository
                   AND ( :comunidad::text IS NULL OR ac.name = :comunidad )
                   AND ( :provincia::text IS NULL )$portalTokens
             ) AS candidates
-            ORDER BY sort_name ASC, kind ASC, public_body_id ASC, reg_destination_id ASC NULLS FIRST
+            ORDER BY match_rank ASC, sort_name ASC, kind ASC, public_body_id ASC, reg_destination_id ASC NULLS FIRST
             LIMIT :limit OFFSET :offset
             SQL;
 
