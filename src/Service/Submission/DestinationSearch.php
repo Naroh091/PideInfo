@@ -15,15 +15,20 @@ use Symfony\Component\Uid\Uuid;
 /**
  * Unified, paginated, faceted search over submission destinations for the
  * picker modal: REG units (cross-body) ∪ Portal/AGE bodies, matched by name and
- * DIR3 code. On the first page, when literal matches are scarce, it prepends a
- * bounded set of semantically-similar REG destinations from the vector store
- * ({@see RegDestinationRetriever}) — degrading silently to keyword-only when the
- * store is empty. See docs/request-workflow.md.
+ * DIR3 code. Keyword hits are relevance-ranked (see the repository's `match_rank`):
+ * strong literal matches (exact name / prefix / all tokens in the name) sort to
+ * the top, then — on the first page, when literal matches are scarce — a bounded
+ * set of semantically-similar REG destinations from the vector store
+ * ({@see RegDestinationRetriever}), then weaker facet-only keyword matches. The
+ * semantic boost degrades silently to keyword-only when the store is empty.
+ * See docs/request-workflow.md.
  */
 final class DestinationSearch
 {
     /** Prepend semantic hits only when literal REG hits on page 0 fall below this. */
     private const LITERAL_THRESHOLD = 5;
+    /** Keyword hits at or below this match_rank (exact/prefix/all-tokens-in-name) outrank semantic hits. */
+    private const STRONG_MATCH_RANK = 2;
     /** Max semantic hits prepended on page 0. */
     private const SEMANTIC_CAP = 5;
     /** Over-fetch from the vector store so post-filtering still yields enough. */
@@ -62,22 +67,31 @@ final class DestinationSearch
 
         /** @var array<string, ?array{id: string, name: string, shortCode: string, deadlineLabel: string}> $lawCache */
         $lawCache = [];
-        $keyword = array_map(fn (array $row): DestinationCandidate => $this->candidateFromRow($row, $lawCache), $rows);
 
-        $prepended = [];
-        if ($offset === 0 && $q !== '') {
-            $literalReg = 0;
-            foreach ($keyword as $c) {
-                if ($c->kind === DestinationCandidate::KIND_REG) {
-                    ++$literalReg;
-                }
+        // Split the keyword hits by relevance: strong literal matches (exact name,
+        // name prefix, or all query tokens in the name — match_rank <= 2) rank above
+        // the semantic suggestions; weak facet-only matches (match_rank 3) fall below.
+        $strong = [];
+        $weak = [];
+        $literalReg = 0;
+        foreach ($rows as $row) {
+            $candidate = $this->candidateFromRow($row, $lawCache);
+            if ((int) $row['match_rank'] <= self::STRONG_MATCH_RANK) {
+                $strong[] = $candidate;
+            } else {
+                $weak[] = $candidate;
             }
-            if ($literalReg < self::LITERAL_THRESHOLD) {
-                $prepended = $this->semanticBoost($q, $nivelRaw, $comunidad, $provincia, $lawCache);
+            if ($candidate->kind === DestinationCandidate::KIND_REG) {
+                ++$literalReg;
             }
         }
 
-        $items = array_merge($prepended, $keyword);
+        $prepended = [];
+        if ($offset === 0 && $q !== '' && $literalReg < self::LITERAL_THRESHOLD) {
+            $prepended = $this->semanticBoost($q, $nivelRaw, $comunidad, $provincia, $lawCache);
+        }
+
+        $items = array_merge($strong, $prepended, $weak);
 
         return new DestinationSearchResult($items, $hasMore, $offset + $limit, count($items));
     }
