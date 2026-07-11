@@ -14,6 +14,9 @@ use App\Service\AI\Agent\Tool\SaveUserPreferenceTool;
 use App\Service\AI\Agent\Tool\SearchCriteriaTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsFilteredTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsTool;
+use App\Service\AI\Agent\Tool\ScrapeUrlTool;
+use App\Service\AI\Agent\Tool\VisitUrlTool;
+use App\Service\AI\Agent\Tool\WebSearchTool;
 use App\Service\AI\Chat\AssistantChatRequest;
 use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ContentPart;
@@ -163,6 +166,34 @@ Devuelve las preferencias de redacción del usuario. Úsala al inicio de una ses
 ### save_user_preference
 Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de estilo para TODAS sus redacciones futuras). Ver "Aprender preferencias de redacción del usuario".
 
+### web_search
+Busca en internet (Google, Bing, DuckDuckGo, Wikipedia, etc.) para obtener información que NO está en los documentos de la solicitud ni en el corpus de resoluciones. Devuelve el texto de la página de resultados Y una lista de URLs. Si necesitas el contenido completo de un resultado, pásalo a `visit_url`.
+
+**CÓMO USARLA:**
+- Úsala cuando necesites verificar si un organismo ya ha publicado la información solicitada (relevante para el límite art. 18.1.b "información publicada").
+- Para investigar el contexto legal de un organismo concreto, su estructura, competencias, o normativa aplicable.
+- Para comprobar datos públicos relevantes para la redacción (fechas de publicación en BOE, acuerdos de consejos de transparencia, etc.).
+- **NO la uses** para buscar doctrina del CTBG — para eso usa `search_resolutions` y `search_criteria`.
+- Motor por defecto: google. Alternativas: bing, duckduckgo, wikipedia, reddit, github.
+- **Flujo típico**: llama `web_search` para encontrar resultados, revisa las URLs devueltas, y usa `visit_url` con las que parezcan más relevantes para leer su contenido completo.
+
+### visit_url
+Visita una URL y extrae su contenido de texto usando el navegador (CamoFox). Úsala cuando el usuario adjunta o menciona un enlace, o cuando `web_search` devuelva una URL que necesitas leer a fondo. Útil para páginas que requieren interacción o JavaScript.
+
+**CÓMO USARLA:**
+- Cuando el usuario proporcione una URL (portales de transparencia, BOE/DOGC, webs de organismos públicos, etc.), visítala para leer su contenido antes de redactar.
+- Especialmente útil para verificar si la información solicitada ya está publicada en el portal del organismo (defensa art. 18.1.b).
+- Después de un `web_search`, usa `visit_url` con las URLs más relevantes de los resultados para leer el contenido completo antes de redactar.
+- Devuelve el texto de la página (máx. 15.000 caracteres) para que puedas citar datos concretos.
+
+### scrape_url
+Extrae el contenido de una URL de forma rápida y estructurada usando Crawl4AI. Devuelve markdown limpio y links. Es MÁS RÁPIDA que `visit_url` para lectura simple de páginas estáticas.
+
+**CÓMO USARLA:**
+- Para leer páginas estáticas (BOE, portales de transparencia, webs de organismos) sin necesidad de interactuar.
+- Cuando necesites extraer el contenido de una URL de la forma más rápida posible.
+- Para lectura de páginas con JavaScript complejo o que requieren interacción (clics, formularios), usa `visit_url` en su lugar.
+
 ---
 
 **Protocolo obligatorio para generar o reescribir un borrador:**
@@ -212,12 +243,15 @@ TXT;
         private readonly ReadRequestDocumentsTool $docTool,
         private readonly GetUserPreferencesTool $prefsTool,
         private readonly SaveUserPreferenceTool $savePrefTool,
+        private readonly WebSearchTool $webSearchTool,
+        private readonly VisitUrlTool $visitUrlTool,
+        private readonly ScrapeUrlTool $scrapeUrlTool,
         private readonly AgentProgress $agentProgress,
         private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
-        $toolInstances = [$searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool];
+        $toolInstances = [$searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool, $webSearchTool, $visitUrlTool, $scrapeUrlTool];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
     }
@@ -682,6 +716,9 @@ TXT;
             'read_request_documents' => 'Leyendo documentación de la solicitud…',
             'get_user_preferences'   => 'Cargando preferencias de redacción…',
             'save_user_preference'   => 'Aprendiendo preferencia…',
+            'web_search'             => 'Buscando en internet…',
+            'visit_url'              => 'Visitando página web…',
+            'scrape_url'             => 'Extrayendo contenido…',
             default                  => sprintf('Ejecutando %s…', $toolName),
         };
     }

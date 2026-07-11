@@ -73,6 +73,22 @@ services:
 
     App\Search\ResolutionSearchInterface: '@App\Search\FallbackResolutionSearch'
 
+    # CamoFox MCP client — browser automation for web search and URL visiting.
+    # Uses a scoped HttpClient so it can reach the camofox-mcp container on the
+    # Coolify network without affecting the default HttpClient used elsewhere.
+    App\Service\AI\Camofox\CamofoxMcpClient:
+        arguments:
+            $endpoint: '%env(CAMOFOX_MCP_ENDPOINT)%'
+            $apiKey: '%env(CAMOFOX_MCP_API_KEY)%'
+
+    # Crawl4AI client — fast structured web scraping via headless Chromium.
+    # Used by ScrapeUrlTool for one-shot URL extraction (markdown + links).
+    # Proxy is configured server-side in Crawl4AI's config.yml (Coolify volume).
+    App\Service\AI\Crawl4ai\Crawl4aiClient:
+        arguments:
+            $endpoint: '%env(CRAWL4AI_ENDPOINT)%'
+            $apiToken: '%env(CRAWL4AI_API_TOKEN)%'
+
 when@prod:
     services:
         Redis:
