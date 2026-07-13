@@ -2,6 +2,8 @@
 
 namespace App\Service\Document;
 
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Smalot\PdfParser\Parser;
 use Symfony\Component\Process\Exception\ProcessFailedException;
 use Symfony\Component\Process\Process;
@@ -23,14 +25,20 @@ class PdfTextExtractor
     private const MAX_TOKENS_PER_CHUNK = 1000;
     private const AVG_CHARS_PER_TOKEN = 4;
     private const PDFTOTEXT_BIN = 'pdftotext';
+
+    /** Below this, a page is too sparse to judge as gibberish (a cover page, a signature page). */
+    private const MIN_LETTERS_TO_JUDGE = 60;
     private const PDFTOTEXT_TIMEOUT = 60;
 
     private Parser $parser;
     private ?bool $popplerAvailable = null;
 
-    public function __construct()
+    private LoggerInterface $logger;
+
+    public function __construct(?LoggerInterface $logger = null)
     {
         $this->parser = new Parser();
+        $this->logger = $logger ?? new NullLogger();
     }
 
     /**
@@ -137,23 +145,53 @@ class PdfTextExtractor
 
     /**
      * Extract per-page text (1-indexed) WITHOUT the all-or-nothing readability
-     * discard used by extractPages(). Pages that have no text layer come back as
+     * discard used by extractPages(). Pages that have no usable text layer come back as
      * empty strings, so callers (e.g. the vision-OCR fallback) can detect exactly
      * which individual pages need OCR — even when the document as a whole is
      * unreadable (image-only scans).
+     *
+     * "No usable text layer" includes the layer that IS there and is gibberish. Plenty of CTBG
+     * PDFs embed subset fonts with no ToUnicode map, and poppler then returns a substitution
+     * cipher instead of nothing:
+     *
+     *     ZĞƐŽůƵĐŝſŶ ϭϲϵͬϮϬϮϬ        (= «Resolución 169/2020»)
+     *
+     * Those are letters, so a caller that merely counts characters sees a healthy page, skips the
+     * OCR fallback, and hands the cipher to an LLM. The LLM does not refuse it — it guesses a
+     * decoding and asserts it. R/0169/2020 reached production as «Crás en edificios de la Guardia
+     * Civil en la provincia de Sordá», citing an «artículo 125» and a «Real Decreto 111/2014» that
+     * do not exist (the PDF says Córdoba, artículo 12, RD 919/2014). Rasterizing those pages
+     * recovers the text perfectly; nobody was asking whether it was Spanish.
+     *
+     * Blanking them here rather than in the caller means EVERY consumer is protected — the vision
+     * fallback re-reads the page, and the ones that cannot OCR (document tools, embeddings) get
+     * nothing instead of a confident lie.
      *
      * @return array<int, string> Map of 1-indexed page number → raw page text.
      */
     public function extractPageTexts(string $filePath): array
     {
+        $pages = null;
+
         if ($this->isPopplerAvailable()) {
             $pages = $this->extractWithPoppler($filePath);
-            if ($pages !== null) {
-                return $pages;
+        }
+
+        $pages ??= $this->extractWithSmalot($filePath);
+
+        foreach ($pages as $number => $text) {
+            // Only judge pages with enough letters to judge: a sparse cover page is not gibberish,
+            // and the caller's own emptiness check already sends it to OCR if it needs it.
+            if (preg_match_all('/\p{L}/u', $text) >= self::MIN_LETTERS_TO_JUDGE && !$this->looksReadable($text)) {
+                $this->logger->warning('PdfTextExtractor: unreadable text layer, page blanked for OCR', [
+                    'file' => basename($filePath),
+                    'page' => $number,
+                ]);
+                $pages[$number] = '';
             }
         }
 
-        return $this->extractWithSmalot($filePath);
+        return $pages;
     }
 
     /**
