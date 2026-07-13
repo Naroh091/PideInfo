@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Entity\Resolution;
+use App\Message\ProcessResolutionMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\Resolution\ResolutionAnalyzer;
@@ -21,6 +22,7 @@ use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
@@ -66,6 +68,7 @@ final class ReprocessTruncatedResolutionsCommand extends Command
         #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $vectorStore,
         private readonly LoggerInterface $logger,
+        private readonly MessageBusInterface $messageBus,
     ) {
         parent::__construct();
     }
@@ -77,7 +80,8 @@ final class ReprocessTruncatedResolutionsCommand extends Command
             ->addOption('reference', null, InputOption::VALUE_REQUIRED, 'Una resolución concreta, por su referencia')
             ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Filtra por fuente (CTBG, GAIP…)')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Máximo de resoluciones a tocar')
-            ->addOption('vision', null, InputOption::VALUE_NONE, 'Fuerza transcripción por visión al re-extraer');
+            ->addOption('vision', null, InputOption::VALUE_NONE, 'Fuerza transcripción por visión al re-extraer')
+            ->addOption('async', null, InputOption::VALUE_NONE, 'Despacha la reconstrucción a los workers en vez de hacerla inline');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -85,6 +89,7 @@ final class ReprocessTruncatedResolutionsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $apply = (bool) $input->getOption('apply');
         $vision = (bool) $input->getOption('vision');
+        $async = (bool) $input->getOption('async');
         $limit = $input->getOption('limit') !== null ? max(1, (int) $input->getOption('limit')) : null;
 
         $qb = $this->resolutionRepository->createQueryBuilder('r')->orderBy('r.referenceNumber', 'ASC');
@@ -139,6 +144,19 @@ final class ReprocessTruncatedResolutionsCommand extends Command
                 continue;
             }
 
+            if ($async) {
+                // forceDownload: the text is NOT empty (it is corrupt), so without it the handler
+                // would skip the download and re-analyse exactly the same corruption.
+                $this->messageBus->dispatch(new ProcessResolutionMessage(
+                    resolutionId: $resolution->getId(),
+                    forceAnalysis: true,
+                    forceDownload: true,
+                    forceVision: $vision,
+                ));
+                ++$repaired;
+                continue;
+            }
+
             $io->section($resolution->getReferenceNumber() . ' — ' . $reason);
             $before = mb_strlen($resolution->getFullText());
             $beforeOutcome = $resolution->getOutcome();
@@ -174,7 +192,9 @@ final class ReprocessTruncatedResolutionsCommand extends Command
             return Command::SUCCESS;
         }
 
-        $io->success(sprintf('%d reconstruidas desde el PDF de origen.', $repaired));
+        $io->success($async
+            ? sprintf('%d despachadas a los workers (transporte async).', $repaired)
+            : sprintf('%d reconstruidas desde el PDF de origen.', $repaired));
         if ($unrepairable > 0) {
             $io->warning(sprintf('%d truncadas sin sourceUrl: su texto no es recuperable.', $unrepairable));
         }

@@ -83,7 +83,7 @@ final class ProcessResolutionHandler
             // Step 1: Download/extract PDF text
             if ($message->forceReExtractText) {
                 $this->reExtractTextFromStorage($resolution, $message->forceVision);
-            } elseif (!$message->skipPdf && $resolution->getSourceUrl() && empty(trim($resolution->getFullText()))) {
+            } elseif (!$message->skipPdf && $resolution->getSourceUrl() && ($message->forceDownload || empty(trim($resolution->getFullText())))) {
                 $this->downloadAndProcessPdf($resolution, $message->forceVision);
             }
         } catch (\Exception $e) {
