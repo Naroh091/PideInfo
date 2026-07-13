@@ -2,6 +2,8 @@
 
 namespace App\Search;
 
+use App\Service\Judgment\JudicialStatus;
+
 use Elastica\Aggregation\Avg;
 use Elastica\Aggregation\Cardinality;
 use Elastica\Aggregation\Terms;
@@ -11,6 +13,7 @@ use Elastica\Query\MatchAll;
 use Elastica\Query\MultiMatch;
 use Elastica\Query\Range;
 use Elastica\Query\Term;
+use Elastica\Query\Terms as TermsQuery;
 
 /**
  * Translates a ResolutionSearchQuery into an Elastica query.
@@ -131,6 +134,12 @@ final class ResolutionElasticaQueryFactory
 
         if ($query->inadmissionCause !== '') {
             $bool->addFilter(new Term(['inadmissionCauses' => $query->inadmissionCause]));
+        }
+
+        // One filter option ("anulada") covers several stored codes, because the direction of an
+        // annulment lives in the code — the user should not have to know that to ask for it.
+        if ($query->judicialStatus !== '') {
+            $bool->addFilter(new TermsQuery('judicialStatus', JudicialStatus::codesForFilter($query->judicialStatus)));
         }
 
         if ($query->publicBody !== '') {

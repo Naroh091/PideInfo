@@ -12,6 +12,7 @@ use App\Service\AI\Agent\Tool\FindLawTool;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
 use App\Service\AI\Agent\Tool\ReadLawArticlesTool;
 use App\Service\AI\Agent\Tool\ReadRequestDocumentsTool;
+use App\Service\AI\Agent\Tool\SearchJudgmentsTool;
 use App\Service\AI\Agent\Tool\SearchLegislationTool;
 use App\Service\AI\Agent\Tool\SaveUserPreferenceTool;
 use App\Service\AI\Agent\Tool\SearchCriteriaTool;
@@ -158,6 +159,14 @@ Busca resoluciones por **filtros exactos de metadatos** (organismo emisor, admin
 - Como complemento cuando `search_resolutions` no encuentra nada: una pasada filtrada por el límite/causa concreta (`invokedLimit`/`inadmissionCause`) puede sacar doctrina que la búsqueda semántica no recuperó.
 - **NO sustituye a `search_resolutions` para fundamentar argumentos**: esta herramienta no lee los textos ni valora la aplicabilidad. Lo que encuentres aquí, verifícalo antes de citarlo como doctrina.
 
+### search_judgments
+Busca **SENTENCIAS** (Juzgados Centrales, Audiencia Nacional, Tribunal Supremo) dictadas en recursos contra resoluciones del CTBG. Es la fuente de mayor jerarquía disponible: **sentencia firme del TS > AN > instancia > criterio del CTBG > resolución del CTBG**.
+
+**CÓMO USARLA:**
+- Llámala **junto a `search_resolutions` y `search_criteria`, una vez por argumento**: una resolución favorable + una sentencia que la confirma es un fundamento casi inatacable.
+- Cada sentencia llega con su **sentido** (PRO acceso / CONTRA el acceso / neutra) y su efecto sobre la resolución recurrida. Una sentencia CONTRA el acceso también te sirve: es la doctrina que la Administración citará, y conviene anticiparla y distinguir el caso.
+- **NUNCA inventes un ECLI, un número de sentencia ni un fundamento jurídico.** Si la sentencia devuelta no trae ECLI, cítala por número y fecha tal como aparece.
+
 ### search_criteria
 Busca **Criterios Interpretativos del CTBG** (p. ej. CI/006/2015 sobre información auxiliar) que definan cómo interpretar el límite o la causa de inadmisión invocada. Son doctrina fundacional, a menudo la base más sólida para desmontar el argumento de la Administración.
 
@@ -284,6 +293,7 @@ TXT;
         private readonly FindLawTool $findLawTool,
         private readonly SearchLegislationTool $searchLegislationTool,
         private readonly ReadLawArticlesTool $readLawArticlesTool,
+        private readonly SearchJudgmentsTool $searchJudgmentsTool,
         private readonly AgentProgress $agentProgress,
         private readonly Tracer $tracer,
         private readonly Security $security,
@@ -293,6 +303,7 @@ TXT;
             $searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool,
             $webSearchTool, $visitUrlTool, $scrapeUrlTool,
             $findLawTool, $searchLegislationTool, $readLawArticlesTool,
+            $searchJudgmentsTool,
         ];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
@@ -361,16 +372,20 @@ TXT;
             : [];
 
         // ── Deterministic pre-calls ──────────────────────────────────────────
-        yield from $this->runDeterministicPreCalls($req, $messages);
+        $isFirstAssistantTurn = $this->isFirstAssistantTurn($req);
+        yield from $this->runDeterministicPreCalls($req, $messages, $isFirstAssistantTurn);
 
         // ── Optional tool-calling loop (model-driven) ────────────────────────
-        // Iter=0: force read_request_documents so the model knows the administration's
-        // specific denial arguments BEFORE searching for relevant resolutions.
-        // Iter=1+: auto — model calls search_resolutions per argument it identified.
+        // First turn of the conversation, iter=0: force read_request_documents so
+        // the model knows the administration's specific denial arguments BEFORE
+        // searching for relevant resolutions. Later turns skip the forced read —
+        // it burned an extra LLM roundtrip per turn re-reading the same documents
+        // (or confirming there are none); the tool stays available in auto mode
+        // and the model re-reads spontaneously when it needs them.
         $toolIterations = 0;
         $toolLoopDecision = null; // may hold a valid DECISION_SCHEMA from the loop
         while ($toolIterations < self::MAX_TOOL_ITERATIONS) {
-            $toolChoice = $toolIterations === 0
+            $toolChoice = ($toolIterations === 0 && $isFirstAssistantTurn)
                 ? ['type' => 'function', 'function' => ['name' => 'read_request_documents']]
                 : 'auto';
 
@@ -607,12 +622,17 @@ TXT;
      * @param list<array<string, mixed>> &$messages
      * @return \Generator yields ['step', ...] events
      */
-    private function runDeterministicPreCalls(AssistantChatRequest $req, array &$messages): \Generator
+    private function runDeterministicPreCalls(AssistantChatRequest $req, array &$messages, bool $showSteps = true): \Generator
     {
         $contextParts = [];
 
-        // 1. User writing preferences.
-        yield ['step', ['message' => 'Cargando preferencias de redacción…', 'tool' => 'get_user_preferences']];
+        // 1. User writing preferences. Injected every turn (the context block is
+        // per-turn, it does not accumulate in the persisted history), but the
+        // progress step is only surfaced on the conversation's first turn —
+        // repeating "Cargando preferencias…" on every message reads as rework.
+        if ($showSteps) {
+            yield ['step', ['message' => 'Cargando preferencias de redacción…', 'tool' => 'get_user_preferences']];
+        }
         try {
             $prefs = ($this->prefsTool)();
             if ($prefs !== '' && !str_contains($prefs, 'no ha configurado')) {
@@ -620,7 +640,9 @@ TXT;
             }
         } catch (\Throwable) {}
         foreach ($this->agentProgress->drain() as $step) {
-            yield ['step', $step];
+            if ($showSteps) {
+                yield ['step', $step];
+            }
         }
 
         // read_request_documents is intentionally NOT pre-called here:
@@ -637,6 +659,22 @@ TXT;
             . implode("\n\n---\n\n", $contextParts);
         $messages[] = ['role' => 'assistant', 'content' => $contextBlock];
         $messages[] = ['role' => 'user',      'content' => 'Gracias. Procede ahora siguiendo las instrucciones del sistema.'];
+    }
+
+    /**
+     * First response of the conversation: no assistant turn in the persisted
+     * history yet. Gates the forced document read and the visible pre-call
+     * steps — later turns already carry that context (or can re-fetch it via
+     * tools in auto mode).
+     */
+    private function isFirstAssistantTurn(AssistantChatRequest $req): bool
+    {
+        foreach ($req->history as $message) {
+            if ($message->role === 'assistant') {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -761,6 +799,7 @@ TXT;
             'web_search'             => 'Buscando en internet…',
             'visit_url'              => 'Visitando página web…',
             'scrape_url'             => 'Extrayendo contenido…',
+            'search_judgments'       => 'Buscando jurisprudencia…',
             'find_law'               => 'Localizando la norma aplicable…',
             'search_legislation'     => 'Consultando el texto de la ley…',
             'read_law_articles'      => 'Leyendo el articulado…',

@@ -10,6 +10,7 @@ The inbound email pipeline is in docs/inbound-email.md
 The MCP server (HTTP transport + OAuth2) is in docs/mcp.md
 The Elasticsearch-backed resolution search is in docs/search.md
 The legal framework (legalize-es corpus, `find_law`/`search_legislation`/`read_law_articles`) is in docs/legal-framework.md
+The judgment corpus (CTBG recursos, `search_judgments`, the resolution↔judgment cross) is in docs/judgments.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 
 
@@ -26,6 +27,9 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 - `legal_article` is written **only** by `LegalArticleIndexer`, through bulk DBAL. Never add a Doctrine index listener for it: the writes bypass the UnitOfWork and the listener would be blind. Indexing is dispatched explicitly, per norm (`IndexLegalNormMessage`).
 - The agent must never cite a legal article it has not read through `search_legislation` or `read_law_articles` in the same conversation. If you touch `TOOLS_PREAMBLE`, keep that rule intact — article numbers and deadlines change with every reform.
 - `/var/data/legalize` is **read-only** for the application. `LegalizeRepositoryManager` does `git reset --hard`, which is only safe as long as nothing in the app ever writes inside that checkout.
+- Every judgment vector's metadata is built by `JudgmentVectorizer::baseMetadata()` and nowhere else — `judgment_id` must always be present or the retriever silently discards the vector. `JudgmentProcessor` is the ONLY processing path for judgments (command inline and `ProcessJudgmentHandler` both call it); never add processing logic to the command or the handler directly.
+- `resolution.judicial_status` is derived data with EXACTLY ONE writer: `ResolutionJudicialStatusUpdater` (through the ORM, so `ResolutionIndexListener` reindexes). `JudicialStatus::of()` is the only classifier — the agent block, the `/resoluciones/{id}` banner and sidebar, and the listing cards all read its verdict; never re-derive it (least of all in Twig). After importing/re-analysing judgments run `app:judgments:refresh-status` + `fos:elastica:populate --index=resolutions`.
+- Product rule: a resolution annulled by a final judgment must NEVER be presented as favourable precedent — `JudicialHistoryAnnotator` enforces it in the agent (`search_resolutions`) and the `/resoluciones/{id}` banner enforces it for humans. If you touch either, keep the annulment warning FIRST, before anything that makes the resolution look citable.
 - OAuth2 secrets (`var/oauth/*.key`, `OAUTH_ENCRYPTION_KEY`) are environment-specific; never commit them. The repo carries dev-only keys generated locally.
 - **Never make a commit without David's explicit confirmation.** Write code, run tests, show the diff — but do not `git commit` or `git push` until David says it's OK.
 

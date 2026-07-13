@@ -27,6 +27,7 @@ final class ResolutionAnalyzer
         private readonly Tracer $tracer,
         private readonly PromptStore $promptStore,
         private readonly PdfRasterizer $pdfRasterizer,
+        private readonly OutcomeReconciler $outcomeReconciler,
     ) {
     }
 
@@ -208,7 +209,13 @@ final class ResolutionAnalyzer
                 label: 'resolution.formatText',
             ));
 
-            return ['formatted_text' => $result['formatted_text']];
+            return ['formatted_text' => $this->keepOrDegrade(
+                (string) $result['formatted_text'],
+                $cleanedText,
+                null,
+                $cleanedText,
+                'resolution.formatText',
+            )];
         }
 
         $pieces = [];
@@ -229,7 +236,13 @@ final class ResolutionAnalyzer
                     flex: $flex,
                     label: $label,
                 ));
-                $pieces[] = trim((string) $result['formatted_text']);
+                $pieces[] = trim($this->keepOrDegrade(
+                    (string) $result['formatted_text'],
+                    $chunkText,
+                    $chunk['header'],
+                    $chunk['body'],
+                    $label,
+                ));
             } catch (\Throwable $e) {
                 $this->logger->warning(sprintf(
                     'formatText chunk %d/%d failed, using degraded fallback',
@@ -241,6 +254,51 @@ final class ResolutionAnalyzer
         }
 
         return ['formatted_text' => implode("\n\n", array_filter($pieces, static fn ($p) => $p !== ''))];
+    }
+
+    /**
+     * Refuses to store a reformatting that lost the end of the document.
+     *
+     * What we save as `Resolution::$fullText` is NOT the extracted text — it is this HTML, produced
+     * by an LLM. So when the generation stops mid-stream, the tail of the resolution is gone from
+     * the database for good, and **the tail is where the fallo lives**. R/0701/2018 (BOSCO) is
+     * stored ending on an open `<blockquote>`, mid-quote, with no dispositivo at all: no later
+     * analysis, tie-break or retrieval can possibly know what the Council decided, because nobody
+     * ever saved it. Two rows in 45,891 corpus-wide — rare, and one of them is the case that
+     * mattered most.
+     *
+     * The two signatures below cannot happen to a complete document, so a hit means truncation, and
+     * we fall back to the deterministic (ugly but LOSSLESS) formatter instead.
+     */
+    private function keepOrDegrade(
+        string $formatted,
+        string $source,
+        ?string $header,
+        string $body,
+        string $label,
+    ): string {
+        $trimmed = trim($formatted);
+
+        // 1. It ends on an OPENING tag: the stream stopped mid-element.
+        $endsOpen = preg_match('/<(p|blockquote|li|ol|ul|strong|em|h[1-6])>$/', $trimmed) === 1;
+
+        // 2. It carries far less prose than it was given. Formatting adds markup; it never halves
+        //    the text. (Generous threshold: reformatting legitimately drops headers and footers.)
+        $plain = trim(html_entity_decode(strip_tags($trimmed)));
+        $tooShort = mb_strlen($plain) < mb_strlen(trim($source)) * 0.6;
+
+        if (!$endsOpen && !$tooShort) {
+            return $formatted;
+        }
+
+        $this->logger->error('formatText returned a truncated document; keeping the raw text instead', [
+            'label' => $label,
+            'reason' => $endsOpen ? 'ends_on_open_tag' : 'lost_more_than_40_percent',
+            'source_chars' => mb_strlen($source),
+            'formatted_plain_chars' => mb_strlen($plain),
+        ]);
+
+        return self::buildDegradedFormattedHtml($header, $body);
     }
 
     private function buildFormatTextSystemPrompt(): CompiledPrompt
@@ -1033,6 +1091,8 @@ FOOTER;
         $meta = $resolution->getSourceMetadata() ?? [];
 
         if (in_array($llmOutcome, $validOutcomes, true)) {
+            $llmOutcome = $this->reconcileContradiction($resolution, $llmOutcome, $meta);
+
             $current = $resolution->getOutcome();
             if ($current !== $llmOutcome) {
                 $meta[Resolution::META_OUTCOME_OVERRIDEN] = [
@@ -1040,12 +1100,135 @@ FOOTER;
                     'new' => $llmOutcome,
                 ];
                 $resolution->setOutcome($llmOutcome);
-                $resolution->setSourceMetadata($meta);
             }
+
+            $resolution->setSourceMetadata($meta);
+
             return;
         }
 
         $meta[Resolution::META_OUTCOME_RAW] = mb_substr($llmOutcome, 0, 200);
         $resolution->setSourceMetadata($meta);
+    }
+
+    /**
+     * The model contradicting itself, caught deterministically and for free.
+     *
+     * R/0701/2018 (BOSCO) is the case that exposed it: the analysis labelled the outcome
+     * `favorable` while its OWN summary said «el Consejo estima parcialmente la reclamación,
+     * denegando solo el código fuente». The label came from the fallo's opening «ESTIMAR la
+     * reclamación» and missed the carve-out that follows — and it then overwrote the `partial`
+     * the CTBG listing had got right.
+     *
+     * When the two disagree, the summary wins: it is the model's reading of the whole dispositivo,
+     * not of its first line. A resolution that denies part of what was asked is `partial`, and
+     * calling it `favorable` overstates it as precedent — which is exactly what the agent cites.
+     *
+     * @param array<string, mixed> $meta
+     */
+    private function reconcileContradiction(Resolution $resolution, string $llmOutcome, array &$meta): string
+    {
+        $reason = self::contradiction($resolution, $llmOutcome);
+
+        if ($reason === null) {
+            return $llmOutcome;
+        }
+
+        // Detection is ours; the VERDICT is not. Overruling the model with a regex — or with the
+        // listing — would be worse than the bug: neither has read the resolution. The one that
+        // decides is the model, in a second turn, looking at the fallo it demonstrably did not
+        // weigh the first time.
+        $verdict = $this->outcomeReconciler->reconcile($resolution, $llmOutcome, $reason);
+
+        if ($verdict === null) {
+            // Could not re-ask (no text, model down, answer out of vocabulary). Keep what we had
+            // and FLAG it — a silent guess is exactly how this bug got in.
+            $meta[Resolution::META_OUTCOME_SELF_CONTRADICTED] = [
+                'label' => $llmOutcome,
+                'reason' => $reason,
+                'resolved' => false,
+            ];
+
+            return $llmOutcome;
+        }
+
+        $meta[Resolution::META_OUTCOME_SELF_CONTRADICTED] = [
+            'label' => $llmOutcome,
+            'reason' => $reason,
+            'resolved' => true,
+            'outcome' => $verdict['outcome'],
+            'reasoning' => $verdict['reasoning'],
+        ];
+
+        return $verdict['outcome'];
+    }
+
+    /**
+     * Is this outcome contradicted by something we already know? Returns the reason, or null.
+     *
+     * Single definition, shared by the ingestion gate above and by
+     * `app:resolutions:fix-contradicted-outcomes`, which re-asks the corpus analysed before the
+     * gate existed. Both signals were measured against the live corpus:
+     *
+     * - **self** (23 rows): the model's own summary says the Council estimated the reclamación
+     *   PARTIALLY, while its label says `favorable`. It contradicts itself in a single pass.
+     * - **source** (86 rows): the council's own listing said `partial` and the model demoted it to
+     *   a total outcome. Demoting is destroying information, and it is exactly what happened to
+     *   R/0701/2018 (BOSCO). The listing is not gospel — the override is right far more often than
+     *   not (it ADDS the parcialidad the listing lacks 1,488 times) — but on this specific axis a
+     *   disagreement is worth one cheap question.
+     *
+     * A third signal was measured and REJECTED: `favorable` whose summary contains «deniega» or
+     * «rechaza» (4,059 rows). Almost always it is the ADMINISTRATION doing the denying — which is
+     * why there is a reclamación at all — so it flags the whole corpus and means nothing.
+     */
+    public static function contradiction(Resolution $resolution, string $label): ?string
+    {
+        // Only total outcomes can be overstating a partial one.
+        if (!in_array($label, [Resolution::OUTCOME_FAVORABLE, Resolution::OUTCOME_UNFAVORABLE], true)) {
+            return null;
+        }
+
+        if (self::summarySaysPartial($resolution->getSummary())) {
+            return 'self';
+        }
+
+        // What the source listing published. Before the override it is still the stored outcome;
+        // after it, only the metadata remembers.
+        $meta = $resolution->getSourceMetadata() ?? [];
+        $imported = $meta[Resolution::META_OUTCOME_OVERRIDEN]['previous'] ?? $resolution->getOutcome();
+
+        return $imported === Resolution::OUTCOME_PARTIAL ? 'source' : null;
+    }
+
+    /**
+     * Does this summary state an explicit partial estimation **of the reclamación**?
+     *
+     * Single definition, shared by the gate above and by
+     * `app:resolutions:fix-contradicted-outcomes`, which repairs the corpus analysed before the
+     * gate existed.
+     *
+     * The OBJECT matters more than the verb, and it is the whole trap. These summaries are full of
+     * «la Administración estimó parcialmente **la solicitud**» — that is the body partially granting
+     * the original request, which is one of the reasons a reclamación ends up DISMISSED (the Council
+     * finds nothing left to order). Reading that as a partial estimation would flip an `unfavorable`
+     * into a `partial` and invent a win that never happened. So the object must be the RECLAMACIÓN,
+     * which only the Council decides.
+     *
+     * «DESestima parcialmente la reclamación» counts too, and deliberately: dismissing a claim in
+     * part is estimating it in part. Neither a total win nor a total loss — that is what `partial`
+     * means.
+     */
+    public static function summarySaysPartial(string $summary): bool
+    {
+        return preg_match(
+            // «(el Consejo) estima|desestima parcialmente la reclamación»
+            '/\b(?:des)?estim(?:a|ar|ando|ó|adas?)\s+parcialmente\s+(?:la\s+)?reclamaci[óo]n'
+            // «parcialmente estimada|desestimada la reclamación»
+            . '|\bparcialmente\s+(?:(?:des)?estimad\w+\s+)?la\s+reclamaci[óo]n'
+            // «estimación|desestimación parcial de la reclamación»
+            . '|\b(?:des)?estimaci[óo]n\s+parcial\s+de\s+la\s+reclamaci[óo]n/iu',
+            $summary,
+        ) === 1;
     }
 }

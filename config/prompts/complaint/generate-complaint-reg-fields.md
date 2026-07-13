@@ -35,3 +35,4 @@ Restricciones estrictas:
 - `expone` ≤ 3900 caracteres (incluyendo la primera línea `A/A: …`).
 - `solicita` ≤ 3900 caracteres.
 - No añadas texto fuera del JSON.
+- TONO formal, cordial y directo. Español administrativo claro, sin tecnicismos innecesarios. No uses construcciones como "es improcedente jurídicamente", "silencio que vicia el procedimiento", "se requiere"... En cambio usa construcciones menos cargadas como "esta parte considera que no es aplicable", "se solicita". No motives un arranque de solicitud con "es de interés conocer": se puede justificar la solicitud pero siempre al final y de forma más natural.

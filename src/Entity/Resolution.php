@@ -3,6 +3,9 @@
 namespace App\Entity;
 
 use App\Repository\ResolutionRepository;
+use App\Service\Judgment\JudicialStatus;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Types\UuidType;
@@ -16,6 +19,7 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Index(columns: ['source'], name: 'idx_resolution_source')]
 #[ORM\Index(columns: ['entry_year'], name: 'idx_resolution_entry_year')]
 #[ORM\Index(columns: ['entity_type'], name: 'idx_resolution_entity_type')]
+#[ORM\Index(columns: ['judicial_status'], name: 'idx_resolution_judicial_status')]
 #[ORM\UniqueConstraint(columns: ['reference_number', 'source'], name: 'uniq_reference_source')]
 class Resolution
 {
@@ -59,6 +63,9 @@ class Resolution
     // Source metadata keys for outcome tracking
     public const META_OUTCOME_OVERRIDEN = 'OUTCOME_OVERRIDEN';
     public const META_OUTCOME_RAW = 'OUTCOME_RAW';
+
+    /** The analysis labelled an outcome its own summary contradicted; we kept the summary's. */
+    public const META_OUTCOME_SELF_CONTRADICTED = 'OUTCOME_SELF_CONTRADICTED';
 
     // Sources
     public const SOURCE_CTBG = 'CTBG';
@@ -139,6 +146,32 @@ class Resolution
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?GeminiBatchJob $batchJob = null;
 
+    /**
+     * The judgments handed down in the appeals against this resolution — the inverse side of
+     * the link Judgment owns.
+     *
+     * Lazy by design, and only safe to touch on a single-resolution page: reaching for it from
+     * a listing or from the retriever would fire one query per row. Marking it EAGER would not
+     * help — Doctrine loads an eager to-many with one SELECT per owner, so a 50-card page pays
+     * the same 50 queries, just sooner. That is what $judicialStatus is for.
+     *
+     * @var Collection<int, Judgment>
+     */
+    #[ORM\ManyToMany(targetEntity: Judgment::class, mappedBy: 'resolutions')]
+    private Collection $judgments;
+
+    /**
+     * The verdict of {@see JudicialStatus::of()}, denormalized so that listings and Elasticsearch
+     * can have it for free: a card renders its badge from this column alone (zero queries), and the
+     * public filter can ask for "anuladas" — you cannot filter in ES by something that is not in
+     * the index.
+     *
+     * Written ONLY by ResolutionJudicialStatusUpdater, through the ORM so that
+     * ResolutionIndexListener sees the change and reindexes.
+     */
+    #[ORM\Column(length: 40, options: ['default' => JudicialStatus::NOT_CHALLENGED])]
+    private string $judicialStatus = JudicialStatus::NOT_CHALLENGED;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -192,6 +225,7 @@ class Resolution
         $this->id = Uuid::v7();
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+        $this->judgments = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -672,6 +706,42 @@ class Resolution
             self::OUTCOME_CONSULTATION => 'Consulta',
             self::OUTCOME_CLARIFICATION => 'Aclaración',
         ];
+    }
+
+    public function getJudicialStatus(): string
+    {
+        return $this->judicialStatus;
+    }
+
+    public function setJudicialStatus(string $judicialStatus): static
+    {
+        $this->judicialStatus = $judicialStatus;
+        return $this;
+    }
+
+    /**
+     * The badge/banner presentation of the stored status — no judgments loaded, no queries.
+     * This is what a listing card uses. Per design/README.md, human labels live on the entity.
+     */
+    public function getJudicialStatusView(): JudicialStatus
+    {
+        return JudicialStatus::fromCode($this->judicialStatus);
+    }
+
+    /** @return Collection<int, Judgment> */
+    public function getJudgments(): Collection
+    {
+        return $this->judgments;
+    }
+
+    /**
+     * The judicial history of this resolution, in the order it was litigated.
+     *
+     * @return list<Judgment>
+     */
+    public function getJudgmentsInProceduralOrder(): array
+    {
+        return Judgment::inProceduralOrder($this->judgments);
     }
 
     public function __toString(): string

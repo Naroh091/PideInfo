@@ -28,7 +28,7 @@
 {% block body %}
 {% include '_partials/public_nav.html.twig' with { active_page: 'resoluciones' } %}
 
-{% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo or filters.limit or filters.inadmissionCause or filters.resolveTime %}
+{% set hasFilters = filters.search or filters.organism or filters.outcome or filters.keyword or filters.publicBody or filters.dateFrom or filters.dateTo or filters.limit or filters.inadmissionCause or filters.resolveTime or filters.judicialStatus %}
 
 {# Header #}
 <header class="repo-header border-b border-slate-200/50 relative">
@@ -376,6 +376,19 @@
                             </select>
                         </div>
 
+                        {# Judicial status: what the courts did with the resolution afterwards #}
+                        <div class="p-4">
+                            <label class="text-xs font-semibold text-slate-500 mb-2 block">Situación judicial</label>
+                            <select name="judicialStatus"
+                                    data-controller="tom-select"
+                                    data-tom-select-placeholder-value="Cualquiera">
+                                <option value="">Cualquiera</option>
+                                {% for key, label in judicialStatusLabels %}
+                                    <option value="{{ key }}" {{ filters.judicialStatus == key ? 'selected' }}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
                         {# Dates #}
                         <div class="p-4">
                             <label class="text-xs font-semibold text-slate-500 mb-2 block">Fecha</label>
@@ -472,6 +485,9 @@
                         {% endif %}
                         {% if filters.resolveTime %}
                             <span class="badge badge-secondary">{{ resolveTimeLabels[filters.resolveTime]|default(filters.resolveTime) }}</span>
+                        {% endif %}
+                        {% if filters.judicialStatus %}
+                            <span class="badge badge-secondary">{{ judicialStatusLabels[filters.judicialStatus]|default(filters.judicialStatus) }}</span>
                         {% endif %}
                     </div>
                 {% endif %}

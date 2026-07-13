@@ -1,0 +1,15 @@
+{# Turnos persistidos, renderizados en servidor al cargar la página.
+   Variables: chatHistory (lista de turnos con role/content/kind/allowsHtml). #}
+{% for turn in chatHistory|default([]) %}
+    {% if turn.role|default('') == 'user' %}
+        <div class="chat-turn chat-turn-user">
+            <div class="chat-bubble-text">{{ turn.content|default('')|nl2br }}</div>
+        </div>
+    {% elseif turn.kind|default('') not in ['suggestions', 'system'] %}
+        <div class="chat-turn chat-turn-assistant">
+            <div class="chat-bubble-text">
+                {% if turn.allowsHtml|default(false) %}{{ turn.content|default('')|raw }}{% else %}{{ turn.content|default('')|nl2br }}{% endif %}
+            </div>
+        </div>
+    {% endif %}
+{% endfor %}

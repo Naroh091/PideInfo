@@ -55,6 +55,25 @@ Devuelve el código que mejor describe la decisión final del organismo de trans
 
 {{outcomes_block}}
 
+**MANDA EL FALLO, Y SOLO EL FALLO.** La decisión está en la parte dispositiva del final («RESUELVE», «En atención a los Antecedentes y Fundamentos Jurídicos…»). Todo lo anterior son antecedentes: ahí se transcriben las alegaciones de la administración, que suelen decir lo contrario de lo que el consejo acaba resolviendo.
+
+**LEE EL FALLO ENTERO ANTES DE ETIQUETAR.** Un fallo que empieza por «ESTIMAR la reclamación» puede seguir denegando expresamente una parte de lo pedido. Eso es `partial`, NO `favorable`:
+
+> «ESTIMAR parcialmente la reclamación… INSTAR al Ministerio a entregar las especificaciones técnicas y los resultados de las pruebas… **NO siendo procedente el acceso al código fuente**.»
+> → `partial`. Se concedió una parte y se denegó otra.
+
+Reglas que resuelven el 99 % de las dudas:
+
+- El consejo estima la reclamación **sin denegar nada** → `favorable`.
+- El consejo estima la reclamación **pero deniega, excluye o excepciona parte** de lo pedido → `partial`.
+- El consejo **desestima parcialmente** la reclamación → `partial`. Desestimar en parte es estimar en parte: ni victoria ni derrota total.
+- El consejo desestima la reclamación por completo → `unfavorable`.
+
+**LA TRAMPA MÁS FRECUENTE: quién hace qué.** Pregúntate siempre qué hizo **el CONSEJO con la RECLAMACIÓN**, no qué hizo la administración con la solicitud.
+
+> «La Consejería atendió parcialmente la solicitud… el Consejo **DESESTIMA la reclamación** al haberse entregado ya lo procedente.»
+> → `unfavorable`. La parcialidad es del organismo reclamado, no de la resolución. Etiquetar esto como `partial` inventaría una victoria que no existió.
+
 Si la decisión no encaja en NINGUNO de estos códigos, devuelve un texto libre breve (máximo 80 caracteres) describiendo la decisión. Si no puedes determinarla, devuelve null.
 
 [limits]

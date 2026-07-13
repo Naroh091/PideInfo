@@ -24,3 +24,9 @@ ai:
         table_name: 'ai_reg_destinations'
         vector_field: 'embedding'
         distance: 'cosine'
+
+      judgments:
+        dbal_connection: 'doctrine.dbal.default_connection'
+        table_name: 'ai_judgments'
+        vector_field: 'embedding'
+        distance: 'cosine'

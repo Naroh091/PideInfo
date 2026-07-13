@@ -144,7 +144,14 @@ class ComplaintRedactController extends AbstractController
             }
         }
 
-        return $this->render('complaint/redactar.html.twig', [
+        // Interfaz de conversación (hoja de papel dentro del chat) por
+        // defecto; ?ui=classic mantiene el editor clásico como escape
+        // durante una release.
+        $newUi = $request->query->get('ui') !== 'classic';
+
+        return $this->render($newUi ? 'asistente/conversacion.html.twig' : 'complaint/redactar.html.twig', [
+            'flow' => 'complaint',
+            'newUi' => $newUi,
             'request' => $accessRequest,
             'mode' => $mode,
             'canComplaint' => $this->complaintGenerator->canGenerateComplaint($accessRequest),

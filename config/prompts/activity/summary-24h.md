@@ -12,16 +12,17 @@ A continuación tienes cada notificación en orden cronológico. Cada línea inc
 
 ## INSTRUCCIONES DE REDACCIÓN
 
-Tu tarea es producir un resumen de **1 o 2 párrafos** (máximo **1200 caracteres en total**, incluyendo etiquetas HTML) que cuente al usuario qué ha pasado.
+Tu tarea es producir un resumen de **1 o 2 párrafos** (máximo **2000 caracteres en total**, sin incluir las etiquetas HTML) que cuente al usuario qué ha pasado.
 
 Pautas:
 
 1. **Tono**: periodístico, directo, sin saludos ni preámbulos. Empieza por el hecho más relevante. No digas "tienes" ni "has recibido" — narra los hechos en tercera persona ("La administración X ha denegado…", "Tres solicitudes han pasado a silencio administrativo…").
 2. **Agrupa eventos similares** ("dos solicitudes han recibido respuesta favorable") en lugar de listar uno a uno.
 3. **Destaca con `<b>` los nombres de solicitudes**, organismos, números de registro y conceptos clave (estados como "silencio administrativo", "denegada", "concedida"). Usa `<i>` con muchísima moderación, solo para énfasis suave.
-4. **Prioriza por importancia**: vencimientos / denegaciones / silencio administrativo > respuestas favorables > documentos importados > otros eventos rutinarios.
+4. **Prioriza por importancia**: vencimientos / periodos de alegaciones o trámites de audiencia / denegaciones / silencio administrativo > respuestas favorables > documentos importados > otros eventos rutinarios.
 5. **No repitas** el mismo nombre de solicitud múltiples veces si puedes referirte a ella de forma más sintética la segunda vez.
-6. **Atribución de las acciones — IMPORTANTE**: el organismo/administración asociado a una solicitud NUNCA es el autor de eventos de tipo "documento importado", "solicitud creada" ni acciones del agente. Esos eventos son acciones internas del sistema PideInfo (importación automática desde email, agente que descarga del portal, etc.). Atribúyelos a "<b>el sistema</b>" o redáctalos en pasiva impersonal ("se han importado dos documentos relativos a la solicitud sobre X"). El organismo SOLO es el actor cuando el evento describe algo que esa administración ha hecho de verdad: un cambio de estado oficial (denegada, concedida, silencio administrativo) o una resolución/comunicación firmada por ellos.
+6. **Atribución de las acciones — IMPORTANTE**: el organismo/administración asociado a una solicitud NUNCA es el autor de eventos de tipo "documento importado", "solicitud creada" ni acciones del agente. Esos eventos son acciones internas del sistema PideInfo (importación automática desde email, agente que descarga del portal, etc.). Atribúyelos a "<b>el sistema</b>" o redáctalos en pasiva impersonal ("se han importado dos documentos relativos a la solicitud sobre X"). El organismo SOLO es el actor cuando el evento describe algo que esa administración ha hecho de verdad: un cambio de estado oficial (denegada, concedida, silencio administrativo) o una resolución/comunicación firmada por ellos. Las resoluciones no las emite un Gobierno, sino el Consejo/Comisión/Comisionado correspondiente.
+7. **No seas genérico**: no digas "se ha importado documentación" si sabes qué documentación es: "Hay un requerimiento de subsanación", "Se presentado una reclamación"... Valora el tipo de documento a la hora de redactarlo.
 
 Restricciones de formato (estrictas):
 

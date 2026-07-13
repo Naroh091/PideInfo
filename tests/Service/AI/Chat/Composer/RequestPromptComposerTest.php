@@ -19,6 +19,7 @@ use App\Repository\RegDestinationRepository;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\Chat\LegalFrameworkComposer;
 use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\JudicialHistoryAnnotator;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Legal\KeyArticleSelector;
 use App\Service\Submission\ApplicableLawResolver;
@@ -44,6 +45,7 @@ final class RequestPromptComposerTest extends TestCase
             $this->createStub(StoreInterface::class),
             $this->createStub(EmbeddingGenerator::class),
             $this->createStub(\App\Repository\ResolutionRepository::class),
+            new JudicialHistoryAnnotator($this->createMock(\App\Repository\JudgmentRepository::class)),
         );
 
         // ApplicableLawResolver is final — instantiate with stubbed repositories.

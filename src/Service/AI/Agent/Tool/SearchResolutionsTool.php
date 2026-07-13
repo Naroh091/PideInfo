@@ -264,10 +264,11 @@ final class SearchResolutionsTool
                 : '_Sin puntos clave registrados._';
 
             $blocks[] = sprintf(
-                "### %s (%s) — %s\n**Organismo de control:** %s | **Administración reclamada:** %s\n\n**Argumento aplicable:** %s\n\n**Puntos clave de la resolución:**\n%s",
+                "### %s (%s) — %s\n%s**Organismo de control:** %s | **Administración reclamada:** %s\n\n**Argumento aplicable:** %s\n\n**Puntos clave de la resolución:**\n%s",
                 $r['reference'] ?? '—',
                 $r['date'] ?? '—',
                 strtoupper($r['outcome'] ?? '—'),
+                $this->judicialWarning($r),
                 $r['complaintOrganism'] ?? '—',
                 $r['publicBody'] ?? '—',
                 $r['agent_argument'],
@@ -305,10 +306,11 @@ final class SearchResolutionsTool
         foreach (array_slice($candidates, 0, self::MAX_DEEP_REVIEW) as $r) {
             $summary = $r['summary'] ?? '';
             $blocks[] = sprintf(
-                "### %s (%s) — %s\n**Organismo de control:** %s | **Administración reclamada:** %s\n\n%s",
+                "### %s (%s) — %s\n%s**Organismo de control:** %s | **Administración reclamada:** %s\n\n%s",
                 $r['reference'] ?? '—',
                 $r['date'] ?? '—',
                 strtoupper($r['outcome'] ?? '—'),
+                $this->judicialWarning($r),
                 $r['complaintOrganism'] ?? '—',
                 $r['publicBody'] ?? '—',
                 $summary !== '' ? $summary : '_Sin resumen registrado._',
@@ -316,5 +318,18 @@ final class SearchResolutionsTool
         }
 
         return "No se ha encontrado doctrina que respalde directamente la argumentación, pero estas son las resoluciones MÁS PRÓXIMAS del corpus (cualquier sentido). Valóralas tú: úsalas solo si realmente encajan, y no las cites como favorables si no lo son.\n\n" . implode("\n\n---\n\n", $blocks);
+    }
+
+    /**
+     * The judicial-history line of a candidate, placed BEFORE anything that makes it look
+     * citable. Empty when the resolution was never challenged — no noise for the 95% case.
+     *
+     * @param array<string, mixed> $candidate
+     */
+    private function judicialWarning(array $candidate): string
+    {
+        $block = trim((string) ($candidate['judicialHistory']['block'] ?? ''));
+
+        return $block !== '' ? $block . "\n\n" : '';
     }
 }

@@ -1,0 +1,83 @@
+{# Sidebar derecho de la conversación: informe preliminar (probabilidad +
+   resoluciones similares vía rag-card) y, en reclamaciones, las alegaciones
+   de la administración y el picker de documentos de contexto.
+   Variables: flow, request, isMultiOrganism, isAlegation, alegacionesDoc,
+   availableDocuments. #}
+{# .conv-side estira la celda del grid; .brief (sticky) viaja dentro de ella
+   acompañando el scroll de la conversación. #}
+<div class="conv-side">
+<aside class="brief"
+       data-controller="rag-card"
+       {% if flow == 'request' %}
+           data-rag-card-similar-url-value="{{ path('app_solicitudes_realizar_similar', {id: request.id}) }}"
+           data-rag-card-probability-url-value="{{ path('app_solicitudes_realizar_probability', {id: request.id}) }}"
+           data-rag-card-multi-organism-value="{{ isMultiOrganism ? 'true' : 'false' }}"
+           data-rag-card-has-draft-value="{{ hasDraft ? 'true' : 'false' }}"
+       {% else %}
+           data-rag-card-analyze-url-value="{{ path('app_complaint_analyze', {id: request.id}) }}"
+       {% endif %}
+       data-action="paper-sheet:settled@window->rag-card#onSettled assistant-chat:draft-applied@window->rag-card#onDraftApplied">
+
+    <section class="panel">
+        <div class="panel-label">
+            <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
+            Informe preliminar
+        </div>
+        <div data-rag-card-target="probability">
+            <div>
+                <div class="brief-skel-num"></div>
+                <div class="brief-skel-bar"></div>
+                <div class="brief-skel-line" style="width:90%"></div>
+                <div class="brief-skel-line" style="width:75%"></div>
+            </div>
+        </div>
+        <div class="brief-html mt-2 text-xs" data-rag-card-target="probabilityStatus" style="color:#64748b;font-size:.68rem;"></div>
+    </section>
+
+    {% if flow == 'request' %}
+        <section class="panel">
+            <div class="panel-label">
+                <i data-lucide="library" class="w-3.5 h-3.5"></i>
+                Resoluciones similares
+            </div>
+            <div class="rag-list" data-rag-card-target="similar"></div>
+            <div class="brief-html mt-2 text-xs" data-rag-card-target="similarStatus" style="color:#64748b;font-size:.68rem;"></div>
+        </section>
+    {% endif %}
+
+    {% if flow == 'complaint' and isAlegation and alegacionesDoc|default(null) and alegacionesDoc.aiMetadata.alegationPoints is defined and alegacionesDoc.aiMetadata.alegationPoints %}
+        <section class="panel">
+            <div class="panel-label"><i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> Alegaciones de la administración</div>
+            <div class="alegation-stack">
+                {% for point in alegacionesDoc.aiMetadata.alegationPoints %}
+                    <div class="alegation-pt"><span class="num">{{ loop.index }}</span><span>{{ point }}</span></div>
+                {% endfor %}
+            </div>
+        </section>
+    {% endif %}
+
+    {% if flow == 'complaint' and availableDocuments|default([])|length > 0 %}
+        <section class="panel">
+            <div class="panel-label"><i data-lucide="files" class="w-3.5 h-3.5"></i> Documentos como contexto</div>
+            <p class="text-xs mb-2" style="color:#64748b;font-family:'DM Sans',sans-serif;">Los documentos marcados se enviarán al modelo como evidencia primaria.</p>
+            {% for doc in availableDocuments %}
+                <label class="file-row cursor-pointer">
+                    <input type="checkbox" value="{{ doc.id }}" data-doc-pick
+                           {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}>
+                    <div class="min-w-0">
+                        <p class="file-name truncate">{{ doc.originalFilename }}</p>
+                        <p class="file-meta">{{ doc.typeLabel }} · {{ doc.fileSizeFormatted }}</p>
+                    </div>
+                </label>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    {% if flow == 'request' %}
+        <section class="pedagogy-card">
+            <i data-lucide="info" class="w-4 h-4 inline pedagogy-icon"></i>
+            <b>Importante:</b> el corpus de resoluciones sólo cubre solicitudes que escalaron a reclamación ante el Consejo de Transparencia. Una probabilidad baja no significa que la solicitud sea mala — significa que en casos parecidos la denegación fue confirmada en reclamación.
+        </section>
+    {% endif %}
+</aside>
+</div>

@@ -45,6 +45,11 @@ class Schedule implements ScheduleProviderInterface
             // legalize-es takes commits every day. One entry, not three: the command chains
             // pull → catalogue → articulado itself, under a lock.
             ->add(RecurringMessage::cron('0 8 * * *', new RunCommandMessage('app:legalize:sync')))
+
+            // The CTBG recursos listing changes a few times a month; weekly is plenty. The
+            // import is an upsert and processing is incremental (only judgments missing text,
+            // analysis or vectors), so re-runs are cheap.
+            ->add(RecurringMessage::cron('0 23 * * 1', new RunCommandMessage('app:judgments:load-ctbg --async')))
             ;
     }
 }

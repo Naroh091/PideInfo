@@ -2,6 +2,8 @@
 
 namespace App\Search;
 
+use App\Service\Judgment\JudicialStatus;
+
 /**
  * Normalized set of filters behind the public resolution listing.
  *
@@ -57,6 +59,8 @@ final readonly class ResolutionSearchQuery
         public string $limit = '',
         public string $inadmissionCause = '',
         public string $resolveTime = '',
+        /** A key of JudicialStatus::FILTERS, never a raw status code — see codesForFilter(). */
+        public string $judicialStatus = '',
         public string $sort = '',
         public int $page = 1,
         public int $perPage = 50,
@@ -80,6 +84,13 @@ final readonly class ResolutionSearchQuery
             $sort = '';
         }
 
+        // Unknown filter keys are dropped, not passed through: a typo must not silently become
+        // an empty terms query that hides the whole corpus.
+        $judicialStatus = $get('judicialStatus');
+        if (!isset(JudicialStatus::FILTERS[$judicialStatus])) {
+            $judicialStatus = '';
+        }
+
         return new self(
             search: $get('search'),
             organism: $get('organism'),
@@ -92,6 +103,7 @@ final readonly class ResolutionSearchQuery
             limit: $get('limit'),
             inadmissionCause: $get('inadmissionCause'),
             resolveTime: $resolveTime,
+            judicialStatus: $judicialStatus,
             sort: $sort,
             page: min(max(1, $page), self::maxPage($perPage)),
             perPage: $perPage,
@@ -156,6 +168,7 @@ final readonly class ResolutionSearchQuery
             'limit' => $this->limit,
             'inadmissionCause' => $this->inadmissionCause,
             'resolveTime' => $this->resolveTime,
+            'judicialStatus' => $this->judicialStatus,
         ];
     }
 

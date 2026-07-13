@@ -1,0 +1,169 @@
+{% extends 'layouts/app.html.twig' %}
+
+{# Página de conversación unificada para redactar solicitudes y
+   reclamaciones/alegaciones: el chat con el asistente ES la página, y el
+   borrador vive dentro como hoja de papel editable (paper-sheet). Sustituye
+   al editor clásico (canvas + widget flotante); durante la migración se
+   activa con ?ui=chat desde AccessRequestController::draft y
+   ComplaintRedactController::index.
+
+   Contrato de variables:
+     flow == 'request'  → request, siblings, batchId, chatHistory
+     flow == 'complaint'→ request, mode, currentDraft, currentBodyHtml,
+                          chatHistory, availableDocuments, alegacionesDoc,
+                          existingDrafts #}
+
+{% set isRequest = flow == 'request' %}
+{% if isRequest %}
+    {% set batchId = batchId|default(null) %}
+    {% set isMultiOrganism = (siblings|length) > 1 %}
+    {% set isRegDraft = request.regDestination is not null %}
+    {% set isAlegation = false %}
+    {% set hasDraft = request.title is not empty
+        or request.description is not empty
+        or request.expone is not empty
+        or request.solicita is not empty %}
+    {% set pageTitle = 'Redactar solicitud · PideInfo' %}
+{% else %}
+    {% set isAlegation = mode == 'alegation_response' %}
+    {% set isMultiOrganism = false %}
+    {% set isRegDraft = false %}
+    {% set hasDraft = currentBodyHtml is not empty %}
+    {% set pageTitle = (isAlegation ? 'Respuesta a alegaciones' : 'Reclamación') ~ ' - ' ~ request.title ~ ' - PideInfo' %}
+{% endif %}
+
+{% block title %}{{ pageTitle }}{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    {# Source Serif 4 para el cuerpo de la hoja — DM Serif Display es una
+       display face y fatiga en tamaños de cuerpo. #}
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+    {% if not isRequest %}
+        <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div data-controller="assistant-chat"
+     {% if isRequest %}
+         data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_request', {id: request.id}) }}"
+         data-assistant-chat-is-reg-value="{{ isRegDraft ? 'true' : 'false' }}"
+     {% else %}
+         data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
+     {% endif %}
+     data-assistant-chat-flow-value="{{ flow }}"
+     data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}">
+
+    {% include '_partials/agent_required_banner.html.twig' %}
+
+    {# ── Breadcrumb + cabecera ─────────────────────────────── #}
+    <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
+        <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
+        <span class="text-slate-300">/</span>
+        {% if isRequest %}
+            <a href="{{ path('app_solicitudes_submit_form') }}" class="hover:text-slate-800 transition-colors">REALIZAR</a>
+        {% else %}
+            <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors truncate max-w-[14rem]">
+                {{ request.title|u.truncate(28) }}
+            </a>
+            <span class="text-slate-300">/</span>
+            <span class="text-slate-800 font-medium">{{ isAlegation ? 'RESPUESTA A ALEGACIONES' : 'RECLAMACIÓN' }}</span>
+        {% endif %}
+    </nav>
+
+    <header class="draft-band">
+        <div class="draft-band-row">
+            <h1 class="draft-band-title">
+                {% if isRequest %}
+                    Redacta tu solicitud para
+                {% elseif isAlegation %}
+                    Responde a las alegaciones de
+                {% else %}
+                    Reclama frente a
+                {% endif %}
+                <em>{{ request.publicBody.name|u.truncate(60, '…') }}</em>
+            </h1>
+            {% if isRequest %}
+                <a href="{{ path('app_solicitudes_index') }}" class="ghost-link">
+                    <i data-lucide="save" class="w-4 h-4"></i> Guardar y salir
+                </a>
+            {% else %}
+                <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="ghost-link">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al expediente
+                </a>
+            {% endif %}
+        </div>
+    </header>
+
+    {% if isRequest and isMultiOrganism %}
+        <nav class="draft-tabs" aria-label="Otros borradores del envío">
+            {% for sib in siblings %}
+                <a href="{{ path('app_solicitudes_realizar_draft', {id: sib.id}) }}{{ newUi|default(false) ? '?ui=chat' : '' }}"
+                   class="draft-tab{% if sib.id == request.id %} is-current{% endif %}">
+                    {{ sib.publicBody.name|u.truncate(40, '…') }}
+                    {% if sib.title is empty and sib.description is empty %}
+                        <span class="draft-tab-state">vacío</span>
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </nav>
+    {% endif %}
+
+    {% if not isRequest and isAlegation and existingDrafts|default([])|length > 0 %}
+        <nav class="draft-tabs" aria-label="Borradores de respuesta a alegaciones">
+            {% for draft in existingDrafts %}
+                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response', draft: draft.id}) }}"
+                   class="draft-tab{% if currentDraft and currentDraft.id == draft.id %} is-current{% endif %}">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                    {{ draft.originalFilename|default('Borrador')|u.truncate(30) }}
+                </a>
+            {% endfor %}
+            <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}"
+               class="draft-tab">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nuevo borrador
+            </a>
+        </nav>
+    {% endif %}
+
+    {# ── Conversación + sidebar de informe ─────────────────── #}
+    <div class="conv-layout">
+        <div class="conv-col">
+            <div class="conv-history" data-assistant-chat-target="history">
+                {% include 'asistente/_history.html.twig' %}
+
+                {% if hasDraft %}
+                    {% include 'asistente/_paper_sheet.html.twig' with {prefill: true} %}
+                {% endif %}
+            </div>
+
+            {% include 'asistente/_composer.html.twig' %}
+        </div>
+
+        {% include 'asistente/_informe_sidebar.html.twig' %}
+    </div>
+
+    {# ── Inputs extra que viajan en cada turno (reclamación) ── #}
+    {% if not isRequest %}
+        <input type="hidden" name="mode" value="{{ mode }}" data-assistant-chat-target="extra">
+        <input type="hidden" name="currentBodyHtml" value="" data-assistant-chat-target="extra">
+        <input type="hidden" name="documentIds" value="" data-assistant-chat-target="extra">
+    {% endif %}
+
+    {# ── Plantillas que assistant-chat clona al vuelo ─────────── #}
+    <template data-assistant-chat-target="introTemplate">
+        {% include 'asistente/_intro_choice.html.twig' %}
+    </template>
+    <template data-assistant-chat-target="sheetTemplate">
+        {% include 'asistente/_paper_sheet.html.twig' with {prefill: false} %}
+    </template>
+</div>
+
+{% include '_partials/_agent_present_modal.html.twig' %}
+
+{% if not isRequest %}
+    <script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>
+{% endif %}
+{% endblock %}

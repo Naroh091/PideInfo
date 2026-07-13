@@ -36,8 +36,11 @@ doctrine:
 when@test:
     doctrine:
         dbal:
-            # "TEST_TOKEN" is typically set by ParaTest
-            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+            # TEST_DB_SUFFIX defaults to `_test` in .env (a fixture database, the usual thing).
+            # Emptying it in .env.test.local points the test run at the real corpus instead —
+            # which is what makes the end-to-end probes over the live corpus possible here.
+            # "TEST_TOKEN" is typically set by ParaTest.
+            dbname_suffix: '%env(default::TEST_DB_SUFFIX)%%env(default::TEST_TOKEN)%'
 
 when@prod:
     doctrine:
