@@ -132,8 +132,13 @@ final class PdfOcrTranscriber
     }
 
     /**
-     * A page "needs OCR" when its extracted text has too few alphanumeric
-     * characters to be a real text layer (empty page or image-only scan).
+     * A page "needs OCR" when its extracted text has too few alphanumeric characters to be a real
+     * text layer.
+     *
+     * That covers the unreadable ones too: PdfTextExtractor::extractPageTexts() blanks any page
+     * whose text layer is a font-mapping cipher («ZĞƐŽůƵĐŝſŶ ϭϲϵͬϮϬϮϬ»), so it arrives here empty
+     * and gets rasterized. The legibility rule lives THERE, once — it protects every consumer of
+     * the extractor, not just this one.
      */
     private function pageNeedsOcr(string $text): bool
     {
