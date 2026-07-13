@@ -66,6 +66,8 @@ framework:
             App\Message\WarmActivitySummaryMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async
+            # One cheap LLM call per row, not a re-analysis: see ReconcileOutcomeMessage.
+            App\Message\ReconcileOutcomeMessage: analysis
             App\Message\UpdateExpiredRequestsMessage: async
             App\Message\IndexResolutionMessage: index
             # One message per NORM, not per article: reindexing the LCSP would otherwise be

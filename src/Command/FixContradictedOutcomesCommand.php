@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Entity\Resolution;
+use App\Message\ReconcileOutcomeMessage;
 use App\Repository\ResolutionRepository;
 use App\Service\Resolution\OutcomeReconciler;
 use App\Service\Resolution\ResolutionAnalyzer;
@@ -15,6 +16,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use Symfony\Component\Messenger\MessageBusInterface;
 
 /**
  * Repairs resolutions whose stored outcome contradicts their own stored summary — the corpus
@@ -48,6 +50,7 @@ final class FixContradictedOutcomesCommand extends Command
     protected function configure(): void
     {
         $this->addOption('apply', null, InputOption::VALUE_NONE, 'Escribe los cambios (por defecto: dry-run)');
+        $this->addOption('async', null, InputOption::VALUE_NONE, 'Despacha el desempate a los workers (transporte analysis) en vez de hacerlo inline');
         $this->addOption('limit', null, InputOption::VALUE_REQUIRED, 'Máximo de resoluciones a tocar');
     }
 
@@ -55,6 +58,7 @@ final class FixContradictedOutcomesCommand extends Command
         private readonly ResolutionRepository $resolutions,
         private readonly OutcomeReconciler $reconciler,
         private readonly EntityManagerInterface $entityManager,
+        private readonly MessageBusInterface $messageBus,
     ) {
         parent::__construct();
     }
@@ -63,6 +67,7 @@ final class FixContradictedOutcomesCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         $apply = (bool) $input->getOption('apply');
+        $async = (bool) $input->getOption('async');
         $limit = $input->getOption('limit') !== null ? max(1, (int) $input->getOption('limit')) : null;
 
         $qb = $this->resolutions->createQueryBuilder('r')
@@ -96,6 +101,13 @@ final class FixContradictedOutcomesCommand extends Command
                     self::REASONS[$reason],
                     $label . ' → ?',
                 ];
+                ++$touched;
+                continue;
+            }
+
+            if ($async) {
+                $this->messageBus->dispatch(new ReconcileOutcomeMessage($resolution->getId()));
+                $rows[] = [$resolution->getReferenceNumber(), $resolution->getSource(), self::REASONS[$reason], 'despachada'];
                 ++$touched;
                 continue;
             }
@@ -156,7 +168,9 @@ final class FixContradictedOutcomesCommand extends Command
         // Through the ORM, so ResolutionIndexListener reindexes each corrected row.
         $this->entityManager->flush();
 
-        $io->success(sprintf('%d resoluciones corregidas por el modelo (el resto, confirmadas).', $touched));
+        $io->success($async
+            ? sprintf('%d desempates despachados a los workers (transporte analysis).', $touched)
+            : sprintf('%d resoluciones corregidas por el modelo (el resto, confirmadas).', $touched));
         $io->note('Ejecuta `fos:elastica:populate --index=resolutions` si el índice no está al día.');
 
         return Command::SUCCESS;
