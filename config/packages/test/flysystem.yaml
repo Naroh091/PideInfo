@@ -6,3 +6,7 @@ flysystem:
             adapter: 'memory'
         criteria.storage:
             adapter: 'memory'
+        resolutions.storage:
+            adapter: 'memory'
+        judgments.storage:
+            adapter: 'memory'

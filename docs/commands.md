@@ -840,6 +840,74 @@ php bin/console fos:elastica:populate --index=laws   # después, para reparar de
 
 ---
 
+## Sentencias
+
+Ver [docs/judgments.md](judgments.md) para el diseño completo.
+
+### `app:resolutions:fix-contradicted-outcomes`
+
+Resoluciones cuyo `outcome` está **contradicho por algo que ya sabemos**. Dos señales, ambas
+medidas sobre el corpus vivo:
+
+| Señal | Qué detecta | Filas |
+|---|---|---|
+| `self` | El análisis se contradice: etiquetó `favorable` mientras escribía «el Consejo estima parcialmente la reclamación» | 23 |
+| `source` | El **listado del propio consejo** publicaba `partial` y el modelo lo degradó a un resultado total | 81 |
+
+(Una tercera señal —`favorable` cuyo resumen contiene «deniega»— se midió y se **descartó**: 4.059
+filas, porque casi siempre quien deniega es la Administración, que es *por lo que existe* la
+reclamación.)
+
+Detectado en R/0701/2018 (BOSCO), que dispara las dos.
+
+```bash
+php bin/console app:resolutions:fix-contradicted-outcomes            # dry-run: lista, no llama al modelo
+php bin/console app:resolutions:fix-contradicted-outcomes --apply    # re-pregunta al modelo y escribe
+php bin/console fos:elastica:populate --index=resolutions
+```
+
+**No corrige por regex.** El regex solo DETECTA; quien resuelve es el modelo, en un segundo turno
+con su propia respuesta delante y el **fallo literal** — la parte que demostrablemente no pesó la
+primera vez (`OutcomeReconciler`, prompt `pideinfo-resolution-outcome-tiebreak`). Las ingestas
+nuevas ya lo hacen solas: esto es para el corpus analizado antes de que existiera esa puerta.
+
+### `app:judgments:refresh-status`
+
+Recalcula `resolution.judicial_status` (la columna desnormalizada que alimenta el filtro
+"Situación judicial" del listado y el badge de cada card) desde las sentencias enlazadas.
+
+```bash
+php bin/console app:judgments:refresh-status
+php bin/console fos:elastica:populate --index=resolutions   # el filtro va por ES
+```
+
+Ejecútalo **tras importar sentencias, tras reanalizarlas y tras importar años antiguos del
+CTBG**: cualquiera de las tres cosas puede cambiar el veredicto de una resolución (la dirección
+de una anulación solo se conoce cuando el análisis fija el `transparencyStance`).
+
+### `app:judgments:load-ctbg`
+
+Importa el listado oficial de recursos judiciales contra resoluciones del CTBG (435 recursos →
+~425 sentencias con cadena instancia → apelación → casación) y procesa cada sentencia: PDF,
+análisis con IA (tríada `outcome`/`resolutionEffect`/`transparencyStance` + doctrina citable) y
+vectores en `ai_judgments`. Cron: lunes 23:00, con `--async`.
+
+```bash
+php bin/console app:judgments:load-ctbg                     # import + procesado inline
+php bin/console app:judgments:load-ctbg --async             # procesado en workers (analysis)
+php bin/console app:judgments:load-ctbg --dry-run
+php bin/console app:judgments:load-ctbg --file=local.xlsx
+php bin/console app:judgments:load-ctbg --process-limit=20  # muestrear calidad
+php bin/console app:judgments:load-ctbg --relink            # re-casar refs tras importar años antiguos del CTBG
+# --skip-pdf --skip-analysis --skip-vectors --vision
+```
+
+El import es upsert por `(reference_number, source)` y el procesado es incremental (retoma solo
+lo que falte: texto, análisis o vectores). La **tasa de casado** de refs con resoluciones es la
+métrica de salud del import (~81 % hoy; el resto son años 2015-2017 aún no importados del CTBG).
+
+---
+
 ## Mantenimiento
 
 ### `app:organisms:link`

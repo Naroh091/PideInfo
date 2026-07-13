@@ -161,6 +161,7 @@ final class ResolutionSearchQueryTest extends TestCase
             'limit' => 'defensa',
             'inadmissionCause' => 'reelaboracion',
             'resolveTime' => 'gt365',
+            'judicialStatus' => 'anulada',
         ];
 
         self::assertSame($filters, ResolutionSearchQuery::fromArray($filters)->toRepositoryFilters());

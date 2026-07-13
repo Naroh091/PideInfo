@@ -2,18 +2,17 @@
 
 namespace App\Controller;
 
-use App\Entity\ComplaintOrganism;
 use App\Entity\Resolution;
 use App\Repository\ComplaintOrganismRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\ResolutionRepository;
 use App\Search\ResolutionSearchInterface;
 use App\Search\ResolutionSearchQuery;
+use App\Service\Judgment\JudicialStatus;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/resoluciones')]
@@ -189,15 +188,23 @@ class ResolutionController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_resoluciones_show', requirements: ['id' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'])]
-    public function show(Resolution $resolution, PublicBodyRepository $publicBodyRepository): Response
-    {
+    public function show(
+        Resolution $resolution,
+        PublicBodyRepository $publicBodyRepository,
+    ): Response {
         $publicBody = $resolution->getPublicBodyName()
             ? $publicBodyRepository->findOneBy(['name' => $resolution->getPublicBodyName()])
             : null;
 
+        // Same rule the agent enforces, shown to humans: a resolution annulled by a firm
+        // judgment must not be read as live doctrine without knowing it. Classified in ONE
+        // place — the template renders the verdict, it does not reach it.
+        $judicial = JudicialStatus::of($resolution->getJudgments());
+
         return $this->render('resolution/show.html.twig', [
             'resolution' => $resolution,
             'publicBody' => $publicBody,
+            'judicial' => $judicial,
             'limitLabels' => Resolution::getLimitLabels(),
             'inadmissionCauseLabels' => Resolution::getInadmissionCauseLabels(),
         ]);
@@ -225,6 +232,7 @@ class ResolutionController extends AbstractController
             'limit' => $request->query->get('limit', ''),
             'inadmissionCause' => $request->query->get('inadmissionCause', ''),
             'resolveTime' => $request->query->get('resolveTime', ''),
+            'judicialStatus' => $request->query->get('judicialStatus', ''),
             'sort' => $request->query->get('sort', ''),
         ];
     }
@@ -274,6 +282,7 @@ class ResolutionController extends AbstractController
             'limitLabels' => Resolution::getLimitLabels(),
             'inadmissionCauseLabels' => Resolution::getInadmissionCauseLabels(),
             'resolveTimeLabels' => ResolutionSearchQuery::getResolveTimeLabels(),
+            'judicialStatusLabels' => JudicialStatus::getFilterLabels(),
             'searchDegraded' => $result->degraded,
         ], $extra));
     }

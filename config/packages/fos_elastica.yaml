@@ -74,6 +74,7 @@ fos_elastica:
                 inadmissionCauses: { type: keyword }
                 topics: { type: keyword }
                 outcome: { type: keyword }
+                judicialStatus: { type: keyword }
                 source: { type: keyword }
                 scope: { type: keyword }
                 entityType: { type: keyword }

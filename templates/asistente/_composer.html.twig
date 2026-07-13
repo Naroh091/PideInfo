@@ -1,0 +1,29 @@
+{# Composer fijo al pie de la columna de conversación. #}
+<div class="conv-composer">
+    <div class="conv-composer-card">
+        <div data-assistant-chat-target="attachChips" class="composer-chips" style="padding-top:.5rem;"></div>
+        <form class="chatbot-input-row" data-action="submit->assistant-chat#sendMessage">
+            <label class="composer-attach" title="Adjuntar archivo (no se guarda)">
+                <input type="file"
+                       class="hidden"
+                       multiple
+                       accept=".pdf,.csv,.txt,.md,.png,.jpg,.jpeg"
+                       data-assistant-chat-target="attachInput"
+                       data-action="change->assistant-chat#onAttach">
+                <i data-lucide="paperclip" class="w-3.5 h-3.5"></i>
+            </label>
+            <textarea rows="1"
+                      class="composer-input composer-input-multiline"
+                      placeholder="Escribe un mensaje, pega texto o adjunta archivos…"
+                      data-assistant-chat-target="input"
+                      data-action="keydown->assistant-chat#onKeydown input->assistant-chat#onInput"></textarea>
+            <button type="submit"
+                    class="composer-send"
+                    data-assistant-chat-target="sendButton"
+                    aria-label="Enviar">
+                <i data-lucide="send" class="w-3 h-3"></i>
+            </button>
+        </form>
+        <p class="composer-disclaimer">Los archivos se usan solo en esta conversación y no se guardan.</p>
+    </div>
+</div>

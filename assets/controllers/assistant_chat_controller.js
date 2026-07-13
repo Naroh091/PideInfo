@@ -13,15 +13,32 @@ import { Controller } from '@hotwired/stimulus';
  * - When the assistant rewrites, the system bubble carries a "Ver cambios"
  *   button that opens a diff modal against the previous snapshot.
  *
- * Targets: fab, panel, history, input, attachInput, attachChips, sendButton, status
- * Values:  endpointUrl, isReg, canvasOutletSelector
+ * Two mounting modes, decided by `canvasOutletSelector`:
+ *
+ * 1. Classic (floating widget): the value points at a canvas controller
+ *    outside the chat; drafts leave the chat via `replaceContent()` on it.
+ * 2. Conversation page (no canvas selector): the chat IS the page. Drafts
+ *    render as an editable in-chat paper sheet (paper-sheet controller),
+ *    cloned from `sheetTemplate` on first use and updated in place after.
+ *    The "Informe preliminar" sidebar (rag-card controller) listens to
+ *    `assistant-chat:draft-applied` / `paper-sheet:settled` window events to
+ *    refresh itself. If the conversation is empty and there is no draft yet,
+ *    a scripted intro turn (from `introTemplate`) offers "Redactar borrador
+ *    con IA" / "Prefiero redactar manualmente" — purely visual, no backend
+ *    call.
+ *
+ * Targets: fab, panel, history, input, attachInput, attachChips, sendButton,
+ *          status, extra, introTemplate, sheetTemplate
+ * Values:  endpointUrl, isReg, canvasOutletSelector, hasDraft
  */
 export default class extends Controller {
-    static targets = ['fab', 'panel', 'history', 'input', 'attachInput', 'attachChips', 'sendButton', 'status', 'extra'];
+    static targets = ['fab', 'panel', 'history', 'input', 'attachInput', 'attachChips', 'sendButton', 'status', 'extra', 'introTemplate', 'sheetTemplate'];
     static values = {
         endpointUrl: String,
         isReg: { type: Boolean, default: false },
         canvasOutletSelector: { type: String, default: '' },
+        hasDraft: { type: Boolean, default: false },
+        flow: { type: String, default: 'request' },
     };
 
     connect() {
@@ -33,13 +50,22 @@ export default class extends Controller {
         if (this.hasInputTarget) {
             this._growInput();
         }
-        this._scrollToBottom();
+        if (this._sheetMode() && this._historyIsEmpty() && !this.hasDraftValue) {
+            this._renderIntro();
+        } else {
+            this._scrollToBottom();
+        }
     }
 
     disconnect() {
         if (this._abort) {
             try { this._abort.abort(); } catch {}
         }
+    }
+
+    /** Conversation-page mode: drafts live inside the chat as paper sheets. */
+    _sheetMode() {
+        return !this.canvasOutletSelectorValue;
     }
 
     open() {
@@ -67,6 +93,81 @@ export default class extends Controller {
     isBusy() {
         return !!this._busy;
     }
+
+    /* ── Scripted intro (conversation page, purely visual) ─────────────── */
+
+    _historyIsEmpty() {
+        if (!this.hasHistoryTarget) return true;
+        return this.historyTarget.querySelector('.chat-turn') === null;
+    }
+
+    _renderIntro() {
+        if (!this.hasIntroTemplateTarget || !this.hasHistoryTarget) return;
+        const node = this.introTemplateTarget.content.cloneNode(true);
+        this.historyTarget.appendChild(node);
+        this._reIcons();
+    }
+
+    /**
+     * "Redactar borrador con IA" — starts the real agent flow. Complaints
+     * already have context (expediente + documents), so the first SSE turn
+     * fires immediately. Requests start empty: a scripted assistant bubble
+     * (no LLM call) asks for the topic, and the user's answer becomes the
+     * first real turn.
+     */
+    chooseAi(event) {
+        event?.preventDefault();
+        if (this.flowValue === 'complaint') {
+            // The real first message plays the user-turn role; no echo bubble.
+            this._settleIntro('ai', false);
+            if (this.hasInputTarget) this.inputTarget.value = 'Redacta un primer borrador.';
+            this.sendMessage();
+            return;
+        }
+        this._settleIntro('ai');
+        this._appendScriptedAssistant('Perfecto. Cuéntame qué información quieres pedir y para qué la necesitas — con eso redacto un primer borrador apoyado en la ley aplicable y en resoluciones parecidas. Si tienes documentos de contexto, adjúntalos.');
+        if (this.hasInputTarget) {
+            this.inputTarget.placeholder = 'Quiero pedir…';
+            this.inputTarget.focus();
+        }
+    }
+
+    /** Assistant-styled bubble written by the UI itself (no backend turn). */
+    _appendScriptedAssistant(text) {
+        const node = document.createElement('div');
+        node.className = 'chat-turn chat-turn-assistant';
+        const body = document.createElement('div');
+        body.className = 'chat-bubble-text';
+        body.textContent = text;
+        node.appendChild(body);
+        if (this.hasHistoryTarget) this.historyTarget.appendChild(node);
+        this._scrollToBottom();
+        return node;
+    }
+
+    /** "Prefiero redactar manualmente" — insert a blank editable sheet. */
+    chooseManual(event) {
+        event?.preventDefault();
+        this._settleIntro('manual');
+        const sheet = this._ensureSheetEl();
+        if (sheet) {
+            this._appendSystemBubble('✍ Escribe directamente sobre el documento. El asistente sigue disponible cuando lo necesites.');
+            const focusable = sheet.querySelector('textarea, trix-editor');
+            if (focusable) requestAnimationFrame(() => focusable.focus());
+        }
+    }
+
+    /** Remove the intro buttons; optionally echo the choice as a user turn. */
+    _settleIntro(choice, echo = true) {
+        if (!this.hasHistoryTarget) return;
+        const intro = this.historyTarget.querySelector('[data-intro-choice]');
+        if (intro) intro.remove();
+        if (!echo) return;
+        const label = choice === 'ai' ? 'Redactar borrador con IA' : 'Prefiero redactar manualmente';
+        this._appendUserBubble(label, []);
+    }
+
+    /* ── Composer ───────────────────────────────────────────────────────── */
 
     onKeydown(event) {
         if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -122,9 +223,7 @@ export default class extends Controller {
                 <button type="button" data-action="assistant-chat#removeAttachment" data-index="${i}" aria-label="Quitar">×</button>
             </span>
         `).join('');
-        if (window.lucide && typeof window.lucide.createIcons === 'function') {
-            try { window.lucide.createIcons(); } catch {}
-        }
+        this._reIcons();
     }
 
     async sendMessage(event) {
@@ -132,6 +231,10 @@ export default class extends Controller {
         if (this._busy) return;
         const message = (this.hasInputTarget ? this.inputTarget.value : '').trim();
         if (!message && this.pendingAttachments.length === 0) return;
+
+        // Typing to the assistant implies choosing it — retire the intro buttons.
+        const intro = this.hasHistoryTarget ? this.historyTarget.querySelector('[data-intro-choice]') : null;
+        if (intro) intro.remove();
 
         this._busy = true;
         this._setBusy(true);
@@ -146,9 +249,11 @@ export default class extends Controller {
         this.pendingAttachments = [];
         this._renderChips();
 
-        // Let the host page (Alpine app, plain JS, etc.) refresh the values
-        // of any `extra` hidden inputs against fresh state (e.g. current Trix
-        // HTML) right before we serialize the FormData.
+        // Refresh the `extra` hidden inputs against fresh state. In sheet mode
+        // the chat owns the sheet, so it fills currentBodyHtml/documentIds
+        // itself; the event stays for host pages (Alpine app on the classic
+        // complaint editor) that refresh extras externally.
+        this._refreshExtras();
         this.dispatch('before-send', { detail: { extras: this.hasExtraTarget ? this.extraTargets : [] } });
 
         const formData = new FormData();
@@ -197,11 +302,7 @@ export default class extends Controller {
             // following the text to the bottom, so there's no jump when the
             // reply appears. After this one-time positioning we never auto-scroll
             // the reply, letting the user read from the beginning.
-            if (this.hasHistoryTarget) {
-                const hb = this.historyTarget.getBoundingClientRect();
-                const bb = assistantBubble.getBoundingClientRect();
-                this.historyTarget.scrollTop += (bb.top - hb.top) - 8;
-            }
+            this._pinToElement(assistantBubble);
         };
 
         this._abort = new AbortController();
@@ -339,12 +440,17 @@ export default class extends Controller {
             return;
         }
 
-        const canvas = this._canvasOutlet();
-        if (canvas && typeof canvas.replaceContent === 'function') {
-            const payload = this.isRegValue
-                ? { title: draft.title, expone: draft.expone, solicita: draft.solicita }
-                : { title: draft.title, bodyHtml: draft.body_text || draft.body_html || '' };
-            try { canvas.replaceContent(payload); } catch (e) { console.error(e); }
+        const payload = this.isRegValue
+            ? { title: draft.title, expone: draft.expone, solicita: draft.solicita }
+            : { title: draft.title, bodyHtml: draft.body_text || draft.body_html || '' };
+
+        if (this._sheetMode()) {
+            this._applyDraftToSheet(payload);
+        } else {
+            const canvas = this._canvasOutlet();
+            if (canvas && typeof canvas.replaceContent === 'function') {
+                try { canvas.replaceContent(payload); } catch (e) { console.error(e); }
+            }
         }
 
         const verb = action === 'generate' ? 'generado' : 'reescrito';
@@ -362,6 +468,67 @@ export default class extends Controller {
         }
     }
 
+    /* ── In-chat paper sheet (conversation page) ────────────────────────── */
+
+    /**
+     * One live sheet, updated in place: N stacked sheets would desync from
+     * the single draft persisted server-side. The sheet stays where it first
+     * appeared (moving the node would remount Trix); the system bubble at the
+     * bottom tells the user the draft above was rewritten.
+     */
+    async _applyDraftToSheet(payload) {
+        const sheetEl = this._ensureSheetEl();
+        if (!sheetEl) return;
+        const ctrl = await this._sheetController(sheetEl);
+        if (!ctrl || typeof ctrl.replaceContent !== 'function') {
+            console.error('assistant-chat: paper-sheet controller not available');
+            return;
+        }
+        this._pinToElement(sheetEl);
+        try { await ctrl.replaceContent(payload); } catch (e) { console.error(e); }
+        this.dispatch('draft-applied');
+    }
+
+    _sheetEl() {
+        if (!this.hasHistoryTarget) return null;
+        return this.historyTarget.querySelector('[data-controller~="paper-sheet"]');
+    }
+
+    _ensureSheetEl() {
+        let el = this._sheetEl();
+        if (el) return el;
+        if (!this.hasSheetTemplateTarget || !this.hasHistoryTarget) return null;
+        this.historyTarget.appendChild(this.sheetTemplateTarget.content.cloneNode(true));
+        this._reIcons();
+        return this._sheetEl();
+    }
+
+    /** Waits (a few frames) for Stimulus to connect the sheet controller. */
+    async _sheetController(el) {
+        for (let i = 0; i < 30; i++) {
+            const ctrl = this.application.getControllerForElementAndIdentifier(el, 'paper-sheet');
+            if (ctrl) return ctrl;
+            await new Promise(requestAnimationFrame);
+        }
+        return null;
+    }
+
+    /** Sheet mode: fill currentBodyHtml/documentIds extras from the page. */
+    _refreshExtras() {
+        if (!this._sheetMode() || !this.hasExtraTarget) return;
+        const bodyInput = this.extraTargets.find((el) => el.getAttribute('name') === 'currentBodyHtml');
+        if (bodyInput) {
+            const sheetEl = this._sheetEl();
+            const htmlInput = sheetEl?.querySelector('[data-paper-sheet-target~="htmlInput"]');
+            bodyInput.value = htmlInput?.value ?? '';
+        }
+        const docsInput = this.extraTargets.find((el) => el.getAttribute('name') === 'documentIds');
+        if (docsInput) {
+            const checked = this.element.querySelectorAll('input[data-doc-pick]:checked');
+            docsInput.value = Array.from(checked).map((i) => i.value).join(',');
+        }
+    }
+
     _canvasOutlet() {
         if (!this.canvasOutletSelectorValue) return null;
         const el = document.querySelector(this.canvasOutletSelectorValue);
@@ -372,6 +539,8 @@ export default class extends Controller {
         if (!app || !name) return null;
         return app.getControllerForElementAndIdentifier(el, name);
     }
+
+    /* ── Bubbles ────────────────────────────────────────────────────────── */
 
     _appendUserBubble(message, attachmentNames) {
         const node = document.createElement('div');
@@ -437,9 +606,41 @@ export default class extends Controller {
         return node;
     }
 
+    /* ── Scrolling ──────────────────────────────────────────────────────── */
+
+    /**
+     * The history target is a scrollable box in the floating widget but a
+     * plain page column on the conversation page — there the window scrolls.
+     */
+    _scrollRoot() {
+        if (!this.hasHistoryTarget) return window;
+        const overflowY = getComputedStyle(this.historyTarget).overflowY;
+        return (overflowY === 'auto' || overflowY === 'scroll') ? this.historyTarget : window;
+    }
+
     _scrollToBottom() {
-        if (this.hasHistoryTarget) {
-            this.historyTarget.scrollTop = this.historyTarget.scrollHeight;
+        const root = this._scrollRoot();
+        if (root === window) {
+            // Follow the END OF THE CONVERSATION, not the document: the
+            // sidebar can be taller than the chat column, and scrolling to
+            // the document bottom would leave the conversation out of view.
+            const last = this.hasHistoryTarget ? this.historyTarget.lastElementChild : null;
+            if (last) last.scrollIntoView({ block: 'end' });
+            else window.scrollTo({ top: document.documentElement.scrollHeight });
+        } else {
+            root.scrollTop = root.scrollHeight;
+        }
+    }
+
+    /** Positions the viewport so `el`'s top edge is comfortably in view. */
+    _pinToElement(el) {
+        const root = this._scrollRoot();
+        const rect = el.getBoundingClientRect();
+        if (root === window) {
+            window.scrollTo({ top: window.scrollY + rect.top - 90 });
+        } else {
+            const rb = root.getBoundingClientRect();
+            root.scrollTop += (rect.top - rb.top) - 8;
         }
     }
 
@@ -467,6 +668,12 @@ export default class extends Controller {
         return String(s).replace(/[&<>"']/g, (c) => ({
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
         }[c]));
+    }
+
+    _reIcons() {
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            try { window.lucide.createIcons(); } catch {}
+        }
     }
 
     /**
@@ -534,11 +741,7 @@ export default class extends Controller {
                     </div>
                 </div>
             </div>`).join('');
-        if (this.hasHistoryTarget) {
-            // Keep the start of the reply in view (don't jump past the cards).
-            const hb = this.historyTarget.getBoundingClientRect();
-            const bb = bubble.getBoundingClientRect();
-            this.historyTarget.scrollTop += (bb.top - hb.top) - 8;
-        }
+        // Keep the start of the reply in view (don't jump past the cards).
+        this._pinToElement(bubble);
     }
 }

@@ -52,6 +52,7 @@ final class ResolutionIndexListener
         'inadmissionCauses',
         'topics',
         'outcome',
+        'judicialStatus',
         'source',
         'scope',
         'entityType',

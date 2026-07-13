@@ -1,0 +1,22 @@
+{# Turno de introducción escriptado (sin backend): el asistente pregunta qué
+   prefiere hacer el usuario. assistant-chat lo clona en connect() cuando la
+   conversación está vacía y no hay borrador; se retira al elegir o al
+   escribir directamente. #}
+<div class="chat-turn chat-turn-assistant" data-intro-choice>
+    {# Ojo: .chat-bubble-text es white-space:pre-wrap — el texto debe ir en
+       una sola línea o los saltos de la plantilla se pintan literalmente. #}
+    {% set docLabel = flow == 'request' ? 'tu solicitud de acceso a información pública' : (isAlegation ? 'tu respuesta a las alegaciones' : 'tu reclamación') %}
+    <div class="chat-bubble-text">{{ 'Hola 👋 Soy el asistente de redacción de PideInfo. Puedo redactar ' ~ docLabel ~ ' apoyándome en la ley aplicable y en resoluciones reales de los Consejos de Transparencia — o puedes escribirla tú y pedirme ayuda solo cuando la necesites.' }}
+
+<strong>¿Qué prefieres hacer?</strong></div>
+    <div class="chat-intro-actions">
+        <button type="button" class="btn btn-primary"
+                data-action="assistant-chat#chooseAi">
+            <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> Redactar borrador con IA
+        </button>
+        <button type="button" class="btn btn-outline"
+                data-action="assistant-chat#chooseManual">
+            <i data-lucide="pen-line" class="w-4 h-4 mr-2"></i> Prefiero redactar manualmente
+        </button>
+    </div>
+</div>

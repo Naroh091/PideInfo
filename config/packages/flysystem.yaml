@@ -24,4 +24,10 @@ flysystem:
                 client: 'aws_s3_client'
                 bucket: '%env(AWS_S3_BUCKET_NAME)%'
                 prefix: 'criteria'
+        judgments.storage:
+            adapter: 'aws'
+            options:
+                client: 'aws_s3_client'
+                bucket: '%env(AWS_S3_BUCKET_NAME)%'
+                prefix: 'judgments'
 

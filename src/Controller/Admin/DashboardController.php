@@ -8,6 +8,7 @@ use App\Entity\ApplicableLaw;
 use App\Entity\AutonomousCommunity;
 use App\Entity\ComplaintOrganism;
 use App\Entity\Criterion;
+use App\Entity\Judgment;
 use App\Entity\Document;
 use App\Entity\Organization;
 use App\Entity\PublicBody;
@@ -64,6 +65,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::section('RAG');
         yield MenuItem::linkToCrud('Resoluciones', 'fa fa-book', Resolution::class);
         yield MenuItem::linkToCrud('Criterios interpretativos', 'fa fa-scale-balanced', Criterion::class);
+        yield MenuItem::linkToCrud('Sentencias', 'fa fa-gavel', Judgment::class);
 
         yield MenuItem::section('Sistema');
         yield MenuItem::linkToRoute('Messenger Monitor', 'fa fa-cogs', 'zenstruck_messenger_monitor_dashboard');

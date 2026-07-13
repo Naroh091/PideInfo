@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Resolution;
 use App\Search\ResolutionSearchQuery;
+use App\Service\Judgment\JudicialStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Contracts\Cache\CacheInterface;
@@ -373,6 +374,13 @@ class ResolutionRepository extends ServiceEntityRepository
                 ->setParameter('inadmissionCause', json_encode([$filters['inadmissionCause']]));
         }
 
+        // One option maps to several codes (the direction of an annulment is part of the code).
+        $judicialCodes = JudicialStatus::codesForFilter((string) ($filters['judicialStatus'] ?? ''));
+        if ($judicialCodes !== []) {
+            $qb->andWhere('r.judicialStatus IN (:judicialCodes)')
+                ->setParameter('judicialCodes', $judicialCodes);
+        }
+
         if (!empty($filters['dateFrom'])) {
             $qb->andWhere('r.resolutionDate >= :dateFrom')
                 ->setParameter('dateFrom', new \DateTimeImmutable($filters['dateFrom']));
@@ -445,6 +453,11 @@ class ResolutionRepository extends ServiceEntityRepository
         if (!empty($filters['inadmissionCause'])) {
             $where[] = 'inadmission_causes @> CAST(:inadmissionCause AS jsonb)';
             $params['inadmissionCause'] = json_encode([$filters['inadmissionCause']]);
+        }
+        $judicialCodes = JudicialStatus::codesForFilter((string) ($filters['judicialStatus'] ?? ''));
+        if ($judicialCodes !== []) {
+            $where[] = 'judicial_status = ANY(CAST(:judicialCodes AS text[]))';
+            $params['judicialCodes'] = '{' . implode(',', $judicialCodes) . '}';
         }
         if (!empty($filters['dateFrom'])) {
             $where[] = 'resolution_date >= :dateFrom';

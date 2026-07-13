@@ -462,7 +462,7 @@ class AccessRequestController extends AbstractController
 
     #[Route('/nueva/realizar/redactar/{id}', name: 'app_solicitudes_realizar_draft', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function draft(AccessRequest $accessRequest): Response
+    public function draft(Request $request, AccessRequest $accessRequest): Response
     {
         if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
             $this->addFlash('warning', 'Esta solicitud ya no es un borrador.');
@@ -487,7 +487,14 @@ class AccessRequestController extends AbstractController
             $history = [];
         }
 
-        return $this->render('solicitudes/realizar/draft.html.twig', [
+        // Interfaz de conversación (hoja de papel dentro del chat) por
+        // defecto; ?ui=classic mantiene el editor clásico como escape
+        // durante una release.
+        $newUi = $request->query->get('ui') !== 'classic';
+
+        return $this->render($newUi ? 'asistente/conversacion.html.twig' : 'solicitudes/realizar/draft.html.twig', [
+            'flow' => 'request',
+            'newUi' => $newUi,
             'request' => $accessRequest,
             'siblings' => $siblings,
             'batchId' => $batchId,

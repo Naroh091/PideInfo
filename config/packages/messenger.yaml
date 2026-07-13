@@ -62,6 +62,7 @@ framework:
             App\Message\ProcessCriterionMessage: analysis
             App\Message\GenerateDocumentEmbeddingsMessage: analysis
             App\Message\WarmSuccessAnalysisMessage: analysis
+            App\Message\ProcessJudgmentMessage: analysis
             App\Message\WarmActivitySummaryMessage: analysis
             App\Message\CheckCustomDeadlinesMessage: async
             App\Message\ProcessResolutionMessage: async

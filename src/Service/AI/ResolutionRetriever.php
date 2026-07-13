@@ -15,6 +15,7 @@ final class ResolutionRetriever
         private readonly StoreInterface $resolutionsStore,
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly ResolutionRepository $resolutionRepository,
+        private readonly JudicialHistoryAnnotator $judicialHistory,
     ) {
     }
 
@@ -138,7 +139,10 @@ final class ResolutionRetriever
                 }
             }
 
-            return $results;
+            // One extra query, zero LLM calls: whether each resolution survived the courts.
+            // A resolution annulled by a final judgment must never be cited as favourable
+            // precedent, and this is where the agent learns it.
+            return $this->judicialHistory->annotate($results);
         } catch (\Exception) {
             return [];
         }
@@ -213,10 +217,15 @@ final class ResolutionRetriever
                 ? "**Texto completo (extracto):**\n{$excerpt}"
                 : '_Texto completo no disponible._';
 
+            // The judicial-history warning goes FIRST: an annulled resolution must scream
+            // before the model reads a summary that makes it look citable.
+            $judicialBlock = trim((string) ($resolution['judicialHistory']['block'] ?? ''));
+
             $formatted[] = sprintf(
-                "### Resolución %s (%s)\nÓrgano emisor: %s\nAdministración reclamada: %s\nResultado: %s\n\n%s\n\n%s\n\n%s",
+                "### Resolución %s (%s)\n%sÓrgano emisor: %s\nAdministración reclamada: %s\nResultado: %s\n\n%s\n\n%s\n\n%s",
                 $resolution['reference'],
                 $resolution['date'] ?? 'Fecha desconocida',
+                $judicialBlock !== '' ? $judicialBlock . "\n\n" : '',
                 $resolution['complaintOrganism'] ?? 'Consejo de Transparencia (no especificado)',
                 $resolution['publicBody'] ?? 'No especificada',
                 $this->translateOutcome($resolution['outcome'] ?? 'unknown'),

@@ -45,6 +45,16 @@
                                 <span class="badge {{ badgeClass[resolution.outcome]|default('badge-secondary') }}">
                                     {{ resolution.outcomeLabel }}
                                 </span>
+                                {# Lo que hicieron los tribunales DESPUÉS con esa decisión. Sale de la
+                                   columna judicial_status (cero queries): pedirle las sentencias a cada
+                                   card serían 50 queries por página. #}
+                                {% set judicial = resolution.judicialStatusView %}
+                                {% if judicial.challenged %}
+                                    <span class="badge {{ judicial.badgeClass }}" title="{{ judicial.hint }}">
+                                        <i data-lucide="{{ judicial.icon }}" class="w-3 h-3"></i>
+                                        {{ judicial.badgeLabel }}
+                                    </span>
+                                {% endif %}
                                 <span class="text-xs text-slate-400 font-mono tracking-tight">{{ resolution.referenceNumber }}</span>
                                 {% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
                                     <a href="{{ path('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug }) }}"

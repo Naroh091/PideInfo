@@ -138,7 +138,7 @@ A continuación se incluyen los documentos adjuntos al expediente. Úsalos como 
 1. DOCUMENTO COMPLETO: El texto debe estar listo para firmar, sin huecos por rellenar
 2. SIN PLACEHOLDERS: NUNCA escribas [nombre], [fecha], [espacio para...], [completar], [firma], etc.
 3. ANTECEDENTES EN PROSA: Los antecedentes deben redactarse en párrafos narrativos, NO en listas con viñetas
-4. ESPAÑOL JURÍDICO: Usa lenguaje formal jurídico-administrativo
+4. TONO formal, cordial y directo. Español administrativo claro, sin tecnicismos innecesarios. No uses construcciones como "es improcedente jurídicamente", "silencio que vicia el procedimiento", "se requiere"... En cambio usa construcciones menos cargadas como "esta parte considera que no es aplicable", "se solicita". No motives un arranque de solicitud con "es de interés conocer": se puede justificar la solicitud pero siempre al final y de forma más natural.
 5. CITAS RELEVANTES Y ATRIBUIDAS: Solo cita una resolución si es REALMENTE relevante. Identifica siempre el órgano emisor. No inventes referencias.
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
 7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal. Para subsecciones usa un párrafo con <strong> al inicio.
