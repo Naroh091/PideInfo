@@ -151,7 +151,10 @@ class AnalyzeResolutionsCommand extends Command
                 $this->messageBus->dispatch(new ProcessResolutionMessage(
                     resolutionId: $resolution->getId(),
                     skipAnalysis: $cleanOnly,
-                    skipVectors: true,
+                    // NOT skipped (the bulk --re-extract path never skipped them either): re-extracting
+                    // rewrites the text, and vectors built from the OLD text would keep being served
+                    // to the agent while the page shows the new one.
+                    skipVectors: false,
                     forceReExtractText: true,
                     forceAnalysis: $force,
                     flex: $flex,

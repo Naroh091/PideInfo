@@ -423,6 +423,16 @@ final class ProcessResolutionHandler
      */
     private function doVectorize(Resolution $resolution, array $chunks, array $baseMeta): void
     {
+        // Wipe first. Every VectorDocument gets a fresh Uuid::v7(), so without this the previous
+        // vectors of the resolution survive alongside the new ones — and re-processing a document
+        // whose text was CORRUPT (a truncated reformatting, a font-cipher "decoded" by an LLM)
+        // would fix the page while the agent kept retrieving the corruption. Same discipline as
+        // JudgmentVectorizer.
+        $this->entityManager->getConnection()->executeStatement(
+            "DELETE FROM ai_resolutions WHERE metadata->>'resolution_id' = :id",
+            ['id' => (string) $resolution->getId()],
+        );
+
         $documents = [];
 
         // Full text chunks

@@ -287,6 +287,10 @@ trait ResolutionProcessingTrait
         try {
             $baseMeta = array_filter([
                 Metadata::KEY_SOURCE => $resolution->getReferenceNumber(),
+                // ResolutionRetriever DISCARDS any hit without this key, so vectors written by the
+                // inline path used to be invisible — and undeletable, which is why re-processing
+                // never replaced them. It is the same bug JudgmentVectorizer was built to avoid.
+                'resolution_id' => (string) $resolution->getId(),
                 'reference' => $resolution->getReferenceNumber(),
                 'outcome' => $resolution->getOutcome(),
                 'source' => $resolution->getSource(),
@@ -299,6 +303,13 @@ trait ResolutionProcessingTrait
             if ($resolution->getAutonomousCommunity()) {
                 $baseMeta['autonomousCommunity'] = $resolution->getAutonomousCommunity()->getName();
             }
+
+            // Wipe-and-reinsert: ids are random, so without this the old vectors survive the
+            // re-processing and the agent keeps retrieving whatever they were built from.
+            $this->entityManager->getConnection()->executeStatement(
+                "DELETE FROM ai_resolutions WHERE metadata->>'resolution_id' = :id",
+                ['id' => (string) $resolution->getId()],
+            );
 
             $chunks = $this->chunkText($fullText);
             $documents = [];
