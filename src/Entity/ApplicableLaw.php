@@ -62,6 +62,17 @@ class ApplicableLaw
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $officialUrl = null;
 
+    /**
+     * BOE identifier of this law in the legalize-es catalogue (LegalNorm.boeId). It is what
+     * lets LegalFrameworkComposer paste the law's own articles — deadlines, limits, inadmission
+     * causes — into the drafting prompt instead of hoping the model remembers them.
+     *
+     * Null on the rows whose statute is repealed or plain wrong (País Vasco, C. Valenciana):
+     * fixing those changes deadlines, so it is a data decision, not a mapping one.
+     */
+    #[ORM\Column(length: 40, nullable: true)]
+    private ?string $boeId = null;
+
     #[ORM\ManyToOne(targetEntity: ComplaintOrganism::class, inversedBy: 'applicableLaws')]
     #[ORM\JoinColumn(nullable: true)]
     private ?ComplaintOrganism $complaintOrganism = null;
@@ -275,6 +286,17 @@ class ApplicableLaw
     public function setOfficialUrl(?string $officialUrl): static
     {
         $this->officialUrl = $officialUrl;
+        return $this;
+    }
+
+    public function getBoeId(): ?string
+    {
+        return $this->boeId;
+    }
+
+    public function setBoeId(?string $boeId): static
+    {
+        $this->boeId = $boeId;
         return $this;
     }
 

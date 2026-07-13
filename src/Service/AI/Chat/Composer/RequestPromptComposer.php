@@ -7,6 +7,7 @@ namespace App\Service\AI\Chat\Composer;
 use App\Entity\AccessRequest;
 use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
+use App\Service\AI\Chat\LegalFrameworkComposer;
 use App\Service\AI\Chat\WritingPreferencesFormatter;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\Submission\ApplicableLawResolver;
@@ -23,6 +24,7 @@ final class RequestPromptComposer
         private readonly ResolutionRetriever $resolutionRetriever,
         private readonly ApplicableLawResolver $applicableLawResolver,
         private readonly PromptStore $promptStore,
+        private readonly LegalFrameworkComposer $legalFramework,
     ) {
     }
 
@@ -45,6 +47,16 @@ final class RequestPromptComposer
         ]);
 
         $fullText = $this->decisionPolicy($isReg, $ar) . "\n\n" . $scaffolding->text;
+
+        // The literal text of the applicable law (and of the regime that governs the capacity
+        // the user acts in — a concejal is not governed by the Ley 19/2013). Injected here in
+        // PHP, next to the writing preferences, and not as a template variable: the prompts are
+        // served by Langfuse, and a version edited there without the placeholder would drop the
+        // whole block without a trace.
+        $legalBlock = $this->legalFramework->compose($ar);
+        if ($legalBlock !== '') {
+            $fullText .= "\n\n" . $legalBlock;
+        }
 
         $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
         if ($prefsBlock !== '') {

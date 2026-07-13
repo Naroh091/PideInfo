@@ -6,6 +6,7 @@ namespace App\Service\AI\Chat\Composer;
 
 use App\Entity\AccessRequest;
 use App\Prompt\CompiledPrompt;
+use App\Service\AI\Chat\LegalFrameworkComposer;
 use App\Service\AI\Chat\WritingPreferencesFormatter;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
@@ -26,6 +27,7 @@ final class ComplaintPromptComposer
 {
     public function __construct(
         private readonly ComplaintGenerator $complaintGenerator,
+        private readonly LegalFrameworkComposer $legalFramework,
     ) {
     }
 
@@ -130,11 +132,17 @@ TXT;
         $prefsText = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
         $prefsBlock = $prefsText !== '' ? "\n\n" . $prefsText : '';
 
+        // Literal text of the applicable transparency law and of the regime attached to the
+        // capacity the user acts in. Same rationale as in RequestPromptComposer: injected in
+        // PHP so a Langfuse edit can never silently drop it.
+        $legalText = $this->legalFramework->compose($ar);
+        $legalBlock = $legalText !== '' ? "\n\n" . $legalText : '';
+
         $borradorBlock = $hasDraft
             ? "\n\n## Borrador actual en el canvas (PUNTO DE PARTIDA para `rewrite`)\n\n{$currentBodyHtml}\n"
             : '';
 
-        $fullText = $policy . $prefsBlock . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
+        $fullText = $policy . $prefsBlock . $legalBlock . $borradorBlock . "\n\n## Scaffolding del flujo de reclamaciones\n\n" . $scaffolding->text;
 
         return new CompiledPrompt(text: $fullText, name: $scaffolding->name, version: $scaffolding->version);
     }

@@ -9,6 +9,7 @@ The document processing is in docs/document-processing.md
 The inbound email pipeline is in docs/inbound-email.md
 The MCP server (HTTP transport + OAuth2) is in docs/mcp.md
 The Elasticsearch-backed resolution search is in docs/search.md
+The legal framework (legalize-es corpus, `find_law`/`search_legislation`/`read_law_articles`) is in docs/legal-framework.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 
 
@@ -21,6 +22,10 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 - All resolution ingestion commands must support the same processing features (PDF extraction, metadata extraction, text cleaning) in both inline and async (`--async`) modes. The async path in `ProcessResolutionHandler` must mirror what the command does inline.
 - MCP tools (`src/Mcp/Tool/`) must always filter by `Security::getUser()` and validate ownership before returning or mutating an entity. Mutation tools must record an audit entry through the existing `StatusHistory`/`DeadlineHistory` pipelines and tag the `notes` field with `[mcp/{client_id}]` (using `OAuthTokenContext::getClientId()`) so the channel is identifiable.
 - Never instantiate Gemini/OpenAI clients directly from MCP tools — go through `App\\Service\\AI\\Llm\\LlmClient` (or services that already do, e.g. `ComplaintGenerator`).
+- Any new norm added to `TrackedNorms` requires `app:legalize:sync-catalog --verify` to stay green (a wrong BOE id fails **silently**: the norm is simply never indexed), followed by `app:legalize:index --norm=<id>` and `fos:elastica:populate --index=laws`. Any new searchable property of `LegalArticle` must also be added to the `laws` mapping in `config/packages/fos_elastica.yaml`.
+- `legal_article` is written **only** by `LegalArticleIndexer`, through bulk DBAL. Never add a Doctrine index listener for it: the writes bypass the UnitOfWork and the listener would be blind. Indexing is dispatched explicitly, per norm (`IndexLegalNormMessage`).
+- The agent must never cite a legal article it has not read through `search_legislation` or `read_law_articles` in the same conversation. If you touch `TOOLS_PREAMBLE`, keep that rule intact — article numbers and deadlines change with every reform.
+- `/var/data/legalize` is **read-only** for the application. `LegalizeRepositoryManager` does `git reset --hard`, which is only safe as long as nothing in the app ever writes inside that checkout.
 - OAuth2 secrets (`var/oauth/*.key`, `OAUTH_ENCRYPTION_KEY`) are environment-specific; never commit them. The repo carries dev-only keys generated locally.
 - **Never make a commit without David's explicit confirmation.** Write code, run tests, show the diff — but do not `git commit` or `git push` until David says it's OK.
 

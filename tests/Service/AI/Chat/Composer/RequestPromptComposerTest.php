@@ -14,11 +14,15 @@ use App\Prompt\LangfuseAdminClient;
 use App\Prompt\PromptStore;
 use App\Repository\ApplicableLawRepository;
 use App\Repository\AutonomousCommunityRepository;
+use App\Repository\LegalArticleRepository;
 use App\Repository\RegDestinationRepository;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
+use App\Service\AI\Chat\LegalFrameworkComposer;
 use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\ResolutionRetriever;
+use App\Service\Legal\KeyArticleSelector;
 use App\Service\Submission\ApplicableLawResolver;
+use App\Service\Submission\RequesterCapacityResolver;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\AI\Store\StoreInterface;
@@ -50,7 +54,16 @@ final class RequestPromptComposerTest extends TestCase
             $this->createStub(AutonomousCommunityRepository::class),
         );
 
-        return new RequestPromptComposer($resolutionRetriever, $lawResolver, $promptStore);
+        // LegalFrameworkComposer is final. With an ApplicableLaw carrying no boeId (the stub
+        // returns null), compose() short-circuits to '' without touching the repository.
+        $legalArticles = $this->createStub(LegalArticleRepository::class);
+        $legalFramework = new LegalFrameworkComposer(
+            $legalArticles,
+            new RequesterCapacityResolver(),
+            new KeyArticleSelector($legalArticles),
+        );
+
+        return new RequestPromptComposer($resolutionRetriever, $lawResolver, $promptStore, $legalFramework);
     }
 
     private function accessRequest(): AccessRequest

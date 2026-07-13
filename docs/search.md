@@ -167,11 +167,30 @@ fallback lo mantiene. La aproximación de `cardinality` sólo afecta a la tarjet
 sirve de `getGlobalStats()` (Postgres, cacheada); en las vistas con contexto el número de reclamados
 distintos es pequeño y el recuento es exacto.
 
+## Índice `laws` (legislación)
+
+El segundo índice del cluster. Guarda el articulado de las 28 normas trackeadas de legalize-es
+(3.406 artículos) y alimenta la tool `search_legislation` del agente. Diseño completo en
+[docs/legal-framework.md](legal-framework.md); aquí solo lo que se aparta del patrón de
+`resolutions`:
+
+| Decisión | Por qué |
+|---|---|
+| **`content` SÍ va en `_source`** | El corpus son unas decenas de MB, no gigabytes de PDF. Tenerlo habilita `highlight`, que devuelve el fragmento que coincidió en un artículo largo en lugar de su primer párrafo |
+| **Sinónimos en tiempo de búsqueda** | La ley y el ciudadano no comparten léxico: el ROF y la LBRL nunca dicen "concejal", dicen "miembro de la Corporación". Sin el puente, la consulta no encontraba las dos normas que dan ese derecho. Al ser search-time, añadir un sinónimo no exige reindexar |
+| **`heading^2` con `tie_breaker: 0.4`** | Las normas de los 80 imprimen sus artículos **sin rúbrica**. Un boost mayor enterraba sistemáticamente justo los preceptos que más importan |
+| **NO hay listener de Doctrine** | `legal_article` se escribe con DBAL masivo, que no pasa por el UnitOfWork: un listener sería ciego. `LegalArticleIndexer` despacha `IndexLegalNormMessage` a mano, con granularidad de **norma** (reindexar la LCSP serían 350 mensajes, no 1) |
+| **Wipe-and-reinsert por norma** | Una reforma no solo cambia textos: **deroga artículos**. Un upsert los dejaría vivos en el índice y el agente seguiría citándolos |
+
+`LEGISLATION_SEARCH_BACKEND=doctrine` desactiva Elasticsearch para la legislación (fallback a
+FTS de Postgres sobre el índice GIN de `legal_article`).
+
 ## Entorno de desarrollo
 
 ```bash
 docker compose up -d elasticsearch     # http://127.0.0.1:9200
 php bin/console fos:elastica:populate --index=resolutions
+php bin/console fos:elastica:populate --index=laws
 php bin/console messenger:consume index
 ```
 

@@ -1,0 +1,9 @@
+framework:
+    # Without this, self::getContainer() cannot reach private services and every
+    # KernelTestCase/WebTestCase in the suite dies with "Could not find service
+    # test.service_container". It is the standard Symfony test recipe, and it only ever
+    # applies to the test environment.
+    test: true
+
+    session:
+        storage_factory_id: session.storage.factory.mock_file

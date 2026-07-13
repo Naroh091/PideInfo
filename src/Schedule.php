@@ -41,6 +41,10 @@ class Schedule implements ScheduleProviderInterface
             ->add(RecurringMessage::cron('0 5 * * *', new RunCommandMessage('app:ctpd:load-resolutions --async')))
             ->add(RecurringMessage::cron('0 6 * * *', new RunCommandMessage('app:ctrm:load-resolutions --async')))
             ->add(RecurringMessage::cron('0 6 * * *', new RunCommandMessage('app:cvt:load-resolutions --async')))
+
+            // legalize-es takes commits every day. One entry, not three: the command chains
+            // pull → catalogue → articulado itself, under a lock.
+            ->add(RecurringMessage::cron('0 8 * * *', new RunCommandMessage('app:legalize:sync')))
             ;
     }
 }
