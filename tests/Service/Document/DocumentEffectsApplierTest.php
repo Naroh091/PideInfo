@@ -6,6 +6,7 @@ namespace App\Tests\Service\Document;
 
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
+use App\Entity\ApplicableLaw;
 use App\Entity\Document;
 use App\Entity\StatusHistory;
 use App\Enum\DocumentType;
@@ -170,5 +171,79 @@ final class DocumentEffectsApplierTest extends TestCase
         ]);
 
         self::assertSame(AccessRequest::STATUS_INADMITTED, $accessRequest->getStatus());
+    }
+
+    private function requestWithLaw(): AccessRequest
+    {
+        $accessRequest = new AccessRequest();
+        $law = new ApplicableLaw();
+        $law->setName('Ley 19/2013 de transparencia');
+        $law->setShortCode('LTBG');
+        $accessRequest->setApplicableLaw($law);
+
+        return $accessRequest;
+    }
+
+    public function testComplaintResolutionUpheldSetsResolvedAtAndComplianceDeadline(): void
+    {
+        $applier = $this->applier();
+        $accessRequest = $this->requestWithLaw();
+        $document = $this->createMock(Document::class);
+
+        $this->manager->expects(self::once())
+            ->method('setComplianceDeadline')
+            ->with(
+                $accessRequest,
+                10, // ApplicableLaw::complianceAfterComplaintDays por defecto
+                new \DateTimeImmutable('2026-06-01'),
+                $document,
+            );
+
+        $applier->apply($accessRequest, $document, [
+            'documentType' => DocumentType::ComplaintResolution,
+            'status' => 'estimada',
+            'documentDate' => '2026-06-01',
+        ]);
+
+        self::assertNotNull($accessRequest->getResolvedAt());
+        self::assertSame('2026-06-01', $accessRequest->getResolvedAt()->format('Y-m-d'));
+    }
+
+    public function testComplaintResolutionDismissedSetsResolvedAtWithoutCompliance(): void
+    {
+        $applier = $this->applier();
+        $accessRequest = $this->requestWithLaw();
+
+        $this->manager->expects(self::never())
+            ->method('setComplianceDeadline');
+
+        $applier->apply($accessRequest, $this->createMock(Document::class), [
+            'documentType' => DocumentType::ComplaintResolution,
+            'status' => 'desestimada',
+            'documentDate' => '2026-06-01',
+        ]);
+
+        self::assertNotNull($accessRequest->getResolvedAt());
+    }
+
+    public function testComplaintResolutionDoesNotMoveExistingResolvedAtOrCompliance(): void
+    {
+        $applier = $this->applier();
+        $accessRequest = $this->requestWithLaw();
+        $accessRequest->setResolvedAt(new \DateTimeImmutable('2026-04-15'));
+        $complaint = new AccessRequestComplaint();
+        $complaint->setComplianceDeadlineAt(new \DateTimeImmutable('2026-06-20'));
+        $accessRequest->setComplaint($complaint);
+
+        $this->manager->expects(self::never())
+            ->method('setComplianceDeadline');
+
+        $applier->apply($accessRequest, $this->createMock(Document::class), [
+            'documentType' => DocumentType::ComplaintResolution,
+            'status' => 'estimada',
+            'documentDate' => '2026-06-01',
+        ]);
+
+        self::assertSame('2026-04-15', $accessRequest->getResolvedAt()->format('Y-m-d'));
     }
 }

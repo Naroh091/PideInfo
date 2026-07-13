@@ -204,16 +204,21 @@ final class DeadlineAlerts extends AbstractController
 
     private function getComplaintAlertMessage(int $daysUntil, bool $isPassed): string
     {
+        // complaint.deadlineAt is the council's deadline to RESOLVE the
+        // complaint (filedAt + 3 months, art. 24.4 Ley 19/2013) — not a
+        // deadline for the citizen to file one. "Plazo de reclamación
+        // vencido" read as "you can no longer complain", the opposite of
+        // what it means.
         if ($isPassed) {
-            return 'Plazo de reclamación vencido';
+            return 'Plazo de resolución de la reclamación vencido';
         }
         if ($daysUntil === 0) {
-            return 'Plazo de reclamación vence hoy';
+            return 'El plazo de resolución de la reclamación vence hoy';
         }
         if ($daysUntil === 1) {
-            return 'Plazo de reclamación vence mañana';
+            return 'El plazo de resolución de la reclamación vence mañana';
         }
-        return sprintf('Quedan %d días para resolución de reclamación', $daysUntil);
+        return sprintf('Quedan %d días para la resolución de la reclamación', $daysUntil);
     }
 
     private function getHearingAlertMessage(int $daysUntil, bool $isPassed): string

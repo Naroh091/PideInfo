@@ -75,7 +75,9 @@ class AccessRequestType extends AbstractType
                         'En trámite' => AccessRequest::STATUS_PROCESSING,
                         'Concedida (pendiente de recepción)' => AccessRequest::STATUS_GRANTED,
                         'Concedida y completada' => AccessRequest::STATUS_GRANTED_COMPLETED,
+                        'Estimación parcial' => AccessRequest::STATUS_PARTIALLY_GRANTED,
                         'Denegada' => AccessRequest::STATUS_DENIED,
+                        'Inadmitida a trámite' => AccessRequest::STATUS_INADMITTED,
                         'Silencio administrativo' => AccessRequest::STATUS_DELAYED,
                     ],
                 ])

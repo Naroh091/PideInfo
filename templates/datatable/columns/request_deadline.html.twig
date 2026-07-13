@@ -1,5 +1,5 @@
 {# Response deadline #}
-{% if row.status in ['granted', 'granted_completed', 'denied'] %}
+{% if row.hasReceivedResponse %}
     <span class="text-slate-400">{{ row.deadlineAt|date('d/m/Y') }}</span>
     <p class="text-xs text-green-600 mt-0.5">Resuelta</p>
 {% elseif row.isDeadlineSuspended %}

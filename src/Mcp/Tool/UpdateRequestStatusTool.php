@@ -26,7 +26,7 @@ use Symfony\Component\Uid\Uuid;
  */
 #[McpTool(
     name: 'update_request_status',
-    description: 'Actualiza el estado del flujo principal (sent/processing/granted/denied/delayed/pending) de una solicitud propia y deja traza en el historial.',
+    description: 'Actualiza el estado del flujo principal (sent/processing/granted/granted_completed/partially_granted/denied/inadmitted/delayed/pending) de una solicitud propia y deja traza en el historial.',
 )]
 final class UpdateRequestStatusTool
 {
@@ -41,7 +41,7 @@ final class UpdateRequestStatusTool
 
     /**
      * @param string      $requestId UUID of the access request.
-     * @param string      $status    New status: sent, processing, granted, granted_completed, denied, delayed, pending.
+     * @param string      $status    New status: sent, processing, granted, granted_completed, partially_granted, denied, inadmitted, delayed, pending.
      * @param string|null $note      Optional note recorded in StatusHistory.
      */
     public function __invoke(string $requestId, string $status, ?string $note = null): AccessRequestSummary

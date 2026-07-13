@@ -76,7 +76,7 @@ Esta separación existe porque ambos evolucionan de forma independiente:
 
 La reclamación está disponible cuando la solicitud está en estado de flujo `denied` o `delayed`, **o** cuando su `resolutionResult` es uno de `partially_granted`, `denied`, `inadmitted`, `silence`, **o** cuando ha transcurrido el plazo legal sin una resolución `granted`/`granted_completed`. Ver `ComplaintGenerator::canGenerateComplaint()`. El prompt se adapta al caso: cuando `resolutionResult = partially_granted`, el borrador se plantea contra la información NO facilitada en lugar de como una denegación total.
 
-**Punto de entrada — CTA único.** Desde la página de detalle de la solicitud (`templates/components/RequestStatusBanner.html.twig`), el ciudadano ve un solo botón — "Reclamar a {{ council }}" — que enruta a `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). Si ya existe un `Document` borrador de tipo `Complaint`, la etiqueta cambia a "Continuar reclamación" y el mismo selector muestra arriba el borrador en curso.
+**Punto de entrada — CTA único.** Desde la página de detalle de la solicitud (`templates/components/RequestStatusBanner.html.twig`), el ciudadano ve un solo botón — "Reclamar a {{ council }}" — que enruta a `app_complaint_start` (`GET /solicitudes/{id}/reclamacion`). Si ya existe un `Document` borrador de tipo `Complaint`, la etiqueta cambia a "Continuar reclamación" y el mismo selector muestra arriba el borrador en curso. El aviso concreto depende del caso — silencio (plazo vencido), denegación, concesión parcial, inadmisión (rojo, art. 18) o concesión no materializada (acción secundaria "Reclamar la entrega" dentro del banner esmeralda de concedida) — y todos se ocultan cuando ya existe una reclamación (`request.complaint is null`). Los avisos de decisión expresa se condicionan a `resolutionResult` (no a `status`) para sobrevivir a transiciones posteriores del flujo, y son excluyentes con el de silencio porque `isDeadlinePassed()` se apaga con cualquier decisión expresa.
 
 **Pantalla del selector** (`templates/complaint/start.html.twig`). Tres rutas convergentes:
 
@@ -237,8 +237,8 @@ La IA analiza el documento de resolución para determinar el resultado:
 - `complaint_archived` — La reclamación se cierra por motivos procedimentales
 
 Cuando se estima la reclamación:
-- Se fija `resolvedAt` en la solicitud de acceso
-- Puede fijarse un plazo de cumplimiento (`complianceDeadlineAt`), normalmente 10 días hábiles desde la resolución
+- Se fija `resolvedAt` en la solicitud de acceso (tanto por el desplegable manual — `changeStatus()` — como al subirse el PDF de la resolución — `DocumentEffectsApplier`)
+- Se fija el plazo de cumplimiento (`complianceDeadlineAt`): el pipeline de documentos llama a `AccessRequestManager::setComplianceDeadline()` con los `ApplicableLaw::complianceAfterComplaintDays` (10 días hábiles por defecto) contados desde la fecha del documento, y registra `DeadlineHistory` (`TYPE_COMPLIANCE`, `REASON_COMPLAINT_RESOLUTION`). Un plazo ya existente no se recalcula. La tool MCP `update_complaint_status` permite fijarlo con fecha explícita.
 
 Cuando se desestima la reclamación:
 - Se fija `resolvedAt`
@@ -266,12 +266,12 @@ En los documentos judiciales el `referenceNumber` es el número de procedimiento
 
 | Plazo | Duración | Disparador |
 |----------|----------|---------|
-| Plazo de presentación | 30 días (configurable por ley) | Desde la fecha de denegación/silencio |
-| Plazo de resolución | 3 meses | Desde el acuse/inicio de tramitación del consejo |
+| Plazo de presentación | 30 días (configurable por ley) | Desde la fecha de denegación/silencio. **Informativo**: la app no lo calcula ni lo hace precluir — con silencio el plazo es abierto, y con resolución expresa los banners recuerdan "dentro del plazo de un mes desde la notificación" |
+| Plazo de resolución | 3 meses | Desde el acuse/inicio de tramitación del consejo. Lo fijan todas las vías de presentación: `changeStatus` (desplegable/MCP), los documentos `Complaint`/`ComplaintReceipt`/`ComplaintProcessingStart`, y el callback del agente `POST /api/agent/complaints/filed` (`filedAt + 3 meses`, sin pisar un plazo ya fijado) |
 | Plazo de cumplimiento | 10 días hábiles (configurable por ley) | Desde la fecha de resolución si se estima |
 | Plazo de alegaciones (audiencia) | Variable: `hearing_days` extraídos del documento | Desde el día siguiente a la notificación del trámite de audiencia |
 
-Los plazos se registran en `DeadlineHistory` con los tipos `TYPE_COMPLAINT`, `TYPE_COMPLIANCE` y `TYPE_HEARING`.
+Los plazos se registran en `DeadlineHistory` con los tipos `TYPE_COMPLAINT`, `TYPE_COMPLIANCE` y `TYPE_HEARING`. En las alertas del panel, `deadlineAt` se etiqueta como «plazo de **resolución** de la reclamación» — es el reloj del consejo, no un plazo del ciudadano para reclamar.
 
 ## Organismos de reclamación
 

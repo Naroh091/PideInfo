@@ -6,7 +6,6 @@ use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Message\UpdateExpiredRequestsMessage;
 use App\Service\AccessRequest\AccessRequestManager;
-use App\Service\Complaint\SuccessAnalysisWarmer;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
@@ -17,7 +16,6 @@ final class UpdateExpiredRequestsHandler
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly LoggerInterface $logger,
-        private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
         private readonly AccessRequestManager $accessRequestManager,
     ) {
     }
@@ -50,17 +48,13 @@ final class UpdateExpiredRequestsHandler
 
         foreach ($expiredRequests as $request) {
             $previousStatus = $request->getStatus();
-            $request->setStatus(AccessRequest::STATUS_DELAYED);
 
-            // Single canonical entry point: writes the audit row AND
-            // dispatches the matching UserNotification (status_changed,
-            // since this is not a complaint transition). The previous
-            // hand-rolled StatusHistory + notifyStatusChanged pair lived
-            // here because the service didn't expose this hook yet.
-            $this->accessRequestManager->recordStatusEvent(
+            // Canonical entry point: infers resolutionResult = silence, writes
+            // the audit row, dispatches the notification, flushes and pre-warms
+            // the success analysis — identical to a manual "delayed" transition.
+            $this->accessRequestManager->changeStatus(
                 $request,
                 StatusHistory::TYPE_STATUS,
-                $previousStatus,
                 AccessRequest::STATUS_DELAYED,
                 $notes,
             );
@@ -69,13 +63,6 @@ final class UpdateExpiredRequestsHandler
                 'requestId' => (string) $request->getId(),
                 'previousStatus' => $previousStatus,
             ]);
-        }
-
-        $this->entityManager->flush();
-
-        // Dispatch warm jobs after the flush so the handler sees the persisted state.
-        foreach ($expiredRequests as $request) {
-            $this->successAnalysisWarmer->maybeWarm($request);
         }
     }
 }

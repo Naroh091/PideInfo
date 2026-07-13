@@ -330,7 +330,25 @@ final class DocumentEffectsApplier
                     if ($complaintResult !== null) {
                         $complaint->setComplaintResult($complaintResult);
                     }
+                    // Terminal for the expediente — parity with the manual path
+                    // (changeStatus marks complaint outcomes as terminal statuses).
+                    if ($accessRequest->getResolvedAt() === null) {
+                        $accessRequest->setResolvedAt($eventDate ?? new \DateTimeImmutable());
+                    }
                     $this->recordStatusChange($accessRequest, 'complaint', $status, $analysis['summary'] ?? 'Resolución de reclamación', $eventDate, $previousComplaintStatus);
+
+                    // An upheld complaint gives the administration a compliance
+                    // window (complianceAfterComplaintDays hábiles, default 10).
+                    // Called last: setComplianceDeadline() flushes internally,
+                    // so every mutation above must already be in place.
+                    if ($status === AccessRequestComplaint::STATUS_GRANTED && $complaint->getComplianceDeadlineAt() === null) {
+                        $this->accessRequestManager->setComplianceDeadline(
+                            $accessRequest,
+                            $accessRequest->getApplicableLaw()->getComplianceAfterComplaintDays(),
+                            $eventDate ?? new \DateTimeImmutable(),
+                            $document,
+                        );
+                    }
                 }
                 break;
 

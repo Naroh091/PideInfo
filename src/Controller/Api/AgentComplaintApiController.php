@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\AccessRequest;
 use App\Entity\AccessRequestComplaint;
+use App\Entity\DeadlineHistory;
 use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Repository\AccessRequestRepository;
@@ -93,6 +94,23 @@ class AgentComplaintApiController extends AbstractController
 
         if ($complaint->getStatus() !== AccessRequestComplaint::STATUS_RECLAIMED) {
             $complaint->setStatus(AccessRequestComplaint::STATUS_RECLAIMED);
+        }
+
+        // Resolution deadline for the council (art. 24.4 Ley 19/2013): same
+        // +3 months every other filing path sets. Never move an existing one
+        // (a later acuse/tramitación document may have refined it, and agent
+        // retries must not reset the clock).
+        if ($complaint->getDeadlineAt() === null) {
+            $complaintDeadline = $complaint->getFiledAt()->modify('+3 months');
+            $complaint->setDeadlineAt($complaintDeadline);
+
+            $deadlineHistory = new DeadlineHistory();
+            $deadlineHistory->setAccessRequest($ar);
+            $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_COMPLAINT);
+            $deadlineHistory->setNewDeadline($complaintDeadline);
+            $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
+            $deadlineHistory->setNotes('Plazo de resolución de la reclamación establecido al presentarla el agente (3 meses, art. 24.4 Ley 19/2013)');
+            $ar->addDeadlineHistory($deadlineHistory);
         }
 
         $this->em->persist($complaint);
