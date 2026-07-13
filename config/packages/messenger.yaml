@@ -67,5 +67,8 @@ framework:
             App\Message\ProcessResolutionMessage: async
             App\Message\UpdateExpiredRequestsMessage: async
             App\Message\IndexResolutionMessage: index
+            # One message per NORM, not per article: reindexing the LCSP would otherwise be
+            # ~350 messages. See docs/legal-framework.md.
+            App\Message\IndexLegalNormMessage: index
             # Emitted by `fos:elastica:populate --pager-persister=async`
             FOS\ElasticaBundle\Message\AsyncPersistPage: index

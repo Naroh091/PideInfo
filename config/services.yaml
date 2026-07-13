@@ -73,6 +73,15 @@ services:
 
     App\Search\ResolutionSearchInterface: '@App\Search\FallbackResolutionSearch'
 
+    # Legislation search (index `laws`): same shape, same safety net.
+    App\Search\FallbackLegislationSearch:
+        arguments:
+            $elastic: '@App\Search\ElasticLegislationSearch'
+            $doctrine: '@App\Search\DoctrineLegislationSearch'
+            $backend: '%env(LEGISLATION_SEARCH_BACKEND)%'
+
+    App\Search\LegislationSearchInterface: '@App\Search\FallbackLegislationSearch'
+
     # CamoFox MCP client — browser automation for web search and URL visiting.
     # Uses a scoped HttpClient so it can reach the camofox-mcp container on the
     # Coolify network without affecting the default HttpClient used elsewhere.

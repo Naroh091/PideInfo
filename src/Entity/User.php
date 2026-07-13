@@ -141,6 +141,23 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $writingPreferences = null;
 
+    /**
+     * The capacity the user normally exercises the right of access in (RequesterCapacity::*).
+     *
+     * A column of its own, deliberately NOT a key inside $writingPreferences: the
+     * PATCH /api/user/writing-preferences endpoint rebuilds that array from a fixed key list
+     * and would silently drop anything else. And this is not a style preference anyway — it
+     * selects the legal regime: a concejal is governed by art. 77 LBRL, not by the Ley 19/2013.
+     *
+     * Overridable per request through AccessRequest.metadata['requester_capacity'].
+     */
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $requesterCapacity = null;
+
+    /** Free text quoted verbatim in the heading: "Concejal del Ayuntamiento de Getafe (Grupo Municipal X)". */
+    #[ORM\Column(length: 160, nullable: true)]
+    private ?string $requesterCapacityDetail = null;
+
     public function __construct()
     {
         $this->id = Uuid::v7();
@@ -458,6 +475,30 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function hasWritingPreferences(): bool
     {
         return !empty($this->writingPreferences);
+    }
+
+    public function getRequesterCapacity(): ?string
+    {
+        return $this->requesterCapacity;
+    }
+
+    public function setRequesterCapacity(?string $capacity): static
+    {
+        $this->requesterCapacity = $capacity;
+
+        return $this;
+    }
+
+    public function getRequesterCapacityDetail(): ?string
+    {
+        return $this->requesterCapacityDetail;
+    }
+
+    public function setRequesterCapacityDetail(?string $detail): static
+    {
+        $this->requesterCapacityDetail = $detail !== null && trim($detail) !== '' ? mb_substr(trim($detail), 0, 160) : null;
+
+        return $this;
     }
 
     /** Upper bound on stored learned preferences, to keep the injected prompt bounded. */

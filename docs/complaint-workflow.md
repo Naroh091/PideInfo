@@ -8,6 +8,14 @@ Cuando se deniega una solicitud de acceso o esta queda sin respuesta, el ciudada
 
 *Fuente editable: [`diagrams/complaint-lifecycle.drawio`](diagrams/complaint-lifecycle.drawio)*
 
+> **Marco legal.** `ComplaintPromptComposer` inyecta en el system prompt el texto **literal** de
+> la ley de transparencia aplicable (artículos de plazos, límites, causas de inadmisión y vía de
+> reclamación) y, si procede, el del régimen de la calidad en que se ejerce el derecho —un
+> concejal se rige por el art. 77 LBRL y los arts. 14-16 ROF, no por la Ley 19/2013—. Para la ley
+> de la materia el agente dispone de `find_law`, `search_legislation` y `read_law_articles`, con
+> la regla dura de **no citar ningún artículo que no haya leído**. Ver
+> [docs/legal-framework.md](legal-framework.md).
+
 ## La entidad AccessRequestComplaint
 
 Cuando se presenta una reclamación, se crea una entidad `AccessRequestComplaint` con una relación OneToOne con `AccessRequest`. Esta entidad guarda:

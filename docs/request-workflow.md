@@ -209,6 +209,24 @@ En el momento de la creación:
 - Se crea una entrada en `DeadlineHistory` con motivo `initial`
 - El estado se establece en `sent`
 
+#### Marco legal inyectado en el prompt
+
+`RequestPromptComposer` pega en el system prompt, **literalmente**, dos bloques que antes el
+modelo tenía que recordar (ver [docs/legal-framework.md](legal-framework.md)):
+
+1. **La ley de transparencia aplicable.** `ApplicableLawResolver` ya sabe cuál rige el organismo;
+   `ApplicableLaw.boeId` la enlaza con su texto y `LegalFrameworkComposer` inyecta sus artículos
+   clave (plazos, límites del art. 14, causas de inadmisión del art. 18, vía de reclamación).
+2. **El régimen de la calidad en que se ejerce el derecho.** Si el usuario es **concejal o cargo
+   electo**, el cauce no es la Ley 19/2013 sino el art. 77 LBRL y los arts. 14-16 del ROF —
+   silencio **positivo** a los **cinco días**—, y se inyecta su texto literal. La calidad vive en
+   el perfil (`User.requesterCapacity`) y se puede sobreescribir por solicitud
+   (`AccessRequest.metadata['requester_capacity']`, resuelto por `RequesterCapacityResolver`).
+
+Para todo lo demás —la ley de la **materia**: LCSP en un contrato menor, LGS en subvenciones,
+Ley 27/2006 en medio ambiente— el agente tiene las tools `find_law`, `search_legislation` y
+`read_law_articles`, y la regla dura de **no citar ningún artículo que no haya leído**.
+
 ### 2. Acuse de recibo
 
 Cuando el organismo público envía un acuse de recibo, la solicitud pasa a `processing`. Esto puede ocurrir mediante:

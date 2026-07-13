@@ -53,6 +53,27 @@
         </div>
     </div>
 
+    <div class="mt-6 border-t border-slate-200 pt-6" data-controller="requester-capacity">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+                {{ form_label(form.requesterCapacity, null, {'label_attr': {'class': 'block text-sm font-medium text-slate-700 mb-1'}}) }}
+                {{ form_widget(form.requesterCapacity, {'attr': {
+                    'class': 'block w-full rounded-lg border border-slate-300 px-3 py-2',
+                    'data-requester-capacity-target': 'select',
+                    'data-action': 'change->requester-capacity#toggle',
+                }}) }}
+                <p class="mt-1 text-xs text-slate-500">{{ form_help(form.requesterCapacity) }}</p>
+                {{ form_errors(form.requesterCapacity) }}
+            </div>
+            <div data-requester-capacity-target="detail" class="hidden">
+                {{ form_label(form.requesterCapacityDetail, null, {'label_attr': {'class': 'block text-sm font-medium text-slate-700 mb-1'}}) }}
+                {{ form_widget(form.requesterCapacityDetail, {'attr': {'class': 'block w-full rounded-lg border border-slate-300 px-3 py-2'}}) }}
+                <p class="mt-1 text-xs text-slate-500">{{ form_help(form.requesterCapacityDetail) }}</p>
+                {{ form_errors(form.requesterCapacityDetail) }}
+            </div>
+        </div>
+    </div>
+
     <div class="flex items-center justify-end gap-2 pt-2">
         <button type="submit" class="btn btn-primary">
             Guardar datos personales

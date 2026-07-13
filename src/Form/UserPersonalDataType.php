@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Form;
 
 use App\Entity\User;
+use App\Service\Submission\RequesterCapacity;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\TelType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -82,6 +84,26 @@ class UserPersonalDataType extends AbstractType
                     new NotBlank(['message' => 'Introduce un teléfono de contacto']),
                     new Regex(['pattern' => '/^\+?\d[\d\s\-]{6,18}$/', 'message' => 'Teléfono inválido']),
                 ],
+            ])
+            // Not decoration: this selects the legal regime. A concejal exercises the right
+            // under art. 77 LBRL and arts. 14-16 ROF — a better regime than the Ley 19/2013 —
+            // and the assistant drafts the wrong request if it does not know.
+            ->add('requesterCapacity', ChoiceType::class, [
+                'label' => '¿En qué calidad ejerces el derecho de acceso?',
+                'help' => 'Cambia la ley aplicable y, con ella, los plazos. Puedes cambiarlo en cada solicitud.',
+                'choices' => RequesterCapacity::choices(),
+                'required' => false,
+                'placeholder' => RequesterCapacity::label(RequesterCapacity::DEFAULT),
+            ])
+            ->add('requesterCapacityDetail', TextType::class, [
+                'label' => 'Detalle de la condición',
+                'help' => 'Se cita literalmente en el encabezamiento del escrito.',
+                'attr' => [
+                    'placeholder' => 'Concejal del Ayuntamiento de Getafe, Grupo Municipal X',
+                    'maxlength' => 160,
+                ],
+                'required' => false,
+                'constraints' => [new Length(max: 160)],
             ]);
     }
 

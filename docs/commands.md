@@ -779,6 +779,67 @@ php bin/console app:mcp:e2e-test
 
 ---
 
+## Marco legal (legalize-es)
+
+Ver [docs/legal-framework.md](legal-framework.md) para el diseño completo.
+
+### `app:legalize:sync`
+
+**El comando del cron (08:00 diario).** Encadena las tres fases bajo un lock: `git pull` →
+catálogo de normas → articulado de las trackeadas. Una sola entrada, porque el catálogo tiene que
+existir antes de que el indexador pueda resolver una norma trackeada.
+
+```bash
+php bin/console app:legalize:sync
+php bin/console app:legalize:sync --full        # escaneo completo + reextracción del articulado
+php bin/console app:legalize:sync --skip-pull   # sincroniza contra lo que ya hay en disco
+```
+
+---
+
+### `app:legalize:pull`
+
+Clona o actualiza el checkout en `LEGALIZE_PATH`. **Clonar y actualizar son la misma operación**:
+eso es lo que lo hace idempotente. Usa `--depth=50` (no 1) para que el diff incremental del día
+siguiente encuentre el commit anterior.
+
+```bash
+php bin/console app:legalize:pull
+php bin/console app:legalize:pull --force-clone
+```
+
+---
+
+### `app:legalize:sync-catalog`
+
+Vuelca el frontmatter de las 12.282 normas en `legal_norm` (~9 s).
+
+```bash
+php bin/console app:legalize:sync-catalog
+php bin/console app:legalize:sync-catalog --verify   # GATE DE DESPLIEGUE
+```
+
+**`--verify` es bloqueante.** Un identificador BOE equivocado en `TrackedNorms` falla en
+silencio: la norma no se indexa nunca y `search_legislation` no la ve. Comprueba las 28 contra el
+corpus real, imprime candidatas por número oficial y sale con código 1 si falta alguna.
+
+---
+
+### `app:legalize:index`
+
+Extrae el articulado de las normas trackeadas a `legal_article` y encola su reindexado en
+Elasticsearch (un mensaje por norma). El `content_hash` hace que el pull diario solo reprocese
+las normas que cambiaron.
+
+```bash
+php bin/console app:legalize:index
+php bin/console app:legalize:index --norm=BOE-A-2017-12902
+php bin/console app:legalize:index --force
+php bin/console fos:elastica:populate --index=laws   # después, para reparar deriva
+```
+
+---
+
 ## Mantenimiento
 
 ### `app:organisms:link`

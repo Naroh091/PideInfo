@@ -8,8 +8,11 @@ use App\DTO\ChatMessage;
 use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
 use App\Service\AI\Agent\AgentProgress;
+use App\Service\AI\Agent\Tool\FindLawTool;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
+use App\Service\AI\Agent\Tool\ReadLawArticlesTool;
 use App\Service\AI\Agent\Tool\ReadRequestDocumentsTool;
+use App\Service\AI\Agent\Tool\SearchLegislationTool;
 use App\Service\AI\Agent\Tool\SaveUserPreferenceTool;
 use App\Service\AI\Agent\Tool\SearchCriteriaTool;
 use App\Service\AI\Agent\Tool\SearchResolutionsFilteredTool;
@@ -40,7 +43,12 @@ use Symfony\Bundle\SecurityBundle\Security;
  */
 final class AgentChatOrchestrator
 {
-    private const MAX_TOOL_ITERATIONS = 8;
+    /**
+     * Raised from 8 when the three legal-framework tools landed: a complaint with three
+     * arguments now runs find_law → read_law_articles → search_resolutions ×3 →
+     * search_criteria ×3, and used to run out of iterations before it ever wrote a draft.
+     */
+    private const MAX_TOOL_ITERATIONS = 10;
 
     /** Chunk size (characters) for emitting conversational_reply as chat_token events. */
     private const REPLY_CHUNK_SIZE = 60;
@@ -157,6 +165,33 @@ Busca **Criterios Interpretativos del CTBG** (p. ej. CI/006/2015 sobre informaci
 - Llámala **junto a `search_resolutions`, una vez por cada argumento/causa de inadmisión** que debas rebatir.
 - Ejemplo: `search_criteria("información de carácter auxiliar o de apoyo, art. 18.1.b")` o `search_criteria("reelaboración como causa de inadmisión, art. 18.1.c")`.
 
+### find_law · search_legislation · read_law_articles — MARCO LEGAL
+
+Estas tres herramientas te dan el **texto literal y vigente** de la legislación española (todo el BOE consolidado: estatal y autonómico).
+
+**REGLA DURA: no cites ningún artículo de ninguna ley que no hayas leído con `search_legislation` o `read_law_articles` en esta conversación.** Ni los números de artículo ni los plazos son estables: cambian con cada reforma, y un escrito que cita mal un precepto se desacredita solo. Si no lo has leído, no lo cites.
+
+**Localizar una ley con `find_law` NO es leerla.** `find_law` solo te da su identificador. Si vas a citar el art. 118 de la LCSP, tienes que haber llamado antes a `read_law_articles(boeId de la LCSP, "118")` y haber visto su texto. Citarlo "porque te lo sabes" es exactamente lo que esta regla prohíbe: el umbral del contrato menor ya ha cambiado por reforma una vez.
+
+**Si el system prompt ya trae un bloque «Marco legal aplicable», esos artículos YA LOS TIENES: no los vuelvas a leer.** Ese bloque contiene la ley de transparencia aplicable a este organismo. Usa estas herramientas para lo que NO está ahí: la ley de la **materia**.
+
+**Cuál usar:**
+- `find_law("Ley de Bases del Régimen Local")` → te da el identificador BOE. Úsala cuando no lo sepas.
+- `read_law_articles(boeId, "14-16")` → texto íntegro de artículos concretos. Funciona con **cualquier** norma del BOE. Es la vía exacta: si ya sabes qué precepto necesitas, usa esta.
+- `search_legislation("umbral del contrato menor")` → busca el precepto cuando sabes QUÉ necesitas pero no DÓNDE está.
+
+**Qué ley mirar según la materia:**
+- Contratación pública (contratos menores, adjudicaciones, licitaciones) → **LCSP**.
+- Subvenciones y ayudas → **LGS** (Ley 38/2003).
+- Medio ambiente → **Ley 27/2006**, que tiene su propio régimen de acceso, distinto y a menudo más favorable que el de la Ley 19/2013.
+- Retribuciones y personal público → **TREBEP**.
+- Presupuestos y cuentas locales → **TRLRHL**.
+- Procedimiento, plazos y silencio → **LPACAP**; recursos judiciales → **LJCA**.
+
+**Si el usuario ejerce el derecho como CONCEJAL o cargo electo** → el cauce NO es la Ley 19/2013, sino el **art. 77 LBRL** y los **arts. 14 a 16 del ROF**, que dan un régimen bastante mejor (la petición se entiende concedida por silencio si no se deniega motivadamente en pocos días). Léelos y cítalos textualmente.
+
+**El Reglamento Orgánico Municipal (ROM) NO está en el BOE** ni en estas herramientas: cada ayuntamiento lo publica en su boletín provincial. Si el escrito depende de un plazo o un trámite del ROM, búscalo con `web_search` y léelo con `scrape_url`. Si no lo encuentras, **dilo explícitamente en el escrito** («de no existir previsión específica en el ROM, rige el plazo del art. 77 LBRL») en lugar de inventarte una previsión que no has visto.
+
 ### read_request_documents
 Lee y analiza los documentos adjuntos a la solicitud (resolución de la Administración, acuses de recibo, alegaciones, etc.). Úsala al inicio para conocer los argumentos exactos de la Administración.
 
@@ -246,12 +281,19 @@ TXT;
         private readonly WebSearchTool $webSearchTool,
         private readonly VisitUrlTool $visitUrlTool,
         private readonly ScrapeUrlTool $scrapeUrlTool,
+        private readonly FindLawTool $findLawTool,
+        private readonly SearchLegislationTool $searchLegislationTool,
+        private readonly ReadLawArticlesTool $readLawArticlesTool,
         private readonly AgentProgress $agentProgress,
         private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly LoggerInterface $logger,
     ) {
-        $toolInstances = [$searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool, $webSearchTool, $visitUrlTool, $scrapeUrlTool];
+        $toolInstances = [
+            $searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool,
+            $webSearchTool, $visitUrlTool, $scrapeUrlTool,
+            $findLawTool, $searchLegislationTool, $readLawArticlesTool,
+        ];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
     }
@@ -719,6 +761,9 @@ TXT;
             'web_search'             => 'Buscando en internet…',
             'visit_url'              => 'Visitando página web…',
             'scrape_url'             => 'Extrayendo contenido…',
+            'find_law'               => 'Localizando la norma aplicable…',
+            'search_legislation'     => 'Consultando el texto de la ley…',
+            'read_law_articles'      => 'Leyendo el articulado…',
             default                  => sprintf('Ejecutando %s…', $toolName),
         };
     }

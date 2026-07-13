@@ -118,3 +118,97 @@ fos_elastica:
                 # never inside the request that wrote the entity.
                 listener:
                     enabled: false
+
+        # Articulado of the tracked norms of legalize-es (see docs/legal-framework.md).
+        # This is what lets the agent find a precept nobody named: "umbral del contrato menor"
+        # → art. 118 LCSP. Reading a norm it already knows goes straight to Postgres/disk and
+        # never touches Elasticsearch.
+        laws:
+            index_name: 'pideinfo_laws_%kernel.environment%'
+
+            # Unlike `resolutions`, `content` IS kept in _source. The whole corpus is ~3.400
+            # articles / a few dozen MB, and having the text in _source is what enables
+            # `highlight` — which is how a long article gets returned as the fragment that
+            # actually matched instead of its first 1.800 characters.
+            settings:
+                number_of_shards: 1
+                number_of_replicas: 0
+                analysis:
+                    filter:
+                        spanish_stop:
+                            type: stop
+                            stopwords: _spanish_
+                        spanish_stemmer:
+                            type: stemmer
+                            language: light_spanish
+                        # Search-time only, and deliberately tiny. The law and the citizen do
+                        # not share a vocabulary: the ROF and the LBRL never say "concejal",
+                        # they say "miembro de la Corporación". Without this, asking for the
+                        # rights of a concejal returns nothing from the two norms that actually
+                        # grant them — and those carry a *better* regime (5-day positive
+                        # silence, art. 77 LBRL) than the Ley 19/2013.
+                        # Applied at search time so adding a synonym never needs a reindex.
+                        legal_synonyms:
+                            type: synonym_graph
+                            lenient: true
+                            synonyms:
+                                - "concejal, concejala, edil, cargo electo, corporativo"
+                                - "concejales, concejalas, ediles, cargos electos, corporativos, miembros de la corporacion, miembros de las corporaciones locales"
+                                - "ayuntamiento, corporacion local, entidad local, consistorio"
+                                - "contrato menor, contratacion menor"
+                                - "solicitud de acceso, peticion de informacion, solicitud de informacion"
+                                - "silencio administrativo, falta de resolucion expresa"
+                    analyzer:
+                        spanish_text:
+                            type: custom
+                            tokenizer: standard
+                            filter: ['lowercase', 'asciifolding', 'spanish_stop', 'spanish_stemmer']
+                        spanish_text_search:
+                            type: custom
+                            tokenizer: standard
+                            filter: ['lowercase', 'asciifolding', 'legal_synonyms', 'spanish_stop', 'spanish_stemmer']
+                    normalizer:
+                        keyword_folded:
+                            type: custom
+                            filter: ['trim', 'lowercase', 'asciifolding']
+
+            properties:
+                id: { type: keyword }
+                boeId: { type: keyword }
+                # "LCSP", "LBRL"… only tracked norms have one, and only tracked norms are here.
+                normAlias: { type: keyword }
+                normTitle: { type: text, analyzer: spanish_text, search_analyzer: spanish_text_search }
+                normShortLabel: { type: keyword }
+                officialNumber: { type: keyword }
+                jurisdiction: { type: keyword }
+
+                kind: { type: keyword }
+                number: { type: keyword }
+                numberInt: { type: integer }
+                position: { type: integer }
+
+                heading: { type: text, analyzer: spanish_text, search_analyzer: spanish_text_search }
+                breadcrumb: { type: text, analyzer: spanish_text, search_analyzer: spanish_text_search }
+                content: { type: text, analyzer: spanish_text, search_analyzer: spanish_text_search }
+
+                # Repealed articles are indexed but filtered out by default: the model must be
+                # able to read "DEROGADO" when it asks for the article by number, yet must not
+                # stumble onto a repealed precept while searching by concept.
+                repealed: { type: boolean }
+
+                subjects:
+                    type: keyword
+                    fields:
+                        folded: { type: keyword, normalizer: keyword_folded }
+
+            persistence:
+                driver: orm
+                model: App\Entity\LegalArticle
+                identifier: id
+                provider:
+                    batch_size: 500
+                # No Doctrine listener at all, unlike Resolution: legal_article is written in
+                # bulk through DBAL, which never fires ORM events, so a listener would be
+                # structurally blind. LegalArticleIndexer dispatches IndexLegalNormMessage.
+                listener:
+                    enabled: false
