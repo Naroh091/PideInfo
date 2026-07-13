@@ -29,7 +29,7 @@ final class SearchRequestsTool
 
     /**
      * @param string|null $query    Optional free-text matched against title, description and external ID.
-     * @param string|null $status   Filter by status: sent, processing, granted, granted_completed, denied, delayed, pending.
+     * @param string|null $status   Filter by status: sent, processing, granted, granted_completed, partially_granted, denied, inadmitted, delayed, pending.
      * @param int         $limit    Maximum results to return (1-100, default 20).
      * @param int         $page     1-based page number for pagination.
      *

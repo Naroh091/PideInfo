@@ -213,8 +213,14 @@ class AccessRequestManager
 
         if ($wasDelayed) {
             // Move the request back to "En trámite" — the administration is again
-            // engaged and the silencio administrativo no longer applies.
+            // engaged and the silencio administrativo no longer applies. Clear the
+            // inferred silence verdict along with it (an explicit decision, if one
+            // somehow got recorded, is never touched here).
             $request->setStatus(AccessRequest::STATUS_PROCESSING);
+            if ($request->getResolutionResult() === AccessRequest::RESULT_SILENCE) {
+                $request->setResolutionResult(null);
+                $request->setResolvedAt(null);
+            }
         }
 
         $deadlineHistory = new DeadlineHistory();
@@ -460,7 +466,9 @@ class AccessRequestManager
                 AccessRequest::STATUS_PROCESSING,
                 AccessRequest::STATUS_GRANTED,
                 AccessRequest::STATUS_GRANTED_COMPLETED,
+                AccessRequest::STATUS_PARTIALLY_GRANTED,
                 AccessRequest::STATUS_DENIED,
+                AccessRequest::STATUS_INADMITTED,
                 AccessRequest::STATUS_DELAYED,
                 AccessRequest::STATUS_PENDING,
             ],
@@ -525,7 +533,9 @@ class AccessRequestManager
             if ($request->getResolutionResult() === null) {
                 $inferred = match ($newStatus) {
                     AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED => AccessRequest::RESULT_GRANTED,
+                    AccessRequest::STATUS_PARTIALLY_GRANTED => AccessRequest::RESULT_PARTIALLY_GRANTED,
                     AccessRequest::STATUS_DENIED => AccessRequest::RESULT_DENIED,
+                    AccessRequest::STATUS_INADMITTED => AccessRequest::RESULT_INADMITTED,
                     AccessRequest::STATUS_DELAYED => AccessRequest::RESULT_SILENCE,
                     default => null,
                 };
@@ -534,11 +544,25 @@ class AccessRequestManager
                 }
             }
 
+            // Reopening the request (back to a pre-decision state) invalidates any
+            // previously recorded decision — otherwise the complaint generator and
+            // the stats would keep narrating a resolution that no longer stands.
+            if (in_array($newStatus, [
+                AccessRequest::STATUS_SENT,
+                AccessRequest::STATUS_PROCESSING,
+                AccessRequest::STATUS_PENDING,
+            ], true)) {
+                $request->setResolutionResult(null);
+                $request->setResolvedAt(null);
+            }
+
             // If the deadline was suspended (third-party allegations) and a resolution arrives,
             // clear the suspension — the request is resolved, the suspended deadline is moot
             if ($request->isDeadlineSuspended() && in_array($newStatus, [
                 AccessRequest::STATUS_GRANTED,
+                AccessRequest::STATUS_PARTIALLY_GRANTED,
                 AccessRequest::STATUS_DENIED,
+                AccessRequest::STATUS_INADMITTED,
             ], true)) {
                 $request->setDeadlineSuspendedAt(null);
                 $request->setSuspendedDaysRemaining(null);
@@ -559,7 +583,7 @@ class AccessRequestManager
             $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_COMPLAINT);
             $deadlineHistory->setNewDeadline($complaintDeadline);
             $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
-            $deadlineHistory->setNotes('Plazo de reclamación establecido por cambio manual de estado');
+            $deadlineHistory->setNotes('Plazo de resolución de la reclamación establecido por cambio manual de estado');
             $request->addDeadlineHistory($deadlineHistory);
         }
 
@@ -567,7 +591,9 @@ class AccessRequestManager
         $terminalStatuses = [
             AccessRequest::STATUS_GRANTED,
             AccessRequest::STATUS_GRANTED_COMPLETED,
+            AccessRequest::STATUS_PARTIALLY_GRANTED,
             AccessRequest::STATUS_DENIED,
+            AccessRequest::STATUS_INADMITTED,
             AccessRequestComplaint::STATUS_GRANTED,
             AccessRequestComplaint::STATUS_DENIED,
             AccessRequestComplaint::STATUS_ARCHIVED,

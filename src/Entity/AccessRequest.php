@@ -891,7 +891,9 @@ class AccessRequest
 
     public function isDeadlinePassed(): bool
     {
-        if (in_array($this->status, [self::STATUS_GRANTED, self::STATUS_GRANTED_COMPLETED, self::STATUS_DENIED], true)) {
+        // An explicit decision (any outcome, including partial grants and
+        // inadmissions) means there is no silencio administrativo to flag.
+        if ($this->hasReceivedResponse()) {
             return false;
         }
         return $this->deadlineAt < new \DateTimeImmutable('today');

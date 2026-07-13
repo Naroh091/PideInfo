@@ -270,6 +270,9 @@ final class SuccessAnalyzer
         array $documentContents,
     ): CompiledPrompt {
         $status = match (true) {
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_PARTIALLY_GRANTED => 'estimada parcialmente (concesión parcial)',
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_INADMITTED => 'inadmitida a trámite',
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_GRANTED => 'concedida en la resolución pero información no facilitada',
             $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
             $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'silencio administrativo negativo',
             $accessRequest->isDeadlinePassed() => 'silencio administrativo negativo (plazo vencido)',

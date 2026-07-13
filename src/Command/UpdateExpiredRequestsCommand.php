@@ -6,7 +6,6 @@ use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Repository\AccessRequestRepository;
 use App\Service\AccessRequest\AccessRequestManager;
-use App\Service\Complaint\SuccessAnalysisWarmer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -24,7 +23,6 @@ class UpdateExpiredRequestsCommand extends Command
     public function __construct(
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly EntityManagerInterface $entityManager,
-        private readonly SuccessAnalysisWarmer $successAnalysisWarmer,
         private readonly AccessRequestManager $accessRequestManager,
     ) {
         parent::__construct();
@@ -72,13 +70,6 @@ class UpdateExpiredRequestsCommand extends Command
             }
         }
 
-        if (!$dryRun) {
-            $this->entityManager->flush();
-            foreach ($expiredRequests as $request) {
-                $this->successAnalysisWarmer->maybeWarm($request);
-            }
-        }
-
         $io->newLine();
 
         if ($dryRun) {
@@ -115,18 +106,15 @@ class UpdateExpiredRequestsCommand extends Command
 
     private function updateToDelayed(AccessRequest $request): void
     {
-        $previousStatus = $request->getStatus();
         $notes = 'Estado actualizado automáticamente por vencimiento del plazo de respuesta (silencio administrativo negativo).';
 
-        $request->setStatus(AccessRequest::STATUS_DELAYED);
-
-        // Audit row + notification dispatch flow through the canonical
-        // entry point. The matching message-handler path
+        // Canonical entry point: infers resolutionResult = silence, writes the
+        // audit row, dispatches the notification, flushes and pre-warms the
+        // success analysis. The matching message-handler path
         // (UpdateExpiredRequestsHandler) does the same thing.
-        $this->accessRequestManager->recordStatusEvent(
+        $this->accessRequestManager->changeStatus(
             $request,
             StatusHistory::TYPE_STATUS,
-            $previousStatus,
             AccessRequest::STATUS_DELAYED,
             $notes,
         );

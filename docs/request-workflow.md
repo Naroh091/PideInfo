@@ -24,7 +24,8 @@ Una solicitud de acceso transita por estos estados principales (consulta `Access
 
 - Una solicitud puede permanecer en `granted_completed` (el ciudadano ha recibido la documentación) mientras `resolutionResult = partially_granted` — la concesión original fue parcial y una transición posterior del workflow no sobrescribe ese hecho.
 - Una solicitud marcada como `granted` puede no corresponderse con lo que se entregó realmente; el ciudadano puede presentar una reclamación sin que el resultado vuelva a `denied`.
-- `delayed` es una posición del workflow (silencio detectado); `resolutionResult = silence` es el equivalente a la decisión registrado para consumidores aguas abajo (p. ej., el mapeo de motivos de reclamación).
+- `delayed` es una posición del workflow (silencio detectado); `resolutionResult = silence` es el equivalente a la decisión registrado para consumidores aguas abajo (p. ej., el mapeo de motivos de reclamación). Tanto el `delayed` manual como el automático (jobs de expiración, que pasan por `changeStatus()`) infieren `silence`.
+- **Reabrir limpia la decisión.** Al volver a un estado pre-decisión (`sent`, `processing`, `pending`), `changeStatus()` pone `resolutionResult` y `resolvedAt` a `NULL`: una decisión anulada por la corrección no debe seguir alimentando estadísticas ni el generador de reclamaciones. La prórroga que levanta un silencio (`extendDeadlineByLaw()`) hace lo mismo, pero solo si el resultado era el `silence` inferido — una decisión expresa previa nunca se toca por esa vía.
 
 La misma ortogonalidad se aplica al lado de las reclamaciones — véase `docs/complaint-workflow.md`.
 
@@ -280,7 +281,7 @@ La solicitud se resuelve de una de estas maneras:
 
 **Denegada** (`denied`) — El organismo público deniega de forma expresa. El motivo de la denegación se guarda en `resolutionNotes`. Esto abre la posibilidad de presentar una reclamación. Se fija `resolvedAt`.
 
-**Silencio administrativo** (`delayed`) — El plazo vence sin respuesta. Conforme a la legislación española, esto equivale a una denegación. El sistema lo detecta mediante la comprobación `isDeadlinePassed()`. La persona usuaria puede reclamar frente al silencio.
+**Silencio administrativo** (`delayed`) — El plazo vence sin respuesta. Conforme a la legislación española, esto equivale a una denegación. El sistema lo detecta mediante la comprobación `isDeadlinePassed()`, que devuelve `false` en cuanto existe una decisión expresa (`hasReceivedResponse()`: `granted`, `granted_completed`, `partially_granted`, `denied`, `inadmitted`) — una estimación parcial o una inadmisión con el plazo original vencido **no** está en silencio. La transición automática la ejecutan los jobs de expiración (`app:requests:update-expired` y `UpdateExpiredRequestsHandler`) a través de `changeStatus()`, con lo que también queda `resolutionResult = silence`. La persona usuaria puede reclamar frente al silencio.
 
 ### 5. Vías posteriores a la resolución
 
@@ -383,6 +384,10 @@ Una solicitud se considera activa si:
 - Está en sede judicial (courtStatus = `in_court`)
 
 Esto rige el filtrado del dashboard y la lógica de alertas de plazos.
+
+### La comprobación `isDeadlinePassed()`
+
+Señala silencio administrativo: `false` si `hasReceivedResponse()` (cualquier decisión expresa, incluidas la estimación parcial y la inadmisión), y si no, `deadlineAt < hoy`. Es la condición del banner de silencio del detalle, del tag "Vencido" en sidebar/listados/datatable y del framing "silencio" en `SuccessAnalyzer`/`ComplaintGenerator` — por eso nunca debe re-derivarse con listas parciales de estados.
 
 ## Trazabilidad de cambios de estado
 

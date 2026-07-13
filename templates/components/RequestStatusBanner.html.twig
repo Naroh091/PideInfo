@@ -100,8 +100,10 @@
     </aside>
 {% endif %}
 
-{# Granted pending reception #}
+{# Granted pending reception — with a secondary escape hatch if the grant
+   never materialises (the resolution says yes but nothing arrives). #}
 {% if request.status == 'granted' %}
+    {% set council = this.transparencyCouncilName %}
     <aside class="dossier-notice is-emerald mb-6" data-granted-banner>
         <div class="dossier-notice-body">
             <div class="dossier-notice-icon">
@@ -116,9 +118,25 @@
                 <h3 class="dossier-notice-headline">Solicitud concedida</h3>
                 <div class="dossier-notice-prose">
                     <p>La administración ha concedido tu solicitud y está pendiente de que recibas la información.</p>
+                    {% if request.complaint is null %}
+                        <p>Si pasan los días y la información no llega, la concesión sobre el papel no te sirve de nada: puedes reclamar a {{ council }} para que ordene la entrega efectiva de lo ya reconocido.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
+        {% if request.complaint is null %}
+            {% set draftDocument = this.complaintDraftDocument %}
+            <div class="dossier-notice-footer">
+                <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-ghost btn-sm">
+                    <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
+                    {% if draftDocument %}
+                        Continuar reclamación a {{ council|u.truncate(40, '…') }}
+                    {% else %}
+                        Reclamar la entrega a {{ council|u.truncate(40, '…') }}
+                    {% endif %}
+                </a>
+            </div>
+        {% endif %}
     </aside>
 {% endif %}
 
@@ -295,6 +313,47 @@
                 <div class="dossier-notice-prose">
                     <p>
                         Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% set draftDocument = this.complaintDraftDocument %}
+        <div class="dossier-notice-footer">
+            <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-danger btn-sm">
+                <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
+                {% if draftDocument %}
+                    Continuar reclamación a {{ council|u.truncate(40, '…') }}
+                {% else %}
+                    Reclamar a {{ council|u.truncate(40, '…') }}
+                {% endif %}
+            </a>
+        </div>
+    </aside>
+{% endif %}
+
+{# Solicitud inadmitida a trámite — las causas del art. 18 son tasadas y de
+   interpretación restrictiva; la inadmisión también se reclama (skip if a
+   complaint already exists). Se mira resolutionResult y no status para que el
+   aviso sobreviva a transiciones posteriores del expediente. #}
+{% if request.resolutionResult == 'inadmitted' and request.complaint is null %}
+    {% set council = this.transparencyCouncilName %}
+    <aside class="dossier-notice is-red mb-6">
+        <div class="dossier-notice-body">
+            <div class="dossier-notice-icon">
+                <i data-lucide="ban" class="w-4 h-4"></i>
+            </div>
+            <div class="dossier-notice-content">
+                <div class="dossier-notice-eyebrow">
+                    <span class="dot"></span>
+                    Solicitud inadmitida
+                    <span class="meta">· procede reclamación</span>
+                </div>
+                <h3 class="dossier-notice-headline">
+                    La administración no ha admitido a trámite tu solicitud. Puedes reclamar a {{ council }}.
+                </h3>
+                <div class="dossier-notice-prose">
+                    <p>
+                        Las causas de inadmisión del artículo 18 de la Ley 19/2013 son tasadas y de interpretación restrictiva: que la administración inadmita tu solicitud no significa que tenga razón. Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la inadmisión. Conviene hacerlo dentro del plazo de un mes desde la notificación.
                     </p>
                 </div>
             </div>

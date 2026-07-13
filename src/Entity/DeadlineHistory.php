@@ -94,7 +94,7 @@ class DeadlineHistory
     {
         return match ($this->deadlineType) {
             self::TYPE_RESPONSE => 'Plazo de respuesta',
-            self::TYPE_COMPLAINT => 'Plazo de reclamación',
+            self::TYPE_COMPLAINT => 'Plazo de resolución de la reclamación',
             self::TYPE_COMPLIANCE => 'Plazo de cumplimiento',
             self::TYPE_THIRD_PARTY_ALLEGATIONS => 'Plazo alegaciones terceros',
             self::TYPE_HEARING => 'Plazo de alegaciones (audiencia)',
