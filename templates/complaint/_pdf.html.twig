@@ -4,117 +4,16 @@
     <meta charset="UTF-8">
     <title>Reclamación - {{ accessRequest.publicBody.name }}</title>
     <style>
-        @font-face {
-            font-family: 'DM Sans';
-            font-style: normal;
-            font-weight: 400;
-            src: url('file://{{ pdf_font_dir }}/DMSans-Variable.ttf') format('truetype');
-        }
-        @font-face {
-            font-family: 'DM Sans';
-            font-style: normal;
-            font-weight: 700;
-            src: url('file://{{ pdf_font_dir }}/DMSans-Variable.ttf') format('truetype');
-        }
-        @font-face {
-            font-family: 'DM Serif Display';
-            font-style: normal;
-            font-weight: 400;
-            src: url('file://{{ pdf_font_dir }}/DMSerifDisplay-Regular.ttf') format('truetype');
-        }
-
-        @page {
-            margin: 0;
-        }
-
-        html { margin: 0; padding: 0; }
-
-        /* The PDF mirrors the in-page editor: serif body, small-caps h1
-           with a hairline underline. Only the page footer is added on top. */
-        body {
-            margin: 0;
-            padding: 2.6cm 2.6cm 3.2cm 2.6cm;
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 11pt;
-            line-height: 1.55;
-            color: #0f172a;
-        }
-
-        .content { text-align: justify; hyphens: auto; }
-
-        .content h1 {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-weight: 400;
-            font-size: 14pt;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: #0f172a;
-            margin: 1.8em 0 0.85em;
-            padding-bottom: 0.45em;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: center;
-        }
-
-        .content h1:first-child { margin-top: 0; }
-
-        .content h2 {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 10.5pt;
-            font-weight: 700;
-            color: #334155;
-            margin: 1.2em 0 0.45em;
-            text-align: left;
-        }
-
-        .content p {
-            margin: 0 0 0.95em;
-            orphans: 3;
-            widows: 3;
-        }
-
-        .content ul, .content ol {
-            margin: 0.25em 0 0.95em;
-            padding-left: 1.5em;
-        }
-
-        .content li { margin-bottom: 0.3em; }
-
-        .content strong { font-weight: 700; color: #0f172a; }
-        .content em { font-style: italic; }
-
-        .content blockquote {
-            border-left: 3px solid #0284c7;
-            padding-left: 1em;
-            color: #334155;
-            font-style: italic;
-            margin: 1em 0;
-        }
-
-        .content a { color: #0284c7; text-decoration: underline; }
-
-        .footer {
-            position: fixed;
-            left: 2.6cm;
-            right: 2.6cm;
-            bottom: 1.2cm;
-            height: 1cm;
-            padding-top: 0.25cm;
-            border-top: 1px solid #e2e8f0;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 7.5pt;
-            color: #64748b;
-            text-align: center;
-            line-height: 1.35;
-        }
-
-        .footer .brand { color: #0369a1; font-weight: 700; }
+        {% include 'pdf/_styles.css.twig' %}
     </style>
 </head>
 <body>
-    <div class="content">{{ draft.content|raw }}</div>
+    {% set parts = draft.content|pdf_complaint_parts %}
+    {% if parts.heading %}
+        <div class="doc-heading doc-heading--standalone">Reclamación en materia de acceso <br>a información pública</div>
+    {% endif %}
+    <div class="content">{{ parts.html|raw }}</div>
 
-    <div class="footer">
-        Documento generado con <span class="brand">Pideinfo.es</span> — Plataforma de simplificación para el ejercicio del derecho de acceso a información pública
-    </div>
+    {% include 'pdf/_footer.html.twig' %}
 </body>
 </html>

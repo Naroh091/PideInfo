@@ -205,6 +205,40 @@ convertir un modal que se había quedado pequeño.
 
 ---
 
+## Documentos PDF generados
+
+Los PDF descargables (solicitud, reclamación, respuesta a alegaciones) comparten
+una papelería definida en `templates/pdf/_styles.css.twig` y
+`templates/pdf/_footer.html.twig`, incluidos por las tres plantillas vivas
+(`complaint/_pdf_from_html.html.twig`, `complaint/_pdf.html.twig`,
+`solicitudes/realizar/_pdf.html.twig`). dompdf no comparte hojas externas, así
+que el parcial se incluye dentro del `<style>` de cada plantilla.
+
+Principios del documento:
+
+- **Sin marca en el cuerpo.** La única parte con marca es el pie fijo, gris y
+  centrado («Documento generado con PideInfo.es»), con el número de página en
+  el margen derecho. No añadas cabeceras con logotipo ni wordmarks.
+- **Solo tinta.** La paleta es la escala slate (texto `#0f172a`, secundario
+  `#475569`, filetes `#cbd5e1`/`#e2e8f0`, pie `#94a3b8`). Nada de sky ni amber:
+  estos documentos se imprimen y se presentan en registros.
+- **Tipografía distinta a la de la app** (maqueta de David, jul 2026):
+  `Playfair Display` para el título del documento (centrado, bold italic, con
+  subtítulo «al amparo de la…» en italic), las líneas `A/A:`/`ASUNTO:` y los
+  `h1` de sección; cuerpo en `Gelasio` 10.5pt justificado — la
+  métrica-compatible libre de Georgia (OFL), con sus cifras elzevirianas.
+  DM Sans queda solo para el pie.
+- Sin adornos: ni logotipos, ni filetes, ni color. La estructura la dan la
+  tipografía y el blanco.
+
+**Negrita en dompdf:** dompdf no instancia ejes de fuentes variables: cada
+face necesita su TTF estático (`resources/fonts/*-{Regular,Bold,Italic,
+BoldItalic}.ttf`, generados con `python3 -m fontTools.varLib.instancer`).
+Si se sustituye una fuente por su variable, hay que regenerar las instancias —
+sin ellas, `<strong>` y los pesos 700 salen en regular sin avisar.
+
+---
+
 ## Contenido
 
 Todo el texto de interfaz va **en castellano y escrito directamente en la

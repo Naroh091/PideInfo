@@ -111,18 +111,56 @@ final class PdfGenerator
 
         $variable = $resources . '/DMSans-Variable.ttf';
         if (is_file($variable) && empty($metrics->getFamily('DM Sans'))) {
-            // The variable TTF carries every weight; register the four faces
-            // so CSS `font-weight: bold` and `font-style: italic` resolve
-            // without dompdf falling back to Helvetica.
+            // dompdf can't instantiate variable-font axes: whatever file backs
+            // the "bold" face renders at that file's default instance. The
+            // static `DMSans-Bold.ttf` (wght=700, generated with fonttools
+            // varLib.instancer) is what makes <strong> and font-weight:700
+            // actually render bold.
+            $bold = $resources . '/DMSans-Bold.ttf';
+            $boldFile = is_file($bold) ? $bold : $variable;
             $metrics->registerFont(['family' => 'DM Sans', 'style' => 'normal', 'weight' => 'normal'], $variable);
-            $metrics->registerFont(['family' => 'DM Sans', 'style' => 'normal', 'weight' => 'bold'], $variable);
+            $metrics->registerFont(['family' => 'DM Sans', 'style' => 'normal', 'weight' => 'bold'], $boldFile);
             $metrics->registerFont(['family' => 'DM Sans', 'style' => 'italic', 'weight' => 'normal'], $variable);
-            $metrics->registerFont(['family' => 'DM Sans', 'style' => 'italic', 'weight' => 'bold'], $variable);
+            $metrics->registerFont(['family' => 'DM Sans', 'style' => 'italic', 'weight' => 'bold'], $boldFile);
         }
 
         $serif = $resources . '/DMSerifDisplay-Regular.ttf';
         if (is_file($serif) && empty($metrics->getFamily('DM Serif Display'))) {
             $metrics->registerFont(['family' => 'DM Serif Display', 'style' => 'normal', 'weight' => 'normal'], $serif);
+        }
+
+        // Tipografía de los documentos generados: Playfair Display para los
+        // títulos y Gelasio (la métrica-compatible libre de Georgia) para el
+        // cuerpo. Instancias estáticas por face — ver el gotcha de fuentes
+        // variables arriba.
+        $this->registerStaticFamily($metrics, 'Playfair Display', $resources . '/PlayfairDisplay');
+        $this->registerStaticFamily($metrics, 'Gelasio', $resources . '/Gelasio');
+    }
+
+    /**
+     * Register the four faces of a family from `{prefix}-Regular.ttf`,
+     * `-Bold.ttf`, `-Italic.ttf` and `-BoldItalic.ttf`, falling back to the
+     * regular face for any missing file.
+     */
+    private function registerStaticFamily(\Dompdf\FontMetrics $metrics, string $family, string $prefix): void
+    {
+        $regular = $prefix . '-Regular.ttf';
+        if (!is_file($regular) || !empty($metrics->getFamily($family))) {
+            return;
+        }
+
+        $faces = [
+            ['normal', 'normal', '-Regular.ttf'],
+            ['normal', 'bold', '-Bold.ttf'],
+            ['italic', 'normal', '-Italic.ttf'],
+            ['italic', 'bold', '-BoldItalic.ttf'],
+        ];
+        foreach ($faces as [$style, $weight, $suffix]) {
+            $file = $prefix . $suffix;
+            $metrics->registerFont(
+                ['family' => $family, 'style' => $style, 'weight' => $weight],
+                is_file($file) ? $file : $regular,
+            );
         }
     }
 }
