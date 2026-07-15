@@ -39,6 +39,10 @@ export default class extends Controller {
         canvasOutletSelector: { type: String, default: '' },
         hasDraft: { type: Boolean, default: false },
         flow: { type: String, default: 'request' },
+        // Flujo público /redactar: borrador sin dueño. Tras el primer borrador
+        // generado se añade una burbuja invitando a crear cuenta (registerUrl).
+        anonymous: { type: Boolean, default: false },
+        registerUrl: { type: String, default: '' },
     };
 
     connect() {
@@ -466,6 +470,23 @@ export default class extends Controller {
             button.dataset.diffModalCurrentValue = JSON.stringify(draft);
             bubble.appendChild(button);
         }
+
+        this._maybeSuggestRegister();
+    }
+
+    // Anónimos: una única invitación a crear cuenta, tras el primer borrador
+    // aplicado — el momento en que hay algo que merece conservarse.
+    _maybeSuggestRegister() {
+        if (!this.anonymousValue || !this.registerUrlValue || this._registerSuggested) return;
+        this._registerSuggested = true;
+        const bubble = this._appendSystemBubble(
+            'Este borrador vive solo en este navegador. Si creas una cuenta gratuita lo guardamos en tu panel, vigilamos los plazos y podrás presentarlo desde aquí.',
+        );
+        const link = document.createElement('a');
+        link.className = 'chat-bubble-diff-btn';
+        link.href = this.registerUrlValue;
+        link.textContent = 'Crear cuenta y conservarlo';
+        bubble.appendChild(link);
     }
 
     /* ── In-chat paper sheet (conversation page) ────────────────────────── */

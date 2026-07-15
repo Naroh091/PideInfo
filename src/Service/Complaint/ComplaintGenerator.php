@@ -287,6 +287,10 @@ final class ComplaintGenerator
      */
     public function saveComplaint(AccessRequest $accessRequest, ComplaintDraft $draft, array $extraMetadata = []): Document
     {
+        if ($accessRequest->getUser() === null) {
+            throw new \LogicException('Anonymous drafts cannot persist complaint documents; claim the request first.');
+        }
+
         // Reuse the existing HTML draft if the user is editing one. Each save
         // used to create a new Document, leaving stale rows behind that
         // confused both the reopen-editor lookup and the docs list.
@@ -973,6 +977,10 @@ GRANTED_PENDING;
 
     public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft): Document
     {
+        if ($accessRequest->getUser() === null) {
+            throw new \LogicException('Anonymous drafts cannot persist alegation-response documents; claim the request first.');
+        }
+
         $filename = sprintf(
             'respuesta_alegaciones_%s_%s.txt',
             $accessRequest->getId()->toRfc4122(),

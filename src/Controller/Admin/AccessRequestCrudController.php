@@ -110,6 +110,12 @@ class AccessRequestCrudController extends AbstractCrudController
         $source = $context->getEntity()->getInstance();
         $user = $source->getUser();
 
+        if ($user === null) {
+            $this->addFlash('warning', 'Los borradores anónimos no se pueden fusionar: no tienen usuario con cuyas solicitudes cruzarlos.');
+
+            return $this->redirect($context->getReferrer() ?? $this->generateUrl('admin'));
+        }
+
         // Get other requests from the same user to merge into
         $candidates = $this->accessRequestRepository->findByUser($user);
         $candidates = array_filter($candidates, fn(AccessRequest $ar) => $ar->getId() !== $source->getId());

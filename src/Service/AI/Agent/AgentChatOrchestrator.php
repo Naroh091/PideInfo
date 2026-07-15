@@ -42,7 +42,8 @@ use Symfony\Bundle\SecurityBundle\Security;
  *
  * Replaces AssistantChatStreamer (===DECISION=== marker) with clean JSON output.
  */
-final class AgentChatOrchestrator
+// Not final: the unified chat controller mocks this as its streaming seam in tests.
+class AgentChatOrchestrator
 {
     /**
      * Raised from 8 when the three legal-framework tools landed: a complaint with three
@@ -210,6 +211,15 @@ Devuelve las preferencias de redacción del usuario. Úsala al inicio de una ses
 ### save_user_preference
 Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de estilo para TODAS sus redacciones futuras). Ver "Aprender preferencias de redacción del usuario".
 
+TXT;
+
+    /**
+     * Descriptions of the web-egress tools (`web_search`/`visit_url`/`scrape_url`).
+     * Appended to {@see TOOLS_PREAMBLE} only for authenticated turns — anonymous
+     * drafters never receive these tools (see {@see EGRESS_TOOLS}), so telling the
+     * model about them would only invite calls it can't make.
+     */
+    private const EGRESS_TOOLS_PREAMBLE = <<<'TXT'
 ### web_search
 Busca en internet (Google, Bing, DuckDuckGo, Wikipedia, etc.) para obtener información que NO está en los documentos de la solicitud ni en el corpus de resoluciones. Devuelve el texto de la página de resultados Y una lista de URLs. Si necesitas el contenido completo de un resultado, pásalo a `visit_url`.
 
@@ -237,6 +247,13 @@ Extrae el contenido de una URL de forma rápida y estructurada usando Crawl4AI. 
 - Para leer páginas estáticas (BOE, portales de transparencia, webs de organismos) sin necesidad de interactuar.
 - Cuando necesites extraer el contenido de una URL de la forma más rápida posible.
 - Para lectura de páginas con JavaScript complejo o que requieren interacción (clics, formularios), usa `visit_url` en su lugar.
+
+TXT;
+
+    /**
+     * Closing protocol shared by every turn (with or without the egress tools).
+     */
+    private const TOOLS_PROTOCOL_PREAMBLE = <<<'TXT'
 
 ---
 
@@ -274,6 +291,14 @@ Reglas:
 
 **REGLA DURA:** el único mecanismo real para guardar una preferencia es llamar a `save_user_preference`. Si en `conversational_reply` le dices al usuario que la has guardado o que la recordarás, es OBLIGATORIO que hayas llamado a `save_user_preference` en este turno. NUNCA afirmes que recordarás algo sin haber llamado a la herramienta; y NUNCA inventes preferencias que el usuario no haya expresado.
 TXT;
+
+    /**
+     * Web-egress tools withheld from anonymous drafters: they let the model fetch
+     * an arbitrary URL, which is an SSRF/exfiltration surface with no accountable
+     * user behind it. The drafting flow doesn't need them (they belong to the
+     * registered research agent). Names match the `#[AsTool(name: …)]` declarations.
+     */
+    private const EGRESS_TOOLS = ['web_search', 'visit_url', 'scrape_url'];
 
     private readonly Toolbox $toolbox;
     /** @var list<array{type: string, function: array<string, mixed>}> */
@@ -358,7 +383,14 @@ TXT;
     private function doStream(AssistantChatRequest $req, ?string $userId): \Generator
     {
         $this->agentProgress->reset();
-        $messages = $this->buildMessages($req);
+
+        // Anonymous drafters (no authenticated user) run with a restricted toolset:
+        // the web-egress tools are withheld both from the model's tool list and from
+        // its preamble (see EGRESS_TOOLS / toolsPreamble).
+        $anonymous = $userId === null;
+        $toolDefinitions = $this->toolDefinitionsFor($anonymous);
+
+        $messages = $this->buildMessages($req, $anonymous);
         $converter = new ToolResultConverter();
 
         // Link every generation to the Langfuse-managed system prompt it runs on
@@ -391,7 +423,7 @@ TXT;
 
             $inputSummary = json_encode([
                 'messages'    => count($messages),
-                'tools'       => count($this->toolDefinitions),
+                'tools'       => count($toolDefinitions),
                 'flow'        => $req->flow,
                 'entity'      => $req->entityId,
                 'tool_choice' => is_array($toolChoice) ? $toolChoice['function']['name'] : $toolChoice,
@@ -411,7 +443,7 @@ TXT;
                         'agent.flow'                              => $req->flow,
                         ...$promptAttrs,
                     ],
-                    fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, $toolChoice),
+                    fn: fn () => $this->customClient->chatWithTools($messages, $toolDefinitions, $toolChoice),
                     captureOutput: function (array $r, SpanInterface $span): void {
                         $span->setAttribute('agent.response_type', $r['type']);
                         $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r['promptTokens'] ?? 0);
@@ -465,6 +497,17 @@ TXT;
                 // Point 2: always override requestId so the model can't manipulate it.
                 if ($toolName === 'read_request_documents' && $req->entityId !== '') {
                     $callData['arguments']['requestId'] = $req->entityId;
+                }
+
+                // Defense-in-depth: never execute an egress tool for an anonymous
+                // turn, even if the model hallucinates the name (it isn't offered).
+                if ($anonymous && in_array($toolName, self::EGRESS_TOOLS, true)) {
+                    $messages[] = [
+                        'role'         => 'tool',
+                        'tool_call_id' => $callData['id'],
+                        'content'      => 'Esta herramienta no está disponible en este modo. Redacta con la información disponible.',
+                    ];
+                    continue;
                 }
 
                 yield ['step', [
@@ -711,9 +754,35 @@ TXT;
      *
      * @return list<array<string, mixed>>
      */
-    private function buildMessages(AssistantChatRequest $req): array
+    /** Assembles the tools preamble, including the egress-tool section only for authenticated turns. */
+    private function toolsPreamble(bool $anonymous): string
     {
-        $systemPrompt = $req->systemPrompt . self::TOOLS_PREAMBLE . self::LEARNING_PREAMBLE;
+        return $anonymous
+            ? self::TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE
+            : self::TOOLS_PREAMBLE . self::EGRESS_TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE;
+    }
+
+    /**
+     * Tool definitions offered to the model this turn. Anonymous drafters never
+     * see the web-egress tools (see {@see EGRESS_TOOLS}).
+     *
+     * @return list<array{type: string, function: array<string, mixed>}>
+     */
+    private function toolDefinitionsFor(bool $anonymous): array
+    {
+        if (!$anonymous) {
+            return $this->toolDefinitions;
+        }
+
+        return array_values(array_filter(
+            $this->toolDefinitions,
+            static fn (array $def): bool => !in_array($def['function']['name'] ?? '', self::EGRESS_TOOLS, true),
+        ));
+    }
+
+    private function buildMessages(AssistantChatRequest $req, bool $anonymous): array
+    {
+        $systemPrompt = $req->systemPrompt . $this->toolsPreamble($anonymous) . self::LEARNING_PREAMBLE;
 
         // Inject the entity ID so the model can pass it to read_request_documents.
         if ($req->entityId !== '') {

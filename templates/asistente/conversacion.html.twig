@@ -1,4 +1,4 @@
-{% extends 'layouts/app.html.twig' %}
+{% extends (anonymous ?? false) ? 'layouts/public_page.html.twig' : 'layouts/app.html.twig' %}
 
 {# Página de conversación unificada para redactar solicitudes y
    reclamaciones/alegaciones: el chat con el asistente ES la página, y el
@@ -11,9 +11,29 @@
      flow == 'request'  → request, siblings, batchId, chatHistory
      flow == 'complaint'→ request, mode, currentDraft, currentBodyHtml,
                           chatHistory, availableDocuments, alegacionesDoc,
-                          existingDrafts #}
+                          existingDrafts
+     anonymous (bool, opcional) → borrador sin dueño del flujo público
+                          /redactar: layout público, endpoints espejo de
+                          AnonymousDraftController, sin guardar/presentar,
+                          CTA de registro. #}
 
+{% set anonymous = anonymous|default(false) %}
 {% set isRequest = flow == 'request' %}
+
+{# Endpoints que consumen la hoja de papel y el informe: los autenticados por
+   defecto, o los espejos públicos de AnonymousDraftController. Un valor null
+   oculta la acción (paper-sheet no-opea con URL vacía). #}
+{% if isRequest %}
+    {% set autosaveUrl = anonymous ? path('app_public_redactar_autosave', {id: request.id}) : path('app_solicitudes_realizar_autosave', {id: request.id}) %}
+    {% set sheetPdfUrl = anonymous ? path('app_public_redactar_pdf', {id: request.id}) : path('app_solicitudes_realizar_pdf', {id: request.id}) %}
+    {% set similarUrl = anonymous ? path('app_public_redactar_similar', {id: request.id}) : path('app_solicitudes_realizar_similar', {id: request.id}) %}
+    {% set probabilityUrl = anonymous ? path('app_public_redactar_probability', {id: request.id}) : path('app_solicitudes_realizar_probability', {id: request.id}) %}
+{% else %}
+    {% set saveUrl = anonymous ? null : path('app_complaint_redactar_save', {id: request.id}) %}
+    {% set sheetPdfUrl = anonymous ? path('app_public_redactar_complaint_pdf', {id: request.id}) : path('app_complaint_download_pdf', {id: request.id}) %}
+    {% set presentUrl = anonymous ? null : path('app_complaint_present_via_agent', {id: request.id}) %}
+    {% set analyzeUrl = anonymous ? path('app_public_redactar_complaint_analyze', {id: request.id}) : path('app_complaint_analyze', {id: request.id}) %}
+{% endif %}
 {% if isRequest %}
     {% set batchId = batchId|default(null) %}
     {% set isMultiOrganism = (siblings|length) > 1 %}
@@ -55,11 +75,16 @@
          data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
      {% endif %}
      data-assistant-chat-flow-value="{{ flow }}"
+     data-assistant-chat-anonymous-value="{{ anonymous ? 'true' : 'false' }}"
+     {% if anonymous %}data-assistant-chat-register-url-value="{{ path('app_register') }}"{% endif %}
      data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}">
 
-    {% include '_partials/agent_required_banner.html.twig' %}
+    {% if not anonymous %}
+        {% include '_partials/agent_required_banner.html.twig' %}
+    {% endif %}
 
     {# ── Breadcrumb + cabecera ─────────────────────────────── #}
+    {% if not anonymous %}
     <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
         <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
         <span class="text-slate-300">/</span>
@@ -73,6 +98,7 @@
             <span class="text-slate-800 font-medium">{{ isAlegation ? 'RESPUESTA A ALEGACIONES' : 'RECLAMACIÓN' }}</span>
         {% endif %}
     </nav>
+    {% endif %}
 
     <header class="draft-band">
         <div class="draft-band-row">
@@ -86,7 +112,11 @@
                 {% endif %}
                 <em>{{ request.publicBody.name|u.truncate(60, '…') }}</em>
             </h1>
-            {% if isRequest %}
+            {% if anonymous %}
+                <a href="{{ path('app_register') }}" class="ghost-link" title="Con una cuenta guardamos este borrador y te avisamos de los plazos">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Crea una cuenta para hacer seguimiento
+                </a>
+            {% elseif isRequest %}
                 <a href="{{ path('app_solicitudes_index') }}" class="ghost-link">
                     <i data-lucide="save" class="w-4 h-4"></i> Guardar y salir
                 </a>
@@ -161,7 +191,9 @@
     </template>
 </div>
 
-{% include '_partials/_agent_present_modal.html.twig' %}
+{% if not anonymous %}
+    {% include '_partials/_agent_present_modal.html.twig' %}
+{% endif %}
 
 {% if not isRequest %}
     <script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>

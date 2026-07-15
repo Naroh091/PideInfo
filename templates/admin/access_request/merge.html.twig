@@ -28,7 +28,7 @@
             <tr><th>Estado</th><td>{{ source.statusLabel }}</td></tr>
             <tr><th>Organismo</th><td>{{ source.publicBody.name }}</td></tr>
             <tr><th>Documentos</th><td>{{ source.documents|length }}</td></tr>
-            <tr><th>Usuario</th><td>{{ source.user.fullName }}</td></tr>
+            <tr><th>Usuario</th><td>{{ source.user ? source.user.fullName : 'Anónimo' }}</td></tr>
         </table>
 
         {% if candidates|length > 0 %}

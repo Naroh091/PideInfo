@@ -42,6 +42,9 @@ final class PromptCatalog
             // Agentic document analysis (inventory-aware, tools, origin/phase/composites)
             ['name' => 'pideinfo-document-agent-analyze-system', 'commitMessage' => 'Doc agent: system rules (types incl. judicial/interadmin, origin, phase, composites, tools)'],
             ['name' => 'pideinfo-document-agent-analyze-user', 'commitMessage' => 'Doc agent: user turn with expediente inventory and context blocks'],
+            // Anonymous generation guardrails: moderation of the visitor message (in) and the generated draft (out)
+            ['name' => 'pideinfo-moderation-input', 'commitMessage' => 'Anon moderation: screen the visitor message before drafting'],
+            ['name' => 'pideinfo-moderation-output', 'commitMessage' => 'Anon moderation: screen the generated draft before delivery'],
         ];
     }
 }

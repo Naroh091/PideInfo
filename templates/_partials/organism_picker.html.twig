@@ -9,19 +9,28 @@
 
    Params:
      draft_only  — bool; when true the picker creates draft-only requests
-                   (POSTs `draftOnly: true` to the shared initiate endpoint) #}
+                   (POSTs `draftOnly: true` to the shared initiate endpoint)
+     destinations_url / destination_facets_url / initiate_url — optional
+                   overrides so the public /redactar flow can point the picker
+                   at its anonymous mirror endpoints
+     max_targets — optional cap on selected destinations (0 = unlimited)
+     extra_fields_selector — optional CSS selector of inputs merged into the
+                   initiate POST (flow, resolutionResult, Turnstile token)
+     back_url    — optional href for the "Atrás" button #}
 <div class="picker-grid"
      data-controller="realizar-picker"
-     data-realizar-picker-destinations-url-value="{{ path('app_solicitudes_realizar_destinations_json') }}"
-     data-realizar-picker-destination-facets-url-value="{{ path('app_solicitudes_realizar_destinations_facets_json') }}"
-     data-realizar-picker-initiate-url-value="{{ path('app_solicitudes_realizar_initiate') }}"
+     data-realizar-picker-destinations-url-value="{{ destinations_url|default(path('app_solicitudes_realizar_destinations_json')) }}"
+     data-realizar-picker-destination-facets-url-value="{{ destination_facets_url|default(path('app_solicitudes_realizar_destinations_facets_json')) }}"
+     data-realizar-picker-initiate-url-value="{{ initiate_url|default(path('app_solicitudes_realizar_initiate')) }}"
+     data-realizar-picker-max-targets-value="{{ max_targets|default(0) }}"
+     data-realizar-picker-extra-fields-selector-value="{{ extra_fields_selector|default('') }}"
      data-realizar-picker-draft-only-value="{{ (draft_only|default(false)) ? 'true' : 'false' }}">
 
     <section class="picker-card">
         <div class="picker-step">
             <span class="picker-card-label">Destinatarios</span>
             <p class="picker-help" style="margin-top:.25rem;">
-                Busca el organismo o la unidad concreta por nombre o por código DIR3. Puedes añadir varios: crearemos una solicitud independiente para cada uno.
+                {{ help_text|default('Busca el organismo o la unidad concreta por nombre o por código DIR3. Puedes añadir varios: crearemos una solicitud independiente para cada uno.') }}
             </p>
             <button type="button"
                     class="picker-add-btn"
@@ -36,7 +45,7 @@
         </p>
 
         <div class="picker-cta-row">
-            <a href="{{ path('app_solicitudes_new') }}" class="btn btn-secondary">
+            <a href="{{ back_url|default(path('app_solicitudes_new')) }}" class="btn btn-secondary">
                 <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Atrás
             </a>
             <button type="button"

@@ -65,6 +65,11 @@ security:
         - { path: ^/\.well-known/(oauth-|jwks), roles: PUBLIC_ACCESS }
         - { path: ^/oauth2/(token|register)$, roles: PUBLIC_ACCESS }
         - { path: ^/oauth2/authorize, roles: ROLE_USER }
+        # Redacción pública sin registro: /redactar y el chat SSE compartido.
+        # El acceso real por entidad lo decide AccessRequestVoter (dueño, o
+        # sesión anónima que creó el borrador).
+        - { path: ^/redactar, roles: PUBLIC_ACCESS }
+        - { path: ^/asistente/, roles: PUBLIC_ACCESS }
         - { path: ^/mcp, roles: ROLE_USER }
         - { path: ^/api/, roles: ROLE_USER }
         - { path: ^/admin, roles: ROLE_ADMIN }

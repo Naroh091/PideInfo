@@ -56,7 +56,7 @@ final class UpdateRequestStatusTool
         if (null === $request) {
             throw new InvalidArgumentException('Request not found.');
         }
-        if ($request->getUser()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+        if ($request->getUser()?->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
             throw new AccessDeniedException('Request does not belong to the authenticated user.');
         }
 

@@ -6,6 +6,7 @@ namespace App\Service\AI\Agent\Tool;
 
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Crawl4ai\Crawl4aiClient;
+use App\Service\AI\UrlEgressGuard;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 
 /**
@@ -33,6 +34,7 @@ final class ScrapeUrlTool
     public function __construct(
         private readonly Crawl4aiClient $crawl4ai,
         private readonly AgentProgress $progress,
+        private readonly UrlEgressGuard $egressGuard,
     ) {
     }
 
@@ -41,6 +43,12 @@ final class ScrapeUrlTool
      */
     public function __invoke(string $url): string
     {
+        try {
+            $this->egressGuard->assertPublic($url);
+        } catch (\InvalidArgumentException $e) {
+            return sprintf('No se puede extraer esa URL: %s', $e->getMessage());
+        }
+
         $this->progress->step("Extrayendo contenido de {$url}…", 'scrape_url');
 
         try {

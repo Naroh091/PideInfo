@@ -5,6 +5,7 @@ For more insights about the project, check README.md
 If you need the architecture info, check docs/architecture.md
 The flow of information requests is outlined in docs/request-workflow.md
 The flow of complaints when the request response is not what the user expects is in docs/complaint-workflow.md
+The public no-account drafting flow (/redactar, anonymous drafts + claim) is in docs/anonymous-drafting.md
 The document processing is in docs/document-processing.md
 The inbound email pipeline is in docs/inbound-email.md
 The MCP server (HTTP transport + OAuth2) is in docs/mcp.md

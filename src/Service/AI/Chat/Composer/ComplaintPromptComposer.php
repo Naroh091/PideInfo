@@ -129,7 +129,7 @@ Reglas estrictas:
 
 TXT;
 
-        $prefsText = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
+        $prefsText = WritingPreferencesFormatter::format($ar->getUser()?->getWritingPreferences() ?? []);
         $prefsBlock = $prefsText !== '' ? "\n\n" . $prefsText : '';
 
         // Literal text of the applicable transparency law and of the regime attached to the

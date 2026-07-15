@@ -190,6 +190,7 @@ class AccessRequestRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('ar')
             ->where('ar.status = :pending')
             ->andWhere('ar.createdAt < :upper')
+            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
             ->setParameter('pending', AccessRequest::STATUS_PENDING)
             ->setParameter('upper', $upper)
             ->orderBy('ar.createdAt', 'ASC');
@@ -216,6 +217,7 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->andWhere('ar.deadlineAt < :tomorrow')
             ->andWhere('ar.status IN (:activeStatuses)')
             ->andWhere('ar.deadlineSuspendedAt IS NULL')
+            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
             ->setParameter('today', $today)
             ->setParameter('tomorrow', $tomorrow)
             ->setParameter('activeStatuses', [

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\User;
 use App\Form\RegistrationFormType;
+use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -57,7 +58,8 @@ class SecurityController extends AbstractController
     public function register(
         Request $request,
         UserPasswordHasherInterface $passwordHasher,
-        MailerInterface $mailer
+        MailerInterface $mailer,
+        AnonymousDraftClaimer $draftClaimer,
     ): Response {
         if ($this->getUser()) {
             return $this->redirectToRoute('app_dashboard');
@@ -81,6 +83,12 @@ class SecurityController extends AbstractController
 
             $this->entityManager->persist($user);
             $this->entityManager->flush();
+
+            // Anonymous drafts from /redactar living in this session become
+            // the new user's. Done here (and not only on LoginSuccess) so the
+            // work survives even when login is deferred — email verification
+            // pending or USER_NEEDS_MANUAL_ACTIVATION.
+            $draftClaimer->claim($user);
 
             $signatureComponents = $this->verifyEmailHelper->generateSignature(
                 'app_verify_email',

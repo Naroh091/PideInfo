@@ -6,6 +6,7 @@ namespace App\Service\AI\Agent\Tool;
 
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Camofox\CamofoxMcpClient;
+use App\Service\AI\UrlEgressGuard;
 use Symfony\AI\Agent\Toolbox\Attribute\AsTool;
 
 /**
@@ -30,6 +31,7 @@ final class VisitUrlTool
     public function __construct(
         private readonly CamofoxMcpClient $camofox,
         private readonly AgentProgress $progress,
+        private readonly UrlEgressGuard $egressGuard,
     ) {
     }
 
@@ -38,6 +40,12 @@ final class VisitUrlTool
      */
     public function __invoke(string $url): string
     {
+        try {
+            $this->egressGuard->assertPublic($url);
+        } catch (\InvalidArgumentException $e) {
+            return sprintf('No se puede visitar esa URL: %s', $e->getMessage());
+        }
+
         $this->progress->step("Visitando {$url}…", 'visit_url');
 
         try {

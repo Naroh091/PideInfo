@@ -110,9 +110,14 @@ class AccessRequest
     #[ORM\Column(nullable: true)]
     private ?int $suspendedDaysRemaining = null;
 
+    /**
+     * Null for anonymous drafts created from the public `/redactar` flow.
+     * They live referenced only in the visitor's session until claimed on
+     * registration/login (AnonymousDraftClaimer) or purged.
+     */
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'accessRequests')]
-    #[ORM\JoinColumn(nullable: false)]
-    private User $user;
+    #[ORM\JoinColumn(nullable: true)]
+    private ?User $user = null;
 
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'accessRequests')]
     #[ORM\JoinColumn(nullable: true)]
@@ -533,12 +538,12 @@ class AccessRequest
         return $this->deadlineSuspendedAt !== null && $this->thirdPartyStatus === self::THIRD_PARTY_PENDING;
     }
 
-    public function getUser(): User
+    public function getUser(): ?User
     {
         return $this->user;
     }
 
-    public function setUser(User $user): static
+    public function setUser(?User $user): static
     {
         $this->user = $user;
         return $this;

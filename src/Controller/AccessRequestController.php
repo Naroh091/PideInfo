@@ -21,8 +21,7 @@ use App\Repository\StatusHistoryRepository;
 use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AccessRequest\DeadlineCalculator;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
-use App\Service\AI\EmbeddingGenerator;
-use App\Service\AI\ResolutionRetriever;
+use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
@@ -39,7 +38,6 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Symfony\AI\Platform\Vector\Vector;
 use Symfony\Component\Uid\Uuid;
 
 #[Route('/solicitudes')]
@@ -556,10 +554,9 @@ class AccessRequestController extends AbstractController
     #[IsGranted('view', 'accessRequest')]
     public function similarResolutionsJson(
         AccessRequest $accessRequest,
-        EmbeddingGenerator $embeddingGenerator,
-        ResolutionRetriever $resolutionRetriever,
+        SimilarResolutionsLoader $similarResolutions,
     ): JsonResponse {
-        $similar = $this->loadSimilarResolutions($accessRequest, $embeddingGenerator, $resolutionRetriever, 3);
+        $similar = $similarResolutions->load($accessRequest, 3);
 
         $items = [];
         foreach ($similar as $row) {
@@ -615,47 +612,6 @@ class AccessRequestController extends AbstractController
         ]);
     }
 
-    /**
-     * Load top-N resolutions similar to the current draft, biased to the
-     * complaint organism implicit in the request's applicable law. Used by
-     * both the chat assistant (so the prompt sees the same precedents the
-     * user does) and the sidebar.
-     *
-     * @return array<int, array<string, mixed>>
-     */
-    private function loadSimilarResolutions(
-        AccessRequest $ar,
-        EmbeddingGenerator $embeddingGenerator,
-        ResolutionRetriever $resolutionRetriever,
-        int $topK = 3,
-    ): array {
-        $title = trim((string) $ar->getTitle());
-        $description = trim((string) $ar->getDescription());
-        $organism = $ar->getPublicBody()->getName();
-
-        $query = trim(implode('. ', array_filter([$title, $description])));
-        if ($query === '') {
-            // No draft text yet — fall back to the organism name + applicable law so the
-            // sidebar still has something to show on first paint.
-            $query = $organism . '. ' . ((string) ($ar->getApplicableLaw()?->getName() ?? ''));
-        }
-
-        try {
-            $embedding = $embeddingGenerator->generate(mb_substr($query, 0, 4000));
-            return $resolutionRetriever->retrieveSimilarCasesByVector(
-                new Vector($embedding),
-                $topK,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
-        } catch (\Throwable) {
-            return $resolutionRetriever->retrieveSimilarCases(
-                $query,
-                $topK,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
-        }
-    }
-
     #[Route('/nueva/realizar/redactar/{id}/descargar-pdf', name: 'app_solicitudes_realizar_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function downloadDraftPdf(AccessRequest $accessRequest, PdfGenerator $pdfGenerator): Response
@@ -702,6 +658,18 @@ class AccessRequestController extends AbstractController
         $drafts = $this->accessRequestRepository->findByDraftBatch($batchId, $user);
         if ($drafts === []) {
             throw $this->createNotFoundException('batch_not_found');
+        }
+
+        // Belt-and-braces: the sentinel «Organismo por determinar» (anonymous
+        // /redactar drafts with a generic destination) must never reach a
+        // dispatch. ChannelResolver already fails it structurally, but the
+        // error message there ("reg_destination_required") would send the
+        // user hunting for a REG unit that doesn't exist.
+        foreach ($drafts as $draft) {
+            if ($draft->getMetadataValue(\App\Service\Anonymous\GenericDestination::METADATA_FLAG)) {
+                $this->addFlash('error', 'Esta solicitud tiene el destinatario «por determinar». Elige el organismo de destino antes de enviarla.');
+                return $this->redirectToRoute('app_solicitudes_realizar_draft', ['id' => $draft->getId()]);
+            }
         }
 
         // Atomic canvas-snapshot write: the dispatch button POSTs the current

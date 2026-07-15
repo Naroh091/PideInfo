@@ -90,6 +90,8 @@ Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en 
 
 **Cambio de estado manual.** Independientemente del flujo del editor, el usuario puede cambiar el desplegable de estado de la reclamación en la página de detalle de la solicitud a "Reclamada". El sistema crea una entidad `AccessRequestComplaint`, fija un plazo de resolución de 3 meses y registra la transición en `StatusHistory`.
 
+**Redacción anónima (`/redactar`).** Un visitante sin cuenta puede redactar una reclamación con el mismo chat: elige el organismo real que le denegó (el centinela genérico no se admite en este flujo) y qué respondió la administración (`resolutionResult`), lo que crea un `AccessRequest` sin dueño con la incoherencia deliberada `pending + resolutionResult` — suficiente para que `canGenerateComplaint()` pase. Solo puede descargar el PDF; al registrarse/iniciar sesión, `AnonymousDraftClaimer` asigna el expediente y repara la incoherencia mapeando el resultado a su estado real vía `changeStatus()`. Véase `docs/anonymous-drafting.md`.
+
 **Vista unificada `/redactar`** (`templates/complaint/redactar.html.twig`, servida por `App\Controller\ComplaintRedactController`). Un único espacio de trabajo de lienzo + chat que gestiona tanto la redacción de la reclamación como la respuesta a alegaciones:
 
 - **Selección de modo** — entrar en `/solicitudes/{id}/redactar` sin `?mode=` muestra dos CTAs ("Redactar reclamación" / "Responder a alegaciones"). El usuario elige explícitamente; se evita intencionadamente la autodetección a partir del estado de la solicitud para que el ciudadano sepa qué documento está produciendo.

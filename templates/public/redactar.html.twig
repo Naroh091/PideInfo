@@ -1,0 +1,201 @@
+{% extends 'layouts/public_page.html.twig' %}
+
+{# Entrada pública de la redacción sin registro (/redactar): el visitante
+   elige qué quiere redactar (solicitud o reclamación), el organismo de
+   destino, y — en reclamaciones — qué le respondió la administración. El POST
+   de creación lo hace realizar_picker_controller.js contra
+   /redactar/crear, con flow / resolutionResult / turnstileToken viajando como
+   campos extra (#redactar-extra). #}
+
+{% block title %}Redacta tu solicitud de transparencia · PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {% include '_partials/organism_picker_styles.html.twig' %}
+{% endblock %}
+
+{% block content %}
+<div x-data="redactarPublico()">
+
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Redacta sin registrarte</h1>
+            <p class="page-sub">
+                El asistente redacta contigo, apoyándose en la ley aplicable y en resoluciones
+                reales de los Consejos de Transparencia. Al final descargas el PDF — y si creas
+                una cuenta, guardamos el expediente y vigilamos sus plazos.
+            </p>
+        </div>
+        <a href="{{ path('app_register') }}" class="btn btn-secondary">
+            <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i> Crear cuenta
+        </a>
+    </header>
+
+    {% if existingDrafts|length > 0 %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+            <h2 class="text-sm font-semibold text-slate-900 mb-3" style="font-family:'DM Sans',sans-serif;">
+                Tus borradores en curso ({{ existingDrafts|length }} de {{ maxDrafts }})
+            </h2>
+            <ul class="space-y-2">
+                {% for draft in existingDrafts %}
+                    <li>
+                        <a href="{{ draft.url }}" class="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-slate-50 transition-colors">
+                            <i data-lucide="{{ draft.flow == 'complaint' ? 'gavel' : 'file-text' }}" class="w-4 h-4 text-slate-500 shrink-0"></i>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-medium text-slate-900 truncate">{{ draft.title }}</span>
+                                <span class="block text-xs text-slate-500 truncate">{{ draft.flow == 'complaint' ? 'Reclamación' : 'Solicitud' }} · {{ draft.publicBody }}</span>
+                            </span>
+                            <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 ml-auto shrink-0"></i>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+            <p class="text-xs text-slate-500 mt-3">
+                Estos borradores viven solo en este navegador. Crea una cuenta para conservarlos.
+            </p>
+        </section>
+    {% endif %}
+
+    {# ── Paso 1: qué quieres redactar ─────────────────────────── #}
+    <section class="grid sm:grid-cols-2 gap-4 mb-6">
+        <button type="button"
+                class="text-left p-5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 transition-colors"
+                :style="flow === 'request' ? 'border-color:#0ea5e9;background:#f0f9ff66' : ''"
+                @click="flow = 'request'">
+            <div class="flex items-center gap-2 mb-1">
+                <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                <span class="font-semibold text-slate-900" style="font-family:'DM Sans',sans-serif;">Una solicitud de información</span>
+            </div>
+            <p class="text-sm text-slate-600">
+                Quieres pedir información pública a una administración: contratos, gastos, informes, expedientes…
+            </p>
+        </button>
+        <button type="button"
+                class="text-left p-5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 transition-colors"
+                :style="flow === 'complaint' ? 'border-color:#0ea5e9;background:#f0f9ff66' : ''"
+                @click="flow = 'complaint'">
+            <div class="flex items-center gap-2 mb-1">
+                <i data-lucide="gavel" class="w-5 h-5 text-primary-600"></i>
+                <span class="font-semibold text-slate-900" style="font-family:'DM Sans',sans-serif;">Una reclamación</span>
+            </div>
+            <p class="text-sm text-slate-600">
+                Ya pediste información y te la denegaron, respondieron a medias o no contestaron. Reclama ante el Consejo de Transparencia.
+            </p>
+        </button>
+    </section>
+
+    {# ── Paso 2 (solo reclamación): qué pasó con tu solicitud ── #}
+    <section x-show="flow === 'complaint'" x-cloak class="bg-white rounded-2xl border border-slate-200 p-5 mb-6">
+        <h2 class="text-sm font-semibold text-slate-900 mb-1" style="font-family:'DM Sans',sans-serif;">¿Qué respondió la administración?</h2>
+        <p class="text-xs text-slate-500 mb-3">Determina el enfoque de la reclamación. Podrás pegar la respuesta o adjuntar el PDF en el chat.</p>
+        <div class="grid sm:grid-cols-2 gap-2">
+            {% for value, label in {
+                'denied': 'Me la denegaron',
+                'silence': 'No contestaron (silencio administrativo)',
+                'partially_granted': 'Me dieron solo parte de lo pedido',
+                'inadmitted': 'La inadmitieron a trámite',
+            } %}
+                <label class="flex items-center gap-2 p-3 rounded-xl border border-slate-200 hover:border-slate-300 cursor-pointer transition-colors"
+                       :style="result === '{{ value }}' ? 'border-color:#0ea5e9;background:#f0f9ff66' : ''">
+                    <input type="radio" name="resultChoice" value="{{ value }}" x-model="result" class="accent-sky-500">
+                    <span class="text-sm text-slate-800">{{ label }}</span>
+                </label>
+            {% endfor %}
+        </div>
+        <p x-show="!result" x-cloak class="text-xs text-amber-700 mt-2">Elige una opción para poder continuar.</p>
+    </section>
+
+    {# ── Paso 3: organismo de destino ─────────────────────────── #}
+    <section :class="flow === 'complaint' && !result ? 'opacity-50 pointer-events-none' : ''">
+        <h2 class="text-sm font-semibold text-slate-900 mb-3" style="font-family:'DM Sans',sans-serif;"
+            x-text="flow === 'complaint' ? '¿A qué organismo pediste la información?' : '¿A qué organismo va dirigida?'"></h2>
+
+        {% include '_partials/organism_picker.html.twig' with {
+            destinations_url: path('app_public_redactar_destinations_json'),
+            destination_facets_url: path('app_public_redactar_destinations_facets_json'),
+            initiate_url: path('app_public_redactar_create'),
+            max_targets: 1,
+            extra_fields_selector: '#redactar-extra input',
+            back_url: path('app_home'),
+            help_text: 'Busca el organismo o la unidad concreta por nombre o por código DIR3.',
+            draft_only: true,
+        } %}
+
+        {# Solo solicitudes: empezar a redactar sin destinatario. #}
+        <div x-show="flow === 'request'" x-cloak class="mt-4 p-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 flex flex-wrap items-center gap-3">
+            <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-slate-800">¿Aún no sabes el organismo?</p>
+                <p class="text-xs text-slate-500">Redacta primero y decide el destinatario después; el PDF saldrá con la línea «A/A» en blanco.</p>
+            </div>
+            <button type="button" class="btn btn-outline" @click="crearGenerico()" :disabled="genericBusy">
+                <i data-lucide="pen-line" class="w-4 h-4 mr-2"></i>
+                <span x-text="genericBusy ? 'Preparando…' : 'Redactar sin destinatario'"></span>
+            </button>
+        </div>
+    </section>
+
+    {# ── Anti-abuso ────────────────────────────────────────────── #}
+    <div id="redactar-extra">
+        <input type="hidden" name="flow" :value="flow">
+        <input type="hidden" name="resolutionResult" :value="flow === 'complaint' ? result : ''">
+        <input type="hidden" name="turnstileToken" id="turnstile-token" value="">
+    </div>
+
+    {% if turnstileSiteKey %}
+        <div class="mt-6 flex justify-center">
+            <div class="cf-turnstile"
+                 data-sitekey="{{ turnstileSiteKey }}"
+                 data-callback="pideinfoTurnstileToken"
+                 data-expired-callback="pideinfoTurnstileExpired"></div>
+        </div>
+    {% endif %}
+</div>
+
+{% if turnstileSiteKey %}
+    <script>
+        window.pideinfoTurnstileToken = function (token) {
+            document.getElementById('turnstile-token').value = token;
+        };
+        window.pideinfoTurnstileExpired = function () {
+            document.getElementById('turnstile-token').value = '';
+            if (window.turnstile) { window.turnstile.reset(); }
+        };
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
+
+<script>
+    function redactarPublico() {
+        return {
+            flow: '{{ flow }}',
+            result: '',
+            genericBusy: false,
+            async crearGenerico() {
+                this.genericBusy = true;
+                try {
+                    const res = await fetch('{{ path('app_public_redactar_create') }}', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({
+                            flow: 'request',
+                            generic: true,
+                            turnstileToken: document.getElementById('turnstile-token')?.value || '',
+                        }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.firstDraftUrl) {
+                        window.location.href = data.firstDraftUrl;
+                        return;
+                    }
+                    alert(data.message || 'No se ha podido crear el borrador. Inténtalo de nuevo.');
+                } catch (e) {
+                    console.error(e);
+                    alert('No se ha podido crear el borrador. Inténtalo de nuevo.');
+                }
+                this.genericBusy = false;
+            },
+        };
+    }
+</script>
+{% endblock %}

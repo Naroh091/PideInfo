@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+
+{# Layout para páginas de la app usables sin cuenta (p. ej. la redacción
+   anónima /redactar): mismo contenedor de contenido que layouts/app.html.twig
+   pero con la navegación pública en lugar del navbar autenticado. #}
+
+{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <style>[x-cloak] { display: none !important; }</style>
+{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' %}
+
+<main class="flex-1 py-6">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+{% include '_partials/public_footer.html.twig' %}
+
+{# Alpine.js — mismas versión y carga que layouts/app.html.twig #}
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+{% endblock %}

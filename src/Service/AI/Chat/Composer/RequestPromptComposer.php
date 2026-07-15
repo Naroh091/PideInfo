@@ -58,7 +58,7 @@ final class RequestPromptComposer
             $fullText .= "\n\n" . $legalBlock;
         }
 
-        $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
+        $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()?->getWritingPreferences() ?? []);
         if ($prefsBlock !== '') {
             $fullText .= "\n\n" . $prefsBlock;
         }

@@ -59,7 +59,7 @@ final class AddReminderTool
                 throw new InvalidArgumentException('Invalid request id.');
             }
             $accessRequest = $this->accessRequestRepository->find(Uuid::fromString($requestId));
-            if (null === $accessRequest || $accessRequest->getUser()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+            if (null === $accessRequest || $accessRequest->getUser()?->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
                 throw new AccessDeniedException('Request not found or not yours.');
             }
         }

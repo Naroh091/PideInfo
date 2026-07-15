@@ -81,4 +81,45 @@ final class UpdateExpiredRequestsHandlerTest extends KernelTestCase
         );
         self::assertCount(1, $delayedRows);
     }
+
+    /**
+     * Los borradores anónimos (/redactar, user null) quedan fuera del barrido:
+     * pasarlos a "delayed" rompería su UI de redacción y nadie recibe el aviso.
+     */
+    public function testAnonymousDraftIsNotExpired(): void
+    {
+        self::bootKernel();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $body = new PublicBody();
+        $body->setName('Ayuntamiento de Prueba Anónima');
+        $em->persist($body);
+
+        $law = new ApplicableLaw();
+        $law->setName('Ley 19/2013 de transparencia');
+        $law->setShortCode('LTBG');
+        $em->persist($law);
+
+        $request = new AccessRequest();
+        $request->setPublicBody($body);
+        $request->setApplicableLaw($law);
+        $request->setTitle('Borrador anónimo vencido');
+        $request->setDescription('Fixture');
+        $request->setSentAt(new \DateTimeImmutable('-2 months'));
+        $request->setDeadlineAt(new \DateTimeImmutable('-10 days'));
+        $request->setStatus(AccessRequest::STATUS_PENDING);
+        $em->persist($request);
+        $em->flush();
+
+        $this->trackFixtureRequest($request->getId()->toRfc4122());
+        $this->trackFixtureBody($body->getId()->toRfc4122());
+        $this->trackFixtureLaw($law->getId()->toRfc4122());
+
+        $handler = static::getContainer()->get(UpdateExpiredRequestsHandler::class);
+        $handler(new UpdateExpiredRequestsMessage());
+
+        $em->refresh($request);
+        self::assertSame(AccessRequest::STATUS_PENDING, $request->getStatus());
+        self::assertNull($request->getResolutionResult());
+    }
 }

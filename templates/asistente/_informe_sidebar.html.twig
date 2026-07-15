@@ -9,12 +9,12 @@
 <aside class="brief"
        data-controller="rag-card"
        {% if flow == 'request' %}
-           data-rag-card-similar-url-value="{{ path('app_solicitudes_realizar_similar', {id: request.id}) }}"
-           data-rag-card-probability-url-value="{{ path('app_solicitudes_realizar_probability', {id: request.id}) }}"
+           data-rag-card-similar-url-value="{{ similarUrl|default(path('app_solicitudes_realizar_similar', {id: request.id})) }}"
+           data-rag-card-probability-url-value="{{ probabilityUrl|default(path('app_solicitudes_realizar_probability', {id: request.id})) }}"
            data-rag-card-multi-organism-value="{{ isMultiOrganism ? 'true' : 'false' }}"
            data-rag-card-has-draft-value="{{ hasDraft ? 'true' : 'false' }}"
        {% else %}
-           data-rag-card-analyze-url-value="{{ path('app_complaint_analyze', {id: request.id}) }}"
+           data-rag-card-analyze-url-value="{{ analyzeUrl|default(path('app_complaint_analyze', {id: request.id})) }}"
        {% endif %}
        data-action="paper-sheet:settled@window->rag-card#onSettled assistant-chat:draft-applied@window->rag-card#onDraftApplied">
 

@@ -12,17 +12,20 @@ use App\Service\AI\Chat\ChatAttachmentParser;
 use App\Service\AI\Chat\ChatHistoryStore;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
-use App\Service\AI\EmbeddingGenerator;
+use App\Service\AI\Moderation\AnonymousModerationGuard;
+use App\Service\AI\Moderation\ModerationStage;
+use App\Service\AI\Moderation\ModerationVerdict;
+use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\AI\Llm\ContentPart;
-use App\Service\AI\ResolutionRetriever;
 use App\Service\AccessRequest\RequestDraftGenerator;
 use App\Service\Complaint\ComplaintDraftGenerator;
-use Symfony\AI\Platform\Vector\Vector;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Document\DocumentContentsCollector;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -55,6 +58,18 @@ final class AssistantChatController extends AbstractController
      */
     private const CHAT_HISTORY_USER_TURN_CAP = 524_288;
 
+    /** Hard cap of chat turns per anonymous draft (metadata['anonymous'].turns). */
+    private const ANONYMOUS_TURN_CAP = 40;
+
+    /**
+     * Anonymous draft is frozen (rejects further turns) once this many moderation
+     * blocks accumulate on it (metadata['anonymous']['moderation']).
+     */
+    private const MODERATION_STRIKES_PER_DRAFT = 3;
+
+    /** Shown to a blocked anonymous visitor; deliberately does NOT reveal the rule. */
+    private const RECONDUCT_MESSAGE = 'Solo puedo ayudarte a redactar solicitudes de acceso a información pública o reclamaciones de transparencia. Cuéntame qué información pública quieres pedir y a qué organismo.';
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly AgentChatOrchestrator $streamer,
@@ -64,9 +79,15 @@ final class AssistantChatController extends AbstractController
         private readonly ComplaintPromptComposer $complaintPromptComposer,
         private readonly ComplaintGenerator $complaintGenerator,
         private readonly DocumentContentsCollector $documentContentsCollector,
-        private readonly EmbeddingGenerator $embeddingGenerator,
-        private readonly ResolutionRetriever $resolutionRetriever,
+        private readonly SimilarResolutionsLoader $similarResolutions,
         private readonly RequestDraftGenerator $requestDraftGenerator,
+        private readonly AnonymousModerationGuard $moderationGuard,
+        #[Autowire(service: 'limiter.anonymous_chat_turn')]
+        private readonly RateLimiterFactory $anonymousChatLimiter,
+        #[Autowire(service: 'limiter.anonymous_moderation_strikes')]
+        private readonly RateLimiterFactory $moderationStrikeLimiter,
+        #[Autowire(service: 'limiter.anonymous_generation_global')]
+        private readonly RateLimiterFactory $globalGenerationLimiter,
     ) {
     }
 
@@ -79,6 +100,11 @@ final class AssistantChatController extends AbstractController
         }
 
         $userMessage = trim((string) $request->request->get('message', ''));
+
+        if (($guard = $this->enforceAnonymousLimits($request, $accessRequest)) !== null) {
+            return $guard;
+        }
+
         $files = $request->files->all('attachments');
         if (!is_array($files)) {
             $files = [];
@@ -90,7 +116,7 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $similar = $this->loadSimilarResolutions($accessRequest);
+        $similar = $this->similarResolutions->load($accessRequest);
         $composedPrompt = $this->requestPromptComposer->compose($accessRequest, $similar);
 
         $historyKey = self::CHAT_HISTORY_KEY_REQUEST;
@@ -135,6 +161,9 @@ final class AssistantChatController extends AbstractController
                     'previous' => $previousDraft,
                 ];
             },
+            anonymous: $this->getUser() === null,
+            accessRequest: $accessRequest,
+            clientIp: $request->getClientIp(),
         );
     }
 
@@ -147,6 +176,12 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'invalid_mode'], Response::HTTP_BAD_REQUEST);
         }
 
+        $userMessage = trim((string) $request->request->get('message', ''));
+
+        if (($guard = $this->enforceAnonymousLimits($request, $accessRequest)) !== null) {
+            return $guard;
+        }
+
         $eligible = $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
             ? $this->complaintGenerator->canGenerateAlegationResponse($accessRequest)
             : ($this->complaintGenerator->canGenerateComplaint($accessRequest)
@@ -155,7 +190,6 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'mode_not_allowed'], Response::HTTP_CONFLICT);
         }
 
-        $userMessage = trim((string) $request->request->get('message', ''));
         $currentBodyHtml = (string) $request->request->get('currentBodyHtml', '');
 
         $documentIdsRaw = (string) $request->request->get('documentIds', '');
@@ -223,6 +257,9 @@ final class AssistantChatController extends AbstractController
                     'previous' => $previousDraft,
                 ];
             },
+            anonymous: $this->getUser() === null,
+            accessRequest: $accessRequest,
+            clientIp: $request->getClientIp(),
         );
     }
 
@@ -233,12 +270,24 @@ final class AssistantChatController extends AbstractController
      * and the full conversational reply text accumulated up to that point so
      * the caller can persist it as the assistant turn in chat history.
      *
+     * For anonymous turns (see {@see enforceAnonymousLimits}) the visitor message
+     * is moderated before the streamer runs and the generated draft is moderated
+     * before it reaches `$onDecision`; a block reconducts via a synthetic reply and
+     * records a strike, never persisting the offending draft.
+     *
      * @param callable(string $action, ?array<string,mixed> $draft, string $chatReply): ?array<string,mixed> $onDecision
      */
-    private function streamTurn(AssistantChatTurn $turn, string $userMessage, callable $onDecision): StreamedResponse
-    {
-        $streamer = $this->streamer;
-        $response = new StreamedResponse(function () use ($streamer, $turn, $onDecision): void {
+    private function streamTurn(
+        AssistantChatTurn $turn,
+        string $userMessage,
+        callable $onDecision,
+        bool $anonymous = false,
+        ?AccessRequest $accessRequest = null,
+        ?string $clientIp = null,
+    ): StreamedResponse {
+        $events = $this->streamEvents($turn, $userMessage, $onDecision, $anonymous, $accessRequest, $clientIp);
+
+        $response = new StreamedResponse(function () use ($events): void {
             while (\function_exists('ob_get_level') && ob_get_level() > 0) {
                 @ob_end_flush();
             }
@@ -270,25 +319,9 @@ final class AssistantChatController extends AbstractController
             }
             @flush();
 
-            $chatReply = '';
-            try {
-                foreach ($streamer->stream($turn) as [$event, $payload]) {
-                    if ($event === 'chat_token') {
-                        $chatReply .= (string) ($payload['text'] ?? '');
-                    }
-                    if ($event === 'decision') {
-                        $extra = $onDecision((string) $payload['action'], $payload['draft'] ?? null, $chatReply);
-                        if (is_array($extra)) {
-                            $payload = array_merge($payload, $extra);
-                        }
-                    }
-                    $emit($event, $payload);
-                }
-            } catch (\Throwable $e) {
-                $emit('error', ['message' => 'Error inesperado: ' . mb_substr($e->getMessage(), 0, 200)]);
+            foreach ($events as [$event, $payload]) {
+                $emit($event, $payload);
             }
-
-            $emit('done', []);
         });
 
         $response->headers->set('Content-Type', 'text/event-stream');
@@ -297,6 +330,81 @@ final class AssistantChatController extends AbstractController
         $response->headers->set('Connection', 'keep-alive');
 
         return $response;
+    }
+
+    /**
+     * Produces the ordered [event, payload] tuples for one turn — including the
+     * anonymous input/output moderation branches — decoupled from the SSE
+     * flushing so it can be unit-tested. Side effects (history persistence via
+     * `$onDecision`, moderation strikes) happen during iteration, exactly as when
+     * streamed to the client.
+     *
+     * @param callable(string $action, ?array<string,mixed> $draft, string $chatReply): ?array<string,mixed> $onDecision
+     * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
+     */
+    private function streamEvents(
+        AssistantChatTurn $turn,
+        string $userMessage,
+        callable $onDecision,
+        bool $anonymous,
+        ?AccessRequest $accessRequest,
+        ?string $clientIp,
+    ): \Generator {
+        // INPUT moderation (anonymous only): screen the visitor message before
+        // spending the (expensive) agent turn. A block reconducts and records a
+        // strike; the streamer never runs.
+        if ($anonymous && $accessRequest !== null) {
+            $verdict = $this->moderationGuard->moderate($userMessage, ModerationStage::Input);
+            if (!$verdict->allowed) {
+                $this->recordModerationStrike($accessRequest, $clientIp, ModerationStage::Input, $verdict);
+                yield ['chat_token', ['text' => self::RECONDUCT_MESSAGE]];
+                $onDecision('reply', null, self::RECONDUCT_MESSAGE);
+                $this->entityManager->flush();
+                yield ['decision', ['action' => 'reply', 'draft' => null, 'plan' => []]];
+                yield ['done', []];
+
+                return;
+            }
+        }
+
+        $chatReply = '';
+        try {
+            foreach ($this->streamer->stream($turn) as [$event, $payload]) {
+                if ($event === 'chat_token') {
+                    $chatReply .= (string) ($payload['text'] ?? '');
+                }
+                if ($event === 'decision') {
+                    $action = (string) $payload['action'];
+                    $draft = $payload['draft'] ?? null;
+
+                    // OUTPUT moderation (anonymous only): screen the generated
+                    // draft before it is persisted/returned. A block discards
+                    // the draft, reconducts and records a strike.
+                    $outputVerdict = ($anonymous && $accessRequest !== null
+                        && in_array($action, ['generate', 'rewrite'], true) && is_array($draft))
+                        ? $this->moderationGuard->moderate($this->draftText($draft), ModerationStage::Output)
+                        : null;
+
+                    if ($outputVerdict !== null && !$outputVerdict->allowed) {
+                        $this->recordModerationStrike($accessRequest, $clientIp, ModerationStage::Output, $outputVerdict);
+                        yield ['chat_token', ['text' => self::RECONDUCT_MESSAGE]];
+                        $onDecision('reply', null, self::RECONDUCT_MESSAGE);
+                        yield ['decision', ['action' => 'reply', 'draft' => null, 'plan' => []]];
+                        continue;
+                    }
+
+                    $extra = $onDecision($action, $draft, $chatReply);
+                    if (is_array($extra)) {
+                        $payload = array_merge($payload, $extra);
+                    }
+                }
+                yield [$event, $payload];
+            }
+        } catch (\Throwable $e) {
+            yield ['error', ['message' => 'Error inesperado: ' . mb_substr($e->getMessage(), 0, 200)]];
+        }
+
+        yield ['done', []];
     }
 
     /**
@@ -363,8 +471,19 @@ final class AssistantChatController extends AbstractController
      */
     private function loadHistoryForLlm(AccessRequest $ar, string $key): array
     {
-        /** @var User $user */
         $user = $this->getUser();
+
+        // Anonymous drafting (/redactar): no user row to key ai_chat_messages
+        // by, so the history lives directly in AccessRequest.metadata — the
+        // exact shape ChatHistoryStore::load() falls back to, which is what
+        // gives seamless continuity after the draft is claimed.
+        if (!$user instanceof User) {
+            $legacy = $ar->getMetadataValue($key);
+            $recent = array_slice(is_array($legacy) ? $legacy : [], -self::CHAT_HISTORY_LLM_WINDOW);
+
+            return AgentChatOrchestrator::toLlmHistory($recent);
+        }
+
         $threadId = ChatHistoryStore::threadIdFromMetadataKey($ar, $key);
 
         return $this->chatHistoryStore->loadForLlm(
@@ -421,8 +540,23 @@ final class AssistantChatController extends AbstractController
             return;
         }
 
-        /** @var User $user */
         $user = $this->getUser();
+
+        // Anonymous: append into AccessRequest.metadata (the caller flushes).
+        if (!$user instanceof User) {
+            $existing = $ar->getMetadataValue($key);
+            $existing = is_array($existing) ? $existing : [];
+            foreach ($turns as $turn) {
+                $existing[] = $turn;
+            }
+            if (count($existing) > self::CHAT_HISTORY_CAP) {
+                $existing = array_slice($existing, -self::CHAT_HISTORY_CAP);
+            }
+            $ar->setMetadataValue($key, $existing);
+
+            return;
+        }
+
         $threadId = ChatHistoryStore::threadIdFromMetadataKey($ar, $key);
 
         $this->chatHistoryStore->append(
@@ -436,31 +570,105 @@ final class AssistantChatController extends AbstractController
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * Anti-abuse for anonymous callers (owner-less drafts reached through the
+     * voter's session branch): moderation-strike throttle + per-draft freeze,
+     * per-IP sliding window, hard per-draft turn cap, and a global daily
+     * generation budget (circuit breaker). Returns the error response to
+     * short-circuit with, or null to proceed. No-op for authenticated users.
      */
-    private function loadSimilarResolutions(AccessRequest $ar): array
+    private function enforceAnonymousLimits(Request $request, AccessRequest $ar): ?JsonResponse
     {
-        $title = trim((string) $ar->getTitle());
-        $description = trim((string) $ar->getDescription());
-        $organism = $ar->getPublicBody()->getName();
-        $query = trim(implode('. ', array_filter([$title, $description])));
-        if ($query === '') {
-            $query = $organism . '. ' . ((string) ($ar->getApplicableLaw()?->getName() ?? ''));
+        if ($this->getUser() !== null) {
+            return null;
         }
 
-        try {
-            $embedding = $this->embeddingGenerator->generate(mb_substr($query, 0, 4000));
-            return $this->resolutionRetriever->retrieveSimilarCasesByVector(
-                new Vector($embedding),
-                3,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
-        } catch (\Throwable) {
-            return $this->resolutionRetriever->retrieveSimilarCases(
-                $query,
-                3,
-                ['favorable', 'partial', 'unfavorable', 'inadmissible', 'acuerdo_mediacion'],
-            );
+        $ip = $request->getClientIp() ?? 'unknown';
+
+        $meta = $ar->getMetadataValue('anonymous');
+        $meta = is_array($meta) ? $meta : [];
+
+        // Per-draft freeze: too many moderation blocks on this draft.
+        if (count($meta['moderation'] ?? []) >= self::MODERATION_STRIKES_PER_DRAFT) {
+            return new JsonResponse([
+                'error' => 'draft_frozen',
+                'message' => 'Este borrador se ha bloqueado. Crea una cuenta gratuita si necesitas seguir.',
+            ], Response::HTTP_TOO_MANY_REQUESTS);
         }
+
+        // Per-IP strike throttle: enough blocks across drafts and the IP is cut.
+        if ($this->moderationStrikeLimiter->create($ip)->consume(0)->getRemainingTokens() <= 0) {
+            return new JsonResponse([
+                'error' => 'rate_limited',
+                'message' => 'Has alcanzado el límite. Espera un rato e inténtalo de nuevo.',
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
+        if (!$this->anonymousChatLimiter->create($ip)->consume()->isAccepted()) {
+            return new JsonResponse([
+                'error' => 'rate_limited',
+                'message' => 'Has enviado demasiados mensajes seguidos. Espera unos minutos e inténtalo de nuevo.',
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
+        $turnsUsed = (int) ($meta['turns'] ?? 0);
+
+        if ($turnsUsed >= self::ANONYMOUS_TURN_CAP) {
+            return new JsonResponse([
+                'error' => 'turn_cap_reached',
+                'message' => 'Esta conversación ha llegado a su límite. Crea una cuenta gratuita para continuar redactando sin límites.',
+            ], Response::HTTP_TOO_MANY_REQUESTS);
+        }
+
+        // Global circuit breaker: cap total anonymous generation per day across
+        // all IPs, so distributed abuse can't outrun the per-IP limits.
+        if (!$this->globalGenerationLimiter->create('global')->consume()->isAccepted()) {
+            return new JsonResponse([
+                'error' => 'temporarily_unavailable',
+                'message' => 'La redacción sin cuenta no está disponible en este momento. Inténtalo más tarde o crea una cuenta gratuita.',
+            ], Response::HTTP_SERVICE_UNAVAILABLE);
+        }
+
+        $meta['turns'] = $turnsUsed + 1;
+        $ar->setMetadataValue('anonymous', $meta);
+        $this->entityManager->flush();
+
+        return null;
+    }
+
+    /**
+     * Records a moderation block: appends an incident to the draft's
+     * `metadata['anonymous']['moderation']` audit trail and consumes one token
+     * from the per-IP strike limiter. The caller emits the reconduct message.
+     */
+    private function recordModerationStrike(AccessRequest $ar, ?string $clientIp, ModerationStage $stage, ModerationVerdict $verdict): void
+    {
+        $meta = $ar->getMetadataValue('anonymous');
+        $meta = is_array($meta) ? $meta : [];
+        $meta['moderation'][] = [
+            'ts' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            'stage' => $stage->value,
+            'category' => $verdict->category,
+        ];
+        $ar->setMetadataValue('anonymous', $meta);
+
+        $this->moderationStrikeLimiter->create($clientIp ?? 'unknown')->consume();
+    }
+
+    /**
+     * Flattens a draft's scalar fields into a single text blob for moderation
+     * (title + expone/solicita/body_html/body_text, whichever the flow uses).
+     *
+     * @param array<string, mixed> $draft
+     */
+    private function draftText(array $draft): string
+    {
+        $pieces = [];
+        foreach ($draft as $value) {
+            if (is_scalar($value) && (string) $value !== '') {
+                $pieces[] = (string) $value;
+            }
+        }
+
+        return implode("\n\n", $pieces);
     }
 }

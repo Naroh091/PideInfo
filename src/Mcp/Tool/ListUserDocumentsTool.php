@@ -51,7 +51,7 @@ final class ListUserDocumentsTool
                 throw new InvalidArgumentException('Invalid request id.');
             }
             $request = $this->accessRequestRepository->find(Uuid::fromString($requestId));
-            if (null === $request || $request->getUser()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+            if (null === $request || $request->getUser()?->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
                 throw new AccessDeniedException('Request not found or not yours.');
             }
 

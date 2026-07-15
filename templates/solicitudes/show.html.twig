@@ -1103,13 +1103,13 @@
     {% if is_granted('ROLE_ADMIN') and request.user != app.user %}
         <div class="dossier-viewing-as is-admin">
             <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
-            Vista admin · <strong>{{ request.user.fullName }}</strong>
-            <span class="opacity-60">· {{ request.user.email }}</span>
+            Vista admin · <strong>{{ request.user ? request.user.fullName : 'Borrador anónimo' }}</strong>
+            {% if request.user %}<span class="opacity-60">· {{ request.user.email }}</span>{% endif %}
         </div>
     {% elseif request.user != app.user %}
         <div class="dossier-viewing-as is-org">
             <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
-            Compartida por <strong>{{ request.user.fullName }}</strong>
+            Compartida por <strong>{{ request.user ? request.user.fullName : 'Borrador anónimo' }}</strong>
         </div>
     {% endif %}
 

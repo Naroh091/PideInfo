@@ -28,6 +28,9 @@ final class UpdateExpiredRequestsHandler
             ->where('ar.deadlineAt < :today')
             ->andWhere('ar.status IN (:pendingStatuses)')
             ->andWhere('ar.deadlineSuspendedAt IS NULL')
+            // Los borradores anónimos (/redactar) quedan fuera: pasarlos a
+            // "delayed" rompería su UI de redacción y nadie recibe el aviso.
+            ->andWhere('ar.user IS NOT NULL')
             ->setParameter('today', new \DateTimeImmutable('today'))
             ->setParameter('pendingStatuses', [
                 AccessRequest::STATUS_SENT,

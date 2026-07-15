@@ -16,7 +16,13 @@
     {% endif %}
 
     <div class="doc-addressee-block">
-        <div class="doc-addressee">A/A: {{ accessRequest.publicBody.name }}</div>
+        {% if generic_destination|default(false) %}
+            {# Borrador anónimo sin destinatario elegido: se deja la línea en
+               blanco para rellenar a mano al presentarla. #}
+            <div class="doc-addressee">A/A: ______________________________________________</div>
+        {% else %}
+            <div class="doc-addressee">A/A: {{ accessRequest.publicBody.name }}</div>
+        {% endif %}
         {% if accessRequest.title is not empty %}
             <div class="doc-addressee">ASUNTO: {{ accessRequest.title }}</div>
         {% endif %}

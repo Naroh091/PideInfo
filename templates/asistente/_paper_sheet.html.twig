@@ -13,7 +13,7 @@
         <article class="paper-sheet"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="{{ shape }}"
-                 data-paper-sheet-autosave-url-value="{{ path('app_solicitudes_realizar_autosave', {id: request.id}) }}">
+                 data-paper-sheet-autosave-url-value="{{ autosaveUrl|default(path('app_solicitudes_realizar_autosave', {id: request.id})) }}">
 
             <div class="draft-meta-row">
                 {% if isRegDraft %}
@@ -67,10 +67,11 @@
             <footer class="paper-sheet-foot">
                 <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
                 <div class="draft-cta-group">
-                    <a href="{{ path('app_solicitudes_realizar_pdf', {id: request.id}) }}"
+                    {% set requestPdfUrl = sheetPdfUrl|default(path('app_solicitudes_realizar_pdf', {id: request.id})) %}
+                    <a href="{{ requestPdfUrl }}"
                        class="btn btn-secondary"
                        data-action="click->paper-sheet#downloadPdf"
-                       data-paper-sheet-pdf-url-param="{{ path('app_solicitudes_realizar_pdf', {id: request.id}) }}">
+                       data-paper-sheet-pdf-url-param="{{ requestPdfUrl }}">
                         <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
                     </a>
                     {% if batchId %}
@@ -94,14 +95,20 @@
             </footer>
         </article>
     {% else %}
+        {# `is defined` y no `default()`: un saveUrl/presentUrl definido como
+           null significa "acción no disponible" (flujo anónimo) y default()
+           lo pisaría con la ruta autenticada. #}
+        {% set complaintSaveUrl = saveUrl is defined ? saveUrl : path('app_complaint_redactar_save', {id: request.id}) %}
+        {% set complaintPdfUrl = sheetPdfUrl|default(path('app_complaint_download_pdf', {id: request.id})) %}
+        {% set complaintPresentUrl = presentUrl is defined ? presentUrl : path('app_complaint_present_via_agent', {id: request.id}) %}
         <article class="paper-sheet"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="complaint"
                  data-paper-sheet-mode-value="{{ mode }}"
                  data-paper-sheet-draft-id-value="{{ currentDraft ? currentDraft.id : '' }}"
-                 data-paper-sheet-save-url-value="{{ path('app_complaint_redactar_save', {id: request.id}) }}"
-                 data-paper-sheet-pdf-url-value="{{ path('app_complaint_download_pdf', {id: request.id}) }}"
-                 {% if not isAlegation %}data-paper-sheet-present-url-value="{{ path('app_complaint_present_via_agent', {id: request.id}) }}"{% endif %}>
+                 data-paper-sheet-save-url-value="{{ complaintSaveUrl ?? '' }}"
+                 data-paper-sheet-pdf-url-value="{{ complaintPdfUrl }}"
+                 {% if not isAlegation and complaintPresentUrl %}data-paper-sheet-present-url-value="{{ complaintPresentUrl }}"{% endif %}>
 
             <div class="draft-meta-row">
                 <span class="meta-pill meta-pill-portal">
@@ -125,15 +132,17 @@
             <footer class="paper-sheet-foot">
                 <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
                 <div class="draft-cta-group">
-                    <button type="button" class="btn btn-secondary"
-                            data-action="paper-sheet#saveDraft">
-                        <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
-                    </button>
-                    <button type="button" class="btn btn-secondary"
+                    {% if complaintSaveUrl %}
+                        <button type="button" class="btn btn-secondary"
+                                data-action="paper-sheet#saveDraft">
+                            <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
+                        </button>
+                    {% endif %}
+                    <button type="button" class="btn {{ complaintPresentUrl ? 'btn-secondary' : 'btn-primary' }}"
                             data-action="paper-sheet#downloadPdf">
                         <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
                     </button>
-                    {% if not isAlegation %}
+                    {% if not isAlegation and complaintPresentUrl %}
                         <button type="button" class="btn btn-secondary"
                                 data-action="paper-sheet#presentViaAgent"
                                 data-paper-sheet-agent-mode-param="supervised"

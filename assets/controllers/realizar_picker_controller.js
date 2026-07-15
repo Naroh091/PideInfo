@@ -25,6 +25,14 @@ export default class extends Controller {
         // Cuando es true el picker crea solicitudes solo-borrador: el POST lleva
         // `draftOnly: true` y el copy dice "redactaremos" en vez de "enviaremos".
         draftOnly: Boolean,
+        // Tope de destinatarios (0 = sin límite). Con maxTargets=1 elegir un
+        // nuevo destino sustituye al anterior en vez de acumularse — es el
+        // modo del flujo público /redactar, que crea UN borrador por vez.
+        maxTargets: { type: Number, default: 0 },
+        // Selector CSS de inputs cuyo name/value se añade al JSON del POST de
+        // inicio (p. ej. flow, resolutionResult o el token de Turnstile del
+        // flujo público). Se leen en el momento del submit.
+        extraFieldsSelector: { type: String, default: '' },
     };
 
     static PAGE_SIZE = 20;
@@ -277,7 +285,12 @@ export default class extends Controller {
         }
         const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
             && (t.regDestinationId || null) === (entry.regDestinationId || null));
-        if (!dup) this.selectedTargets.push(entry);
+        if (!dup) {
+            if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
+                this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
+            }
+            this.selectedTargets.push(entry);
+        }
 
         this._closeDestinationModal();
         this._renderTargets();
@@ -378,16 +391,22 @@ export default class extends Controller {
             console.error(err);
             this.continueButtonTarget.disabled = false;
             this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
-            alert('No se ha podido iniciar el borrador. Inténtalo de nuevo.');
+            alert(err.userMessage || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
         }
     }
 
     async _postInitiate(targets) {
+        const payload = { targets, draftOnly: this.draftOnlyValue };
+        if (this.extraFieldsSelectorValue) {
+            document.querySelectorAll(this.extraFieldsSelectorValue).forEach((input) => {
+                if (input.name) payload[input.name] = input.value;
+            });
+        }
         const response = await fetch(this.initiateUrlValue, {
             method: 'POST',
             credentials: 'same-origin',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ targets, draftOnly: this.draftOnlyValue }),
+            body: JSON.stringify(payload),
         });
         if (response.status === 422) {
             const data = await response.json().catch(() => ({}));
@@ -398,7 +417,13 @@ export default class extends Controller {
                 throw e;
             }
         }
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            const e = new Error(data.message || `HTTP ${response.status}`);
+            e.code = data.error || null;
+            e.userMessage = data.message || null;
+            throw e;
+        }
         return response.json();
     }
 
