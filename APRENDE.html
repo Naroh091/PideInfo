@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APRENDE — Cómo busca precedentes el agente de PideInfo</title>
+<style>
+  :root {
+    --bg: #faf9f6; --text: #23211c; --muted: #6b675e; --accent: #8a4b12;
+    --card: #ffffff; --border: #e4e0d6; --code-bg: #f0ede5; --good: #2c6e49; --bad: #a33a3a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1a17; --text: #e8e5de; --muted: #a09a8d; --accent: #e0a166;
+      --card: #24221e; --border: #3a372f; --code-bg: #2c2a24; --good: #7fc8a0; --bad: #e08a8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.65 Georgia, 'Times New Roman', serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1, h2, h3 { font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.25; }
+  h1 { font-size: 2rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); font-family: ui-sans-serif, system-ui, sans-serif; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.35rem; margin: 3rem 0 .75rem; border-bottom: 2px solid var(--border); padding-bottom: .4rem; }
+  h2 .n { color: var(--accent); margin-right: .4rem; }
+  h3 { font-size: 1.05rem; margin: 1.75rem 0 .5rem; }
+  p { margin: .75rem 0; }
+  code, pre {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: .86em; background: var(--code-bg); border-radius: 4px;
+  }
+  code { padding: .1em .35em; }
+  pre { padding: .9rem 1rem; overflow-x: auto; line-height: 1.5; }
+  .idea {
+    background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    border-radius: 6px; padding: .9rem 1.1rem; margin: 1.25rem 0;
+  }
+  .idea strong:first-child { font-family: ui-sans-serif, system-ui, sans-serif; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92em; font-family: ui-sans-serif, system-ui, sans-serif; }
+  .tblwrap { overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: .5rem .7rem; text-align: left; }
+  th { background: var(--code-bg); }
+  td.good { color: var(--good); font-weight: 600; }
+  td.bad { color: var(--bad); }
+  .funnel { font-family: ui-sans-serif, system-ui, sans-serif; margin: 1.5rem 0; }
+  .funnel .step {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: .7rem 1rem; margin: 0 auto .35rem; text-align: center;
+  }
+  .funnel .arrow { text-align: center; color: var(--muted); margin: 0 0 .35rem; }
+  .funnel .s1 { width: 100%; }
+  .funnel .s2 { width: 78%; }
+  .funnel .s3 { width: 56%; }
+  .funnel .s4 { width: 38%; border-left: 4px solid var(--accent); }
+  .funnel small { color: var(--muted); display: block; }
+  dl.gloss dt { font-weight: 700; font-family: ui-sans-serif, system-ui, sans-serif; margin-top: 1rem; }
+  dl.gloss dd { margin: .25rem 0 0 0; }
+  .env {
+    background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+    padding: 1rem 1.2rem; margin: 1rem 0;
+  }
+  .env h3 { margin-top: 0; }
+  .pill { display: inline-block; font: 700 .75rem/1 ui-sans-serif, system-ui, sans-serif;
+    padding: .3em .6em; border-radius: 99px; background: var(--code-bg); color: var(--accent); vertical-align: middle; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cómo busca precedentes el agente (y cómo lo hemos mejorado)</h1>
+  <p class="sub">Guía en cristiano de lo que hemos construido: búsqueda semántica, BM25, fusión híbrida, el harness de evaluación y qué tocan las variables de entorno.</p>
+
+  <h2><span class="n">1.</span> El problema de partida</h2>
+  <p>Cuando el agente redacta una reclamación, necesita <strong>precedentes</strong>: resoluciones anteriores de los consejos de transparencia que digan «en un caso como el tuyo, se le dio la razón al ciudadano». Tenemos ~46.000 resoluciones. La pregunta es: dada una argumentación («me deniegan los contratos menores por protección de datos»), <strong>¿cuáles de esas 46.000 son las que tocan?</strong></p>
+  <p>Eso es <em>retrieval</em> (recuperación). Y hasta ahora lo hacíamos de una sola manera: búsqueda semántica. Funcionaba… pero no sabíamos <em>cuánto</em> de bien, ni dónde fallaba.</p>
+
+  <h2><span class="n">2.</span> Las dos formas de buscar (y por qué fallan distinto)</h2>
+
+  <h3>Búsqueda semántica (dense, pgvector)</h3>
+  <p>Un modelo convierte cada texto en un <strong>embedding</strong>: una lista de números (un vector) que captura su <em>significado</em>. Textos que hablan de lo mismo acaban con vectores parecidos, aunque usen palabras distintas. Buscar = convertir tu consulta en vector y encontrar los vectores más cercanos (la cercanía se mide con la <strong>distancia coseno</strong>: menor distancia, más parecido).</p>
+  <div class="idea"><strong>Fuerte en:</strong> paráfrasis e intención. «El ayuntamiento pasa de mí» encuentra resoluciones sobre «silencio administrativo» aunque no compartan ni una palabra.<br><strong>Débil en:</strong> palabras exactas. Si buscas «Truvada» (un medicamento) o «R/0412/2023», el significado difuso del vector no garantiza que aparezca justo ese documento.</div>
+
+  <h3>Búsqueda léxica (BM25, Elasticsearch)</h3>
+  <p>La clásica de toda la vida, con esteroides: busca <em>las palabras literales</em>, ponderando cuán rara es cada palabra (encontrar «Truvada» dice mucho; encontrar «solicitud» no dice nada) y en qué campo aparece (un match en la referencia vale más que en el texto completo). <strong>BM25</strong> es el algoritmo de puntuación estándar.</p>
+  <div class="idea"><strong>Fuerte en:</strong> nombres propios, referencias, términos exactos.<br><strong>Débil en:</strong> sinónimos y paráfrasis — si no usas la palabra exacta, no lo encuentra.</div>
+
+  <p><strong>La observación clave de toda la literatura de 2026:</strong> fallan en sitios distintos. Combinarlas cubre los huecos de ambas. Eso es la <strong>búsqueda híbrida</strong>, y es el estándar que cualquier sistema serio debería tener como base.</p>
+
+  <h2><span class="n">3.</span> Primero medir, luego tocar: el harness de evaluación</h2>
+  <p>Antes de cambiar nada construimos un <strong>harness</strong>: un banco de pruebas que responde con números a «¿el buscador encuentra lo que debería?». Sin esto, cualquier mejora es fe.</p>
+
+  <h3>El dataset (ground truth)</h3>
+  <p>Una lista de 334 casos «consulta → resoluciones que un buen buscador debería devolver», guardada en <code>config/eval/retrieval/resolutions.yaml</code> (versionada en git; Langfuse solo es el espejo para visualizar). Salió de tres fuentes, sin anotar nada a mano:</p>
+  <ul>
+    <li><strong>relations</strong> (209): la cruz sentencia↔resolución. Si un juzgado revisó una resolución, el asunto de la sentencia es una consulta natural cuyo resultado correcto conocemos. Relevancia «de registro judicial»: la más fiable.</li>
+    <li><strong>langfuse</strong> (119): consultas <em>reales</em> que el agente hizo en producción, con los veredictos de relevancia que el propio LLM emitió al leerlas. Ya lo habíamos pagado; solo hubo que minarlo de las trazas.</li>
+    <li><strong>synthetic</strong> (6, ampliable): un LLM inventa consultas realistas para las que una resolución concreta es LA respuesta.</li>
+  </ul>
+
+  <h3>Las métricas</h3>
+  <dl class="gloss">
+    <dt>recall@k («cobertura»)</dt>
+    <dd>De los documentos que <em>sabemos</em> relevantes, ¿qué fracción aparece entre los k primeros resultados? recall@5 = 0.60 significa que el 60% de lo relevante está en el top-5. <strong>Es la métrica reina aquí</strong>: lo que no entra en el top-k, el agente jamás lo verá.</dd>
+    <dt>MRR («¿cómo de arriba está el primero bueno?»)</dt>
+    <dd>1 ÷ posición del primer resultado relevante, promediado. MRR 0.5 ≈ el primer acierto suele estar en la posición 2. Mide la calidad de la <em>ordenación</em>.</dd>
+    <dt>nDCG@k</dt>
+    <dd>Como recall pero premiando que lo relevante esté cuanto más arriba mejor. Un término medio entre las dos anteriores.</dd>
+    <dt>Ablación</dt>
+    <dd>Ejecutar el MISMO dataset con dos configuraciones y comparar filas. Así se decide con evidencia, no con sensaciones. Cada ejecución queda como «run» en Langfuse (Datasets → retrieval-resolutions) para comparar en la UI.</dd>
+  </dl>
+  <pre># construir/ampliar el dataset
+php bin/console app:retrieval:build-dataset --source=relations|synthetic|langfuse
+
+# evaluar (esto es lo que se ejecuta antes de tocar el ranking)
+php bin/console app:retrieval:eval --config=dense|hybrid --push --run-name=mi-experimento</pre>
+
+  <h2><span class="n">4.</span> Qué nos dijeron los números (el diagnóstico)</h2>
+  <p>Con solo búsqueda semántica: <strong>ordenaba bien lo que encontraba, pero encontraba poco</strong>. En consultas reales, la mitad de los precedentes relevantes no llegaba al top-5. Y en consultas cortas/literales, ampliar el top no ayudaba nada: el documento correcto simplemente <em>no estaba en el vecindario semántico</em>. Territorio BM25 puro.</p>
+
+  <h2><span class="n">5.</span> La fusión: Reciprocal Rank Fusion (RRF)</h2>
+  <p>Problema al combinar: la semántica puntúa por <em>distancia</em> (menor = mejor) y BM25 por <em>score</em> (mayor = mejor). Son monedas distintas, no se pueden sumar. <strong>RRF ignora las puntuaciones y usa solo las posiciones</strong>:</p>
+  <pre>puntuación(doc) = Σ por cada lista:  peso / (60 + posición del doc en esa lista)</pre>
+  <p>Un documento que sale bien posicionado en <em>ambas</em> listas suma dos veces y sube. El 60 (la constante k) hace que estar 1º vs 3º importe, pero sin que un solo buscador pueda dictar el resultado.</p>
+
+  <h3>Lo que descubrimos al medir (la parte interesante)</h3>
+  <p>La primera versión fusionaba con peso igual… y el harness nos paró los pies: las consultas <strong>cortas</strong> mejoraban muchísimo (+62% de cobertura) pero las <strong>largas</strong> (argumentaciones de varias frases) <em>empeoraban</em> — BM25, obligado a casar frases enteras, colaba resultados flojos por delante de los aciertos semánticos. Tres iteraciones medidas después, la respuesta fue el <strong>peso adaptativo</strong>:</p>
+  <div class="idea"><strong>Regla final:</strong> si la consulta tiene ≤6 palabras «de contenido» (≥4 letras: fuera artículos y preposiciones), BM25 entra a peso completo — ahí las palabras exactas SON la señal. Si es una parrafada de argumentación, BM25 se silencia y manda la semántica. Resultado: <strong>mejora donde está demostrado que ayuda, cero riesgo donde no.</strong> Es la única configuración que salió mejor-o-igual que la semántica pura en <em>todas</em> las rebanadas del dataset.</div>
+
+  <h2><span class="n">6.</span> El embudo del agente (de 46.000 a 8 citables)</h2>
+  <p>Buscar es solo la primera etapa. El agente encadena filtros de barato a caro:</p>
+  <div class="funnel">
+    <div class="step s1"><strong>Recuperación híbrida</strong> — 14 candidatas <small>pgvector + BM25 fusionados con RRF · milisegundos</small></div>
+    <div class="arrow">▼</div>
+    <div class="step s2"><strong>Criba (screen)</strong> — 1 sola llamada LLM lee los resúmenes de las 14 <small>y las ordena de más a menos prometedora · ~2-3 s (antes: 14 llamadas)</small></div>
+    <div class="arrow">▼</div>
+    <div class="step s3"><strong>Lectura completa (deep review)</strong> — las 8 mejores <small>el LLM lee el texto íntegro y extrae el argumento jurídico · ~1.5-2 s cada una</small></div>
+    <div class="arrow">▼</div>
+    <div class="step s4"><strong>Citables</strong> — solo lo vetado <small>con aviso previo si un juzgado anuló la resolución</small></div>
+  </div>
+  <p>Antes: 6 candidatas → 4 lecturas. Ahora: 14 → 8, con la criba en una sola llamada. Medido en vivo: <strong>el embudo entero tarda ~17 segundos</strong> y en la prueba devolvió 8 precedentes aplicables con argumentos correctos.</p>
+
+  <h2><span class="n">7.</span> Los números finales</h2>
+  <div class="tblwrap"><table>
+    <tr><th></th><th>Solo semántica (antes)</th><th>Híbrida final</th><th></th></tr>
+    <tr><td>Cobertura en top-5 (global)</td><td>44%</td><td class="good">57%</td><td>+28%</td></tr>
+    <tr><td>Cobertura en top-10 (global)</td><td>54%</td><td class="good">69%</td><td>+28%</td></tr>
+    <tr><td>Cobertura en top-14 (lo que ve el embudo)</td><td>—</td><td class="good">71%</td><td></td></tr>
+    <tr><td>Consultas cortas/literales, top-5</td><td>42%</td><td class="good">61%</td><td>+47%</td></tr>
+    <tr><td>Consultas reales del agente, top-5</td><td>49%</td><td class="good">51%</td><td>mejor-o-igual en todo</td></tr>
+  </table></div>
+  <p>Y con la ampliación del embudo, el agente ahora <em>lee de verdad</em> el doble de candidatas de las que leía antes.</p>
+
+  <h2><span class="n">8.</span> Las variables de entorno: qué toca cada una</h2>
+
+  <div class="env">
+    <h3><code>RESOLUTION_HYBRID_RETRIEVAL</code> <span class="pill">interruptor</span></h3>
+    <p><code>0</code> = todo como antes (solo semántica). <code>1</code> = activa la fusión híbrida en <em>todas</em> las búsquedas de resoluciones del agente (chat, reclamaciones, análisis de éxito, MCP). Es el interruptor general: apagarlo revierte al comportamiento antiguo al instante, sin desplegar código.</p>
+  </div>
+
+  <div class="env">
+    <h3><code>RESOLUTION_HYBRID_LEXICAL_WEIGHT</code> <span class="pill">cuánto BM25 en frases largas</span></h3>
+    <p>El peso del brazo BM25 <em>solo para consultas largas</em> (las cortas siempre fusionan a peso completo, 1.0). <code>0</code> = en frases largas manda la semántica en exclusiva — la config que ganó la ablación. Valores 0.3–0.5 mezclan también en largas: medimos que resta más que suma. Subirlo solo tendría sentido si una futura re-evaluación (con el ground truth enriquecido) lo justificara.</p>
+  </div>
+
+  <div class="env">
+    <h3><code>RESOLUTION_SEARCH_BACKEND</code> <span class="pill">kill-switch de Elasticsearch</span></h3>
+    <p>Ya existía: <code>elastic</code> (normal) o <code>doctrine</code> (apagar Elasticsearch del todo). Afecta también al híbrido: con <code>doctrine</code>, el brazo BM25 devuelve vacío <em>a propósito</em> y el retrieval degrada solo a semántica pura. Igual que si el clúster se cae: <strong>el híbrido nunca puede dejar el sistema peor que antes</strong>.</p>
+  </div>
+
+  <p><em>Nota:</em> la ampliación del embudo (14 candidatas / 8 lecturas / criba en 1 llamada) va en el código, no en variables — se despliega con el propio deploy.</p>
+
+  <h2><span class="n">9.</span> Recomendación de despliegue</h2>
+  <pre>RESOLUTION_HYBRID_RETRIEVAL=1
+RESOLUTION_HYBRID_LEXICAL_WEIGHT=0
+RESOLUTION_SEARCH_BACKEND=elastic   # (sin cambio)</pre>
+  <p>Con red de seguridad triple: si Elasticsearch falla → degrada a semántica sola; si algo se ve raro → <code>RESOLUTION_HYBRID_RETRIEVAL=0</code> y vuelta al estado anterior sin tocar código; y todo cambio futuro de ranking pasa por <code>app:retrieval:eval</code> antes de mergear (ya es regla del proyecto en CLAUDE.md).</p>
+  <p>Dentro de unas semanas de uso: re-minar las trazas de Langfuse (<code>app:retrieval:build-dataset --source=langfuse</code>) — el ground truth se enriquecerá con lo que el híbrido haya sacado a la luz y la próxima evaluación será aún más justa.</p>
+
+  <h2><span class="n">10.</span> Glosario exprés</h2>
+  <dl class="gloss">
+    <dt>RAG</dt><dd>Retrieval-Augmented Generation: antes de que el LLM escriba, se le buscan documentos reales para que se apoye en ellos y cite de verdad en vez de inventar.</dd>
+    <dt>Embedding</dt><dd>Representación numérica (vector) del significado de un texto.</dd>
+    <dt>pgvector</dt><dd>Extensión de Postgres que guarda embeddings y busca los más cercanos.</dd>
+    <dt>BM25</dt><dd>Algoritmo clásico de relevancia por palabras exactas (el corazón de Elasticsearch).</dd>
+    <dt>Híbrido</dt><dd>Semántica + léxica combinadas.</dd>
+    <dt>RRF</dt><dd>Reciprocal Rank Fusion: combinar rankings usando posiciones, no puntuaciones.</dd>
+    <dt>Ground truth</dt><dd>Las respuestas correctas conocidas contra las que se mide el buscador.</dd>
+    <dt>Harness</dt><dd>El banco de pruebas: dataset + métricas + comando que lo ejecuta.</dd>
+    <dt>Ablación</dt><dd>Comparar configuraciones quitando/poniendo una pieza cada vez, con los mismos casos.</dd>
+    <dt>Run</dt><dd>Una ejecución del harness archivada en Langfuse para comparar con las siguientes.</dd>
+  </dl>
+</main>
+</body>
+</html>
