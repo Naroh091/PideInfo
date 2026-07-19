@@ -37,12 +37,14 @@ final class PromptCatalog
             ['name' => 'pideinfo-consult-generate-doc-chat', 'commitMessage' => 'Chat scaffold: free consultation + inline document generation'],
             ['name' => 'pideinfo-activity-summary-24h', 'commitMessage' => '24-hour AI activity summary shown on the home dashboard'],
             // Agentic drafting tools (Issues #90 + #91)
-            ['name' => 'pideinfo-resolution-keypoints-screen', 'commitMessage' => 'Agent: quick keypoints pre-filter before full-text resolution review'],
+            ['name' => 'pideinfo-resolution-keypoints-screen-batch', 'commitMessage' => 'Agent: batched keypoints pre-filter (one call ranks all candidates) before full-text review'],
             ['name' => 'pideinfo-resolution-deep-review', 'commitMessage' => 'Agent: full-text resolution review for legal argumentation support'],
             ['name' => 'pideinfo-document-extract-for-drafting', 'commitMessage' => 'Agent: extract key facts from a document for the drafting context'],
             // Agentic document analysis (inventory-aware, tools, origin/phase/composites)
             ['name' => 'pideinfo-document-agent-analyze-system', 'commitMessage' => 'Doc agent: system rules (types incl. judicial/interadmin, origin, phase, composites, tools)'],
             ['name' => 'pideinfo-document-agent-analyze-user', 'commitMessage' => 'Doc agent: user turn with expediente inventory and context blocks'],
+            // Retrieval evaluation harness (docs/retrieval-eval.md)
+            ['name' => 'pideinfo-eval-synthetic-queries', 'commitMessage' => 'Eval: synthetic known-item queries for the retrieval ground-truth dataset'],
             // Anonymous generation guardrails: moderation of the visitor message (in) and the generated draft (out)
             ['name' => 'pideinfo-moderation-input', 'commitMessage' => 'Anon moderation: screen the visitor message before drafting'],
             ['name' => 'pideinfo-moderation-output', 'commitMessage' => 'Anon moderation: screen the generated draft before delivery'],

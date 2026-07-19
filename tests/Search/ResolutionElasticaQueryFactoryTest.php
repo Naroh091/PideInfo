@@ -44,6 +44,31 @@ final class ResolutionElasticaQueryFactoryTest extends TestCase
         self::assertContains('keywords.folded^2', $multiMatch['fields']);
     }
 
+    public function testRankIdsQueryWidensMatchingAndSortsByPureScore(): void
+    {
+        $body = $this->factory->createRankIdsQuery('reclamación por silencio ante contratos menores', ['favorable', 'partial'], 22)->toArray();
+        $multiMatch = $this->must($body)[0]['multi_match'];
+
+        // Long argumentation queries: OR + minimum_should_match, never operator AND.
+        self::assertSame('or', $multiMatch['operator']);
+        self::assertSame('3<30%', $multiMatch['minimum_should_match']);
+        self::assertSame('best_fields', $multiMatch['type']);
+        self::assertContains('referenceNumber^5', $multiMatch['fields']);
+
+        self::assertSame([['outcome' => ['favorable', 'partial']]], array_column($body['query']['bool']['filter'], 'terms'));
+        // Pure relevance sort: a date tie-breaker would corrupt the ranks RRF consumes.
+        self::assertSame(['_score' => ['order' => 'desc']], $body['sort'][0]);
+        self::assertSame(22, $body['size']);
+        self::assertFalse($body['_source']);
+    }
+
+    public function testRankIdsQueryWithoutOutcomesHasNoFilter(): void
+    {
+        $body = $this->factory->createRankIdsQuery('contratos', [], 10)->toArray();
+
+        self::assertArrayNotHasKey('filter', $body['query']['bool']);
+    }
+
     public function testFreeTextSortsByRelevanceFirst(): void
     {
         $body = $this->factory->createSearchQuery(ResolutionSearchQuery::fromArray(['search' => 'contratos']))->toArray();

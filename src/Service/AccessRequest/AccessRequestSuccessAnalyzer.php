@@ -103,8 +103,8 @@ final class AccessRequestSuccessAnalyzer
 
         if ($embedding !== null) {
             $vector = new Vector($embedding);
-            $favorable = $this->resolutionRetriever->retrieveSimilarCasesByVector($vector, 3, ['favorable', 'partial', 'acuerdo_mediacion']);
-            $unfavorable = $this->resolutionRetriever->retrieveSimilarCasesByVector($vector, 3, ['unfavorable', 'inadmissible']);
+            $favorable = $this->resolutionRetriever->retrieveSimilarCasesByVector($vector, 3, ['favorable', 'partial', 'acuerdo_mediacion'], lexicalQuery: $contextText);
+            $unfavorable = $this->resolutionRetriever->retrieveSimilarCasesByVector($vector, 3, ['unfavorable', 'inadmissible'], lexicalQuery: $contextText);
         } else {
             $favorable = $this->resolutionRetriever->retrieveSimilarCases($contextText, 3, ['favorable', 'partial', 'acuerdo_mediacion']);
             $unfavorable = $this->resolutionRetriever->retrieveSimilarCases($contextText, 3, ['unfavorable', 'inadmissible']);

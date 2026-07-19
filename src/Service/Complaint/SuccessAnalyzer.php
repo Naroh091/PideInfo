@@ -72,6 +72,9 @@ final class SuccessAnalyzer
     {
         $documentContents = $this->documentContentsCollector->collect($accessRequest);
         $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
+        // Needed in both branches: the vector path passes it as the text for the
+        // BM25 arm of the hybrid retrieval (chunk vectors carry no lexical query).
+        $contextQuery = $this->buildContextQuery($accessRequest, $documentContents);
 
         if ($vectors !== []) {
             $criteria = $this->criteriaRetriever->retrieveByVectors($vectors, 3);
@@ -79,11 +82,13 @@ final class SuccessAnalyzer
                 $vectors,
                 3,
                 ['favorable', 'partial', 'acuerdo_mediacion'],
+                lexicalQuery: $contextQuery,
             );
             $unfavorablePrecedents = $this->resolutionRetriever->retrieveSimilarCasesByVectors(
                 $vectors,
                 3,
                 ['unfavorable', 'inadmissible'],
+                lexicalQuery: $contextQuery,
             );
         } else {
             // Fallback: documents not yet embedded (just uploaded, queue pending,
@@ -92,7 +97,6 @@ final class SuccessAnalyzer
             $this->logger->info('No precomputed document embeddings; falling back to inline query', [
                 'requestId' => (string) $accessRequest->getId(),
             ]);
-            $contextQuery = $this->buildContextQuery($accessRequest, $documentContents);
             $criteria = $this->criteriaRetriever->retrieve($contextQuery, 3);
             $favorablePrecedents = $this->resolutionRetriever->retrieveSimilarCases(
                 $contextQuery,

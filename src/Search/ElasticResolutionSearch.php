@@ -36,6 +36,17 @@ final readonly class ElasticResolutionSearch implements ResolutionSearchInterfac
         );
     }
 
+    public function rankIds(string $query, array $outcomes = [], int $limit = 20): array
+    {
+        if (trim($query) === '') {
+            return [];
+        }
+
+        $resultSet = $this->index->search($this->queryFactory->createRankIdsQuery($query, $outcomes, $limit));
+
+        return array_map(static fn ($result): string => $result->getId(), $resultSet->getResults());
+    }
+
     public function outcomeStats(ResolutionSearchQuery $query): array
     {
         $resultSet = $this->index->search($this->queryFactory->createAggregatesQuery($query));

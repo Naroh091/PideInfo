@@ -52,6 +52,7 @@ final class SimilarResolutionsLoader
                 $topK,
                 self::OUTCOMES,
                 $priorityOrganismIds,
+                lexicalQuery: $query,
             );
         } catch (\Throwable) {
             return $this->resolutionRetriever->retrieveSimilarCases(

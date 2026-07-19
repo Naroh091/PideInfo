@@ -126,6 +126,7 @@ final class RequestDraftGenerator
                 new Vector($embedding),
                 3,
                 self::RETRIEVAL_OUTCOMES,
+                lexicalQuery: $query,
             );
         } catch (\Throwable) {
             return $this->resolutionRetriever->retrieveSimilarCases(

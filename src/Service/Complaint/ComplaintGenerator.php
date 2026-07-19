@@ -55,14 +55,17 @@ final class ComplaintGenerator
         $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
         $priorityOrganismIds = $this->doctrinePriority->priorityOrganismIdsFor($accessRequest);
 
+        // Built up front: the vector path also needs it, as the text for the BM25
+        // arm of the hybrid retrieval (the chunk vectors carry no lexical query).
+        $contextQuery = $this->buildContextQuery($accessRequest);
+
         if ($vectors !== []) {
             return [
                 $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK, $priorityOrganismIds),
-                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds),
+                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds, lexicalQuery: $contextQuery),
             ];
         }
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
         return [
             $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK, $priorityOrganismIds),
             $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds),
