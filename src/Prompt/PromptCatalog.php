@@ -45,6 +45,7 @@ final class PromptCatalog
             ['name' => 'pideinfo-document-agent-analyze-user', 'commitMessage' => 'Doc agent: user turn with expediente inventory and context blocks'],
             // Retrieval evaluation harness (docs/retrieval-eval.md)
             ['name' => 'pideinfo-eval-synthetic-queries', 'commitMessage' => 'Eval: synthetic known-item queries for the retrieval ground-truth dataset'],
+            ['name' => 'pideinfo-eval-chunk-contexts', 'commitMessage' => 'Eval: per-chunk situating context for the contextual-retrieval pilot'],
             // Anonymous generation guardrails: moderation of the visitor message (in) and the generated draft (out)
             ['name' => 'pideinfo-moderation-input', 'commitMessage' => 'Anon moderation: screen the visitor message before drafting'],
             ['name' => 'pideinfo-moderation-output', 'commitMessage' => 'Anon moderation: screen the generated draft before delivery'],

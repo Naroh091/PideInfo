@@ -9,32 +9,34 @@ use Symfony\Component\Yaml\Yaml;
 
 /**
  * Loads and saves the retrieval-evaluation ground truth at
- * config/eval/retrieval/resolutions.yaml — the CANONICAL copy, versioned in git
- * (mirroring the bundled-prompts pattern: repo file is the source of truth,
- * Langfuse is a synced mirror for visualization).
+ * config/eval/retrieval/{target}.yaml (targets: resolutions, judgments, …) —
+ * the CANONICAL copies, versioned in git (mirroring the bundled-prompts
+ * pattern: repo file is the source of truth, Langfuse is a synced mirror).
  *
  * merge() keeps the EXISTING case when ids collide, so hand-curated edits to
  * the YAML survive re-running the builders.
  */
 final class RetrievalDatasetStore
 {
-    private const RELATIVE_PATH = 'config/eval/retrieval/resolutions.yaml';
-
     public function __construct(
         #[Autowire('%kernel.project_dir%')]
         private readonly string $projectDir,
     ) {
     }
 
-    public function path(): string
+    public function path(string $target = 'resolutions'): string
     {
-        return $this->projectDir . '/' . self::RELATIVE_PATH;
+        if (!preg_match('/^[a-z][a-z0-9-]*$/', $target)) {
+            throw new \InvalidArgumentException(sprintf('Invalid dataset target "%s".', $target));
+        }
+
+        return $this->projectDir . '/config/eval/retrieval/' . $target . '.yaml';
     }
 
     /** @return array<string, EvalCase> keyed by case id */
-    public function load(): array
+    public function load(string $target = 'resolutions'): array
     {
-        $path = $this->path();
+        $path = $this->path($target);
         if (!is_file($path)) {
             return [];
         }
@@ -59,7 +61,7 @@ final class RetrievalDatasetStore
     }
 
     /** @param array<string, EvalCase> $cases */
-    public function save(array $cases): void
+    public function save(array $cases, string $target = 'resolutions'): void
     {
         $rows = [];
         foreach ($cases as $case) {
@@ -76,17 +78,20 @@ final class RetrievalDatasetStore
             $rows[] = $row;
         }
 
-        $header = "# Ground truth de evaluación de retrieval (resoluciones).\n"
+        $header = sprintf(
+            "# Ground truth de evaluación de retrieval (%s).\n"
             . "# CANÓNICO: este fichero versionado es la fuente de verdad; Langfuse es solo espejo.\n"
             . "# Generado/ampliado por app:retrieval:build-dataset — las ediciones manuales se\n"
-            . "# conservan (merge por id, gana lo existente). `relevant` son UUIDs de resolution.\n";
+            . "# conservan (merge por id, gana lo existente). `relevant` son UUIDs del target.\n",
+            $target,
+        );
 
-        $dir = dirname($this->path());
+        $dir = dirname($this->path($target));
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
 
-        file_put_contents($this->path(), $header . Yaml::dump(['cases' => $rows], 4, 2));
+        file_put_contents($this->path($target), $header . Yaml::dump(['cases' => $rows], 4, 2));
     }
 
     /**

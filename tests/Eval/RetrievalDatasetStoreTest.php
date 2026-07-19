@@ -20,9 +20,11 @@ final class RetrievalDatasetStoreTest extends TestCase
 
     protected function tearDown(): void
     {
-        $path = $this->dir . '/config/eval/retrieval/resolutions.yaml';
-        if (is_file($path)) {
-            unlink($path);
+        foreach (['resolutions', 'judgments'] as $target) {
+            $path = $this->dir . '/config/eval/retrieval/' . $target . '.yaml';
+            if (is_file($path)) {
+                unlink($path);
+            }
         }
         foreach (['/config/eval/retrieval', '/config/eval', '/config', ''] as $sub) {
             if (is_dir($this->dir . $sub)) {
@@ -57,6 +59,23 @@ final class RetrievalDatasetStoreTest extends TestCase
     public function testLoadMissingFileReturnsEmpty(): void
     {
         self::assertSame([], (new RetrievalDatasetStore($this->dir))->load());
+    }
+
+    public function testTargetsAreIsolatedFiles(): void
+    {
+        $store = new RetrievalDatasetStore($this->dir);
+        $case = new EvalCase('j-1', 'query sentencias', ['uuid-j'], 'relations', EvalCase::ALL_OUTCOMES);
+
+        $store->save(['j-1' => $case], 'judgments');
+
+        self::assertSame([], $store->load(), 'el target por defecto no debe ver el dataset de judgments');
+        self::assertArrayHasKey('j-1', $store->load('judgments'));
+    }
+
+    public function testInvalidTargetIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new RetrievalDatasetStore($this->dir))->path('../evil');
     }
 
     public function testMergeKeepsExistingOnCollision(): void

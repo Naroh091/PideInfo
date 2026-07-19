@@ -6,6 +6,7 @@ namespace App\Command;
 
 use App\Eval\Builder\JudgmentCrossCaseBuilder;
 use App\Eval\Builder\LangfuseTraceMiner;
+use App\Eval\Builder\ResolutionJudgmentCaseBuilder;
 use App\Eval\Builder\SyntheticQueryCaseBuilder;
 use App\Eval\RetrievalDatasetStore;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -26,6 +27,7 @@ class BuildRetrievalDatasetCommand extends Command
         private readonly JudgmentCrossCaseBuilder $judgmentBuilder,
         private readonly SyntheticQueryCaseBuilder $syntheticBuilder,
         private readonly LangfuseTraceMiner $traceMiner,
+        private readonly ResolutionJudgmentCaseBuilder $resolutionJudgmentBuilder,
     ) {
         parent::__construct();
     }
@@ -33,7 +35,8 @@ class BuildRetrievalDatasetCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Case source: relations (judgment↔resolution cross), synthetic (LLM known-item queries) or langfuse (mine deep-review verdicts)')
+            ->addOption('target', null, InputOption::VALUE_REQUIRED, 'Dataset target: resolutions (default) or judgments', 'resolutions')
+            ->addOption('source', null, InputOption::VALUE_REQUIRED, 'Case source: relations (judgment↔resolution cross), synthetic (LLM known-item queries) or langfuse (mine deep-review verdicts). For --target=judgments only relations is available.')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'relations: max judgments; synthetic: resolutions to sample', null)
             ->addOption('queries-per', null, InputOption::VALUE_REQUIRED, 'synthetic: queries generated per resolution', '2')
             ->addOption('pages', null, InputOption::VALUE_REQUIRED, 'langfuse: max observation pages to mine (50/page)', '10')
@@ -46,9 +49,24 @@ class BuildRetrievalDatasetCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $source = (string) $input->getOption('source');
         $limit = (int) ($input->getOption('limit') ?? 0);
+        $target = (string) $input->getOption('target');
+
+        if (!in_array($target, ['resolutions', 'judgments'], true)) {
+            $io->error('--target must be resolutions or judgments');
+
+            return Command::INVALID;
+        }
+
+        if ($target === 'judgments' && $source !== 'relations') {
+            $io->error('For --target=judgments only --source=relations is available (v1).');
+
+            return Command::INVALID;
+        }
 
         $incoming = match ($source) {
-            'relations' => $this->judgmentBuilder->build($limit),
+            'relations' => $target === 'judgments'
+                ? $this->resolutionJudgmentBuilder->build($limit)
+                : $this->judgmentBuilder->build($limit),
             'synthetic' => $this->syntheticBuilder->build(
                 $limit > 0 ? $limit : 50,
                 max(1, (int) $input->getOption('queries-per')),
@@ -68,7 +86,7 @@ class BuildRetrievalDatasetCommand extends Command
             return Command::INVALID;
         }
 
-        $existing = $this->store->load();
+        $existing = $this->store->load($target);
         $merged = $this->store->merge($existing, $incoming);
         $added = count($merged) - count($existing);
 
@@ -85,8 +103,8 @@ class BuildRetrievalDatasetCommand extends Command
             return Command::SUCCESS;
         }
 
-        $this->store->save($merged);
-        $io->success(sprintf('Dataset: %d casos en %s', count($merged), $this->store->path()));
+        $this->store->save($merged, $target);
+        $io->success(sprintf('Dataset: %d casos en %s', count($merged), $this->store->path($target)));
 
         return Command::SUCCESS;
     }

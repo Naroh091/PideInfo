@@ -127,6 +127,45 @@ Compara siempre contra el último run en Langfuse, no contra esta tabla.
 - `src/Command/{BuildRetrievalDatasetCommand,EvaluateRetrievalCommand}.php`
 - Tests: `tests/Eval/`.
 
+## Target `judgments`
+
+El harness es multi-target: `--target=judgments` usa `config/eval/retrieval/judgments.yaml`
+(229 casos: subject de la resolución recurrida → sentencias que la revisaron, cruz inversa
+de la M2M) y evalúa `JudgmentRetriever::retrieve()` (sin filtro de stance). Baseline
+2026-07-19 (run `judgments-dense-baseline`, dataset Langfuse `retrieval-judgments`):
+**MRR 0.735 · recall@5 0.726 · recall@10 0.751**. Conclusión: con 425 sentencias el dense
+basta — no hay modo híbrido para este target (las sentencias no están en Elasticsearch) y
+no compensa crearlo; re-evaluar si el corpus crece un orden de magnitud. Criterios: corpus
+aún menor, misma conclusión por extrapolación (sin dataset propio de momento).
+
+## Piloto de contextual retrieval (`app:retrieval:pilot-contextual`)
+
+Experimento A/B autocontenido para decidir si el chunking contextual (estilo Anthropic:
+1-2 frases de contexto LLM prepended a cada chunk antes de embeber) justifica re-embeber
+el corpus completo (~257k vectores). Diseño:
+
+- **Corpus congelado** en `var/eval-pilot/corpus.json`: todos los docs relevantes del GT
+  de resoluciones + distractores al azar hasta `--size` (2.000). Idéntico en ambos brazos;
+  un doc solo se indexa si AMBOS brazos lo consiguen (si el LLM de contexto falla, el doc
+  se excluye entero — nada sesga la comparación).
+- **Dos tablas pgvector propias** (`ai_pilot_plain`, `ai_pilot_ctx`), creadas por el
+  comando vía DBAL (sin migración ni servicios: es un experimento desechable);
+  `--phase=cleanup` las elimina junto al corpus.
+- **Fases**: `--phase=build` (resumible, `--limit` para trocear), `--phase=eval`
+  (solo casos cuyo set relevante completo esté indexado; recall@k/MRR por brazo + fila Δ),
+  `--phase=cleanup`. Prompt de contextos: `pideinfo-eval-chunk-contexts` (una llamada por
+  DOCUMENTO que genera los contextos de todos sus chunks).
+- **Caveat**: con ~2.000 docs la tarea es más fácil que en producción (45k) — los números
+  absolutos salen inflados en ambos brazos; la señal válida es la fila Δ (ctx − plain).
+
+**Veredicto (2026-07-19, 1.110 docs, 7.3k vectores/brazo): NEGATIVO — no adoptar.**
+Δ ctx−plain: MRR −0.035, recall@5 −0.028, nDCG@5 −0.054, recall@10 −0.014. El contexto
+prepended EMPEORA el retrieval en este corpus: los chunks de 4.000 chars ya son
+autosuficientes (resoluciones formularias) y, en un corpus temáticamente homogéneo, las
+frases de contexto añaden vocabulario compartido —no discriminante— que difumina los
+embeddings. El resultado de Anthropic (−49% de fallos) no replica aquí. Re-evaluar solo
+si algún día se migra a chunks pequeños (<1.000 chars) o a un corpus heterogéneo.
+
 ## Extensión prevista
 
 Nuevas variantes de retrieval (RRF, reranker…) se evalúan añadiendo la variante al comando
