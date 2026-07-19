@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAIP · Resoluciones — PideInfo</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="repo.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="contenedor contenedor--ancho nav-fila">
+        <div class="nav-izq">
+            <a href="home.html" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="home.html" class="nav-enlace"><i data-lucide="home"></i> Inicio</a>
+                <a href="resoluciones.html" class="nav-enlace activo"><i data-lucide="scale"></i> Repositorio de resoluciones</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="nav-login">Iniciar sesión</a>
+            <a href="#" class="btn btn-primario">Crear cuenta</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Cabecera del organismo ──────────────────────────────── -->
+<header class="rcab">
+    <div class="contenedor contenedor--ancho">
+        <p class="rcab-miga">
+            <a href="resoluciones.html">Repositorio</a> <span class="sep">/</span>
+            <span>GAIP</span>
+        </p>
+
+        <div class="rcab-fila">
+            <div>
+                <h1 class="rcab-titulo">Comissió de Garantia del Dret d'Accés a la Informació&nbsp;Pública</h1>
+                <p class="rcab-sub" style="font-style:italic">Cataluña</p>
+                <p class="rcab-sub" style="margin-top:.5rem">Resoluciones emitidas por la <b>GAIP</b>, el garante catalán del derecho de acceso — incluida su vía de <b>mediación</b>, única entre los consejos.</p>
+            </div>
+            <div class="rcab-logo" aria-hidden="true">GAIP</div>
+        </div>
+
+        <nav class="consejos" aria-label="Ver todas las resoluciones o las de otro consejo">
+            <a href="resoluciones.html" class="consejo">Todas <b>45.891</b></a>
+            <a href="organismo.html" class="consejo">CTBG <b>14.111</b></a>
+            <span class="consejo consejo--activo">GAIP <b>10.741</b></span>
+            <a href="organismo.html" class="consejo">CTPDA <b>6.390</b></a>
+            <a href="organismo.html" class="consejo">Canarias <b>4.050</b></a>
+            <a href="organismo.html" class="consejo">GVA Consell <b>2.398</b></a>
+            <a href="organismo.html" class="consejo">CTBG Aragón <b>1.874</b></a>
+            <a href="#" class="consejo consejo--mas">+8 consejos más</a>
+        </nav>
+
+        <div class="prop" aria-label="Distribución de resultados, comparada con el corpus completo">
+            <div class="prop-fila">
+                <span class="prop-fila-label">GAIP</span>
+                <div class="prop-barra">
+                    <span class="prop-seg prop-seg--fav" style="width:52%"></span>
+                    <span class="prop-seg prop-seg--desfav" style="width:24%"></span>
+                    <span class="prop-seg prop-seg--otras" style="width:24%"></span>
+                </div>
+            </div>
+            <div class="prop-fila">
+                <span class="prop-fila-label">corpus</span>
+                <div class="prop-barra prop-barra--ref" title="Corpus completo: 47% favorables · 27% desfavorables · 26% otras">
+                    <span class="prop-seg prop-seg--fav" style="width:47%"></span>
+                    <span class="prop-seg prop-seg--desfav" style="width:27%"></span>
+                    <span class="prop-seg prop-seg--otras" style="width:26%"></span>
+                </div>
+            </div>
+            <div class="prop-fila">
+                <span></span>
+                <div class="prop-leyenda">
+                    <span><i class="prop-seg--fav"></i><b>52%</b> favorables — corpus: 47%</span>
+                    <span><i class="prop-seg--desfav"></i><b>24%</b> desfavorables — corpus: 27%</span>
+                    <span><i class="prop-seg--otras"></i><b>24%</b> otras — corpus: 26%</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="datos">
+            <div class="dato">
+                <span class="dato-valor">10.741</span>
+                <span class="dato-label">Resoluciones</span>
+                <span class="dato-sub">el 23% de las 45.891 del corpus</span>
+            </div>
+            <div class="dato dato--accion">
+                <span class="dato-valor">68%</span>
+                <span class="dato-label">Tasa de estimación</span>
+                <span class="dato-sub">media del corpus: 64%</span>
+            </div>
+            <div class="dato">
+                <span class="dato-valor">2.913</span>
+                <span class="dato-label">Administraciones reclamadas</span>
+                <span class="dato-sub">de las 9.280 del corpus</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ── Filtros + resultados ────────────────────────────────── -->
+<section class="rcuerpo">
+    <div class="contenedor contenedor--ancho">
+
+        <form class="buscador" aria-label="Buscar resoluciones de la GAIP">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Busca en las resoluciones de la GAIP — asunto, referencia o argumento">
+            <span class="buscador-hint" aria-hidden="true">⏎</span>
+        </form>
+
+        <div class="filtros-fila">
+            <button type="button" class="chip-filtro"><i data-lucide="circle-check"></i> Resultado <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="building-2"></i> Reclamado <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="tag"></i> Palabra clave <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="scale"></i> Situación judicial <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="calendar"></i> Fecha <i data-lucide="chevron-down"></i></button>
+            <span class="filtros-resumen">10.741 resoluciones</span>
+        </div>
+
+        <div class="registro">
+            <div class="registro-cab" aria-hidden="true">
+                <span>Expediente</span>
+                <span>Asunto</span>
+                <span>Resultado</span>
+            </div>
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">RT 0187/2022</span>
+                            <span class="rrow-fecha">03/05/2022</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Retribuciones e indemnizaciones de los altos cargos del sector público</h2>
+                            <p class="rrow-resumen">La Comissió desestimó por protección de datos, pero el TSJ de Cataluña anuló la resolución y reconoció el derecho a conocer las retribuciones individualizadas.</p>
+                            <div class="rrow-chips"><span class="chip-kw">retribuciones</span><span class="chip-kw">altos cargos</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--desestimada">Desestimada</span>
+                            <span class="pildora pildora--judicial-bien" title="El tribunal concedió más acceso que la Comissió."><i data-lucide="scale"></i>Anulada (firme)</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">RT 0512/2024</span>
+                            <span class="rrow-fecha">17/09/2024</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Actas de la mesa de contratación del servicio de limpieza viaria</h2>
+                            <p class="rrow-resumen">Acuerdo en mediación: entrega de las actas con los datos de terceros anonimizados.</p>
+                            <div class="rrow-chips"><span class="chip-kw">contratación</span><span class="chip-kw">mediación</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--mediacion">Acuerdo de mediación</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">RT 0068/2025</span>
+                            <span class="rrow-fecha">11/02/2025</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Convenios firmados entre el departamento y las entidades del tercer sector</h2>
+                            <p class="rrow-resumen">Estimada: la relación de convenios, con objeto, importe y entidad, es información pública sujeta a publicidad activa.</p>
+                            <div class="rrow-chips"><span class="chip-kw">convenios</span><span class="chip-kw">subvenciones</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--estimada">Estimada</span>
+                        </div>
+                    </a>
+                </div>
+
+        <div class="paginacion">
+            <span class="paginacion-info">1–50 de 10.741</span>
+            <div class="paginacion-botones">
+                <span class="pag-btn actual">1</span>
+                <a href="#" class="pag-btn">2</a>
+                <a href="#" class="pag-btn">3</a>
+                <a href="#" class="pag-btn" aria-label="Siguiente"><i data-lucide="chevron-right"></i></a>
+                <a href="#" class="pag-btn" aria-label="Última"><i data-lucide="chevrons-right"></i></a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer class="footer">
+    <div class="contenedor contenedor--ancho footer-fila">
+        <span class="footer-marca"><i data-lucide="search"></i> PideInfo</span>
+        <a href="#">Política de privacidad</a>
+    </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

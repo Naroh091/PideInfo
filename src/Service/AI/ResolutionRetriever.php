@@ -10,6 +10,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class ResolutionRetriever
 {
+    use DoctrinePriorityBoostTrait;
+
     public function __construct(
         #[Autowire(service: 'ai.store.postgres.resolutions')]
         private readonly StoreInterface $resolutionsStore,
@@ -36,6 +38,8 @@ final class ResolutionRetriever
      * @param list<string> $outcomes Outcome codes to include. Defaults to favorable + partial
      *                               (precedents supporting a claim). Pass e.g.
      *                               `['unfavorable', 'inadmissible']` to retrieve risk cases.
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is
+     *                               boosted in the ranking (garante competente + CTBG). Empty = no boost.
      * @return array<int, array{
      *     reference: string,
      *     date: string|null,
@@ -48,7 +52,7 @@ final class ResolutionRetriever
      *     score: float|null,
      * }>
      */
-    public function retrieveSimilarCases(string $query, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
+    public function retrieveSimilarCases(string $query, int $topK = 3, array $outcomes = ['favorable', 'partial'], array $priorityOrganismIds = []): array
     {
         if (empty($outcomes)) {
             return [];
@@ -60,7 +64,7 @@ final class ResolutionRetriever
             return [];
         }
 
-        return $this->retrieveSimilarCasesByVector(new Vector($embedding), $topK, $outcomes);
+        return $this->retrieveSimilarCasesByVector(new Vector($embedding), $topK, $outcomes, $priorityOrganismIds);
     }
 
     /**
@@ -69,9 +73,11 @@ final class ResolutionRetriever
      * the query vector comes from an already-embedded document chunk.
      *
      * @param list<string> $outcomes
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted
+     *                               in the ranking (garante competente + CTBG). Empty = no boost.
      * @return array<int, array<string, mixed>>
      */
-    public function retrieveSimilarCasesByVector(Vector $vector, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
+    public function retrieveSimilarCasesByVector(Vector $vector, int $topK = 3, array $outcomes = ['favorable', 'partial'], array $priorityOrganismIds = []): array
     {
         if (empty($outcomes)) {
             return [];
@@ -87,9 +93,11 @@ final class ResolutionRetriever
                 $params[$key] = $outcome;
             }
 
-            // Cast a slightly wider net — we may drop rows that don't have a matching DB record.
+            // Cast a wide net: we drop rows without a DB record, and — when a priority
+            // set is given — we re-rank the whole pool so priority doctrine that ranks
+            // just outside the raw top-K still gets a chance to surface.
             $documents = $this->resolutionsStore->query(new VectorQuery($vector), [
-                'limit' => max($topK * 2, $topK + 3),
+                'limit' => max($topK * 4, $topK + 10),
                 'where' => "metadata->>'outcome' IN (" . implode(', ', $placeholders) . ')',
                 'params' => $params,
             ]);
@@ -128,16 +136,20 @@ final class ResolutionRetriever
                     'outcome' => $resolution->getOutcome() ?? 'unknown',
                     'publicBody' => $resolution->getPublicBodyName(),
                     'complaintOrganism' => $resolution->getComplaintOrganism()?->getName(),
+                    // Authoritative organism id used by the priority boost — never the metadata `source`.
+                    'complaintOrganismId' => $resolution->getComplaintOrganism()?->getId()?->toRfc4122(),
                     'summary' => $resolution->getSummary(),
                     'keypoints' => $resolution->getKeypoints() ?? [],
                     'fullText' => $resolution->getFullText(),
                     'score' => $scores[$resolutionId] ?? null,
                 ];
-
-                if (count($results) >= $topK) {
-                    break;
-                }
             }
+
+            // Re-rank preferring the garante/CTBG (moderate boost), then keep the top-K.
+            // With an empty priority set this is a plain ascending sort by distance,
+            // i.e. the store's native relevance order.
+            $results = $this->applyDoctrinePriorityBoost($results, $priorityOrganismIds);
+            $results = array_slice($results, 0, $topK);
 
             // One extra query, zero LLM calls: whether each resolution survived the courts.
             // A resolution annulled by a final judgment must never be cited as favourable
@@ -156,21 +168,25 @@ final class ResolutionRetriever
      *
      * @param array<int, Vector> $vectors
      * @param list<string> $outcomes
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted.
      * @return array<int, array<string, mixed>>
      */
-    public function retrieveSimilarCasesByVectors(array $vectors, int $topK = 3, array $outcomes = ['favorable', 'partial']): array
+    public function retrieveSimilarCasesByVectors(array $vectors, int $topK = 3, array $outcomes = ['favorable', 'partial'], array $priorityOrganismIds = []): array
     {
         if ($vectors === [] || $outcomes === []) {
             return [];
         }
 
+        // Each sub-call already boosts and stamps `adjustedScore` (cosine distance,
+        // lower = better). Merge keeping the BEST (lowest) occurrence per resolution
+        // and sort ascending — the score is a distance, so lower wins.
         $merged = [];
         foreach ($vectors as $vector) {
-            $hits = $this->retrieveSimilarCasesByVector($vector, $topK, $outcomes);
+            $hits = $this->retrieveSimilarCasesByVector($vector, $topK, $outcomes, $priorityOrganismIds);
             foreach ($hits as $hit) {
                 $key = $hit['resolutionId'] ?? $hit['reference'];
                 $existing = $merged[$key] ?? null;
-                if ($existing === null || ($hit['score'] ?? -INF) > ($existing['score'] ?? -INF)) {
+                if ($existing === null || ($hit['adjustedScore'] ?? \INF) < ($existing['adjustedScore'] ?? \INF)) {
                     $merged[$key] = $hit;
                 }
             }
@@ -178,7 +194,7 @@ final class ResolutionRetriever
 
         usort(
             $merged,
-            static fn (array $a, array $b) => ($b['score'] ?? -INF) <=> ($a['score'] ?? -INF),
+            static fn (array $a, array $b): int => ($a['adjustedScore'] ?? \INF) <=> ($b['adjustedScore'] ?? \INF),
         );
 
         return array_slice(array_values($merged), 0, $topK);

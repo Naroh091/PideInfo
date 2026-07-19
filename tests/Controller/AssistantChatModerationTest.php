@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller;
 
 use App\Controller\AssistantChatController;
+use App\DTO\ChatMessage;
 use App\Entity\AccessRequest;
 use App\Service\AI\Agent\AgentChatOrchestrator;
 use App\Service\AI\Chat\AssistantChatRequest as AssistantChatTurn;
 use App\Service\AI\Moderation\AnonymousModerationGuard;
+use App\Service\AI\Moderation\ModerationContext;
 use App\Service\AI\Moderation\ModerationStage;
 use App\Service\AI\Moderation\ModerationVerdict;
 use Doctrine\ORM\EntityManagerInterface;
@@ -91,6 +93,23 @@ class AssistantChatModerationTest extends TestCase
             history: [],
             attachments: [],
             label: 'test',
+        );
+    }
+
+    private function turnWithDraft(): AssistantChatTurn
+    {
+        return new AssistantChatTurn(
+            flow: 'request',
+            entityId: 'e',
+            systemPrompt: 's',
+            userMessage: 'u',
+            history: [
+                new ChatMessage('user', 'Quiero pedir unos expedientes'),
+                new ChatMessage('assistant', 'He redactado una solicitud sobre los expedientes 12/2024.'),
+            ],
+            attachments: [],
+            label: 'test',
+            hasDraft: true,
         );
     }
 
@@ -180,5 +199,35 @@ class AssistantChatModerationTest extends TestCase
         $this->assertNotContains('generate', $onDecisionActions);
         $this->assertCount(1, $ar->getMetadataValue('anonymous')['moderation'] ?? []);
         $this->assertSame('output', $ar->getMetadataValue('anonymous')['moderation'][0]['stage']);
+    }
+
+    public function testInputModerationReceivesConversationContext(): void
+    {
+        $seen = null;
+        $guard = $this->createMock(AnonymousModerationGuard::class);
+        $guard->method('moderate')->willReturnCallback(
+            function (string $t, ModerationStage $s, ?ModerationContext $ctx = null) use (&$seen) {
+                if ($s === ModerationStage::Input) {
+                    $seen = $ctx;
+                }
+
+                return ModerationVerdict::allow();
+            },
+        );
+
+        $streamer = $this->streamerYielding([
+            ['decision', ['action' => 'reply', 'draft' => null, 'plan' => []]],
+        ]);
+
+        $c = $this->makeController($guard, $streamer);
+        $ar = new AccessRequest();
+
+        $this->events($c, $this->turnWithDraft(), '¿Qué dice la LCSP sobre el expediente?', function (string $a, ?array $d, string $r) {
+            return null;
+        }, $ar);
+
+        $this->assertInstanceOf(ModerationContext::class, $seen);
+        $this->assertTrue($seen->hasDraft);
+        $this->assertSame('He redactado una solicitud sobre los expedientes 12/2024.', $seen->lastAssistantMessage);
     }
 }

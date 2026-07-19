@@ -89,7 +89,12 @@ restricciones deterministas sobre el agente. Todo corre **solo para anónimos**
   `AssistantChatController::streamEvents()`:
   - **Entrada**: el mensaje del visitante se modera **antes** de arrancar el
     agente (`AgentChatOrchestrator::stream`), así un mensaje fuera de ámbito o un
-    jailbreak no gasta el turno caro.
+    jailbreak no gasta el turno caro. Recibe además un **contexto ligero de
+    conversación** (`ModerationContext`: `hasDraft` + último turno del asistente,
+    truncado) para que un seguimiento sobre un borrador en curso —p. ej. una
+    pregunta jurídica sobre la información pedida— no se juzgue en el vacío y se
+    bloquee como `off_scope`. Sin borrador ni turno previo el bloque va vacío y el
+    mensaje de apertura se evalúa igual que antes.
   - **Salida**: el borrador generado (`generate`/`rewrite`) se modera **antes** de
     persistirlo/devolverlo; un bloqueo lo descarta.
   - Prompts bundled `config/prompts/moderation/{input,output}.md` (registrados en
@@ -176,14 +181,32 @@ mensajes claros cuando no hay usuario.
 ## UI
 
 - Entrada: `templates/public/redactar.html.twig` (layout
-  `layouts/public_page.html.twig`: nav pública + Alpine). Reutiliza
-  `_partials/organism_picker.html.twig` + `realizar_picker_controller.js`,
-  ahora parametrizables (`destinations_url`, `initiate_url`, `max_targets: 1`,
-  `extra_fields_selector` para flow/resolutionResult/token Turnstile).
-- Conversación: `asistente/conversacion.html.twig` con `anonymous: true` —
+  `layouts/public_page.html.twig`: nav pública + Alpine). Hero editorial
+  (`.redactar-hero`, vocabulario de la portada) y dos pasos numerados:
+  **Paso 1 «¿Qué quieres redactar?»** (solicitud / reclamación, **nada
+  preseleccionado** salvo deep-link `?flow=request|complaint`) y **Paso 2
+  «¿A quién va dirigida?»**, inerte hasta elegir en el Paso 1.
+- El Paso 2 NO incluye el `_partials/organism_picker.html.twig` completo:
+  como aquí el destino es **único**, se reduce a dos botones — «Elegir
+  destinatario» (abre el modal de `realizar_picker_controller.js`; al
+  confirmar uno aparece el destinatario y un «Continuar a la redacción») y
+  «Aún no lo tengo claro» (centinela genérico, `crearGenerico()`, solo en
+  `flow=request`). El markup cablea el mismo controlador (targets
+  `addButton`/`continueButton`/`preview`, `max_targets: 1`,
+  `extra_fields_selector: #redactar-extra input`, `draft_only: true`); el CSS
+  de `.redactar-destino` oculta su panel vacío y el «Continuar» mientras no
+  hay destino. Con `maxTargets === 1` el controlador pinta el panel en
+  singular (sin «una solicitud por destinatario»).
+- Conversación: `asistente/conversacion.html.twig` con `anonymous: true` — la
+  MISMA plantilla que la redacción autenticada (`AccessRequestController::draft`
+  y `ComplaintRedactController::index`), diferenciada por el flag `anonymous`:
   layout público, endpoints espejo (la hoja y el informe reciben las URLs por
   variables), sin Guardar/Presentar (solo «Descargar PDF»), CTA de registro en
   cabecera y como burbuja tras el primer borrador generado
   (`assistant_chat_controller.js`, valores `anonymous`/`registerUrl`).
+  La cabecera `.draft-band` resalta el nombre del organismo (`<em>`) con el
+  rotulador ámbar del hero de `/redactar` (marcador por fondo con
+  `box-decoration-break`, que envuelve nombres largos sin cortarlos), en ambos
+  flujos.
 - PDF de solicitud con destinatario genérico: línea `A/A:` en blanco para
   rellenar a mano (`solicitudes/realizar/_pdf.html.twig`).

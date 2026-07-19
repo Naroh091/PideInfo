@@ -321,6 +321,49 @@ class AccessRequestRepository extends ServiceEntityRepository
         return $counts;
     }
 
+    /**
+     * Status counts where a request with an ACTIVE complaint (filed, not
+     * archived) leaves its request-status bucket and lands in the complaint's
+     * bucket instead — the chart mirror of AccessRequest::getEffectiveStatusLabel().
+     * Keys: the AccessRequest::STATUS_* values for un-reclaimed requests plus
+     * the AccessRequestComplaint::STATUS_* values for reclaimed ones.
+     *
+     * @return array<string, int>
+     */
+    public function getEffectiveStatusCounts(User $user): array
+    {
+        $counts = [];
+
+        // Requests whose story is still their own status: no complaint, or an
+        // archived one.
+        $withoutComplaint = $this->createQueryBuilderForUser($user)
+            ->select('ar.status, COUNT(ar.id) as count')
+            ->leftJoin('ar.complaint', 'c')
+            ->andWhere('c.id IS NULL OR c.status = :archived')
+            ->setParameter('archived', AccessRequestComplaint::STATUS_ARCHIVED)
+            ->groupBy('ar.status')
+            ->getQuery()
+            ->getResult();
+        foreach ($withoutComplaint as $row) {
+            $counts[$row['status']] = (int) $row['count'];
+        }
+
+        // Requests on the complaint route, bucketed by the complaint's status.
+        $withComplaint = $this->createQueryBuilderForUser($user)
+            ->select('c.status AS cstatus, COUNT(ar.id) as count')
+            ->join('ar.complaint', 'c')
+            ->andWhere('c.status != :archived')
+            ->setParameter('archived', AccessRequestComplaint::STATUS_ARCHIVED)
+            ->groupBy('c.status')
+            ->getQuery()
+            ->getResult();
+        foreach ($withComplaint as $row) {
+            $counts[$row['cstatus']] = (int) $row['count'];
+        }
+
+        return $counts;
+    }
+
     public function countAppealed(User $user): int
     {
         return (int) $this->createQueryBuilderForUser($user)

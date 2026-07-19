@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\DataTable\Type\AccessRequestTableType;
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\AgentTask;
 use App\Entity\CustomDeadline;
 use App\Entity\DeadlineHistory;
@@ -14,6 +15,7 @@ use App\Form\AccessRequestType;
 use App\Form\CustomDeadlineType;
 use App\Repository\AccessRequestListRepository;
 use App\Repository\AccessRequestRepository;
+use App\Service\Deadline\UpcomingDeadlineCollector;
 use App\Repository\CustomDeadlineRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\RegDestinationRepository;
@@ -22,6 +24,7 @@ use App\Service\AccessRequest\AccessRequestManager;
 use App\Service\AccessRequest\DeadlineCalculator;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
 use App\Service\AI\SimilarResolutionsLoader;
+use App\Service\Document\CitationFootnoteFormatter;
 use App\Service\Document\PdfGenerator;
 use App\Service\Submission\ApplicableLawResolver;
 use App\Service\Submission\ChannelResolver;
@@ -52,6 +55,7 @@ class AccessRequestController extends AbstractController
         private AccessRequestListRepository $accessRequestListRepository,
         private EntityManagerInterface $entityManager,
         private DataTableFactory $dataTableFactory,
+        private UpcomingDeadlineCollector $deadlineCollector,
         private LoggerInterface $logger,
     ) {
     }
@@ -76,8 +80,34 @@ class AccessRequestController extends AbstractController
         $currentList = $listId ? $this->accessRequestListRepository->find($listId) : null;
 
         $statusCounts = $this->accessRequestRepository->getStatusCounts($this->getUser());
-        $appealedCount = $this->accessRequestRepository->countAppealed($this->getUser());
         $totalCount = array_sum($statusCounts);
+
+        // Índice de estados en recuentos EFECTIVOS: una solicitud con
+        // reclamación activa sale de su bucket de estado y cuenta (y filtra)
+        // como «Reclamada», en cualquier fase de la vía. Coherente con el
+        // filtro del TableType y con el chart del panel.
+        $effectiveCounts = $this->accessRequestRepository->getEffectiveStatusCounts($this->getUser());
+        $reclamadasCount = ($effectiveCounts[AccessRequestComplaint::STATUS_RECLAIMED] ?? 0)
+            + ($effectiveCounts[AccessRequestComplaint::STATUS_GRANTED] ?? 0)
+            + ($effectiveCounts[AccessRequestComplaint::STATUS_DENIED] ?? 0);
+
+        // Franja de la cabecera: misma aritmética que el panel/StatusStats.
+        $activeCount = ($statusCounts[AccessRequest::STATUS_SENT] ?? 0)
+            + ($statusCounts[AccessRequest::STATUS_PROCESSING] ?? 0)
+            + ($statusCounts[AccessRequest::STATUS_PENDING] ?? 0);
+        $upcomingCount = count($this->deadlineCollector->collect($this->getUser(), 7));
+
+        // Colores del índice: la fuente única vive en las entidades
+        // (AccessRequest::statusColor / AccessRequestComplaint::statusColor).
+        $bucketColors = [];
+        foreach ([
+            AccessRequest::STATUS_SENT, AccessRequest::STATUS_PROCESSING, AccessRequest::STATUS_PENDING,
+            AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED, AccessRequest::STATUS_PARTIALLY_GRANTED,
+            AccessRequest::STATUS_DENIED, AccessRequest::STATUS_INADMITTED, AccessRequest::STATUS_DELAYED,
+        ] as $s) {
+            $bucketColors[$s] = AccessRequest::statusColor($s);
+        }
+        $bucketColors['reclaimed'] = AccessRequestComplaint::statusColor(AccessRequestComplaint::STATUS_RECLAIMED);
 
         return $this->render('solicitudes/index.html.twig', [
             'datatable' => $table,
@@ -86,9 +116,12 @@ class AccessRequestController extends AbstractController
             'lists' => $lists,
             'currentList' => $currentList,
             'listId' => $listId,
-            'statusCounts' => $statusCounts,
-            'appealedCount' => $appealedCount,
+            'effectiveCounts' => $effectiveCounts,
+            'reclamadasCount' => $reclamadasCount,
             'totalCount' => $totalCount,
+            'activeCount' => $activeCount,
+            'upcomingCount' => $upcomingCount,
+            'bucketColors' => $bucketColors,
         ]);
     }
 
@@ -460,7 +493,7 @@ class AccessRequestController extends AbstractController
 
     #[Route('/nueva/realizar/redactar/{id}', name: 'app_solicitudes_realizar_draft', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function draft(Request $request, AccessRequest $accessRequest): Response
+    public function draft(AccessRequest $accessRequest): Response
     {
         if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
             $this->addFlash('warning', 'Esta solicitud ya no es un borrador.');
@@ -485,14 +518,8 @@ class AccessRequestController extends AbstractController
             $history = [];
         }
 
-        // Interfaz de conversación (hoja de papel dentro del chat) por
-        // defecto; ?ui=classic mantiene el editor clásico como escape
-        // durante una release.
-        $newUi = $request->query->get('ui') !== 'classic';
-
-        return $this->render($newUi ? 'asistente/conversacion.html.twig' : 'solicitudes/realizar/draft.html.twig', [
+        return $this->render('asistente/conversacion.html.twig', [
             'flow' => 'request',
-            'newUi' => $newUi,
             'request' => $accessRequest,
             'siblings' => $siblings,
             'batchId' => $batchId,
@@ -614,11 +641,16 @@ class AccessRequestController extends AbstractController
 
     #[Route('/nueva/realizar/redactar/{id}/descargar-pdf', name: 'app_solicitudes_realizar_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function downloadDraftPdf(AccessRequest $accessRequest, PdfGenerator $pdfGenerator): Response
-    {
-        $description = (string) $accessRequest->getDescription();
-        $paragraphs = preg_split('/\n{2,}/', trim($description)) ?: [];
-        $paragraphs = array_values(array_filter(array_map('trim', $paragraphs), static fn (string $p): bool => $p !== ''));
+    public function downloadDraftPdf(
+        AccessRequest $accessRequest,
+        PdfGenerator $pdfGenerator,
+        CitationFootnoteFormatter $footnoteFormatter,
+    ): Response {
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $footnoteFormatter->format(
+            (string) $accessRequest->getDescription(),
+            is_array($sources) ? $sources : [],
+        );
 
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
@@ -626,7 +658,8 @@ class AccessRequestController extends AbstractController
 
         $html = $this->renderView('solicitudes/realizar/_pdf.html.twig', [
             'accessRequest' => $accessRequest,
-            'body_paragraphs' => $paragraphs,
+            'body_paragraphs' => $formatted['paragraphs'],
+            'footnotes' => $formatted['notes'],
             'user_name' => $userName !== '' ? $userName : null,
         ]);
 
@@ -975,10 +1008,21 @@ class AccessRequestController extends AbstractController
     public function show(
         AccessRequest $accessRequest,
         \App\Repository\AgentTaskRepository $agentTasks,
+        \App\Service\AI\Chat\ChatHistoryStore $chatHistoryStore,
     ): Response {
+        // Historial persistido del chat de consulta libre (tabla ai_chat_messages),
+        // para retomar la conversación al reabrir el chat.
+        $consultHistory = [];
+        $user = $this->getUser();
+        if ($user instanceof \App\Entity\User) {
+            $threadId = \App\Service\AI\Chat\ChatHistoryStore::threadIdFromMetadataKey($accessRequest, 'consult_chat_history');
+            $consultHistory = $chatHistoryStore->load($threadId, $user, $accessRequest, 'consult_chat_history');
+        }
+
         return $this->render('solicitudes/show.html.twig', [
             'request' => $accessRequest,
             'agentTasks' => $agentTasks->findByRequest($accessRequest),
+            'consultChatHistory' => $consultHistory,
         ]);
     }
 

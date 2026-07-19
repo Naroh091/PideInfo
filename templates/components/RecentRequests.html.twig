@@ -14,26 +14,18 @@
         </div>
 
         {% if requests|length > 0 %}
-            {% set statusColors = {
-                sent: '#0ea5e9',
-                processing: '#38bdf8',
-                granted: '#34d399',
-                granted_completed: '#059669',
-                denied: '#f87171',
-                delayed: '#a78bfa',
-                pending: '#94a3b8',
-            } %}
             <div class="collapsible-body" :class="{ 'is-expanded': expanded }">
                 <div class="space-y-1">
                     {% for request in requests %}
                         <a href="{{ path('app_solicitudes_show', {id: request.id}) }}"
                            class="dash-item group">
-                            <span class="w-2 h-2 rounded-full flex-shrink-0" style="background: {{ statusColors[request.status]|default('#94a3b8') }}"></span>
+                            {# Color y etiqueta efectivos: la fuente única vive en la entidad #}
+                            <span class="w-2 h-2 rounded-full flex-shrink-0" style="background: {{ request.effectiveStatusColor }}"></span>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-medium text-slate-700 group-hover:text-primary-600 transition-colors truncate">{{ request.title }}</p>
                                 <p class="text-xs text-slate-400 truncate mt-0.5">{{ request.publicBody.name }}</p>
                             </div>
-                            <span class="text-xs text-slate-400 flex-shrink-0">{{ request.statusLabel }}</span>
+                            <span class="text-xs text-slate-400 flex-shrink-0">{{ request.effectiveStatusLabel }}</span>
                         </a>
                     {% endfor %}
                 </div>

@@ -9,6 +9,15 @@ framework:
         cookie_samesite: lax
         save_path: '%kernel.project_dir%/var/sessions/%kernel.environment%'
 
+    # Sanitizador HTML por defecto: habilita el filtro Twig `sanitize_html`, usado
+    # para re-renderizar de forma segura las respuestas HTML del asistente al
+    # recargar el historial del chat (_history.html.twig).
+    html_sanitizer:
+        sanitizers:
+            default:
+                allow_safe_elements: true
+                allow_relative_links: true
+
     #esi: true
     #fragments: true
 

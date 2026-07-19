@@ -2216,4 +2216,43 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 </script>
+
+{# ── Chat de consulta libre: FAB flotante + diálogo maximizable ─────────────
+   Alpine sólo gobierna la carcasa (visibilidad/tamaño); dentro vive el
+   controlador Stimulus `assistant-chat` (sólo streaming). Estados disjuntos. #}
+<div class="consult-fab-shell" x-data="{ open: false, maximized: false }" @keydown.escape.window="open = false">
+    <button type="button" class="consult-fab" @click="open = true" x-show="!open" x-cloak
+            title="Consulta libre y redacción de escritos" aria-label="Abrir chat de consulta">
+        <i data-lucide="sparkles" class="w-6 h-6"></i>
+    </button>
+
+    <div class="consult-dialog-backdrop" :class="{ 'is-max': maximized }" x-show="open" x-cloak @click.self="open = false">
+        <div class="consult-dialog" :class="{ 'is-max': maximized }">
+            <header class="consult-dialog-head">
+                <div class="consult-dialog-title">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Consulta y redacción</span>
+                </div>
+                <div class="consult-dialog-actions">
+                    <button type="button" class="consult-dialog-btn" @click="maximized = !maximized"
+                            :title="maximized ? 'Restaurar' : 'Maximizar'" aria-label="Maximizar o restaurar">
+                        <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" class="consult-dialog-btn" @click="open = false" title="Cerrar" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </header>
+            <div class="consult-dialog-body">
+                {% include 'asistente/_chat_column.html.twig' with {
+                    flow: 'consult',
+                    endpointUrl: path('app_assistant_chat_consult', {id: request.id}),
+                    request: request,
+                    chatHistory: consultChatHistory|default([]),
+                } %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

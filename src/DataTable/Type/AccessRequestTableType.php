@@ -27,6 +27,12 @@ class AccessRequestTableType implements DataTableTypeInterface
         $listId = $options['list'] ?? null;
 
         $dataTable
+            ->add('sentAt', TwigColumn::class, [
+                'label' => 'Asiento',
+                'template' => 'datatable/columns/request_asiento.html.twig',
+                'orderable' => true,
+                'className' => 'hidden md:table-cell w-[150px]',
+            ])
             ->add('title', TwigColumn::class, [
                 'label' => 'Solicitud',
                 'template' => 'datatable/columns/request_title.html.twig',
@@ -75,18 +81,23 @@ class AccessRequestTableType implements DataTableTypeInterface
                             ->setParameter('email', $user->getEmail());
                     }
 
-                    // Filter by status if provided
+                    // Filter by EFFECTIVE status: a request with an active
+                    // complaint (filed, not archived) belongs to «Reclamadas»
+                    // in any phase of the route, and leaves its raw-status
+                    // bucket — the list must agree with the índice counts
+                    // (AccessRequestRepository::getEffectiveStatusCounts).
                     if ($status !== null && $status !== '') {
                         if ($status === 'reclaimed') {
-                            // Special case: filter by complaint status (uses the
-                            // LEFT JOIN above — the WHERE turns it effectively INNER)
+                            // The LEFT JOIN above turns effectively INNER here.
                             $builder
-                                ->andWhere('c.status = :complaintStatus')
-                                ->setParameter('complaintStatus', AccessRequestComplaint::STATUS_RECLAIMED);
+                                ->andWhere('c.id IS NOT NULL AND c.status != :complaintArchived')
+                                ->setParameter('complaintArchived', AccessRequestComplaint::STATUS_ARCHIVED);
                         } else {
                             $builder
                                 ->andWhere('ar.status = :status')
-                                ->setParameter('status', $status);
+                                ->setParameter('status', $status)
+                                ->andWhere('c.id IS NULL OR c.status = :complaintArchived')
+                                ->setParameter('complaintArchived', AccessRequestComplaint::STATUS_ARCHIVED);
                         }
                     }
 

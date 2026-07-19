@@ -1,0 +1,10 @@
+{# Bloque «Fuentes citadas» del PDF: notas numeradas con enlace, generadas por
+   CitationFootnoteFormatter. Compartido por solicitud, reclamación y alegaciones. #}
+{% if footnotes|default([])|length %}
+    <div class="footnotes">
+        <div class="footnotes-title">Fuentes citadas</div>
+        {% for note in footnotes %}
+            <p class="footnote"><sup>{{ note.num }}</sup> {{ note.label }}{% if note.url %} — <a href="{{ note.url }}">{{ note.url }}</a>{% endif %}</p>
+        {% endfor %}
+    </div>
+{% endif %}

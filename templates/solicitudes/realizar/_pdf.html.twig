@@ -29,10 +29,14 @@
     </div>
 
     <div class="content">
+        {# body_paragraphs ya viene escapado (+ superíndices de cita) desde
+           CitationFootnoteFormatter, por eso |raw. #}
         {% for paragraph in body_paragraphs %}
-            <p>{{ paragraph|nl2br }}</p>
+            <p>{{ paragraph|raw }}</p>
         {% endfor %}
     </div>
+
+    {% include 'pdf/_footnotes.html.twig' %}
 
     {% include 'pdf/_footer.html.twig' %}
 </body>

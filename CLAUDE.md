@@ -13,6 +13,7 @@ The Elasticsearch-backed resolution search is in docs/search.md
 The legal framework (legalize-es corpus, `find_law`/`search_legislation`/`read_law_articles`) is in docs/legal-framework.md
 The judgment corpus (CTBG recursos, `search_judgments`, the resolution↔judgment cross) is in docs/judgments.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
+El A/B testing server-side (GrowthBook, empezando por el hero de la portada) está en docs/experiments.md
 
 
 # Development keys:
@@ -24,6 +25,7 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 - All resolution ingestion commands must support the same processing features (PDF extraction, metadata extraction, text cleaning) in both inline and async (`--async`) modes. The async path in `ProcessResolutionHandler` must mirror what the command does inline.
 - MCP tools (`src/Mcp/Tool/`) must always filter by `Security::getUser()` and validate ownership before returning or mutating an entity. Mutation tools must record an audit entry through the existing `StatusHistory`/`DeadlineHistory` pipelines and tag the `notes` field with `[mcp/{client_id}]` (using `OAuthTokenContext::getClientId()`) so the channel is identifiable.
 - Never instantiate Gemini/OpenAI clients directly from MCP tools — go through `App\\Service\\AI\\Llm\\LlmClient` (or services that already do, e.g. `ComplaintGenerator`).
+- The RAG retrievers (`ResolutionRetriever`, `CriteriaRetriever`) rank by the pgvector store's `score`, which is the raw **cosine distance** (`embedding <=> query`, `ORDER BY score ASC`): **lower = better, NOT a normalised similarity**. Any re-ranking must subtract from the distance and sort ascending (see `DoctrinePriorityBoostTrait`). The garante-priority boost (`DoctrinePriorityResolver` → garante of `ApplicableLaw` + CTBG) decides priority with the authoritative `getComplaintOrganism()` relation after rehydration, **never** with the vector metadata `source` (whose codes don't map 1:1 to organism `shortName`: CTAR≠CTA, CRT≠CTCLM, CTPD≠CTPDA).
 - Any new norm added to `TrackedNorms` requires `app:legalize:sync-catalog --verify` to stay green (a wrong BOE id fails **silently**: the norm is simply never indexed), followed by `app:legalize:index --norm=<id>` and `fos:elastica:populate --index=laws`. Any new searchable property of `LegalArticle` must also be added to the `laws` mapping in `config/packages/fos_elastica.yaml`.
 - `legal_article` is written **only** by `LegalArticleIndexer`, through bulk DBAL. Never add a Doctrine index listener for it: the writes bypass the UnitOfWork and the listener would be blind. Indexing is dispatched explicitly, per norm (`IndexLegalNormMessage`).
 - The agent must never cite a legal article it has not read through `search_legislation` or `read_law_articles` in the same conversation. If you touch `TOOLS_PREAMBLE`, keep that rule intact — article numbers and deadlines change with every reform.

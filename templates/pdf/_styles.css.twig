@@ -175,6 +175,56 @@ body {
     text-decoration: underline;
 }
 
+/* Marcador de cita en el cuerpo (¹, ²…) y bloque «Fuentes citadas». dompdf no
+   ancla notas al pie a su página, así que el bloque cierra el flujo de conte-
+   nido; en una solicitud de una página se lee como notas al pie. */
+sup.fn-ref {
+    font-size: 0.62em;
+    vertical-align: super;
+    line-height: 0;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.footnotes {
+    margin-top: 1.8em;
+    padding-top: 0.7em;
+    border-top: 0.5pt solid #cbd5e1;
+    page-break-inside: avoid;
+}
+
+.footnotes-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #64748b;
+    margin: 0 0 0.5em 0;
+}
+
+.footnote {
+    font-size: 8.5pt;
+    line-height: 1.4;
+    color: #475569;
+    margin: 0 0 0.3em 0;
+    text-align: left;
+}
+
+.footnote sup {
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    font-weight: 700;
+    color: #0f172a;
+    margin-right: 0.15em;
+}
+
+.footnote a {
+    color: #475569;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
 /* Pie discreto: la única parte con marca de todo el documento. */
 .footer {
     position: fixed;

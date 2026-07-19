@@ -446,6 +446,77 @@ class AccessRequest
         return $this->complaint?->getStatusLabel() ?? 'Sin reclamación';
     }
 
+    /**
+     * Whether there is a complaint that is legally "on the table": filed and
+     * not archived. Estimadas/desestimadas count — they are outcomes of the
+     * complaint route, and while present they define the expediente's story.
+     */
+    public function hasActiveComplaint(): bool
+    {
+        return $this->complaint !== null
+            && $this->complaint->getStatus() !== AccessRequestComplaint::STATUS_ARCHIVED;
+    }
+
+    /**
+     * Semantic color of a request status — THE place to pick these (dots,
+     * chart bars, índice de /solicitudes…). Same family as the pill table in
+     * design/README.md: sky=en curso, emerald=éxito, amber=atención, red=fallo.
+     */
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_SENT => '#7dd3fc',
+            self::STATUS_PROCESSING => '#38bdf8',
+            self::STATUS_PENDING => '#bae6fd',
+            self::STATUS_GRANTED => '#34d399',
+            self::STATUS_GRANTED_COMPLETED => '#10b981',
+            self::STATUS_PARTIALLY_GRANTED => '#6ee7b7',
+            self::STATUS_DELAYED => '#f59e0b',
+            self::STATUS_DENIED => '#f87171',
+            self::STATUS_INADMITTED => '#fca5a5',
+            default => '#94a3b8',
+        };
+    }
+
+    public function getStatusColor(): string
+    {
+        return self::statusColor($this->status);
+    }
+
+    /**
+     * Color companion of getEffectiveStatusLabel(): the complaint route's
+     * color when a complaint is active, the request status color otherwise.
+     */
+    public function getEffectiveStatusColor(): string
+    {
+        if ($this->hasActiveComplaint()) {
+            return $this->complaint->getStatusColor();
+        }
+
+        return $this->getStatusColor();
+    }
+
+    /**
+     * The label the USER should read as "where is this expediente": the
+     * request status and the complaint are two dimensions, and when a
+     * complaint is active it is the route that matters — a solicitud in
+     * silencio that has been reclaimed reads «Reclamada», not «Silencio
+     * administrativo». The underlying `status` is NOT rewritten (silencio is
+     * a fact: they never answered; a late express answer still lands as
+     * granted/denied through the normal flow).
+     *
+     * Derived, single classifier — any UI that shows one combined state must
+     * use this method, never re-derive the precedence in Twig.
+     */
+    public function getEffectiveStatusLabel(): string
+    {
+        if ($this->hasActiveComplaint()) {
+            return $this->complaint->getStatusLabel();
+        }
+
+        return $this->getStatusLabel();
+    }
+
     public function getCourtStatus(): string
     {
         return $this->courtStatus;

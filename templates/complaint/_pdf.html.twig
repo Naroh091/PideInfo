@@ -8,11 +8,13 @@
     </style>
 </head>
 <body>
-    {% set parts = draft.content|pdf_complaint_parts %}
+    {% set parts = content_html|pdf_complaint_parts %}
     {% if parts.heading %}
         <div class="doc-heading doc-heading--standalone">Reclamación en materia de acceso <br>a información pública</div>
     {% endif %}
     <div class="content">{{ parts.html|raw }}</div>
+
+    {% include 'pdf/_footnotes.html.twig' %}
 
     {% include 'pdf/_footer.html.twig' %}
 </body>

@@ -2,7 +2,9 @@
 
 namespace App\Twig\Components;
 
+use App\Entity\AccessRequest;
 use App\Entity\User;
+use App\Repository\AccessRequestRepository;
 use App\Repository\UserNotificationRepository;
 use App\Service\ActivitySummary\ActivitySummarizer;
 use App\Service\ActivitySummary\ActivitySummaryWarmer;
@@ -28,6 +30,7 @@ final class ActivitySummary extends AbstractController
     public function __construct(
         private readonly Security $security,
         private readonly UserNotificationRepository $notificationRepository,
+        private readonly AccessRequestRepository $accessRequestRepository,
         private readonly ActivitySummarizer $summarizer,
         private readonly ActivitySummaryWarmer $warmer,
     ) {
@@ -71,7 +74,7 @@ final class ActivitySummary extends AbstractController
         }
 
         $notifications = $this->notificationRepository->findSinceByUser($user, new \DateTimeImmutable('-24 hours'));
-        $current = $notifications === [] ? null : $this->summarizer->fingerprint($notifications);
+        $current = $notifications === [] ? null : $this->summarizer->fingerprint($user, $notifications);
 
         if ($current === $user->getActivitySummaryFingerprint()) {
             return false;
@@ -89,6 +92,60 @@ final class ActivitySummary extends AbstractController
     public function isVisible(): bool
     {
         return $this->getCachedHtml() !== null || $this->getNotificationCount() > 0;
+    }
+
+    /**
+     * Structured items cached alongside the summary (sanitized by
+     * ActivitySummarizer), each with its solicitudes resolved to entities so
+     * the template can render direct links and the «Ver» dialog for groups.
+     * One query for all items; ownership enforced by the user filter (the
+     * sanitizer already whitelists, this is the second belt).
+     *
+     * @return list<array{item: array<string, mixed>, requests: list<AccessRequest>}>
+     */
+    public function getResolvedItems(): array
+    {
+        $user = $this->getUser();
+        if ($user === null) {
+            return [];
+        }
+
+        $items = $user->getActivitySummaryItems() ?? [];
+
+        $allUuids = [];
+        foreach ($items as $item) {
+            foreach ((array) ($item['uuids'] ?? []) as $uuid) {
+                $allUuids[(string) $uuid] = true;
+            }
+            // Cachés del formato anterior (uuid singular)
+            if (isset($item['uuid'])) {
+                $allUuids[(string) $item['uuid']] = true;
+            }
+        }
+
+        $byId = [];
+        if ($allUuids !== []) {
+            foreach ($this->accessRequestRepository->findBy(['id' => array_keys($allUuids), 'user' => $user]) as $request) {
+                $byId[(string) $request->getId()] = $request;
+            }
+        }
+
+        $resolved = [];
+        foreach ($items as $item) {
+            $uuids = (array) ($item['uuids'] ?? []);
+            if (isset($item['uuid'])) {
+                $uuids[] = $item['uuid'];
+            }
+            $requests = [];
+            foreach (array_unique(array_map('strval', $uuids)) as $uuid) {
+                if (isset($byId[$uuid])) {
+                    $requests[] = $byId[$uuid];
+                }
+            }
+            $resolved[] = ['item' => $item, 'requests' => $requests];
+        }
+
+        return $resolved;
     }
 
     /**

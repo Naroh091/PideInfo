@@ -15,6 +15,7 @@ use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\Anonymous\AnonymousDraftSessionStore;
 use App\Service\Anonymous\GenericDestination;
 use App\Service\Complaint\SuccessAnalyzer;
+use App\Service\Document\CitationFootnoteFormatter;
 use App\Service\Document\PdfGenerator;
 use App\Service\Security\TurnstileVerifier;
 use App\Service\Submission\ApplicableLawResolver;
@@ -102,7 +103,14 @@ class AnonymousDraftController extends AbstractController
         }
 
         return $this->render('public/redactar.html.twig', [
-            'flow' => $request->query->get('flow') === 'complaint' ? 'complaint' : 'request',
+            // Nada preseleccionado por defecto: el visitante elige primero qué
+            // redactar. Un deep-link explícito (?flow=request|complaint) sí
+            // preselecciona.
+            'flow' => match ($request->query->get('flow')) {
+                'complaint' => 'complaint',
+                'request' => 'request',
+                default => '',
+            },
             'turnstileSiteKey' => $turnstileSiteKey,
             'existingDrafts' => $existingDrafts,
             'maxDrafts' => AnonymousDraftSessionStore::MAX_DRAFTS,
@@ -352,7 +360,6 @@ class AnonymousDraftController extends AbstractController
 
         return $this->render('asistente/conversacion.html.twig', [
             'flow' => 'request',
-            'newUi' => true,
             'anonymous' => true,
             'request' => $accessRequest,
             'siblings' => [$accessRequest],
@@ -469,15 +476,21 @@ class AnonymousDraftController extends AbstractController
     /** Mirror of AccessRequestController::downloadDraftPdf, without a signer name. */
     #[Route('/solicitud/{id}/descargar-pdf', name: 'app_public_redactar_pdf', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function downloadDraftPdf(AccessRequest $accessRequest, PdfGenerator $pdfGenerator): Response
-    {
-        $description = (string) $accessRequest->getDescription();
-        $paragraphs = preg_split('/\n{2,}/', trim($description)) ?: [];
-        $paragraphs = array_values(array_filter(array_map('trim', $paragraphs), static fn (string $p): bool => $p !== ''));
+    public function downloadDraftPdf(
+        AccessRequest $accessRequest,
+        PdfGenerator $pdfGenerator,
+        CitationFootnoteFormatter $footnoteFormatter,
+    ): Response {
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $footnoteFormatter->format(
+            (string) $accessRequest->getDescription(),
+            is_array($sources) ? $sources : [],
+        );
 
         $html = $this->renderView('solicitudes/realizar/_pdf.html.twig', [
             'accessRequest' => $accessRequest,
-            'body_paragraphs' => $paragraphs,
+            'body_paragraphs' => $formatted['paragraphs'],
+            'footnotes' => $formatted['notes'],
             'user_name' => null,
             'generic_destination' => (bool) $accessRequest->getMetadataValue(GenericDestination::METADATA_FLAG),
         ]);
@@ -507,7 +520,6 @@ class AnonymousDraftController extends AbstractController
 
         return $this->render('asistente/conversacion.html.twig', [
             'flow' => 'complaint',
-            'newUi' => true,
             'anonymous' => true,
             'request' => $accessRequest,
             'mode' => 'complaint',
@@ -561,6 +573,7 @@ class AnonymousDraftController extends AbstractController
         Request $request,
         AccessRequest $accessRequest,
         PdfGenerator $pdfGenerator,
+        CitationFootnoteFormatter $footnoteFormatter,
     ): Response {
         $data = json_decode($request->getContent(), true) ?? [];
         $contentHtml = $data['html'] ?? $data['markdown'] ?? '';
@@ -569,9 +582,13 @@ class AnonymousDraftController extends AbstractController
             return new JsonResponse(['error' => 'No hay contenido.'], Response::HTTP_BAD_REQUEST);
         }
 
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $footnoteFormatter->formatHtml((string) $contentHtml, is_array($sources) ? $sources : []);
+
         $html = $this->renderView('complaint/_pdf_from_html.html.twig', [
             'accessRequest' => $accessRequest,
-            'html' => $contentHtml,
+            'content_html' => $formatted['html'],
+            'footnotes' => $formatted['notes'],
         ]);
 
         $pdfContent = $pdfGenerator->generateFromHtml($html);

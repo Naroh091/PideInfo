@@ -14,8 +14,10 @@
     'complaint_archived': 'badge-secondary'
 } %}
 <div class="inline-flex flex-col items-start gap-1">
-    {# Show main status, but skip "delayed" if there's an active complaint #}
-    {% if not (row.status == 'delayed' and row.complaint) %}
+    {# Estado EFECTIVO: con reclamación activa (cualquier fase, no archivada)
+       manda la vía de reclamación y el estado crudo se oculta — la misma
+       precedencia que AccessRequest::getEffectiveStatusLabel(). #}
+    {% if not row.hasActiveComplaint %}
         <span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
             {{ row.statusLabel }}
         </span>

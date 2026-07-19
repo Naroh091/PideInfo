@@ -1,0 +1,7 @@
+{# Asiento del libro de registro: nº de registro + fecha, en mono.
+   El data-href de la fila vive aquí (primera columna) y también en la de
+   título — el JS del index coge el primero que encuentre. #}
+<div data-href="{{ path('app_solicitudes_show', {id: row.id}) }}" class="sol-asiento">
+    <b title="{{ row.externalId ?: 'Sin número de registro' }}">{{ row.externalId ?: '—' }}</b>
+    <span>{{ (row.sentAt ?: row.createdAt)|date('d/m/Y') }}</span>
+</div>

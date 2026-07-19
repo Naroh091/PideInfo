@@ -21,6 +21,7 @@ final class SimilarResolutionsLoader
     public function __construct(
         private readonly EmbeddingGenerator $embeddingGenerator,
         private readonly ResolutionRetriever $resolutionRetriever,
+        private readonly DoctrinePriorityResolver $doctrinePriority,
     ) {
     }
 
@@ -39,6 +40,10 @@ final class SimilarResolutionsLoader
             $query = $ar->getPublicBody()->getName() . '. ' . ((string) ($ar->getApplicableLaw()?->getName() ?? ''));
         }
 
+        // Bias the ranking to the guarantee body competent for this request's
+        // applicable law plus the CTBG — the docblock's promise, now enforced.
+        $priorityOrganismIds = $this->doctrinePriority->priorityOrganismIdsFor($ar);
+
         try {
             $embedding = $this->embeddingGenerator->generate(mb_substr($query, 0, 4000));
 
@@ -46,12 +51,14 @@ final class SimilarResolutionsLoader
                 new Vector($embedding),
                 $topK,
                 self::OUTCOMES,
+                $priorityOrganismIds,
             );
         } catch (\Throwable) {
             return $this->resolutionRetriever->retrieveSimilarCases(
                 $query,
                 $topK,
                 self::OUTCOMES,
+                $priorityOrganismIds,
             );
         }
     }

@@ -4,17 +4,23 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\DTO\ChatMessage;
 use App\Entity\AccessRequest;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\Service\AI\Agent\AgentChatOrchestrator;
 use App\Service\AI\Chat\AssistantChatRequest as AssistantChatTurn;
 use App\Service\AI\Chat\ChatAttachmentParser;
 use App\Service\AI\Chat\ChatHistoryStore;
+use App\Service\AI\Chat\ConsultIntentClassifier;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
+use App\Service\AI\Chat\Composer\ConsultPromptComposer;
 use App\Service\AI\Chat\Composer\RequestPromptComposer;
 use App\Service\AI\Moderation\AnonymousModerationGuard;
+use App\Service\AI\Moderation\ModerationContext;
 use App\Service\AI\Moderation\ModerationStage;
 use App\Service\AI\Moderation\ModerationVerdict;
+use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AccessRequest\RequestDraftGenerator;
@@ -46,6 +52,7 @@ final class AssistantChatController extends AbstractController
 {
     private const CHAT_HISTORY_KEY_REQUEST = 'draft_chat_history';
     private const CHAT_HISTORY_KEY_COMPLAINT_PREFIX = 'complaint_chat_history_';
+    private const CHAT_HISTORY_KEY_CONSULT = 'consult_chat_history';
     private const CHAT_HISTORY_CAP = 60;
     /** Number of recent turns sent to the LLM as context. */
     private const CHAT_HISTORY_LLM_WINDOW = 12;
@@ -77,9 +84,12 @@ final class AssistantChatController extends AbstractController
         private readonly ChatAttachmentParser $attachmentParser,
         private readonly RequestPromptComposer $requestPromptComposer,
         private readonly ComplaintPromptComposer $complaintPromptComposer,
+        private readonly ConsultPromptComposer $consultPromptComposer,
+        private readonly ConsultIntentClassifier $consultIntentClassifier,
         private readonly ComplaintGenerator $complaintGenerator,
         private readonly DocumentContentsCollector $documentContentsCollector,
         private readonly SimilarResolutionsLoader $similarResolutions,
+        private readonly DoctrinePriorityResolver $doctrinePriority,
         private readonly RequestDraftGenerator $requestDraftGenerator,
         private readonly AnonymousModerationGuard $moderationGuard,
         #[Autowire(service: 'limiter.anonymous_chat_turn')]
@@ -140,12 +150,13 @@ final class AssistantChatController extends AbstractController
             promptRef: $composedPrompt,
             traceName: 'RequestGenerationStream',
             hasDraft: $hasDraft,
+            priorityOrganismIds: $this->doctrinePriority->priorityOrganismIdsFor($accessRequest),
         );
 
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $previousDraft, $persistedUserText, $historyKey): ?array {
+            onDecision: function (string $action, ?array $draft, string $chatReply, array $sources = []) use ($accessRequest, $previousDraft, $persistedUserText, $historyKey): ?array {
                 if ($action === 'reply' || $draft === null) {
                     $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                     $this->entityManager->flush();
@@ -153,6 +164,8 @@ final class AssistantChatController extends AbstractController
                 }
 
                 $normalized = $this->applyRequestDraft($accessRequest, $draft);
+                // Fuentes citadas (ya resueltas con enlace) para re-pintar las pills al recargar.
+                $accessRequest->setMetadataValue('cited_sources', $sources);
                 $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();
 
@@ -233,21 +246,27 @@ final class AssistantChatController extends AbstractController
             promptRef: $composedPrompt,
             traceName: $traceName,
             hasDraft: trim(strip_tags($currentBodyHtml)) !== '',
+            priorityOrganismIds: $this->doctrinePriority->priorityOrganismIdsFor($accessRequest),
         );
 
         return $this->streamTurn(
             $turn,
             $userMessage,
-            onDecision: function (string $action, ?array $draft, string $chatReply) use ($accessRequest, $historyKey, $persistedUserText, $previousDraft): ?array {
-                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
-                $this->entityManager->flush();
-
+            onDecision: function (string $action, ?array $draft, string $chatReply, array $sources = []) use ($accessRequest, $historyKey, $persistedUserText, $previousDraft): ?array {
                 if ($action === 'reply' || $draft === null) {
+                    $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                    $this->entityManager->flush();
                     return null;
                 }
                 // Complaint canvas is ephemeral until the user clicks "Guardar",
                 // so we DON'T persist a Document here — only echo the draft and
-                // the previous snapshot back for the diff modal.
+                // the previous snapshot back for the diff modal. We do persist
+                // the resolved citations in metadata, though, so the sheet pills
+                // survive a reload and the downloaded PDF can footnote them.
+                $accessRequest->setMetadataValue('cited_sources', $sources);
+                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                $this->entityManager->flush();
+
                 $normalized = [
                     'title' => mb_substr(trim((string) ($draft['title'] ?? '')), 0, 255),
                     'body_html' => (string) ($draft['body_html'] ?? ''),
@@ -261,6 +280,140 @@ final class AssistantChatController extends AbstractController
             accessRequest: $accessRequest,
             clientIp: $request->getClientIp(),
         );
+    }
+
+    /**
+     * Free-consultation flow: answers doubts about the expediente and generates
+     * any outbound document inline (reclamación, respuesta a alegaciones/subsanación,
+     * or a custom writing), classifying it into `doc_type`. Authenticated only —
+     * saving a generated doc needs a non-null uploadedBy, and it is surfaced only
+     * on the authenticated request detail view. The canvas is ephemeral (the doc
+     * persists only when the user clicks "Guardar en el expediente").
+     */
+    #[Route('/asistente/consult/{id}', name: 'app_assistant_chat_consult', methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function consult(Request $request, AccessRequest $accessRequest): Response
+    {
+        if ($this->getUser() === null) {
+            return new JsonResponse(['error' => 'auth_required'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $userMessage = trim((string) $request->request->get('message', ''));
+        $currentBodyHtml = (string) $request->request->get('currentBodyHtml', '');
+
+        $files = $request->files->all('attachments');
+        if (!is_array($files)) {
+            $files = [];
+        }
+        try {
+            $attachments = $this->attachmentParser->parse($files);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $historyKey = self::CHAT_HISTORY_KEY_CONSULT;
+        $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
+        $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
+        $previousDraft = ['title' => '', 'body_html' => $currentBodyHtml];
+
+        // Hand-off: si el usuario pide (o sigue) una reclamación o una respuesta a
+        // alegaciones, ese turno usa el composer ESPECIALIZADO (misma calidad que el
+        // flujo dedicado: prompt propio, FASE 1/2, doctrina por argumento) en vez del
+        // prompt general de consulta. Se mantiene el historial y la UI de consulta.
+        $intent = $this->consultIntentClassifier->classify($userMessage, $this->recentHistoryContext($history));
+
+        if ($intent === ComplaintDraftGenerator::MODE_COMPLAINT || $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
+            $composedPrompt = $this->complaintPromptComposer->compose($accessRequest, $intent, $currentBodyHtml, []);
+            $flow = 'complaint';
+            $forcedDocType = $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
+                ? DocumentType::AlegationResponse
+                : DocumentType::Complaint;
+            $traceName = $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
+                ? 'ConsultAlegationHandoff'
+                : 'ConsultComplaintHandoff';
+        } else {
+            $composedPrompt = $this->consultPromptComposer->compose($accessRequest, $currentBodyHtml);
+            $flow = 'consult';
+            $forcedDocType = null;
+            $traceName = 'ConsultGenerationStream';
+        }
+
+        $turn = new AssistantChatTurn(
+            flow: $flow,
+            entityId: $accessRequest->getId()->toRfc4122(),
+            systemPrompt: $composedPrompt->text,
+            userMessage: $userMessage,
+            history: $history,
+            attachments: $attachments,
+            label: $traceName,
+            promptRef: $composedPrompt,
+            traceName: $traceName,
+            hasDraft: trim(strip_tags($currentBodyHtml)) !== '',
+            priorityOrganismIds: $this->doctrinePriority->priorityOrganismIdsFor($accessRequest),
+        );
+
+        return $this->streamTurn(
+            $turn,
+            $userMessage,
+            onDecision: function (string $action, ?array $draft, string $chatReply, array $sources = []) use ($accessRequest, $historyKey, $persistedUserText, $previousDraft, $forcedDocType): ?array {
+                if ($action === 'reply' || $draft === null) {
+                    $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                    $this->entityManager->flush();
+                    return null;
+                }
+                // Consult canvas is ephemeral (persisted only on "Guardar en el
+                // expediente"). Namespace the resolved citations under a dedicated
+                // key so a later request/complaint turn can't corrupt the consult
+                // footnotes; echo the draft + its classification back to the client.
+                $accessRequest->setMetadataValue('consult_cited_sources', $sources);
+                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                $this->entityManager->flush();
+
+                // Tipo del documento: forzado por el hand-off (reclamación/alegaciones),
+                // o el que clasificó el agente de consulta en `draft.doc_type`.
+                $docType = $forcedDocType ?? DocumentType::tryFrom((string) ($draft['doc_type'] ?? '')) ?? DocumentType::Other;
+                if (!in_array($docType, DocumentType::consultSavable(), true)) {
+                    $docType = DocumentType::Other;
+                }
+
+                $normalized = [
+                    'title' => mb_substr(trim((string) ($draft['title'] ?? '')), 0, 255),
+                    'body_html' => (string) ($draft['body_html'] ?? ''),
+                    'doc_type' => $docType->value,
+                ];
+                return [
+                    'draft' => $normalized,
+                    'previous' => $previousDraft,
+                ];
+            },
+            anonymous: false,
+            accessRequest: $accessRequest,
+            clientIp: $request->getClientIp(),
+        );
+    }
+
+    /**
+     * Compact text of the last turns, fed to the consult intent classifier so it
+     * keeps the same intent across a reclamación's plan → aprobación → generación.
+     *
+     * @param ChatMessage[] $history
+     */
+    private function recentHistoryContext(array $history): string
+    {
+        $recent = array_slice($history, -4);
+        $lines = [];
+        foreach ($recent as $message) {
+            if (!$message instanceof ChatMessage) {
+                continue;
+            }
+            $who = $message->role === 'user' ? 'Usuario' : 'Asistente';
+            $text = trim(preg_replace('/\s+/', ' ', strip_tags($message->content)) ?? '');
+            if ($text !== '') {
+                $lines[] = $who . ': ' . mb_substr($text, 0, 300);
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
@@ -354,7 +507,11 @@ final class AssistantChatController extends AbstractController
         // spending the (expensive) agent turn. A block reconducts and records a
         // strike; the streamer never runs.
         if ($anonymous && $accessRequest !== null) {
-            $verdict = $this->moderationGuard->moderate($userMessage, ModerationStage::Input);
+            $context = new ModerationContext(
+                hasDraft: $turn->hasDraft,
+                lastAssistantMessage: $this->lastAssistantMessage($turn->history),
+            );
+            $verdict = $this->moderationGuard->moderate($userMessage, ModerationStage::Input, $context);
             if (!$verdict->allowed) {
                 $this->recordModerationStrike($accessRequest, $clientIp, ModerationStage::Input, $verdict);
                 yield ['chat_token', ['text' => self::RECONDUCT_MESSAGE]];
@@ -393,7 +550,8 @@ final class AssistantChatController extends AbstractController
                         continue;
                     }
 
-                    $extra = $onDecision($action, $draft, $chatReply);
+                    $sources = is_array($payload['sources'] ?? null) ? $payload['sources'] : [];
+                    $extra = $onDecision($action, $draft, $chatReply, $sources);
                     if (is_array($extra)) {
                         $payload = array_merge($payload, $extra);
                     }
@@ -521,10 +679,14 @@ final class AssistantChatController extends AbstractController
 
         $assistantContent = trim($chatReply);
         if ($assistantContent === '') {
+            // Un `reply` sin texto es una propuesta de plan (FASE 1): el modelo
+            // vuelca los argumentos en `plan` y deja vacío el `conversational_reply`.
+            // Hay que persistir SÍ o SÍ un turno del asistente, o `isFirstAssistantTurn`
+            // seguirá siendo true y la FASE 1 se re-forzaría en bucle en vez de generar.
             $assistantContent = match ($action) {
                 'generate' => '✦ Borrador generado.',
                 'rewrite' => '✦ Borrador reescrito.',
-                default => '',
+                default => '✦ Plan de argumentos propuesto.',
             };
         }
         if ($assistantContent !== '') {
@@ -670,5 +832,23 @@ final class AssistantChatController extends AbstractController
         }
 
         return implode("\n\n", $pieces);
+    }
+
+    /**
+     * Most recent assistant turn in the history (role !== 'user'), or null if the
+     * visitor has not received any assistant turn yet. Fed to input moderation so a
+     * follow-up is judged against the request in progress, not in a vacuum.
+     *
+     * @param \App\DTO\ChatMessage[] $history
+     */
+    private function lastAssistantMessage(array $history): ?string
+    {
+        for ($i = \count($history) - 1; $i >= 0; $i--) {
+            if ($history[$i]->role !== 'user') {
+                return $history[$i]->content;
+            }
+        }
+
+        return null;
     }
 }

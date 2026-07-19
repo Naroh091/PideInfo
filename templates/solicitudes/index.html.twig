@@ -38,99 +38,52 @@
         /* ── The metric ribbon ── */
         /* Responsive grid: 3 cols on small, 5 on md, 9 on large.
            Chips share width equally; never overflow horizontally. */
-        .metric-rail {
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: .4rem;
-            padding: .25rem 0 .75rem;
-        }
-        @media (min-width: 640px) {
-            .metric-rail { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-        }
-        @media (min-width: 1024px) {
-            .metric-rail { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: .5rem; }
-        }
-
-        .metric-chip {
-            position: relative;
+        /* ── Índice de estados: línea tipográfica con trazo de
+           rotulador bajo la pestaña activa (maqueta solicitudes-a v2) ── */
+        .sol-indice {
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: .1rem;
-            min-width: 0;
-            padding: .65rem .75rem;
-            border-radius: .7rem;
-            background: white;
-            border: 1px solid rgb(241 245 249);
-            transition: transform .18s cubic-bezier(.25,.8,.25,1),
-                        box-shadow .18s ease,
-                        border-color .18s ease;
-            text-decoration: none;
-            opacity: 0;
-            animation: chipIn .35s ease forwards;
+            flex-wrap: wrap;
+            gap: 0 1.4rem;
+            margin-top: 1.25rem;
+            border-bottom: 1px solid rgb(203 213 225);
         }
-        .metric-chip:hover {
-            border-color: rgb(186 230 253);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px -10px rgba(2,132,199,.25);
-        }
-        .metric-chip.is-active {
-            border-color: rgb(2 132 199);
-            background: linear-gradient(180deg, white 0%, rgb(240 249 255) 100%);
-            box-shadow: 0 0 0 3px rgba(2,132,199,.10);
-        }
-        .metric-chip-num {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-size: 1.2rem;
-            line-height: 1;
-            font-weight: 400;
-            letter-spacing: -.025em;
-            color: rgb(15 23 42);
-            font-feature-settings: "tnum";
-        }
-        @media (min-width: 640px) {
-            .metric-chip-num { font-size: 1.35rem; }
-        }
-        .metric-chip.is-zero .metric-chip-num { color: rgb(203 213 225); }
-        .metric-chip-label {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .72rem;
-            font-weight: 500;
-            color: rgb(100 116 139);
+        .sol-tab {
+            position: relative;
             display: inline-flex;
-            align-items: center;
-            gap: .25rem;
-            min-width: 0;
-            max-width: 100%;
+            align-items: baseline;
+            gap: .4rem;
+            padding: .5rem 0 .65rem;
+            text-decoration: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem;
+            font-weight: 500;
+            color: rgb(71 85 105);
         }
-        .metric-chip-label-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+        .sol-tab b {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .78rem;
+            font-weight: 600;
+            color: rgb(100 116 139);
+            font-variant-numeric: tabular-nums;
         }
-        .metric-chip-dot {
-            display: inline-block;
-            width: .35rem; height: .35rem;
+        .sol-tab:hover { color: rgb(15 23 42); }
+        .sol-tab.is-active { color: rgb(15 23 42); font-weight: 600; }
+        .sol-tab.is-active::after {
+            content: '';
+            position: absolute;
+            left: -2%; right: -2%; bottom: -2px;
+            height: .32rem;
+            background: var(--color-accent-200);
+            border-radius: .12rem .3rem .25rem .15rem;
+            transform: rotate(-.5deg);
+        }
+        .sol-tab.is-zero { opacity: .45; }
+        .sol-tab-dot {
+            width: .45rem; height: .45rem;
             border-radius: 999px;
+            align-self: center;
             flex-shrink: 0;
         }
-        .metric-chip.is-active .metric-chip-label { color: rgb(7 89 133); }
-
-        @keyframes chipIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Per-status accent dots */
-        .dot-all       { background: rgb(15 23 42); }
-        .dot-sent      { background: rgb(148 163 184); }
-        .dot-processing{ background: rgb(2 132 199); }
-        .dot-granted   { background: rgb(16 185 129); }
-        .dot-completed { background: rgb(5 150 105); }
-        .dot-denied    { background: rgb(220 38 38); }
-        .dot-delayed   { background: rgb(245 158 11); }
-        .dot-pending   { background: rgb(100 116 139); }
-        .dot-appealed  { background: rgb(217 119 6); }
 
         /* ── Toolbar ── */
         .toolbar {
@@ -244,6 +197,7 @@
             padding: .25rem 1rem 1rem;
             min-width: 0;
             margin-top: 1.5rem;
+            box-shadow: 0 14px 40px -30px rgba(15, 23, 42, .25);
         }
 
         /* ── List selector (toolbar) ── */
@@ -439,6 +393,36 @@
         .dt-container table.dataTable thead th.dt-ordering-desc { color: rgb(2 132 199); }
         .dt-container table.dataTable thead th .dt-column-order { display: none; }
 
+        /* Celdas del libro de registro (asiento / mono / semáforo) */
+        .sol-asiento b {
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            font-weight: 600;
+            color: rgb(15 23 42);
+            max-width: 9.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sol-asiento span {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .68rem;
+            color: rgb(148 163 184);
+        }
+        .sol-mono {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            font-weight: 500;
+            color: rgb(71 85 105);
+            font-variant-numeric: tabular-nums;
+        }
+        .sol-dias { font-size: .72rem; font-weight: 500; }
+        .sol-dias--ok    { color: rgb(100 116 139); }
+        .sol-dias--aviso { color: rgb(180 83 9); }
+        .sol-dias--rojo  { color: rgb(185 28 28); }
+        .sol-dias--exito { color: rgb(4 120 87); }
+
         /* Rows — list-style, no chunky cards */
         .dt-container table.dataTable tbody td {
             padding: .9rem 1rem;
@@ -521,59 +505,66 @@
 {% block content %}
 
 {# ─────────────────── PAGE HEADER ─────────────────── #}
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 mb-6">
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
     <div class="min-w-0">
-        <h1 class="casebook-title text-3xl sm:text-[2.4rem]">Mis solicitudes</h1>
+        <h1 class="casebook-title text-3xl sm:text-[2.4rem]">Mis <span class="rotulador">solicitudes</span></h1>
         <p class="text-slate-500 mt-1 text-sm">
             {% if totalCount == 0 %}
                 Aún no has registrado ninguna solicitud. Empieza por aquí.
             {% else %}
-                {{ totalCount }} solicitud{{ totalCount == 1 ? '' : 'es' }} bajo seguimiento
-                {% if currentList %}
-                    en <span class="font-medium text-slate-700">{{ currentList.name }}</span>
-                {% endif %}
-                · <a href="{{ path('app_stats') }}" class="text-primary-600 hover:text-primary-700 hover:underline font-medium">Ver estadísticas →</a>
+                Busca, filtra y sigue el estado y los plazos de cada expediente{% if currentList %},
+                    ahora filtrando por <span class="font-medium text-slate-700">{{ currentList.name }}</span>{% endif %}.
+                <a href="{{ path('app_stats') }}" class="text-primary-600 hover:text-primary-700 hover:underline font-medium">Ver estadísticas →</a>
             {% endif %}
         </p>
     </div>
-    <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary">
-        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+    <a href="{{ path('app_solicitudes_new') }}" class="btn btn-primary panel-cta">
+        <i data-lucide="pen-line" class="w-4 h-4"></i>
         Nueva solicitud
     </a>
 </div>
 
-{# ─────────────────── METRIC RAIL ─────────────────── #}
+{% if totalCount > 0 %}
+    <div class="panel-franja">
+        <span class="panel-dato"><b>{{ totalCount }}</b><span>expediente{{ totalCount == 1 ? '' : 's' }}</span></span>
+        <span class="panel-dato"><b>{{ activeCount }}</b><span>en curso</span></span>
+        {% if upcomingCount > 0 %}
+            <span class="panel-dato panel-dato--aviso"><b>{{ upcomingCount }}</b><span>con plazo esta semana</span></span>
+        {% endif %}
+    </div>
+{% endif %}
+
+{# ─────────────────── ÍNDICE DE ESTADOS ───────────────────
+   Recuentos EFECTIVOS (una solicitud reclamada cuenta y filtra como
+   «Reclamada», no en su estado crudo). El activo, subrayado a rotulador. #}
 {% set metricBase = {} %}
 {% if search %}{% set metricBase = metricBase|merge({q: search}) %}{% endif %}
 {% if listId %}{% set metricBase = metricBase|merge({list: listId}) %}{% endif %}
 
 {% set metrics = [
-    {key: '',                  label: 'Todas',         dot: 'dot-all',        count: totalCount},
-    {key: 'sent',              label: 'Enviadas',      dot: 'dot-sent',       count: statusCounts.sent|default(0)},
-    {key: 'processing',        label: 'En trámite',    dot: 'dot-processing', count: statusCounts.processing|default(0)},
-    {key: 'granted',           label: 'Concedidas',    dot: 'dot-granted',    count: statusCounts.granted|default(0)},
-    {key: 'granted_completed', label: 'Completadas',   dot: 'dot-completed',  count: statusCounts.granted_completed|default(0)},
-    {key: 'denied',            label: 'Denegadas',     dot: 'dot-denied',     count: statusCounts.denied|default(0)},
-    {key: 'delayed',           label: 'Silencio',      dot: 'dot-delayed',    count: statusCounts.delayed|default(0)},
-    {key: 'pending',           label: 'Pendientes',    dot: 'dot-pending',    count: statusCounts.pending|default(0)},
-    {key: 'reclaimed',         label: 'Reclamadas',    dot: 'dot-appealed',   count: appealedCount},
+    {key: '',                  label: 'Todas',       count: totalCount},
+    {key: 'sent',              label: 'Enviadas',    count: effectiveCounts.sent|default(0)},
+    {key: 'processing',        label: 'En trámite',  count: effectiveCounts.processing|default(0)},
+    {key: 'pending',           label: 'Pendientes',  count: effectiveCounts.pending|default(0)},
+    {key: 'granted',           label: 'Concedidas',  count: effectiveCounts.granted|default(0)},
+    {key: 'granted_completed', label: 'Completadas', count: effectiveCounts.granted_completed|default(0)},
+    {key: 'partially_granted', label: 'Parciales',   count: effectiveCounts.partially_granted|default(0)},
+    {key: 'denied',            label: 'Denegadas',   count: effectiveCounts.denied|default(0)},
+    {key: 'inadmitted',        label: 'Inadmitidas', count: effectiveCounts.inadmitted|default(0)},
+    {key: 'delayed',           label: 'Silencio',    count: effectiveCounts.delayed|default(0)},
+    {key: 'reclaimed',         label: 'Reclamadas',  count: reclamadasCount},
 ] %}
 
-<div class="metric-rail">
-    {% for i, m in metrics %}
+<nav class="sol-indice" aria-label="Filtrar por estado">
+    {% for m in metrics %}
         {% set isActive = (status|default('') == m.key) %}
         {% set href = path('app_solicitudes_index', metricBase|merge(m.key ? {status: m.key} : {})) %}
-        <a href="{{ href }}"
-           class="metric-chip {{ isActive ? 'is-active' : '' }} {{ m.count == 0 ? 'is-zero' : '' }}"
-           style="animation-delay: {{ (i * 35) }}ms">
-            <span class="metric-chip-num">{{ m.count }}</span>
-            <span class="metric-chip-label">
-                <span class="metric-chip-dot {{ m.dot }}"></span>
-                <span class="metric-chip-label-text">{{ m.label }}</span>
-            </span>
+        <a href="{{ href }}" class="sol-tab {{ isActive ? 'is-active' : '' }} {{ m.count == 0 ? 'is-zero' : '' }}">
+            {% if bucketColors[m.key]|default(null) %}<span class="sol-tab-dot" style="background: {{ bucketColors[m.key] }}"></span>{% endif %}
+            {{ m.label }} <b>{{ m.count }}</b>
         </a>
     {% endfor %}
-</div>
+</nav>
 
 {# ─────────────────── TOOLBAR ─────────────────── #}
 <form id="filter-form" method="get" class="toolbar">
@@ -654,6 +645,7 @@
                 <span>
                     {% set statusLabels = {
                         'sent':'Enviadas','processing':'En trámite','granted':'Concedidas','granted_completed':'Completadas',
+                        'partially_granted':'Parciales','inadmitted':'Inadmitidas',
                         'denied':'Denegadas','delayed':'Silencio','pending':'Pendientes','reclaimed':'Reclamadas'
                     } %}
                     {{ statusLabels[status]|default(status) }}
@@ -731,6 +723,7 @@
 
             $('#solicitudes-table').initDataTables(settings, {
                 "language": spanishLanguage,
+                "order": [],
                 "pageLength": 50,
                 "lengthMenu": [10, 25, 50, 100],
                 "drawCallback": function() {
@@ -739,7 +732,7 @@
                     }
 
                     $(this).find('tbody tr').each(function() {
-                        var href = $(this).find('td:first [data-href]').data('href');
+                        var href = $(this).find('[data-href]').first().data('href');
                         if (href) $(this).attr('data-href', href);
                     });
 

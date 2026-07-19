@@ -351,13 +351,23 @@ export default class extends Controller {
             </li>`;
         }).join('');
 
+        // Con un único destino (maxTargets=1, flujo /redactar) el panel se
+        // muestra en singular y sin la nota de "una por destinatario".
+        const single = this.maxTargetsValue === 1;
+        const head = single
+            ? 'Destinatario'
+            : `Destinatarios seleccionados (${this.selectedTargets.length})`;
+        const note = single
+            ? ''
+            : '<p class="preview-multi-note">PideInfo creará una solicitud independiente para cada destinatario.</p>';
+
         this.previewTarget.innerHTML = `
             <div class="preview-multi">
                 <div class="targets-panel-head">
                     <i data-lucide="users" class="w-5 h-5"></i>
-                    <h3>Destinatarios seleccionados (${this.selectedTargets.length})</h3>
+                    <h3>${head}</h3>
                 </div>
-                <p class="preview-multi-note">PideInfo creará una solicitud independiente para cada destinatario.</p>
+                ${note}
                 <ul class="preview-multi-list">${cards}</ul>
             </div>`;
         this._reIcons();

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7a8134701584259898768349eb826fb6",
+    "content-hash": "8dbf758a2f139dacc74344ab424d0a6a",
     "packages": [
         {
             "name": "async-aws/core",
@@ -2493,6 +2493,55 @@
                 "source": "https://github.com/protocolbuffers/protobuf-php/tree/v4.33.6"
             },
             "time": "2026-03-18T17:32:05+00:00"
+        },
+        {
+            "name": "growthbook/growthbook",
+            "version": "v2.6.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/growthbook/growthbook-php.git",
+                "reference": "f8fa4c47e85c3e054b1147e75310eb0f8823a861"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/growthbook/growthbook-php/zipball/f8fa4c47e85c3e054b1147e75310eb0f8823a861",
+                "reference": "f8fa4c47e85c3e054b1147e75310eb0f8823a861",
+                "shasum": ""
+            },
+            "require": {
+                "ext-json": "*",
+                "php": "^8.0",
+                "php-http/discovery": "^1.15",
+                "psr/http-client": "^1.0",
+                "psr/http-factory": "^1.0",
+                "psr/http-message": "^1.0|^2.0",
+                "psr/log": "^2.0|^3.0",
+                "psr/simple-cache": "^2.0|^3.0"
+            },
+            "require-dev": {
+                "friendsofphp/php-cs-fixer": "^3.0.0",
+                "phpstan/phpstan": "^0.12.86",
+                "phpunit/phpunit": "^9.5"
+            },
+            "suggest": {
+                "guzzlehttp/guzzle": "Recommended HTTP client. Enables automatic timeout configuration (default 2s) when no custom client is provided."
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Growthbook\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "description": "PHP SDK for GrowthBook, the feature flagging and A/B testing platform",
+            "support": {
+                "issues": "https://github.com/growthbook/growthbook-php/issues",
+                "source": "https://github.com/growthbook/growthbook-php/tree/v2.6.0"
+            },
+            "time": "2026-06-18T14:59:53+00:00"
         },
         {
             "name": "guzzlehttp/guzzle",
@@ -10748,6 +10797,80 @@
                 }
             ],
             "time": "2026-05-23T18:04:28+00:00"
+        },
+        {
+            "name": "symfony/html-sanitizer",
+            "version": "v7.4.14",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/html-sanitizer.git",
+                "reference": "c328df69f5b6f44a0d031d757903d955bebb23b3"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/html-sanitizer/zipball/c328df69f5b6f44a0d031d757903d955bebb23b3",
+                "reference": "c328df69f5b6f44a0d031d757903d955bebb23b3",
+                "shasum": ""
+            },
+            "require": {
+                "ext-dom": "*",
+                "league/uri": "^6.5|^7.0",
+                "masterminds/html5": "^2.7.2",
+                "php": ">=8.2",
+                "symfony/deprecation-contracts": "^2.5|^3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\HtmlSanitizer\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Titouan Galopin",
+                    "email": "galopintitouan@gmail.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Provides an object-oriented API to sanitize untrusted HTML input for safe insertion into a document's DOM.",
+            "homepage": "https://symfony.com",
+            "keywords": [
+                "Purifier",
+                "html",
+                "sanitizer"
+            ],
+            "support": {
+                "source": "https://github.com/symfony/html-sanitizer/tree/v7.4.14"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-06-06T11:10:32+00:00"
         },
         {
             "name": "symfony/http-client",

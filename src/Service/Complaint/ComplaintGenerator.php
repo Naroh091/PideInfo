@@ -15,6 +15,7 @@ use App\Observability\Tracer;
 use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
@@ -37,6 +38,7 @@ final class ComplaintGenerator
         private readonly Tracer $tracer,
         private readonly PromptStore $promptStore,
         private readonly DocumentEmbeddingsRetriever $documentEmbeddingsRetriever,
+        private readonly DoctrinePriorityResolver $doctrinePriority,
     ) {
     }
 
@@ -51,18 +53,19 @@ final class ComplaintGenerator
     private function retrieveCriteriaAndResolutions(AccessRequest $accessRequest, int $criteriaTopK = 5, int $resolutionsTopK = 3): array
     {
         $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
+        $priorityOrganismIds = $this->doctrinePriority->priorityOrganismIdsFor($accessRequest);
 
         if ($vectors !== []) {
             return [
-                $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK),
-                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK),
+                $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK, $priorityOrganismIds),
+                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds),
             ];
         }
 
         $contextQuery = $this->buildContextQuery($accessRequest);
         return [
-            $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK),
-            $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK),
+            $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK, $priorityOrganismIds),
+            $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds),
         ];
     }
 

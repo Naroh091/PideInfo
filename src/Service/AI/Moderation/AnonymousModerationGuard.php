@@ -50,7 +50,7 @@ class AnonymousModerationGuard
     ) {
     }
 
-    public function moderate(string $text, ModerationStage $stage): ModerationVerdict
+    public function moderate(string $text, ModerationStage $stage, ?ModerationContext $context = null): ModerationVerdict
     {
         $text = trim($text);
         if ($text === '') {
@@ -61,7 +61,10 @@ class AnonymousModerationGuard
             $text = mb_substr($text, 0, self::MAX_INPUT_CHARS) . "\n\n[…texto truncado]";
         }
 
-        $prompt = $this->promptStore->compile($stage->promptName(), ['text' => $text]);
+        $prompt = $this->promptStore->compile($stage->promptName(), [
+            'text'    => $text,
+            'context' => $context?->toPromptBlock() ?? '',
+        ]);
 
         try {
             $raw = $this->llmClient->chatJson(new ChatRequest(

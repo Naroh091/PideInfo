@@ -22,10 +22,15 @@
     </script>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>🔍</text></svg>">
 
-    {# Inter Font #}
+    {# Fuentes globales. DM Sans (UI), DM Serif Display (títulos), Inter, y las del
+       documento — Source Serif 4 (cuerpo de la hoja) y JetBrains Mono (etiquetas
+       técnicas). Consolidadas aquí a propósito: el CSS de @font-face es diminuto y
+       los archivos solo se descargan en las páginas que realmente usan cada tipo,
+       así que cargarlas globalmente evita el bug de "página que olvida la fuente"
+       (la hoja del asistente aparece en varias páginas: redacción y detalle). #}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
 
     {# Lucide Icons #}
     <script src="https://unpkg.com/lucide@latest"></script>

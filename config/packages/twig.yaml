@@ -2,6 +2,17 @@ twig:
     file_name_pattern: '*.twig'
     globals:
         pdf_font_dir: '%kernel.project_dir%/resources/fonts'
+        # Enlaces del pie público. Los consejos autonómicos salen de BD
+        # (transparency_councils()); esto son los enlaces fijos: portal de
+        # transparencia estatal, otros proyectos y formas de apoyo. Deja una
+        # url vacía ('') para ocultar ese enlace. `portales_autonomicos` es una
+        # lista de {label, url} — vacía hasta tener las URLs oficiales.
+        footer_links:
+            portal_estatal: 'https://www.transparencia.gob.es'
+            portales_autonomicos: []
+            contratacionabierta: 'https://contratacionabierta.es'
+            patreon: 'https://www.patreon.com/cw/naroh'
+            buymeacoffee: 'https://buymeacoffee.com/naroh'
 
 when@test:
     twig:

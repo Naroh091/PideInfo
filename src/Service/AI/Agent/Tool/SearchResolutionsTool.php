@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Agent\Tool;
 
 use App\Prompt\PromptStore;
+use App\Service\AI\Agent\AgentDoctrineContext;
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
@@ -60,6 +61,7 @@ final class SearchResolutionsTool
         private readonly LlmClient $llmClient,
         private readonly PromptStore $promptStore,
         private readonly AgentProgress $progress,
+        private readonly AgentDoctrineContext $doctrineContext,
     ) {
     }
 
@@ -124,6 +126,7 @@ final class SearchResolutionsTool
             query: $argumentation,
             topK: $topK,
             outcomes: $outcomes,
+            priorityOrganismIds: $this->doctrineContext->getPriorityOrganismIds(),
         );
 
         if ($candidates === []) {

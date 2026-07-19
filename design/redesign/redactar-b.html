@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redacción · Opción B «Línea de trámite» — PideInfo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="redactar.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="contenedor nav-fila">
+        <div class="nav-izq">
+            <a href="#" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="#" class="nav-enlace"><i data-lucide="home"></i> Inicio</a>
+                <a href="#" class="nav-enlace"><i data-lucide="scale"></i> Repositorio</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="nav-login">Guardar y salir</a>
+        </div>
+    </div>
+</nav>
+
+<main class="rd-main">
+    <div class="rd-wrap">
+        <header class="rd-band">
+            <p class="rd-band-eyebrow">Opción B · «Línea de trámite» — el estado como eventos en el hilo</p>
+            <h1 class="rd-band-title">Redacta tu solicitud para <em>Ministerio de Transportes y Movilidad Sostenible</em></h1>
+        </header>
+
+        <div class="rd-layout">
+            <!-- ── Columna de chat ── -->
+            <div class="rd-chat">
+                <div class="rd-stream">
+                    <!-- ESTADO (B): hilo vertical con hitos + estado vivo al final -->
+                    <div class="rd-thread">
+                        <div class="rd-event"><span class="rd-event-text">Borrador creado · hoy, 10:24</span></div>
+
+                        <div class="rd-turn rd-turn--assistant">
+                            <span class="rd-turn-label">Asistente</span>
+                            <div class="rd-bubble">Hola 👋 He preparado un primer borrador apoyándome en la <b>Ley 19/2013</b> y en resoluciones parecidas. Revísalo y dime qué ajusto.</div>
+                        </div>
+
+                        <div class="rd-turn rd-turn--user">
+                            <span class="rd-turn-label">Tú</span>
+                            <div class="rd-bubble">Quiero los contratos de conservación de carreteras de 2023 y 2024, con importe y adjudicatario.</div>
+                        </div>
+
+                        <div class="rd-event"><span class="rd-event-text">Guardado · hace 2 min</span></div>
+
+                        <!-- La hoja de papel (borrador editable) dentro del chat -->
+                        <div class="rd-hoja">
+                            <div class="rd-hoja-meta">
+                                <span class="rd-hoja-pill rd-hoja-pill--canal">Portal Transparencia</span>
+                                <span class="rd-hoja-pill rd-hoja-pill--ley">Ley 19/2013</span>
+                                <span class="rd-hoja-pill">AGE</span>
+                            </div>
+                            <p class="rd-hoja-linea"><b>A/A:</b> Ministerio de Transportes y Movilidad Sostenible</p>
+                            <p class="rd-hoja-linea"><b>ASUNTO:</b> Contratos de conservación de carreteras 2023–2024</p>
+                            <p class="rd-hoja-linea"><b>EXPONE:</b> Que, al amparo del artículo 17 de la Ley 19/2013, de 9 de diciembre, de transparencia, acceso a la información pública y buen gobierno,</p>
+                            <p class="rd-hoja-linea"><b>SOLICITA:</b> La relación de contratos de conservación y explotación de carreteras adjudicados en 2023 y 2024, con importe, adjudicatario y criterios de adjudicación.</p>
+                            <!-- Fuentes citadas: dentro de la caja, bajo el separador -->
+                            <div class="rd-fuentes">
+                                <span class="rd-fuentes-label"><i data-lucide="link"></i> Fuentes citadas</span>
+                                <div class="rd-fuentes-pills">
+                                    <a href="#" class="rd-fuente rd-fuente--interna" title="Ver ficha en PideInfo">
+                                        <i data-lucide="scale"></i> Resolución R/0155/2021
+                                    </a>
+                                    <a href="#" class="rd-fuente" target="_blank" rel="noopener noreferrer" title="Ver documento original">
+                                        <i data-lucide="book-open"></i> Criterio CI 4/2015 <i data-lucide="external-link" class="rd-fuente-ext"></i>
+                                    </a>
+                                    <a href="#" class="rd-fuente" target="_blank" rel="noopener noreferrer" title="Ver sentencia (CENDOJ)">
+                                        <i data-lucide="gavel"></i> STS 1547/2017 <i data-lucide="external-link" class="rd-fuente-ext"></i>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="rd-hoja-foot">
+                                <span class="rd-hoja-state">✓ Guardado</span>
+                                <div class="rd-hoja-cta">
+                                    <a class="rd-btn rd-btn--secundario"><i data-lucide="file-down"></i> Descargar PDF</a>
+                                    <a class="rd-btn rd-btn--primario"><i data-lucide="send"></i> Enviar al organismo</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Composer con el arreglo de botones + drop-zone -->
+                <div class="rd-composer">
+                    <div class="rd-composer-chips">
+                        <span class="rd-chip">informe-2024.pdf <button class="rd-chip-x" aria-label="Quitar">×</button></span>
+                    </div>
+                    <div class="rd-input-row">
+                        <button class="rd-icon-btn rd-attach" title="Adjuntar archivo"><i data-lucide="paperclip"></i></button>
+                        <textarea class="rd-input" rows="3" aria-label="Mensaje">Añade también los criterios de adjudicación de cada contrato
+y el importe final tras las modificaciones,
+si las hubo.</textarea>
+                        <button class="rd-icon-btn rd-send" title="Enviar"><i data-lucide="send"></i></button>
+                    </div>
+                    <p class="rd-disclaimer">Arrastra archivos aquí o púlsalos con el clip. Se usan solo en esta conversación y no se guardan.</p>
+                    <div class="rd-dropzone"><i data-lucide="upload"></i> Suelta los archivos aquí</div>
+                </div>
+            </div>
+
+            <!-- ── Informe preliminar ── -->
+            <aside class="rd-side">
+                <section class="rd-panel">
+                    <div class="rd-panel-label"><i data-lucide="gavel"></i> Informe preliminar</div>
+                    <div class="rd-verdict"><span class="rd-verdict-num">62</span><span class="rd-verdict-frac">/100</span></div>
+                    <div class="rd-verdict-label">Probabilidad de éxito <span class="rd-verdict-zone is-media">Media-alta</span></div>
+                    <div class="rd-gauge">
+                        <div class="rd-gauge-track"></div>
+                        <div class="rd-gauge-ticks"><span></span><span></span><span></span><span></span><span></span></div>
+                        <div class="rd-gauge-marker" style="left:62%"></div>
+                    </div>
+                    <div class="rd-gauge-scale"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+                    <p class="rd-brief-summary" style="margin-top:1rem;">Pedir <b>contratos, importes y adjudicatarios</b> es acceso ordinario a información pública amparado por la Ley 19/2013.</p>
+
+                    <div class="rd-brief-sec">
+                        <div class="rd-brief-sec-title is-pos"><span class="mark">✓</span> A favor</div>
+                        <ul class="rd-brief-list">
+                            <li>La <b>contratación pública</b> (importe, adjudicatario, criterios) es de publicidad activa y acceso ordinario.</li>
+                            <li>Resoluciones recientes del Consejo <b>estimaron</b> peticiones de datos contractuales muy parecidas.</li>
+                        </ul>
+                    </div>
+                    <div class="rd-brief-sec">
+                        <div class="rd-brief-sec-title is-neg"><span class="mark">!</span> En contra</div>
+                        <ul class="rd-brief-list">
+                            <li>Datos de terceros (autónomos adjudicatarios) podrían exigir <b>disociación</b> parcial.</li>
+                            <li>Si el volumen es muy amplio podrían alegar <b>reelaboración</b>: acota el periodo si te lo oponen.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <section class="rd-panel">
+                    <div class="rd-panel-label"><i data-lucide="library"></i> Resoluciones similares</div>
+                    <div class="rd-rag">
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">R/0155/2021</span><span class="rd-pildora rd-pildora--estimada">Estimada</span></div>
+                            <span class="rd-rag-title">Contratos de emergencia — Ministerio de Hacienda</span>
+                        </div>
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">RT 0389/2024</span><span class="rd-pildora rd-pildora--parcial">Parcial</span></div>
+                            <span class="rd-rag-title">Retribuciones de altos cargos — Generalitat</span>
+                        </div>
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">CTBG 118/2025</span><span class="rd-pildora rd-pildora--desestimada">Desestimada</span></div>
+                            <span class="rd-rag-title">Agendas de reuniones — Ministerio del Interior</span>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="rd-nota"><b>Importante:</b> el corpus solo cubre solicitudes que escalaron a reclamación. Una probabilidad baja no significa que la solicitud sea mala.</div>
+            </aside>
+        </div>
+    </div>
+</main>
+
+<script>
+    lucide.createIcons();
+    document.querySelectorAll('.rd-input').forEach(t => {
+        const grow = () => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 192) + 'px'; };
+        t.addEventListener('input', grow); grow();
+    });
+    document.querySelectorAll('.rd-composer').forEach(c => {
+        ['dragenter', 'dragover'].forEach(e => c.addEventListener(e, ev => { ev.preventDefault(); c.classList.add('is-dragover'); }));
+        ['dragleave', 'drop'].forEach(e => c.addEventListener(e, ev => { ev.preventDefault(); if (e === 'drop' || !c.contains(ev.relatedTarget)) c.classList.remove('is-dragover'); }));
+    });
+
+    // Demo de la animación «la caja se genera» (punto → línea → rectángulo → contenido).
+    (function () {
+        const hoja = document.querySelector('.rd-hoja');
+        const play = () => { if (!hoja) return; hoja.classList.remove('is-gen'); void hoja.offsetWidth; hoja.classList.add('is-gen'); };
+        setTimeout(play, 350);
+        document.querySelector('[data-replay-gen]')?.addEventListener('click', play);
+    })();
+</script>
+
+<!-- Botón solo-maqueta para revisar la animación de generación -->
+<button type="button" data-replay-gen
+        style="position:fixed; right:1rem; bottom:1rem; z-index:50; display:inline-flex; align-items:center; gap:.4rem;
+               font:600 .78rem/1 'DM Sans',sans-serif; color:#fff; background:#0f172a; border:none; cursor:pointer;
+               padding:.6rem .85rem; border-radius:999px; box-shadow:0 10px 24px -12px rgba(15,23,42,.5);">
+    <i data-lucide="play"></i> Reproducir animación
+</button>
+<script>lucide.createIcons();</script>
+</body>
+</html>

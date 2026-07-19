@@ -9,9 +9,8 @@
 
 {% block stylesheets %}
     {{ parent() }}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+    {# Trix aún se usa en esta página legacy (editor Alpine propio, distinto del
+       paper-sheet del asistente). Las fuentes del documento vienen de base.html.twig. #}
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
     <style>
         /* Cabecera local heredada — no migrar a app.css: .page-title ya existe

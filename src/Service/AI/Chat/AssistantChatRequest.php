@@ -36,6 +36,17 @@ final readonly class AssistantChatRequest
          * model is forced to return a plan instead of generating.
          */
         public bool $hasDraft = false,
+        /**
+         * Organism UUIDs (RFC 4122) whose doctrine the search tools should
+         * prioritise this turn: the guarantee body competent for the reclaimed
+         * administration plus the CTBG. Resolved by the controller via
+         * {@see \App\Service\AI\DoctrinePriorityResolver} and published to the
+         * per-turn {@see \App\Service\AI\Agent\AgentDoctrineContext} by the
+         * orchestrator. Empty = no boost.
+         *
+         * @var list<string>
+         */
+        public array $priorityOrganismIds = [],
     ) {
     }
 }

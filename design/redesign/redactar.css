@@ -1,0 +1,448 @@
+/* ─────────────────────────────────────────────────────────────
+   PideInfo — rediseño de la página de REDACCIÓN de solicitud
+   Componentes compartidos por las tres maquetas (redactar-a/b/c).
+   Construido sobre los tokens de home.css (papel/tinta/rotulador,
+   DM Serif Display, DM Sans, JetBrains Mono, Source Serif 4).
+   Lo que cambia entre A/B/C es SOLO el bloque de estado (más abajo).
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Marco de página ─────────────────────────────────────────── */
+/* Fondo con el «tono azul» de la app (body: slate-50 → primary-50) */
+body {
+    background: linear-gradient(to bottom right, #f8fafc, #f0f9ff);
+    background-attachment: fixed;
+    min-height: 100vh;
+}
+.rd-main { padding: 2rem 0 4rem; }
+.rd-wrap { max-width: 76rem; margin: 0 auto; padding: 0 1.25rem; }
+@media (min-width: 640px) { .rd-wrap { padding: 0 2rem; } }
+
+/* Cabecera editorial (misma línea que .draft-band de la app) */
+.rd-band { margin: 0 0 1.5rem; }
+.rd-band-eyebrow {
+    font: 500 .7rem/1 var(--f-mono);
+    color: var(--texto-3);
+    margin: 0 0 .55rem;
+}
+.rd-band-title {
+    font: 400 clamp(1.6rem, 3vw, 2.15rem)/1.1 var(--f-display);
+    letter-spacing: -.015em;
+    color: var(--tinta);
+    margin: 0;
+}
+/* El organismo, subrayado con el rotulador (envuelve, no se corta) */
+.rd-band-title em {
+    color: var(--tinta);
+    font-style: italic;
+    background: linear-gradient(var(--marcador), var(--marcador)) left 66% / 100% 42% no-repeat;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    padding: 0 .08em;
+}
+
+/* ── Rejilla: chat | informe ─────────────────────────────────── */
+.rd-layout {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+}
+@media (min-width: 1024px) {
+    /* Sidebar de ancho fijo estrecho (como la app, 21rem): más aire para el
+       agente de redacción. */
+    .rd-layout { grid-template-columns: minmax(0, 1fr) 20rem; gap: 2rem; }
+}
+
+/* Salvaguardas anti-desbordamiento: hijos de grid/flex deben poder encoger
+   por debajo de su contenido intrínseco (si no, el textarea empuja el ancho). */
+.rd-chat, .rd-side, .rd-turn, .rd-input, .rd-bubble, .rd-rag-card, .rd-panel { min-width: 0; }
+
+/* ── Columna de chat ─────────────────────────────────────────────
+   Sin caja: la conversación respira sobre el fondo azul de la página.
+   El composer es su propia tarjeta (fija abajo). */
+.rd-chat {
+    display: flex;
+    flex-direction: column;
+}
+.rd-stream {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: .25rem .25rem 1rem;
+}
+
+/* Turnos / burbujas */
+.rd-turn { display: flex; flex-direction: column; gap: .3rem; max-width: 88%; }
+.rd-turn-label { font: 600 .62rem/1 var(--f-ui); color: var(--texto-3); padding: 0 .1rem; }
+.rd-turn--assistant { align-self: flex-start; }
+.rd-turn--user { align-self: flex-end; align-items: flex-end; }
+.rd-bubble {
+    font: 400 .9rem/1.5 var(--f-ui);
+    padding: .7rem .9rem;
+    border-radius: .9rem;
+    color: var(--texto);
+}
+.rd-turn--assistant .rd-bubble {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-top-left-radius: .25rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+}
+.rd-turn--user .rd-bubble {
+    background: var(--accion-tinte);
+    border: 1px solid #bae6fd;
+    color: #0c4a6e;
+    border-top-right-radius: .25rem;
+}
+.rd-bubble b { font-weight: 600; color: var(--tinta); }
+.rd-turn--assistant .rd-turn-label { color: var(--accion-oscura); }
+
+/* Acciones del turno intro (redactar con IA / manual) */
+.rd-turn-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .35rem; }
+
+/* ── La hoja de papel (borrador editable dentro del chat) ────── */
+.rd-hoja {
+    align-self: stretch;
+    max-width: 100%;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .6rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 14px 34px -24px rgba(15, 23, 42, .3);
+    padding: 1.25rem 1.375rem 1rem;
+    font-family: var(--f-hoja);
+    color: #1e293b;
+}
+/* Animación «la caja se genera»: punto → línea horizontal → crece en altura
+   hasta el rectángulo, y entonces el contenido entra (luego lo teclea el
+   typewriter). Se dispara añadiendo .is-gen a la hoja. */
+@keyframes rd-box-draw {
+    0%   { transform: scaleX(.03) scaleY(.05); opacity: 0; }
+    12%  { opacity: 1; }
+    46%  { transform: scaleX(1) scaleY(.05); }   /* línea recta */
+    100% { transform: scaleX(1) scaleY(1); }       /* rectángulo */
+}
+@keyframes rd-content-in {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: none; }
+}
+.rd-hoja.is-gen {
+    animation: rd-box-draw .8s cubic-bezier(.55, 0, .2, 1);
+    transform-origin: center;
+    will-change: transform;
+}
+.rd-hoja.is-gen > * { opacity: 0; animation: rd-content-in .45s ease .78s forwards; }
+@media (prefers-reduced-motion: reduce) {
+    .rd-hoja.is-gen, .rd-hoja.is-gen > * { animation: none; opacity: 1; transform: none; }
+}
+
+.rd-hoja-meta { display: flex; flex-wrap: wrap; gap: .375rem; margin-bottom: 1rem; font-family: var(--f-ui); }
+.rd-hoja-pill {
+    font: 500 .625rem/1 var(--f-ui);
+    padding: .3rem .55rem; border-radius: 999px;
+    border: 1px solid var(--borde); color: var(--texto-3); background: var(--papel-suave);
+}
+.rd-hoja-pill--canal { color: var(--accion-oscura); background: var(--accion-tinte); border-color: #bae6fd; }
+.rd-hoja-pill--ley { color: var(--accion-oscura); background: #fff; border-color: #bae6fd; }
+.rd-hoja-linea { font-size: .82rem; line-height: 1.6; margin: 0 0 .7rem; }
+.rd-hoja-linea b { font-weight: 600; letter-spacing: .01em; color: #0f172a; }
+.rd-hoja-foot {
+    margin-top: .85rem;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem;
+}
+.rd-hoja-state { font: 400 .68rem/1 var(--f-mono); color: var(--exito); }
+.rd-hoja-cta { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+/* Fuentes citadas: píldoras enlazadas bajo la hoja. Resolución → ficha interna
+   de PideInfo (tinte sky); criterio/sentencia → documento original (externo,
+   con glifo de enlace externo). El enlace lo resuelve el servidor. */
+.rd-fuentes {
+    margin: 1rem 0 0; padding-top: .85rem;
+    border-top: 1px solid var(--borde-suave);   /* el separador vive aquí */
+    display: flex; flex-direction: column; gap: .5rem;
+}
+.rd-fuentes-label {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font: 500 .66rem/1 var(--f-mono); color: var(--texto-3);
+}
+.rd-fuentes-label svg { width: .85rem; height: .85rem; color: var(--texto-3); }
+.rd-fuentes-pills { display: flex; flex-wrap: wrap; gap: .4rem; }
+.rd-fuente {
+    display: inline-flex; align-items: center; gap: .35rem;
+    font: 500 .72rem/1 var(--f-ui);
+    padding: .32rem .55rem; border-radius: 999px;
+    text-decoration: none;
+    color: var(--texto-2);
+    background: #fff; border: 1px solid var(--borde);
+    transition: border-color .15s, background-color .15s, color .15s;
+}
+.rd-fuente:hover { border-color: #cbd5e1; background: var(--papel-suave); color: var(--tinta); }
+.rd-fuente > svg { width: .85rem; height: .85rem; color: var(--texto-3); }
+.rd-fuente .rd-fuente-ext { width: .72rem; height: .72rem; color: #94a3b8; margin-left: .05rem; }
+/* Interna (ficha de PideInfo): tinte sky, sin glifo externo. */
+.rd-fuente--interna {
+    color: var(--accion-oscura);
+    background: var(--accion-tinte); border-color: #bae6fd;
+}
+.rd-fuente--interna:hover { color: var(--accion-oscura); background: #e0f2fe; border-color: #7dd3fc; }
+.rd-fuente--interna > svg { color: var(--accion); }
+
+/* Botones compactos para la hoja (no los grandes de home) */
+.rd-btn {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font: 500 .8rem/1 var(--f-ui);
+    padding: .5rem .85rem; border-radius: .55rem;
+    border: 1px solid transparent; cursor: pointer; text-decoration: none;
+    transition: background-color .15s, border-color .15s, color .15s;
+}
+.rd-btn svg { width: 1rem; height: 1rem; }
+.rd-btn--primario { background: var(--accion); color: #fff; }
+.rd-btn--primario:hover { background: var(--accion-oscura); }
+.rd-btn--secundario { background: #fff; color: var(--texto); border-color: var(--borde); }
+.rd-btn--secundario:hover { background: var(--papel-suave); border-color: #cbd5e1; }
+
+/* ── Composer: el arreglo de los botones + drop-zone ─────────────
+   Tarjeta propia, fija al pie de la columna (chat abierto, input siempre a mano). */
+.rd-composer {
+    position: sticky; bottom: 1rem; z-index: 4;
+    margin-top: .5rem;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-l);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 16px 36px -24px rgba(15, 23, 42, .3);
+}
+.rd-composer-chips { display: flex; flex-wrap: wrap; gap: .35rem; padding: .6rem .85rem 0; }
+.rd-composer-chips:empty { padding: 0; }
+.rd-chip {
+    display: inline-flex; align-items: center; gap: .3rem;
+    padding: .2rem .45rem; border-radius: 999px;
+    font: 500 .68rem/1 var(--f-mono);
+    color: var(--texto-2); background: var(--papel-suave); border: 1px solid var(--borde);
+}
+.rd-chip-x { border: none; background: none; color: var(--texto-3); cursor: pointer; line-height: 1; font-size: .9rem; }
+
+/* CLAVE: align-items flex-end → los botones NO crecen con el textarea */
+.rd-input-row {
+    display: flex; align-items: flex-end; gap: .45rem;
+    padding: .7rem .85rem;
+}
+.rd-input {
+    flex: 1;
+    font: 400 .9rem/1.45 var(--f-ui);
+    border: 1px solid #cbd5e1; border-radius: .6rem;
+    padding: .55rem .7rem; background: #fff; color: var(--texto);
+    resize: none; min-height: 2.6rem; max-height: 12rem; overflow-y: auto;
+    outline: none;
+}
+.rd-input:focus { border-color: var(--accion-viva); box-shadow: 0 0 0 3px rgba(14, 165, 233, .1); }
+/* Botones cuadrados de alto fijo, anclados al fondo de la fila */
+.rd-icon-btn {
+    flex: 0 0 auto;
+    width: 2.6rem; height: 2.6rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: .6rem; cursor: pointer;
+    transition: background-color .15s, border-color .15s, color .15s;
+}
+.rd-icon-btn svg { width: 1.05rem; height: 1.05rem; }
+.rd-attach { color: var(--texto-3); background: #fff; border: 1px solid #cbd5e1; }
+.rd-attach:hover { color: var(--accion); border-color: var(--accion-viva); }
+.rd-send { color: #fff; background: var(--tinta); border: 1px solid var(--tinta); }
+.rd-send:hover { background: #1e293b; }
+.rd-disclaimer { margin: 0; padding: 0 .95rem .7rem; font: 400 .66rem/1.3 var(--f-ui); color: var(--texto-3); }
+
+/* Estado de arrastre: overlay discontinuo */
+.rd-dropzone {
+    position: absolute; inset: .4rem;
+    display: none; align-items: center; justify-content: center; gap: .5rem;
+    border: 2px dashed var(--accion-viva); border-radius: var(--radio);
+    background: rgba(14, 165, 233, .07);
+    color: var(--accion-oscura); font: 600 .82rem/1 var(--f-ui);
+    z-index: 3; pointer-events: none;
+}
+.rd-composer.is-dragover .rd-dropzone { display: flex; }
+
+/* ── Informe preliminar (sidebar) ────────────────────────────── */
+.rd-side { position: sticky; top: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+@media (max-width: 1023px) { .rd-side { position: static; } }
+.rd-panel {
+    background: #fff; border: 1px solid var(--borde); border-radius: var(--radio);
+    padding: 1.1rem 1.15rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.rd-panel-label {
+    display: flex; align-items: center; gap: .45rem;
+    font: 500 .68rem/1 var(--f-mono); color: var(--texto-3);
+    margin-bottom: .85rem;
+}
+.rd-panel-label svg { width: .9rem; height: .9rem; color: var(--accion); }
+.rd-panel-label::after { content: ""; flex: 1; height: 1px; background: var(--borde); }
+
+.rd-prob { display: flex; align-items: baseline; gap: .5rem; }
+.rd-prob-num { font: 400 2.6rem/1 var(--f-mono); color: var(--tinta); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.rd-prob-tag { font: 500 .72rem/1.3 var(--f-ui); color: var(--exito); }
+.rd-prob-bar { height: .5rem; border-radius: 999px; background: var(--borde-suave); overflow: hidden; margin: .7rem 0 .4rem; }
+.rd-prob-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #34d399, #059669); }
+.rd-prob-note { font: 400 .72rem/1.45 var(--f-ui); color: var(--texto-3); margin: 0; }
+
+/* Veredicto + gauge con escala (como el informe real: nota /100 + pista con
+   degradado rojo→verde, marcas, marcador y escala 0·25·50·75·100). */
+.rd-verdict { display: flex; align-items: baseline; gap: .1rem; }
+.rd-verdict-num { font: 400 2.8rem/1 var(--f-mono); color: var(--tinta); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.rd-verdict-frac { font: 400 1rem/1 var(--f-mono); color: var(--texto-3); }
+.rd-verdict-label {
+    display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+    margin-top: .35rem; font: 500 .78rem/1.3 var(--f-ui); color: var(--texto-2);
+}
+.rd-verdict-zone { font: 600 .62rem/1 var(--f-mono); padding: .25rem .5rem; border-radius: 999px; border: 1px solid; }
+.rd-verdict-zone.is-baja { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.rd-verdict-zone.is-media { background: #fffbeb; border-color: var(--marcador); color: #b45309; }
+.rd-verdict-zone.is-alta { background: var(--exito-tinte); border-color: #a7f3d0; color: #047857; }
+
+.rd-gauge { margin-top: .9rem; height: 1.05rem; position: relative; }
+.rd-gauge-track {
+    position: absolute; top: 50%; left: 0; right: 0; transform: translateY(-50%);
+    height: 6px; border-radius: 3px; opacity: .6;
+    background: linear-gradient(90deg, #fecaca 0%, #fed7aa 30%, #fde68a 50%, #bbf7d0 75%, #86efac 100%);
+}
+.rd-gauge-ticks { position: absolute; inset: 0; display: flex; justify-content: space-between; pointer-events: none; }
+.rd-gauge-ticks span { width: 1px; height: 50%; background: rgba(15, 23, 42, .18); align-self: center; }
+.rd-gauge-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--tinta); }
+.rd-gauge-marker::before {
+    content: ""; position: absolute; top: -3px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 8px; background: var(--tinta); border-radius: 999px; border: 2px solid #fff;
+}
+.rd-gauge-scale {
+    display: flex; justify-content: space-between; margin-top: .5rem;
+    font: 400 .62rem/1 var(--f-mono); color: var(--texto-3); letter-spacing: .06em;
+}
+
+.rd-rag { display: flex; flex-direction: column; gap: .55rem; }
+.rd-rag-card {
+    border: 1px solid var(--borde); border-radius: .6rem; padding: .6rem .7rem;
+    display: flex; flex-direction: column; gap: .25rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+.rd-rag-card:hover { border-color: #bae6fd; box-shadow: 0 8px 18px -12px rgba(2, 132, 199, .3); }
+.rd-rag-top { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+.rd-rag-ref { font: 500 .68rem/1 var(--f-mono); color: var(--texto-3); }
+.rd-rag-title { font: 400 .82rem/1.35 var(--f-ui); color: var(--texto); }
+.rd-pildora { font: 500 .6rem/1 var(--f-ui); padding: .22rem .48rem; border-radius: 999px; border: 1px solid; flex-shrink: 0; }
+.rd-pildora--estimada { background: var(--exito-tinte); border-color: #a7f3d0; color: #047857; }
+.rd-pildora--parcial { background: var(--accion-tinte); border-color: #bae6fd; color: var(--accion-oscura); }
+.rd-pildora--desestimada { background: var(--papel-suave); border-color: var(--borde); color: var(--texto-3); }
+
+.rd-nota {
+    background: var(--accion-tinte); border: 1px solid #bae6fd; border-radius: var(--radio);
+    padding: .85rem .95rem; font: 400 .76rem/1.5 var(--f-ui); color: #0c4a6e;
+}
+.rd-nota b { color: #075985; }
+
+/* Explicación preliminar (resumen en serif) + puntos a favor / en contra */
+.rd-brief-summary {
+    font: 400 .95rem/1.5 var(--f-display); font-style: italic;
+    color: var(--tinta); margin: .85rem 0 0;
+}
+.rd-brief-summary b { font-style: normal; font-weight: 700; }
+.rd-brief-sec { margin-top: 1.05rem; padding-top: .9rem; border-top: 1px solid var(--borde-suave); }
+.rd-brief-sec-title {
+    display: flex; align-items: center; gap: .45rem;
+    font: 600 .82rem/1 var(--f-ui); margin-bottom: .55rem;
+}
+.rd-brief-sec-title.is-pos { color: #047857; }
+.rd-brief-sec-title.is-neg { color: #b91c1c; }
+.rd-brief-sec-title .mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.05rem; height: 1.05rem; border-radius: 999px; font-size: .68rem; font-weight: 700;
+}
+.is-pos .mark { background: #dcfce7; color: #047857; }
+.is-neg .mark { background: #fee2e2; color: #b91c1c; }
+.rd-brief-list { margin: 0; padding-left: 1.05rem; font: 400 .8rem/1.5 var(--f-ui); color: var(--texto-2); }
+.rd-brief-list li { margin-bottom: .3rem; }
+.rd-brief-list b { color: var(--tinta); font-weight: 600; }
+
+/* ─────────────────────────────────────────────────────────────
+   ESTADO — piezas compartidas (chip + recorrido de 3 nodos)
+   ───────────────────────────────────────────────────────────── */
+.rd-state-chip {
+    display: inline-flex; align-items: center; gap: .45rem;
+    font: 600 .68rem/1 var(--f-mono); letter-spacing: .02em;
+    color: var(--accion-oscura);
+    background: var(--accion-tinte); border: 1px solid #bae6fd;
+    padding: .3rem .55rem; border-radius: 999px;
+}
+.rd-state-dot { width: .5rem; height: .5rem; border-radius: 50%; background: var(--accion-viva); }
+@media (prefers-reduced-motion: no-preference) {
+    .rd-state-dot { animation: rd-pulse 2s ease-in-out infinite; }
+    @keyframes rd-pulse { 50% { opacity: .35; } }
+}
+
+/* Recorrido: borrador ● ── presentada ○ ── respuesta ○ */
+.rd-rail { display: flex; align-items: flex-start; }
+.rd-rail-step { display: flex; flex-direction: column; align-items: center; gap: .3rem; flex: 0 0 auto; }
+.rd-rail-node {
+    width: .7rem; height: .7rem; border-radius: 50%;
+    border: 2px solid #cbd5e1; background: #fff; box-sizing: border-box;
+}
+.rd-rail-step.is-active .rd-rail-node { border-color: var(--accion); background: var(--accion); box-shadow: 0 0 0 3px rgba(2, 132, 199, .15); }
+.rd-rail-label { font: 500 .6rem/1 var(--f-mono); color: var(--texto-3); white-space: nowrap; }
+.rd-rail-step.is-active .rd-rail-label { color: var(--accion-oscura); }
+.rd-rail-line { flex: 1; height: 2px; background: var(--borde); margin: .32rem .35rem 0; border-radius: 2px; min-width: 1.5rem; }
+
+/* ── A · «Expediente»: masthead pegajoso arriba del chat ─────── */
+.rd-masthead {
+    position: sticky; top: 0; z-index: 2;
+    background: linear-gradient(180deg, #fff 70%, rgba(255, 255, 255, .92));
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--borde);
+    padding: .95rem 1.25rem;
+    display: flex; flex-direction: column; gap: .7rem;
+    margin: -1.25rem -1.25rem .25rem;   /* sangra al borde del .rd-stream */
+}
+.rd-masthead-top { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.rd-masthead-law { font: 400 .68rem/1.3 var(--f-mono); color: var(--texto-3); }
+.rd-masthead-law b { color: var(--texto-2); font-weight: 600; }
+
+/* ── B · «Línea de trámite»: eventos en un hilo vertical ─────── */
+.rd-thread { position: relative; display: flex; flex-direction: column; gap: 1rem; padding-left: 1.6rem; }
+/* Centro del nodo: padding-left(1.6) + left(-1.2) + radio(.33) = .73rem;
+   la línea (2px) se centra ahí → left = .73 - 1px ≈ .667rem. */
+.rd-thread::before {
+    content: ""; position: absolute; left: .667rem; top: .3rem; bottom: .3rem;
+    width: 2px; background: var(--borde-suave); border-radius: 2px;
+}
+.rd-thread > * { position: relative; }
+/* Nodo (punto sobre el hilo) para cada hito de eventos y para el estado vivo */
+.rd-event::before, .rd-event--live::before {
+    content: ""; position: absolute; left: -1.2rem;
+    width: .66rem; height: .66rem; border-radius: 50%;
+    background: #fff; border: 2px solid #cbd5e1; box-sizing: border-box;
+}
+.rd-event::before { top: .25rem; }
+.rd-event-text { font: 500 .68rem/1 var(--f-mono); color: var(--texto-3); }
+/* El nodo vivo = estado actual */
+.rd-event--live {
+    display: flex; flex-direction: column; gap: .55rem;
+    padding: .75rem .85rem; background: var(--accion-tinte);
+    border: 1px solid #bae6fd; border-radius: .7rem;
+}
+.rd-event--live::before { top: 1.1rem; border-color: var(--accion); background: var(--accion); box-shadow: 0 0 0 3px rgba(2, 132, 199, .15); }
+.rd-event-help { font: 400 .76rem/1.45 var(--f-ui); color: #0c4a6e; }
+
+/* ── C · «Tarjeta de estado»: mensaje-tarjeta fijado ─────────── */
+.rd-statuscard {
+    align-self: stretch;
+    border: 1px solid #bae6fd; border-radius: .9rem;
+    background: linear-gradient(180deg, var(--accion-tinte), #fff);
+    padding: .9rem 1rem;
+    display: flex; flex-direction: column; gap: .7rem;
+    box-shadow: 0 10px 26px -18px rgba(2, 132, 199, .4);
+}
+.rd-statuscard-top { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.rd-statuscard-pin { display: inline-flex; align-items: center; gap: .3rem; font: 500 .62rem/1 var(--f-mono); color: var(--accion-oscura); }
+.rd-statuscard-pin svg { width: .8rem; height: .8rem; }
+.rd-statuscard-next {
+    display: flex; align-items: center; gap: .45rem;
+    font: 400 .78rem/1.4 var(--f-ui); color: #0c4a6e;
+    padding-top: .6rem; border-top: 1px dashed #bae6fd;
+}
+.rd-statuscard-next svg { width: .95rem; height: .95rem; color: var(--accion); flex-shrink: 0; }
+.rd-statuscard-next b { color: #075985; font-weight: 600; }

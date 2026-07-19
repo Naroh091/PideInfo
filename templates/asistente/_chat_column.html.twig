@@ -1,0 +1,43 @@
+{# Columna de chat reutilizable (historial + hoja de papel + composer), SIN la
+   sidebar de informe. Extraída de conversacion.html.twig para poder embeber el
+   componente en otros sitios (p. ej. el chat de consulta libre de la vista
+   detalle). El controlador Stimulus `assistant-chat` queda en modo hoja
+   (`canvasOutletSelector` sin poner). La sidebar está desacoplada (dispatch
+   unidireccional `draft-applied`), así que omitirla no requiere cambios de JS.
+
+   Variables:
+     flow        — 'consult' (u otro flujo de hoja HTML)
+     endpointUrl — ruta SSE del flujo
+     request     — AccessRequest
+     chatHistory — turnos persistidos a renderizar en servidor (opcional) #}
+<div data-controller="assistant-chat"
+     data-assistant-chat-endpoint-url-value="{{ endpointUrl }}"
+     data-assistant-chat-flow-value="{{ flow }}"
+     data-assistant-chat-is-reg-value="false"
+     data-assistant-chat-anonymous-value="false"
+     data-assistant-chat-has-draft-value="false">
+
+    <div class="conv-col conv-col--embedded">
+        <div class="conv-history" data-assistant-chat-target="history">
+            {% include 'asistente/_history.html.twig' with {chatHistory: chatHistory|default([])} %}
+        </div>
+
+        {% include 'asistente/_composer.html.twig' %}
+    </div>
+
+    {# El HTML actual de la hoja viaja en cada turno para permitir reescrituras. #}
+    <input type="hidden" name="currentBodyHtml" value="" data-assistant-chat-target="extra">
+
+    <template data-assistant-chat-target="introTemplate">
+        {% if flow == 'consult' %}
+            <div class="chat-turn chat-turn-assistant">
+                <div class="chat-bubble-text chat-md"><p>Puedo resolver dudas sobre este expediente y redactarte el escrito que necesites: una reclamación, una respuesta a una subsanación, alegaciones o un documento a medida. ¿Con qué te ayudo?</p></div>
+            </div>
+        {% else %}
+            {% include 'asistente/_intro_choice.html.twig' %}
+        {% endif %}
+    </template>
+    <template data-assistant-chat-target="sheetTemplate">
+        {% include 'asistente/_paper_sheet.html.twig' with {flow: flow, prefill: false} %}
+    </template>
+</div>

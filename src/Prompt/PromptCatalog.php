@@ -34,6 +34,7 @@ final class PromptCatalog
             ['name' => 'pideinfo-complaint-generate-complaint-chat', 'commitMessage' => 'Chat scaffold: draft complaint (agent uses search_resolutions per argument)'],
             ['name' => 'pideinfo-complaint-generate-alegation-response-chat', 'commitMessage' => 'Chat scaffold: response to alegaciones (agent uses search_resolutions per argument)'],
             ['name' => 'pideinfo-request-generate-request-chat', 'commitMessage' => 'Chat scaffold: draft access request'],
+            ['name' => 'pideinfo-consult-generate-doc-chat', 'commitMessage' => 'Chat scaffold: free consultation + inline document generation'],
             ['name' => 'pideinfo-activity-summary-24h', 'commitMessage' => '24-hour AI activity summary shown on the home dashboard'],
             // Agentic drafting tools (Issues #90 + #91)
             ['name' => 'pideinfo-resolution-keypoints-screen', 'commitMessage' => 'Agent: quick keypoints pre-filter before full-text resolution review'],

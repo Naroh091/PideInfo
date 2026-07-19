@@ -10,6 +10,7 @@ use App\Prompt\PromptStore;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\AI\Moderation\AnonymousModerationGuard;
+use App\Service\AI\Moderation\ModerationContext;
 use App\Service\AI\Moderation\ModerationStage;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
@@ -122,5 +123,45 @@ class AnonymousModerationGuardTest extends TestCase
         $this->assertNotNull($captured);
         // The bundled output prompt is the one that got compiled (mentions "BORRADOR A REVISAR").
         $this->assertStringContainsString('BORRADOR A REVISAR', $captured->systemPrompt);
+    }
+
+    public function testInputContextBlockAppearsInCompiledPrompt(): void
+    {
+        $captured = null;
+        $llm = $this->createMock(LlmClient::class);
+        $llm->method('chatJson')->willReturnCallback(function (ChatRequest $r) use (&$captured) {
+            $captured = $r;
+
+            return ['allowed' => true, 'category' => 'clean'];
+        });
+
+        $context = new ModerationContext(true, 'He redactado una solicitud sobre los expedientes 12/2024.');
+        $this->guard($llm)->moderate(
+            '¿Qué dice la LCSP que debe contener el expediente?',
+            ModerationStage::Input,
+            $context,
+        );
+
+        $this->assertNotNull($captured);
+        $this->assertStringContainsString('Borrador en curso: sí', $captured->systemPrompt);
+        $this->assertStringContainsString('expedientes 12/2024', $captured->systemPrompt);
+        $this->assertStringNotContainsString('{{context}}', $captured->systemPrompt);
+    }
+
+    public function testNullContextLeavesNoContextBlock(): void
+    {
+        $captured = null;
+        $llm = $this->createMock(LlmClient::class);
+        $llm->method('chatJson')->willReturnCallback(function (ChatRequest $r) use (&$captured) {
+            $captured = $r;
+
+            return ['allowed' => true, 'category' => 'clean'];
+        });
+
+        $this->guard($llm)->moderate('hola', ModerationStage::Input);
+
+        $this->assertNotNull($captured);
+        $this->assertStringNotContainsString('Borrador en curso', $captured->systemPrompt);
+        $this->assertStringNotContainsString('{{context}}', $captured->systemPrompt);
     }
 }

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redacción · Opción A «Expediente» — PideInfo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="redactar.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="contenedor nav-fila">
+        <div class="nav-izq">
+            <a href="#" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="#" class="nav-enlace"><i data-lucide="home"></i> Inicio</a>
+                <a href="#" class="nav-enlace"><i data-lucide="scale"></i> Repositorio</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="nav-login">Guardar y salir</a>
+        </div>
+    </div>
+</nav>
+
+<main class="rd-main">
+    <div class="rd-wrap">
+        <header class="rd-band">
+            <p class="rd-band-eyebrow">Opción A · «Expediente» — el estado como cabecera fija del chat</p>
+            <h1 class="rd-band-title">Redacta tu solicitud para <em>Ministerio de Transportes y Movilidad Sostenible</em></h1>
+        </header>
+
+        <div class="rd-layout">
+            <!-- ── Columna de chat ── -->
+            <div class="rd-chat">
+                <div class="rd-stream">
+
+                    <!-- ESTADO (A): masthead pegajoso arriba del chat -->
+                    <div class="rd-masthead">
+                        <div class="rd-masthead-top">
+                            <span class="rd-state-chip"><span class="rd-state-dot"></span> Borrador · sin presentar</span>
+                            <span class="rd-masthead-law">Ley 19/2013 · <b>20 días hábiles</b> al presentar</span>
+                        </div>
+                        <div class="rd-rail">
+                            <div class="rd-rail-step is-active"><span class="rd-rail-node"></span><span class="rd-rail-label">Borrador</span></div>
+                            <span class="rd-rail-line"></span>
+                            <div class="rd-rail-step"><span class="rd-rail-node"></span><span class="rd-rail-label">Presentada</span></div>
+                            <span class="rd-rail-line"></span>
+                            <div class="rd-rail-step"><span class="rd-rail-node"></span><span class="rd-rail-label">Respuesta</span></div>
+                        </div>
+                    </div>
+
+                    <div class="rd-turn rd-turn--assistant">
+                        <span class="rd-turn-label">Asistente</span>
+                        <div class="rd-bubble">Hola 👋 He preparado un primer borrador apoyándome en la <b>Ley 19/2013</b> y en resoluciones parecidas. Revísalo abajo y dime qué ajusto.</div>
+                    </div>
+
+                    <div class="rd-turn rd-turn--user">
+                        <span class="rd-turn-label">Tú</span>
+                        <div class="rd-bubble">Quiero los contratos de conservación de carreteras de 2023 y 2024, con importe y adjudicatario.</div>
+                    </div>
+
+                    <!-- La hoja de papel (borrador editable) dentro del chat -->
+                    <div class="rd-hoja">
+                        <div class="rd-hoja-meta">
+                            <span class="rd-hoja-pill rd-hoja-pill--canal">Portal Transparencia</span>
+                            <span class="rd-hoja-pill rd-hoja-pill--ley">Ley 19/2013</span>
+                            <span class="rd-hoja-pill">AGE</span>
+                        </div>
+                        <p class="rd-hoja-linea"><b>A/A:</b> Ministerio de Transportes y Movilidad Sostenible</p>
+                        <p class="rd-hoja-linea"><b>ASUNTO:</b> Contratos de conservación de carreteras 2023–2024</p>
+                        <p class="rd-hoja-linea"><b>EXPONE:</b> Que, al amparo del artículo 17 de la Ley 19/2013, de 9 de diciembre, de transparencia, acceso a la información pública y buen gobierno,</p>
+                        <p class="rd-hoja-linea"><b>SOLICITA:</b> La relación de contratos de conservación y explotación de carreteras adjudicados en 2023 y 2024, con importe, adjudicatario y criterios de adjudicación.</p>
+                        <div class="rd-hoja-foot">
+                            <span class="rd-hoja-state">✓ Guardado</span>
+                            <div class="rd-hoja-cta">
+                                <a class="rd-btn rd-btn--secundario"><i data-lucide="file-down"></i> Descargar PDF</a>
+                                <a class="rd-btn rd-btn--primario"><i data-lucide="send"></i> Enviar al organismo</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Composer con el arreglo de botones + drop-zone -->
+                <div class="rd-composer">
+                    <div class="rd-composer-chips">
+                        <span class="rd-chip">informe-2024.pdf <button class="rd-chip-x" aria-label="Quitar">×</button></span>
+                    </div>
+                    <div class="rd-input-row">
+                        <button class="rd-icon-btn rd-attach" title="Adjuntar archivo"><i data-lucide="paperclip"></i></button>
+                        <textarea class="rd-input" rows="3" aria-label="Mensaje">Añade también los criterios de adjudicación de cada contrato
+y el importe final tras las modificaciones,
+si las hubo.</textarea>
+                        <button class="rd-icon-btn rd-send" title="Enviar"><i data-lucide="send"></i></button>
+                    </div>
+                    <p class="rd-disclaimer">Arrastra archivos aquí o púlsalos con el clip. Se usan solo en esta conversación y no se guardan.</p>
+                    <div class="rd-dropzone"><i data-lucide="upload"></i> Suelta los archivos aquí</div>
+                </div>
+            </div>
+
+            <!-- ── Informe preliminar ── -->
+            <aside class="rd-side">
+                <section class="rd-panel">
+                    <div class="rd-panel-label"><i data-lucide="gavel"></i> Informe preliminar</div>
+                    <div class="rd-prob"><span class="rd-prob-num">62%</span><span class="rd-prob-tag">probabilidad estimada</span></div>
+                    <div class="rd-prob-bar"><span class="rd-prob-fill" style="width:62%"></span></div>
+                    <p class="rd-prob-note">Si se reclamara, en casos parecidos el Consejo de Transparencia estimó la petición.</p>
+                </section>
+
+                <section class="rd-panel">
+                    <div class="rd-panel-label"><i data-lucide="library"></i> Resoluciones similares</div>
+                    <div class="rd-rag">
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">R/0155/2021</span><span class="rd-pildora rd-pildora--estimada">Estimada</span></div>
+                            <span class="rd-rag-title">Contratos de emergencia — Ministerio de Hacienda</span>
+                        </div>
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">RT 0389/2024</span><span class="rd-pildora rd-pildora--parcial">Parcial</span></div>
+                            <span class="rd-rag-title">Retribuciones de altos cargos — Generalitat</span>
+                        </div>
+                        <div class="rd-rag-card">
+                            <div class="rd-rag-top"><span class="rd-rag-ref">CTBG 118/2025</span><span class="rd-pildora rd-pildora--desestimada">Desestimada</span></div>
+                            <span class="rd-rag-title">Agendas de reuniones — Ministerio del Interior</span>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="rd-nota"><b>Importante:</b> el corpus solo cubre solicitudes que escalaron a reclamación. Una probabilidad baja no significa que la solicitud sea mala.</div>
+            </aside>
+        </div>
+    </div>
+</main>
+
+<script>
+    lucide.createIcons();
+    document.querySelectorAll('.rd-input').forEach(t => {
+        const grow = () => { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 192) + 'px'; };
+        t.addEventListener('input', grow); grow();
+    });
+    document.querySelectorAll('.rd-composer').forEach(c => {
+        ['dragenter', 'dragover'].forEach(e => c.addEventListener(e, ev => { ev.preventDefault(); c.classList.add('is-dragover'); }));
+        ['dragleave', 'drop'].forEach(e => c.addEventListener(e, ev => { ev.preventDefault(); if (e === 'drop' || !c.contains(ev.relatedTarget)) c.classList.remove('is-dragover'); }));
+    });
+</script>
+</body>
+</html>

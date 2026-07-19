@@ -9,6 +9,7 @@ use App\Prompt\PromptStore;
 use App\Repository\UserNotificationRepository;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
+use App\Service\Deadline\UpcomingDeadlineCollector;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -25,8 +26,32 @@ final class ActivitySummarizer
     /** Total character budget enforced both via prompt and post-hoc trimming. */
     public const MAX_CHARS = 1200;
 
+    /**
+     * Bumped whenever the output contract changes (e.g. the structured items
+     * added for the redesigned panel): folded into the fingerprint so every
+     * cached summary regenerates under the new contract.
+     */
+    private const FORMAT_VERSION = 5;
+
+    /** Hard cap on structured items — the dashboard card is a shortlist, not a feed. */
+    private const MAX_ITEMS = 6;
+
+    /** Hard cap on solicitudes per item — the «Ver» dialog is a peek, not a listing. */
+    private const MAX_ITEM_UUIDS = 12;
+
+    private const ITEM_KINDS = ['estimacion', 'alegaciones', 'silencio', 'inadmision', 'denegacion', 'caducidad', 'otro'];
+    private const ITEM_SEVERITIES = ['exito', 'aviso', 'fallo', 'curso', 'neutro'];
+
+    /**
+     * Look-ahead window for the "lo que viene" prompt context. Matches the
+     * DeadlineAlerts default so the closing sentence and the alerts card talk
+     * about the same deadlines.
+     */
+    public const UPCOMING_DAYS = 7;
+
     public function __construct(
         private readonly UserNotificationRepository $notificationRepository,
+        private readonly UpcomingDeadlineCollector $deadlineCollector,
         private readonly LlmClient $llmClient,
         private readonly PromptStore $promptStore,
         private readonly LoggerInterface $logger,
@@ -42,38 +67,56 @@ final class ActivitySummarizer
     }
 
     /**
-     * sha1 of the ordered notification UUIDs + the generation parameters the
-     * cached summary was built with. If this changes vs. what we have in
-     * cache, the summary is stale and gets regenerated.
+     * sha1 of the ordered notification UUIDs + the upcoming-deadlines state +
+     * the generation parameters the cached summary was built with. If this
+     * changes vs. what we have in cache, the summary is stale and gets
+     * regenerated.
      *
      * The MAX_CHARS suffix makes any change to the budget auto-invalidate
      * existing caches — without it, bumping the cap had no effect on users
      * whose 24 h notification set hadn't changed.
      *
+     * The upcoming part serializes id + date + daysUntil: daysUntil shrinks
+     * every day, so a user with deadlines in the window regenerates at most
+     * once per day even without new notifications — deliberate, the closing
+     * "quedan N días" must not go stale.
+     *
      * @param UserNotification[] $notifications
      */
-    public function fingerprint(array $notifications): string
+    public function fingerprint(User $user, array $notifications): string
     {
         $ids = array_map(static fn (UserNotification $n) => (string) $n->getId(), $notifications);
         sort($ids);
-        return sha1(implode('|', $ids) . '||v=' . self::MAX_CHARS);
+
+        $upcoming = array_map(
+            static fn (array $a) => sprintf('%s:%s:%d', $a['id'], $a['deadlineAt']->format('Y-m-d'), $a['daysUntil']),
+            $this->deadlineCollector->collect($user, self::UPCOMING_DAYS),
+        );
+        sort($upcoming);
+
+        return sha1(implode('|', $ids) . '||up=' . implode('|', $upcoming) . '||v=' . self::MAX_CHARS . '||fmt=' . self::FORMAT_VERSION);
     }
 
     /**
-     * Generate the HTML summary for a user. Returns `null` when there are no
+     * Generate the summary for a user. Returns `null` when there are no
      * notifications in the window or the LLM call fails. On success returns
-     * trusted HTML restricted to <b>/<i> plus inline `<a>` badges that link to
-     * the mentioned solicitudes, capped at MAX_CHARS (text + badges).
+     * the narrative HTML (restricted to <b>/<i> plus inline `<a>` badges that
+     * link to the mentioned solicitudes, capped at MAX_CHARS) together with
+     * the sanitized structured items for the dashboard.
      */
-    public function summarize(User $user, \DateTimeImmutable $since): ?string
+    public function summarize(User $user, \DateTimeImmutable $since): ?SummaryResult
     {
         $notifications = $this->notificationsSince($user, $since);
         if ($notifications === []) {
             return null;
         }
 
+        $upcoming = $this->deadlineCollector->collect($user, self::UPCOMING_DAYS);
+
         // Whitelist of solicitud UUIDs the model is allowed to reference. Anything
-        // outside this set in `references` gets silently dropped.
+        // outside this set in `references` gets silently dropped. Upcoming
+        // deadlines count too: the closing "lo que viene" sentence may mention
+        // a solicitud that had no notification in the window.
         $allowedUuids = [];
         foreach ($notifications as $n) {
             $req = $n->getAccessRequest();
@@ -81,8 +124,11 @@ final class ActivitySummarizer
                 $allowedUuids[(string) $req->getId()] = true;
             }
         }
+        foreach ($upcoming as $alert) {
+            $allowedUuids[$alert['id']] = true;
+        }
 
-        $prompt = $this->buildPrompt($user, $notifications);
+        $prompt = $this->buildPrompt($user, $notifications, $upcoming);
 
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
@@ -90,8 +136,8 @@ final class ActivitySummarizer
                 temperature: 1.0,
                 jsonSchema: $this->buildResponseSchema(),
                 schemaName: 'activity_summary',
-                maxOutputTokens: 1024,
-                requiredJsonKeys: ['summary', 'references'],
+                maxOutputTokens: 2048,
+                requiredJsonKeys: ['summary', 'items', 'references'],
                 label: 'activity.summary_24h',
             ));
         } catch (\Throwable $e) {
@@ -114,7 +160,82 @@ final class ActivitySummarizer
         $html = $this->trimToBudget($html, self::MAX_CHARS);
 
         $references = is_array($result['references'] ?? null) ? $result['references'] : [];
-        return $this->injectReferenceBadges($html, $references, $allowedUuids);
+        $html = $this->injectReferenceBadges($html, $references, $allowedUuids);
+
+        $items = $this->sanitizeItems(is_array($result['items'] ?? null) ? $result['items'] : [], $allowedUuids);
+
+        return new SummaryResult($html, $items);
+    }
+
+    /**
+     * Validate and sanitize the structured items: plain text only, enums
+     * enforced, UUIDs outside the whitelist dropped (the item survives without
+     * its link), hard cap at MAX_ITEMS. An item without title is
+     * discarded — there is nothing to render.
+     *
+     * @param array<int, mixed>   $items
+     * @param array<string, true> $allowedUuids
+     *
+     * @return list<array<string, string|list<string>>>
+     */
+    private function sanitizeItems(array $items, array $allowedUuids): array
+    {
+        $clean = [];
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $text = static fn (string $key, int $max): string => mb_substr(trim(strip_tags((string) ($item[$key] ?? ''))), 0, $max);
+
+            $title = $text('title', 120);
+            if ($title === '') {
+                continue;
+            }
+
+            $kind = (string) ($item['kind'] ?? '');
+            $severity = (string) ($item['severity'] ?? '');
+
+            $entry = [
+                'kind' => in_array($kind, self::ITEM_KINDS, true) ? $kind : 'otro',
+                'severity' => in_array($severity, self::ITEM_SEVERITIES, true) ? $severity : 'neutro',
+                'title' => $title,
+                'detail' => $text('detail', 160),
+                'action' => $text('action', 40),
+            ];
+
+            // `uuids` (lista) es el contrato actual; se acepta también el
+            // `uuid` singular por si el modelo recae en el formato viejo.
+            $rawUuids = is_array($item['uuids'] ?? null) ? $item['uuids'] : [];
+            if (isset($item['uuid'])) {
+                $rawUuids[] = $item['uuid'];
+            }
+            $uuids = [];
+            foreach ($rawUuids as $uuid) {
+                $uuid = trim((string) $uuid);
+                if ($uuid !== ''
+                    && isset($allowedUuids[$uuid])
+                    && !in_array($uuid, $uuids, true)
+                    && preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid)
+                ) {
+                    $uuids[] = $uuid;
+                    if (count($uuids) >= self::MAX_ITEM_UUIDS) {
+                        break;
+                    }
+                }
+            }
+            if ($uuids !== []) {
+                $entry['uuids'] = $uuids;
+            }
+
+            $clean[] = $entry;
+            if (count($clean) >= self::MAX_ITEMS) {
+                break;
+            }
+        }
+
+        return $clean;
     }
 
     /**
@@ -128,6 +249,43 @@ final class ActivitySummarizer
                 'summary' => [
                     'type' => 'string',
                     'description' => 'Resumen 1-2 párrafos en HTML restringido a <b> e <i>. Máximo 1200 caracteres totales.',
+                ],
+                'items' => [
+                    'type' => 'array',
+                    'description' => 'De 0 a 6 items estructurados: lo destacable/accionable del parte, uno por asunto. Sin HTML.',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'kind' => [
+                                'type' => 'string',
+                                'enum' => self::ITEM_KINDS,
+                                'description' => 'Categoría del item.',
+                            ],
+                            'severity' => [
+                                'type' => 'string',
+                                'enum' => self::ITEM_SEVERITIES,
+                                'description' => 'Semáforo: exito (estimaciones), aviso (plazos que corren), fallo (silencio/inadmisión/denegación), curso (trámite normal), neutro (caducidades, recordatorios).',
+                            ],
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'Titular de la fila de acción, ≤120 caracteres: «Reclamación estimada — exige la entrega». Si el item agrupa varias, incluye la cifra: «3 solicitudes en silencio administrativo».',
+                            ],
+                            'detail' => [
+                                'type' => 'string',
+                                'description' => 'Contexto breve: solicitud · organismo · dato clave.',
+                            ],
+                            'uuids' => [
+                                'type' => 'array',
+                                'items' => ['type' => 'string'],
+                                'description' => 'UUIDs de las solicitudes del item (de los que aparecen entre llaves en el input). En items agrupados, TODAS las del grupo. Vacío solo si el item no refiere solicitudes concretas.',
+                            ],
+                            'action' => [
+                                'type' => 'string',
+                                'description' => 'Verbo corto de la acción: «Ver resolución», «Redactar alegaciones», «Reclamar», «Valorar», «Reactivar».',
+                            ],
+                        ],
+                        'required' => ['kind', 'severity', 'title'],
+                    ],
                 ],
                 'references' => [
                     'type' => 'array',
@@ -148,14 +306,15 @@ final class ActivitySummarizer
                     ],
                 ],
             ],
-            'required' => ['summary', 'references'],
+            'required' => ['summary', 'items', 'references'],
         ];
     }
 
     /**
-     * @param UserNotification[] $notifications
+     * @param UserNotification[]                       $notifications
+     * @param list<array<string, mixed>>               $upcoming      Alerts from UpcomingDeadlineCollector.
      */
-    private function buildPrompt(User $user, array $notifications): CompiledPrompt
+    private function buildPrompt(User $user, array $notifications, array $upcoming): CompiledPrompt
     {
         $context = sprintf(
             'Usuario: %s. Total de eventos en la ventana: %d.',
@@ -166,8 +325,17 @@ final class ActivitySummarizer
         $lines = [];
         foreach ($notifications as $n) {
             $req = $n->getAccessRequest();
+            // «YA RECLAMADA»: el modelo no debe sugerir reclamar lo que ya
+            // está en vía de reclamación (el silencio reclamado deja de ser
+            // "reclamable", aunque el estado siga siendo silencio).
             $reqLabel = $req !== null
-                ? sprintf('{%s} "%s" (%s)', $req->getId(), $req->getTitle(), $req->getPublicBody()?->getName() ?? 'organismo desconocido')
+                ? sprintf(
+                    '{%s} "%s" (%s)%s',
+                    $req->getId(),
+                    $req->getTitle(),
+                    $req->getPublicBody()?->getName() ?? 'organismo desconocido',
+                    $req->hasActiveComplaint() ? ' · YA RECLAMADA' : '',
+                )
                 : 'sin solicitud asociada';
 
             $lines[] = sprintf(
@@ -179,9 +347,26 @@ final class ActivitySummarizer
             );
         }
 
+        // "Lo que viene": the same alerts the DeadlineAlerts card shows, so the
+        // closing sentence and the dashboard talk about identical deadlines.
+        $upcomingLines = [];
+        foreach ($upcoming as $alert) {
+            $upcomingLines[] = sprintf(
+                '- [vence %s] %s · solicitud {%s} "%s" (%s)',
+                $alert['deadlineAt']->format('d/m'),
+                $alert['message'],
+                $alert['id'],
+                $alert['title'],
+                $alert['publicBody'],
+            );
+        }
+
         return $this->promptStore->compile('pideinfo-activity-summary-24h', [
             'user_context' => $context,
             'notifications_block' => implode("\n", $lines),
+            'upcoming_block' => $upcomingLines === []
+                ? '(No hay plazos en los próximos días.)'
+                : implode("\n", $upcomingLines),
         ]);
     }
 
@@ -194,7 +379,13 @@ final class ActivitySummarizer
         // converted to tags) gets stripped — the prompt asks for compliance and
         // this is the safety net. The reference `<a>` badges are added by us
         // *after* sanitization, so they don't need to be in the allow-list.
-        return trim(strip_tags($html, ['b', 'i']));
+        $html = trim(strip_tags($html, ['b', 'i']));
+
+        // strip_tags keeps ATTRIBUTES on allowed tags — and the model has been
+        // seen emitting things like <b style='color:red;'>. Attributes on
+        // LLM-authored tags rendered with |raw are an XSS surface (style, on*
+        // handlers), so the surviving <b>/<i> are reduced to their bare form.
+        return (string) preg_replace('/<(b|i)\b[^>]*>/i', '<$1>', $html);
     }
 
     /**

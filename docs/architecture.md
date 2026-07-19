@@ -248,6 +248,29 @@ El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un mode
 
 *Fuente editable: [`diagrams/search-resolutions-rag.drawio`](diagrams/search-resolutions-rag.drawio)*
 
+### Priorización de doctrina por organismo garante
+
+El retrieval RAG (`search_resolutions`, `search_criteria` y la pre-inyección de resoluciones
+similares) **prioriza** la doctrina emitida por el organismo garante competente para la
+administración reclamada **más el CTBG** (organismo de referencia para los consejos autonómicos).
+Una reclamación ante la AGE se fundamenta prioritariamente con doctrina del CTBG; una ante un
+ayuntamiento gallego, con doctrina de la Comisión de Transparencia de Galicia (CTG) **y** del CTBG.
+
+- **`DoctrinePriorityResolver`** (`src/Service/AI/`) deriva los organismos prioritarios de
+  `AccessRequest → ApplicableLaw → ComplaintOrganism`, añadiendo siempre el CTBG. Devuelve sus UUID.
+- El boost es **suave y moderado** (re-ranking, no filtro duro): `DoctrinePriorityBoostTrait`
+  resta `PRIORITY_DISTANCE_BONUS` (0,03, calibrado contra la escala real del corpus: los vecinos más
+  próximos se agrupan con gaps ~0,01–0,05) a la **distancia** coseno de los candidatos prioritarios y
+  reordena. Una resolución de otro consejo claramente más on-point (gap > bonus) todavía puede ganar.
+  **El `score` del store pgvector es DISTANCIA coseno (menor = mejor), no una similitud normalizada.**
+- La prioridad se decide con la relación **autoritativa** `Resolution/Criterion::getComplaintOrganism()`
+  (tras rehidratar desde Postgres), nunca con el metadata `source`, cuyos códigos no mapean 1:1 a los
+  `shortName` de organismo (CTAR≠CTA, CRT≠CTCLM, CTPD≠CTPDA). No requiere revectorizar.
+- Wiring por turno del agente: el controlador resuelve los UUID y los publica en
+  `AgentDoctrineContext` (espejo de `AgentProgress`, reseteado por turno) que leen las tools. Las rutas
+  no-agénticas (`SimilarResolutionsLoader`, `ComplaintGenerator`) los resuelven directamente. Aplica
+  también al flujo anónimo `/redactar`.
+
 ### Herramienta ReadRequestDocumentsTool — sub-análisis por documento
 
 ![ReadRequestDocumentsTool: análisis por documento](diagrams/png/document-processing-agent.drawio.png)
