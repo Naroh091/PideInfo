@@ -1,0 +1,138 @@
+{% extends 'layouts/public_page.html.twig' %}
+
+{# Página de envío del flujo público /redactar: el borrador está listo y el
+   visitante elige entre crear cuenta (PideInfo envía y hace seguimiento) o
+   presentarlo él mismo por la vía recomendada para su destinatario.
+
+   Contrato de variables (AnonymousDraftController::send / complaintSend):
+     flow ('request'|'complaint'), request, pdfUrl, backUrl, regUrl
+     flow=request  → generic (bool), channel ('portal'|'reg'|null),
+                     channelUrl (string|null), sedeUrl (string|null)
+     flow=complaint→ organism (ComplaintOrganism|null),
+                     complaintFormUrl (string|null),
+                     hasPdf (bool: hay HTML persistido para el GET de pdfUrl) #}
+
+{% set isRequest = flow == 'request' %}
+
+{% block title %}{{ isRequest ? 'Enviar tu solicitud' : 'Presentar tu reclamación' }} - PideInfo{% endblock %}
+
+{% block content %}
+<header class="page-header">
+    <div class="min-w-0">
+        <h1 class="page-title">
+            {{ isRequest ? 'Tu solicitud está lista para enviar' : 'Tu reclamación está lista para presentar' }}
+        </h1>
+        <p class="page-sub">
+            {% if isRequest %}
+                Dirigida a {{ request.publicBody.name }}{% if request.title %} · «{{ request.title }}»{% endif %}
+            {% else %}
+                Frente a {{ request.publicBody.name }}{% if organism %} · se presenta ante {{ organism.name }}{% endif %}
+            {% endif %}
+        </p>
+    </div>
+    <a href="{{ backUrl }}" class="btn btn-secondary">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Volver al borrador
+    </a>
+</header>
+
+<div class="grid lg:grid-cols-2 gap-6 mt-6">
+
+    {# ── a) Con PideInfo ──────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl border-2 border-sky-200 p-6 flex flex-col">
+        <span class="inline-flex items-center gap-1.5 text-sm font-medium text-sky-700 mb-3">
+            <i data-lucide="sparkles" class="w-4 h-4"></i> Recomendado
+        </span>
+        <h2 class="text-lg font-semibold text-slate-900 mb-2">Envíala con PideInfo</h2>
+        <p class="text-sm text-slate-600 leading-relaxed">
+            {% if isRequest %}
+                Crea una cuenta gratuita y la presentamos por ti. Además hacemos el
+                seguimiento automático: vigilamos el plazo de respuesta, te avisamos si hay
+                silencio administrativo y te ayudamos a reclamar si no contestan.
+            {% else %}
+                Crea una cuenta gratuita y presentamos la reclamación ante
+                {{ organism ? organism.name : 'el consejo de transparencia competente' }} por ti,
+                con seguimiento automático de la tramitación y aviso en cada cambio.
+            {% endif %}
+        </p>
+        <div class="mt-auto pt-5 flex flex-wrap items-center gap-4">
+            <a href="{{ path('app_register') }}" class="btn btn-primary">
+                <i data-lucide="user-plus" class="w-4 h-4 mr-2"></i> Crear cuenta y enviar
+            </a>
+            <a href="{{ path('app_login') }}" class="text-sm text-slate-600 underline underline-offset-2 hover:text-slate-900">
+                Ya tengo cuenta
+            </a>
+        </div>
+    </section>
+
+    {# ── b) Manual ────────────────────────────────────────────────── #}
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col">
+        <h2 class="text-lg font-semibold text-slate-900 mb-2 mt-8">Envíala tú mismo</h2>
+
+        <ol class="space-y-4 text-sm text-slate-600 leading-relaxed">
+            <li class="flex gap-3">
+                <span class="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center">1</span>
+                <div>
+                    Descarga el documento en PDF.
+                    <div class="mt-2">
+                        {% if isRequest %}
+                            <a href="{{ pdfUrl }}" class="btn btn-outline">
+                                <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
+                            </a>
+                        {% elseif hasPdf %}
+                            <a href="{{ pdfUrl }}" class="btn btn-outline">
+                                <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
+                            </a>
+                        {% else %}
+                            <a href="{{ backUrl }}" class="btn btn-outline">
+                                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Vuelve al chat para generar el borrador
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </li>
+            <li class="flex gap-3">
+                <span class="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center">2</span>
+                <div>Accede al registro con <strong>Cl@ve</strong> o certificado electrónico.</div>
+            </li>
+            <li class="flex gap-3">
+                <span class="shrink-0 w-6 h-6 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs flex items-center justify-center">3</span>
+                <div>
+                    {% if isRequest and not generic and channel == 'portal' %}
+                        Preséntala en el <a href="{{ channelUrl }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">Portal de la Transparencia</a>:
+                        el formulario ya va dirigido a {{ request.publicBody.name }}. Adjunta el PDF
+                        o pega su contenido en el formulario.
+                    {% elseif isRequest and not generic %}
+                        Preséntala en el <a href="{{ channelUrl }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">Registro Electrónico General</a>
+                        (rec.redsara.es), dirigida a {{ request.publicBody.name }}, adjuntando el PDF.
+                    {% elseif isRequest %}
+                        Cuando sepas el organismo, escribe su nombre en la línea «A/A:» del PDF
+                        (va en blanco para eso) y preséntalo por cualquiera de estas vías:
+                        el <a href="https://transparencia.sede.gob.es" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">Portal de la Transparencia</a>
+                        si es un organismo estatal adherido, el
+                        <a href="{{ regUrl }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">Registro Electrónico General</a>
+                        (rec.redsara.es, válido para cualquier administración) o la sede
+                        electrónica del propio organismo.
+                    {% elseif complaintFormUrl %}
+                        Preséntala en el <a href="{{ complaintFormUrl }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">formulario de reclamaciones de {{ organism.name }}</a>,
+                        adjuntando el PDF y la resolución (o la solicitud sin respuesta) que reclamas.
+                    {% else %}
+                        Preséntala ante el consejo de transparencia competente a través del
+                        <a href="{{ regUrl }}" target="_blank" rel="noopener noreferrer" class="font-medium text-sky-700 underline underline-offset-2">Registro Electrónico General</a>
+                        (rec.redsara.es), adjuntando el PDF y la resolución (o la solicitud
+                        sin respuesta) que reclamas.
+                    {% endif %}
+                </div>
+            </li>
+        </ol>
+
+        {% if isRequest and not generic %}
+            <p class="text-xs text-slate-500 mt-5 pt-4 border-t border-slate-100">
+                Te recomendamos esta vía por comodidad: es una interfaz unificada para
+                cualquier administración. También puedes presentar la solicitud en la
+                sede electrónica de {{ request.publicBody.name }}{% if sedeUrl %}
+                (<a href="{{ sedeUrl }}" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">{{ sedeUrl|replace({'https://': '', 'http://': ''})|u.truncate(40) }}</a>){% endif %} — el efecto legal es el mismo.
+            </p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

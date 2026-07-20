@@ -1,8 +1,8 @@
 {# Sidebar derecho de la conversación: informe preliminar (probabilidad +
    resoluciones similares vía rag-card) y, en reclamaciones, las alegaciones
-   de la administración y el picker de documentos de contexto.
-   Variables: flow, request, isMultiOrganism, isAlegation, alegacionesDoc,
-   availableDocuments. #}
+   de la administración. Los documentos del expediente ya no se marcan aquí:
+   el agente los lee bajo demanda con `read_request_documents`.
+   Variables: flow, request, isMultiOrganism, isAlegation, alegacionesDoc. #}
 {# .conv-side estira la celda del grid; .brief (sticky) viaja dentro de ella
    acompañando el scroll de la conversación. #}
 <div class="conv-side">
@@ -53,23 +53,6 @@
                     <div class="alegation-pt"><span class="num">{{ loop.index }}</span><span>{{ point }}</span></div>
                 {% endfor %}
             </div>
-        </section>
-    {% endif %}
-
-    {% if flow == 'complaint' and availableDocuments|default([])|length > 0 %}
-        <section class="panel">
-            <div class="panel-label"><i data-lucide="files" class="w-3.5 h-3.5"></i> Documentos como contexto</div>
-            <p class="text-xs mb-2" style="color:#64748b;font-family:'DM Sans',sans-serif;">Los documentos marcados se enviarán al modelo como evidencia primaria.</p>
-            {% for doc in availableDocuments %}
-                <label class="file-row cursor-pointer">
-                    <input type="checkbox" value="{{ doc.id }}" data-doc-pick
-                           {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}>
-                    <div class="min-w-0">
-                        <p class="file-name truncate">{{ doc.originalFilename }}</p>
-                        <p class="file-meta">{{ doc.typeLabel }} · {{ doc.fileSizeFormatted }}</p>
-                    </div>
-                </label>
-            {% endfor %}
         </section>
     {% endif %}
 

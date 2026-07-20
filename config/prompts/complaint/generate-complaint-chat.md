@@ -21,7 +21,7 @@ Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas).
 Desarrolla la fundamentación basándote en:
 - {{applicable_law_name}}
 - Las resoluciones encontradas mediante la herramienta `search_resolutions` — solo si son REALMENTE relevantes
-- Los documentos del expediente (ver abajo) — son tu fuente PRIMARIA de hechos
+- Los documentos del expediente (léelos con `read_request_documents`) — son tu fuente PRIMARIA de hechos
 
 ### FLUJO DE TRABAJO OBLIGATORIO ANTES DE REDACTAR
 
@@ -111,7 +111,7 @@ Redacta la petición formal al {{transparency_council}} solicitando que estime l
 
 ## DOCUMENTOS DEL EXPEDIENTE
 
-A continuación se incluyen los documentos adjuntos al expediente. Úsalos como fuente PRIMARIA de hechos:
+Los documentos adjuntos al expediente se leen con la herramienta `read_request_documents`. Úsalos como fuente PRIMARIA de hechos:
 - La resolución/denegación contiene los argumentos de la Administración que debes refutar.
 - Los acuses de recibo y inicio de tramitación contienen fechas clave.
 - Las alegaciones de la administración son los argumentos que debes rebatir.

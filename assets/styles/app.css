@@ -463,13 +463,25 @@ body {
   margin: 0;
 }
 
+/* Rotación del hero en tándem con la hoja: el bloque eyebrow+titular+sub
+   funde al cambiar de caso (el JS quita la clase tras repintar). El
+   min-height en escritorio amortigua el salto de los CTA entre preguntas
+   de 2 y 3 líneas. */
+.home-hero-rota { transition: opacity .28s ease; }
+.home-hero-rota.is-cambiando { opacity: 0; }
+@media (min-width: 1024px) {
+  .home-hero-rota { min-height: 17.5rem; }
+}
+
 /* El rotulador: subrayado ámbar editorial, reutilizable en cabeceras y
-   momentos editoriales (una palabra por vista). Base estática; el barrido
-   de carga es un floreo de hero y vive en el modificador `--barrido`.
-   Móvil: highlight por background (soporta salto de línea con
-   box-decoration-break). ≥640px: rect posicionado. */
+   momentos editoriales (una frase por vista). Highlight por background con
+   box-decoration-break en TODOS los anchos: las marcas largas de las
+   variantes del hero deben poder partir de línea — el antiguo rect
+   posicionado exigía white-space:nowrap y desbordaba la columna metiendo
+   el titular bajo la hoja. El barrido de carga es un floreo de hero y vive
+   en el modificador `--barrido` (animación de background-size, anclada a
+   la izquierda). */
 .rotulador {
-  position: relative;
   color: inherit;
   font-style: italic;
   background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 62% / 100% 48% no-repeat;
@@ -477,30 +489,15 @@ body {
   box-decoration-break: clone;
   padding: 0 .06em;
 }
-@media (min-width: 640px) {
-  /* z-index:0 crea el stacking context: el ::before con z-index -1 queda
-     entre el texto y el fondo del hero (sin él, cae DETRÁS del fondo). */
-  .rotulador { white-space: nowrap; background: none; padding: 0; z-index: 0; }
-  .rotulador::before {
-    content: '';
-    position: absolute;
-    inset: .12em -.08em -.02em -.06em;
-    background: var(--color-accent-200);
-    border-radius: .12em .3em .25em .15em;
-    transform: rotate(-.4deg);
-    z-index: -1;
-  }
-}
 /* Barrido de carga: solo donde se pide explícitamente (hero de portada y de
    /redactar). Un rotulador de cabecera corriente entra estático. */
 @media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
-  .rotulador--barrido::before {
-    transform-origin: left center;
+  .rotulador--barrido {
     animation: rotulador-barrido .7s cubic-bezier(.65, 0, .35, 1) .45s backwards;
   }
   @keyframes rotulador-barrido {
-    from { transform: scaleX(0) rotate(-.4deg); }
-    to   { transform: scaleX(1) rotate(-.4deg); }
+    from { background-size: 0% 48%; }
+    to   { background-size: 100% 48%; }
   }
 }
 
@@ -2583,9 +2580,9 @@ body {
   margin: .25rem 0;
 }
 /* El nombre del organismo va resaltado con el rotulador ámbar, como el
-   subrayado del hero de /redactar. Marcador por fondo (no el rectángulo
-   ::before de .rotulador): con box-decoration-break envuelve nombres largos
-   en varias líneas sin cortarlos ni desbordar. */
+   subrayado del hero de /redactar. Marcador por fondo con
+   box-decoration-break — la misma técnica que hoy usa .rotulador —, que
+   envuelve nombres largos en varias líneas sin cortarlos ni desbordar. */
 .draft-band-title em {
   color: #0f172a;
   font-style: italic;

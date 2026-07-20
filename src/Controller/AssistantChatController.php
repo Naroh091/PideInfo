@@ -24,9 +24,9 @@ use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\AI\Llm\ContentPart;
 use App\Service\AccessRequest\RequestDraftGenerator;
+use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
-use App\Service\Document\DocumentContentsCollector;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -87,7 +87,6 @@ final class AssistantChatController extends AbstractController
         private readonly ConsultPromptComposer $consultPromptComposer,
         private readonly ConsultIntentClassifier $consultIntentClassifier,
         private readonly ComplaintGenerator $complaintGenerator,
-        private readonly DocumentContentsCollector $documentContentsCollector,
         private readonly SimilarResolutionsLoader $similarResolutions,
         private readonly DoctrinePriorityResolver $doctrinePriority,
         private readonly RequestDraftGenerator $requestDraftGenerator,
@@ -205,12 +204,6 @@ final class AssistantChatController extends AbstractController
 
         $currentBodyHtml = (string) $request->request->get('currentBodyHtml', '');
 
-        $documentIdsRaw = (string) $request->request->get('documentIds', '');
-        $documentIds = $documentIdsRaw !== '' ? array_filter(array_map('trim', explode(',', $documentIdsRaw))) : [];
-        $documentContents = $documentIds !== []
-            ? $this->documentContentsCollector->collect($accessRequest, $documentIds)
-            : [];
-
         $files = $request->files->all('attachments');
         if (!is_array($files)) {
             $files = [];
@@ -221,7 +214,9 @@ final class AssistantChatController extends AbstractController
             return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $composedPrompt = $this->complaintPromptComposer->compose($accessRequest, $mode, $currentBodyHtml, $documentContents);
+        // Los documentos del expediente ya no se inyectan inline: el agente los
+        // lee bajo demanda con `read_request_documents` (FASE 1 del prompt).
+        $composedPrompt = $this->complaintPromptComposer->compose($accessRequest, $mode, $currentBodyHtml);
 
         $previousDraft = ['title' => '', 'body_html' => $currentBodyHtml];
 
@@ -264,6 +259,15 @@ final class AssistantChatController extends AbstractController
                 // the resolved citations in metadata, though, so the sheet pills
                 // survive a reload and the downloaded PDF can footnote them.
                 $accessRequest->setMetadataValue('cited_sources', $sources);
+                // Anonymous complaints have no «Guardar»: keep the generated
+                // HTML server-side so the send page can render the PDF and the
+                // claim can materialise a real Document.
+                if ($this->getUser() === null) {
+                    $accessRequest->setMetadataValue(
+                        AnonymousDraftClaimer::METADATA_COMPLAINT_HTML,
+                        mb_substr((string) ($draft['body_html'] ?? ''), 0, AnonymousDraftClaimer::COMPLAINT_HTML_MAX_CHARS),
+                    );
+                }
                 $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();
 

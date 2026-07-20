@@ -13,7 +13,7 @@ The Elasticsearch-backed resolution search is in docs/search.md
 The legal framework (legalize-es corpus, `find_law`/`search_legislation`/`read_law_articles`) is in docs/legal-framework.md
 The judgment corpus (CTBG recursos, `search_judgments`, the resolution↔judgment cross) is in docs/judgments.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
-El A/B testing server-side (GrowthBook, empezando por el hero de la portada) está en docs/experiments.md
+El A/B testing server-side (GrowthBook; sin experimentos activos — el del hero se retiró) está en docs/experiments.md
 La evaluación offline del retrieval (ground truth versionado + `app:retrieval:eval` + runs en Langfuse) está en docs/retrieval-eval.md
 
 

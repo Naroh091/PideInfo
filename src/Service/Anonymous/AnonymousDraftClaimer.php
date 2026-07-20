@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Service\Anonymous;
 
+use App\DTO\ComplaintDraft;
 use App\Entity\AccessRequest;
 use App\Entity\StatusHistory;
 use App\Entity\User;
 use App\Repository\AccessRequestRepository;
 use App\Service\AccessRequest\AccessRequestManager;
+use App\Service\Complaint\ComplaintGenerator;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Uid\Uuid;
@@ -30,6 +32,17 @@ use Symfony\Component\Uid\Uuid;
  */
 final class AnonymousDraftClaimer
 {
+    /**
+     * Metadata key holding the anonymous complaint's HTML. Written at
+     * generation time (AssistantChatController) and by the send-page
+     * autosave mirror (AnonymousDraftController); consumed by the send-page
+     * PDF endpoint and by claim-time Document materialisation.
+     */
+    public const METADATA_COMPLAINT_HTML = 'anonymous_complaint_html';
+
+    /** Size cap (chars) for the persisted anonymous complaint HTML. */
+    public const COMPLAINT_HTML_MAX_CHARS = 200000;
+
     private const RESULT_TO_STATUS = [
         AccessRequest::RESULT_DENIED => AccessRequest::STATUS_DENIED,
         AccessRequest::RESULT_INADMITTED => AccessRequest::STATUS_INADMITTED,
@@ -42,6 +55,7 @@ final class AnonymousDraftClaimer
         private readonly AccessRequestRepository $accessRequestRepository,
         private readonly AccessRequestManager $accessRequestManager,
         private readonly EntityManagerInterface $entityManager,
+        private readonly ComplaintGenerator $complaintGenerator,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -90,6 +104,10 @@ final class AnonymousDraftClaimer
                 $this->entityManager->flush();
             }
 
+            if ($flow === 'complaint') {
+                $this->materializeComplaintDraft($draft);
+            }
+
             ++$claimed;
             $this->logger->info('anonymous_draft.claimed', [
                 'requestId' => $rawId,
@@ -101,5 +119,53 @@ final class AnonymousDraftClaimer
         $this->sessionStore->clear();
 
         return $claimed;
+    }
+
+    /**
+     * Turns the persisted anonymous complaint HTML into the real complaint
+     * draft Document (same pipeline as the authenticated «Guardar»), so the
+     * post-claim landing shows the draft and «Presentar». The anonymous chat
+     * history is COPIED into the document (the authenticated editor reads it
+     * from there for the visible transcript), mirroring
+     * ComplaintRedactController::save()'s scratch migration. Only
+     * METADATA_COMPLAINT_HTML is cleared afterwards — the
+     * `complaint_chat_history_complaint` metadata key is deliberately kept,
+     * since it's ChatHistoryStore::load()'s legacy fallback and seeds the
+     * authenticated LLM history on the first turn (same mechanism as the
+     * request flow). A failure is logged and keeps the metadata as fallback —
+     * the claim itself never breaks.
+     */
+    private function materializeComplaintDraft(AccessRequest $draft): void
+    {
+        $html = (string) ($draft->getMetadataValue(self::METADATA_COMPLAINT_HTML) ?? '');
+        if (trim(strip_tags($html)) === '') {
+            return;
+        }
+
+        try {
+            $document = $this->complaintGenerator->saveComplaint($draft, ComplaintDraft::fromArray([
+                'content' => $html,
+                'transparencyCouncil' => '',
+                'applicableLaw' => $draft->getApplicableLaw()?->getName() ?? '',
+                'citedResolutions' => [],
+                'citedCriteria' => [],
+                'successAnalysis' => null,
+            ]), ['origin' => 'anonymous_claim']);
+        } catch (\Throwable $e) {
+            $this->logger->warning('Claim: no se pudo materializar el borrador de reclamación anónimo', [
+                'accessRequestId' => $draft->getId()->toRfc4122(),
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
+
+        $history = $draft->getMetadataValue('complaint_chat_history_complaint');
+        if (is_array($history) && $history !== []) {
+            $meta = $document->getAiMetadata() ?? [];
+            $meta['chat_history'] = array_slice($history, -30);
+            $document->setAiMetadata($meta);
+        }
+        $draft->setMetadataValue(self::METADATA_COMPLAINT_HTML, null);
+        $this->entityManager->flush();
     }
 }

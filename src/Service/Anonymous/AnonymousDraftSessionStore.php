@@ -18,6 +18,9 @@ final class AnonymousDraftSessionStore
 {
     private const SESSION_KEY = 'anon_draft_ids';
 
+    /** Draft the visitor wanted to submit when they hit register/login. */
+    private const INTENT_KEY = 'anon_submit_intent';
+
     /** Max simultaneous anonymous drafts per session (soft anti-abuse cap). */
     public const MAX_DRAFTS = 3;
 
@@ -66,5 +69,44 @@ final class AnonymousDraftSessionStore
         } catch (\LogicException) {
             // no session: nothing to clear
         }
+    }
+
+    /**
+     * Remembers that the visitor reached the send page for this draft, so the
+     * post-claim login listener can land them straight on the claimed
+     * request/complaint instead of the default redirect.
+     */
+    public function rememberSubmitIntent(Uuid $id, string $flow): void
+    {
+        try {
+            $this->requestStack->getSession()->set(self::INTENT_KEY, [
+                'id' => $id->toRfc4122(),
+                'flow' => $flow,
+            ]);
+        } catch (\LogicException) {
+            // no session: nothing to remember
+        }
+    }
+
+    /**
+     * @return array{id: string, flow: string}|null Removed from the session on
+     *                                              read (one-shot).
+     */
+    public function consumeSubmitIntent(): ?array
+    {
+        try {
+            $session = $this->requestStack->getSession();
+        } catch (\LogicException) {
+            return null;
+        }
+
+        $intent = $session->get(self::INTENT_KEY);
+        $session->remove(self::INTENT_KEY);
+
+        if (!is_array($intent) || !is_string($intent['id'] ?? null) || !is_string($intent['flow'] ?? null)) {
+            return null;
+        }
+
+        return ['id' => $intent['id'], 'flow' => $intent['flow']];
     }
 }

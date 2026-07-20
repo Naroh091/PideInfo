@@ -6,75 +6,48 @@ so the visitor never sees a control→variant flash. Exposure is forwarded to
 **GA4** (the `gtag` already loaded in `base.html.twig`), which is GrowthBook's
 datasource.
 
-## `home-hero` — hero copy of the public home
+**Estado actual: no hay ningún experimento activo.** La infraestructura (SDK,
+envs, el patrón de servicio + exposición GA4) queda lista para el siguiente.
 
-The first (and currently only) experiment. A/B/n test of the hero copy on the
-public home (`/`, anonymous visitors only — logged-in users are redirected to
-the dashboard, so there is nothing to bucket for them).
-
-- **Arms (8, equal weight):** `control` — «El derecho enunciado» (Ley 19/2013
-  + the universal right) — versus seven concrete citizen questions
-  (`orquesta`, `limpieza`, `salud`, `inspeccion`, `metro`, `asesores`,
-  `oposicion`).
-- **Single source of truth:** `src/Experiment/HomeHeroExperiment.php`. Its
-  `VARIANTS` const holds every arm's copy **and** defines the inline
-  experiment. Each arm is `{eyebrow, titlePre, titleMark, titlePost,
-  subtitle}`; the title is split so Twig wraps `titleMark` in
-  `.rotulador rotulador--barrido` (the amber marker). `App\Experiment\HeroAssignment` is the returned DTO;
-  `HomeController` wires it and renders `heroVariant`.
-
-### Bucketing
-
-Deterministic per anonymous visitor. On first visit `HomeController` sets a
-first-party cookie **`pi_vid`** (32 hex chars, 1 year, `Secure` + `HttpOnly` +
-`SameSite=Lax`); GrowthBook hashes it (attribute `id`). Same visitor → same
-arm on every visit. The cookie is an anonymous bucketing id with no personal
-data, so it falls under the "cookies técnicas / analítica anonimizada" the
-cookie banner already declares — no extra consent.
-
-### Two evaluation modes
-
-- **Inline (default, no config):** with `GROWTHBOOK_CLIENT_KEY` empty, an
-  equal-weight 8-arm `InlineExperiment` baked into the service runs. The test
-  works out of the box, in dev and prod.
-- **Managed (GrowthBook dashboard):** set `GROWTHBOOK_CLIENT_KEY` (and
-  optionally `GROWTHBOOK_API_HOST`, default `https://cdn.growthbook.io`).
-  Create a **feature `home-hero`** of type *string* whose experiment rule
-  returns one of the arm keys above. GrowthBook then controls
-  weights/coverage/start/stop. If the key is set but the feature is missing,
-  everyone falls back to `control` (no arm is served).
-
-Any SDK failure falls back to `control` and logs — the home never breaks.
-
-### Exposure → GA4
-
-The service collects the impression from `getViewedExperiments()` and passes it
-to the template, which fires:
-
-```js
-gtag('event', 'experiment_viewed', {
-  experiment_id: 'home-hero',
-  variation_id: <int index>,
-  variation_key: '<arm key>'
-});
-```
-
-Point GrowthBook's **GA4 / BigQuery** datasource at this event. GrowthBook
-attributes conversions by GA's own `user_pseudo_id`, so `pi_vid` never leaves
-the server. No impression event is emitted when no arm is served (e.g. managed
-mode with the feature absent).
-
-### Environment variables
+## Environment variables
 
 | Var | Default | Meaning |
 | --- | --- | --- |
-| `GROWTHBOOK_CLIENT_KEY` | *(empty)* | Empty → inline fallback. Set → managed mode via the dashboard. |
+| `GROWTHBOOK_CLIENT_KEY` | *(empty)* | Empty → inline fallback baked in the experiment service. Set → managed mode via the dashboard. |
 | `GROWTHBOOK_API_HOST` | `https://cdn.growthbook.io` | SDK features endpoint (GrowthBook Cloud CDN or a self-hosted host). |
 
-### Editing or adding arms
+## El patrón (como lo implementó `home-hero`)
 
-Edit `HomeHeroExperiment::VARIANTS`. **Keep the arm keys stable** — they are
-the GrowthBook variation values and the GA4 `variation_key` dimension; renaming
-one orphans its historical data. When in managed mode, mirror any add/remove in
-the dashboard feature's variations. `tests/Experiment/HomeHeroExperimentTest.php`
-guards catalogue integrity and deterministic bucketing.
+Para el próximo experimento, replicar la estructura que usó el del hero:
+
+- Un servicio por experimento (p. ej. `src/Experiment/FooExperiment.php`) que
+  es la única fuente del copy de los brazos Y de la definición inline
+  (`InlineExperiment` equal-weight cuando `GROWTHBOOK_CLIENT_KEY` está vacío;
+  feature del dashboard cuando está configurado). Cualquier fallo del SDK cae
+  a control y loguea — la página nunca rompe.
+- **Bucketing determinista** por visitante anónimo: cookie first-party
+  `pi_vid` (32 hex, 1 año, `Secure`+`HttpOnly`+`SameSite=Lax`) hasheada por
+  GrowthBook (atributo `id`). Es un id de bucketing sin datos personales:
+  cae bajo las «cookies técnicas / analítica anonimizada» del banner, sin
+  consentimiento extra.
+- **Exposición → GA4**: la plantilla dispara
+  `gtag('event', 'experiment_viewed', {experiment_id, variation_id,
+  variation_key})` solo cuando se sirvió un brazo. GrowthBook (datasource
+  GA4/BigQuery) atribuye conversiones por `user_pseudo_id`; `pi_vid` no sale
+  del servidor.
+- **Claves de brazo estables**: son la dimensión histórica en GA4; renombrar
+  una huérfana sus datos.
+
+## Experimentos retirados
+
+### `home-hero` (retirado el 2026-07-20)
+
+A/B/n del copy del hero de la portada: `control` («El derecho enunciado»)
+frente a siete preguntas ciudadanas. Se retiró por decisión de producto sin
+esperar resultados: el hero pasó a **rotar** las preguntas en tándem con la
+hoja que se teclea (catálogo único caso↔pregunta en
+`templates/home/index.html.twig`, elección aleatoria por carga en SSR
+(`?caso=<n>` la fuerza para QA) y rotación en cliente). Con la retirada se
+eliminaron `HomeHeroExperiment`, `HeroAssignment`, su test, la cookie
+`pi_vid` y el evento de exposición. Las siete preguntas sobreviven como
+casos del catálogo.

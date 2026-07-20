@@ -76,4 +76,23 @@ final class ChannelResolverTest extends TestCase
             $resolver->distinctChannelsFor($bodies)
         );
     }
+
+    public function testPortalWizardUrlBuildsFromAmbId(): void
+    {
+        $body = (new PublicBody())
+            ->setName('Ministerio de Cultura')
+            ->setTransparencyPortalAmbId(101509);
+
+        $this->assertSame(
+            'https://transparencia.sede.gob.es/procedimiento/formulario?idProc=133628&idAmb=101509',
+            (new ChannelResolver())->portalWizardUrl($body),
+        );
+    }
+
+    public function testPortalWizardUrlIsNullWithoutAmbId(): void
+    {
+        $body = (new PublicBody())->setName('Ayuntamiento de Cuenca');
+
+        $this->assertNull((new ChannelResolver())->portalWizardUrl($body));
+    }
 }

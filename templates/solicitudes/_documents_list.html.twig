@@ -21,43 +21,42 @@
         {% set draftEditRoute = draftOrigin == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
         {% set displayName = isDraft ? 'Borrador de la reclamación' : doc.displayFilename %}
         {% set isProcedural = doc.type and doc.type.isProcedural() %}
-        <div class="docs-row{% if draftFiled %} opacity-75{% endif %}{% if isProcedural %} docs-row--muted{% endif %}"
+        <div class="exp-doc-fila{% if draftFiled %} opacity-75{% endif %}{% if isProcedural %} tramite{% endif %}"
              data-document-id="{{ doc.id }}"
              data-doc-type="{{ doc.type.value }}"
              data-doc-name="{{ doc.customName ?? '' }}"
              data-doc-derived="{{ displayName }}">
-            <span class="docs-icon">
-                <i data-lucide="{{ iconName }}" class="w-[18px] h-[18px]"></i>
+            <span class="exp-doc-icono">
+                <i data-lucide="{{ iconName }}" class="w-4 h-4"></i>
             </span>
-            <div class="docs-main">
-                <p class="docs-name" title="{{ displayName }}">
+            <div class="min-w-0">
+                <p class="exp-doc-nombre" title="{{ displayName }}">
                     {{ displayName }}
                     {% if isDraft %}
                         {% if draftFiled %}
-                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">Borrador previo</span>
+                            <span class="exp-doc-tag exp-doc-tag--previo">Borrador previo</span>
                         {% else %}
-                            <span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">Borrador</span>
+                            <span class="exp-doc-tag exp-doc-tag--borrador">Borrador</span>
                         {% endif %}
                     {% endif %}
                 </p>
                 {% if doc.documentDate or not doc.processed %}
-                    <div class="docs-meta">
+                    <p class="exp-doc-meta">
                         {% if doc.documentDate %}
                             <span>{{ doc.documentDate|date('d/m/Y') }}</span>
                         {% endif %}
                         {% if not doc.processed %}
-                            {% if doc.documentDate %}<span class="sep">·</span>{% endif %}
-                            <span class="docs-status is-pending">Procesando</span>
+                            <span class="exp-doc-tag exp-doc-tag--proceso"><span class="punto"></span> Procesando</span>
                         {% endif %}
-                    </div>
+                    </p>
                 {% endif %}
                 {% if isDraft and not draftFiled %}
-                    <p class="docs-summary text-slate-500">Última edición: {{ doc.createdAt|date('d/m/Y H:i') }}.</p>
+                    <p class="exp-doc-resumen" style="border: 0; padding-left: 0;">Última edición: {{ doc.createdAt|date('d/m/Y H:i') }}.</p>
                 {% elseif doc.summary %}
-                    <p class="docs-summary">{{ doc.summary }}</p>
+                    <p class="exp-doc-resumen">{{ doc.summary }}</p>
                 {% endif %}
             </div>
-            <div class="docs-actions">
+            <div class="exp-doc-acciones">
                 {% if isDraft %}
                     <a href="{{ path(draftEditRoute, {id: request.id}) }}"
                        title="Continuar editando el borrador">
@@ -91,7 +90,7 @@
     {% endmacro %}
 
     {% if requestDocs|length > 0 %}
-        <div class="docs-list">
+        <div>
             {% for doc in requestDocs %}
                 {{ _self.document_item(doc, request) }}
             {% endfor %}
@@ -99,11 +98,11 @@
     {% endif %}
 
     {% if complaintDocs|length > 0 %}
-        <div class="docs-group-label">
-            <span class="docs-group-label-name">Documentos de reclamación</span>
-            <span class="docs-group-label-rule"></span>
+        <div class="exp-doc-grupo">
+            <b>Documentos de reclamación</b>
+            <span class="filete"></span>
         </div>
-        <div class="docs-list">
+        <div>
             {% for doc in complaintDocs %}
                 {{ _self.document_item(doc, request) }}
             {% endfor %}
@@ -111,19 +110,19 @@
     {% endif %}
 
     {% if courtDocs|length > 0 %}
-        <div class="docs-group-label">
-            <span class="docs-group-label-name">Fase judicial</span>
-            <span class="docs-group-label-rule"></span>
+        <div class="exp-doc-grupo">
+            <b>Fase judicial</b>
+            <span class="filete"></span>
         </div>
-        <div class="docs-list">
+        <div>
             {% for doc in courtDocs %}
                 {{ _self.document_item(doc, request) }}
             {% endfor %}
         </div>
     {% endif %}
 {% else %}
-    <div class="docs-empty">
+    <div class="exp-doc-vacia">
         <em>Sin documentos en el expediente</em>
-        Sube el primero arrastrándolo arriba o pulsando «Seleccionar».
+        Sube el primero arrastrándolo arriba o haciendo clic en la zona de subida.
     </div>
 {% endif %}

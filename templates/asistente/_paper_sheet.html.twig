@@ -104,6 +104,12 @@
                                 {% endif %}
                             </button>
                         </form>
+                    {% elseif sendUrl|default(null) %}
+                        <a href="{{ sendUrl }}" class="btn btn-primary"
+                           data-action="click->paper-sheet#goToSend"
+                           data-paper-sheet-send-url-param="{{ sendUrl }}">
+                            <i data-lucide="send" class="w-4 h-4 mr-2"></i> Enviar
+                        </a>
                     {% endif %}
                 </div>
             </footer>
@@ -171,6 +177,7 @@
         {% set complaintSaveUrl = saveUrl is defined ? saveUrl : path('app_complaint_redactar_save', {id: request.id}) %}
         {% set complaintPdfUrl = sheetPdfUrl|default(path('app_complaint_download_pdf', {id: request.id})) %}
         {% set complaintPresentUrl = presentUrl is defined ? presentUrl : path('app_complaint_present_via_agent', {id: request.id}) %}
+        {% set complaintSendUrl = sendUrl|default(null) %}
         <article class="paper-sheet"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="complaint"
@@ -222,10 +229,18 @@
                             <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
                         </button>
                     {% endif %}
-                    <button type="button" class="btn {{ complaintPresentUrl ? 'btn-secondary' : 'btn-primary' }}"
+                    <button type="button" class="btn {{ (complaintPresentUrl or complaintSendUrl) ? 'btn-secondary' : 'btn-primary' }}"
                             data-action="paper-sheet#downloadPdf">
                         <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
                     </button>
+                    {% if complaintSendUrl %}
+                        <button type="button" class="btn btn-primary"
+                                data-action="paper-sheet#goToSend"
+                                data-paper-sheet-send-url-param="{{ complaintSendUrl }}"
+                                data-paper-sheet-send-save-url-param="{{ path('app_public_redactar_complaint_autosave', {id: request.id}) }}">
+                            <i data-lucide="send" class="w-4 h-4 mr-2"></i> Enviar
+                        </button>
+                    {% endif %}
                     {% if not isAlegation and complaintPresentUrl %}
                         <button type="button" class="btn btn-secondary"
                                 data-action="paper-sheet#presentViaAgent"

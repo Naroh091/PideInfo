@@ -196,12 +196,15 @@ Particularidades que la apartan del resto de la app, a propósito:
   barra de resultados) son reales: salen de
   `ResolutionRepository::getGlobalStats()` y del recuento de `Judgment`,
   no de literales en la plantilla.
-- **El copy del hero está en test A/B** (`home-hero`): eyebrow, título con
-  su fragmento subrayado y subtítulo no son literales de la plantilla, sino
-  la variante que devuelve `HomeHeroExperiment` (control «El derecho
-  enunciado» frente a siete preguntas ciudadanas concretas). Al tocar el
-  hero, respeta la estructura `titlePre` + `.rotulador` + `titlePost`. Ver
-  `docs/experiments.md`.
+- **El copy del hero rota en tándem con la hoja**: un catálogo único
+  caso↔pregunta en la propia plantilla — cada caso lleva la solicitud que
+  la hoja teclea y la pregunta del titular (`hero.pre` + `hero.mark` en
+  `.rotulador` + `hero.post` + eyebrow y subtítulo). El servidor pinta uno
+  al azar por carga (`?caso=<n>` lo fuerza, para QA) y el script funde el
+  titular a la pregunta del siguiente caso antes de teclearlo
+  (`.home-hero-rota`). Al tocar el hero, mantén esa estructura y la
+  coherencia titular↔solicitud. El test A/B `home-hero` se retiró
+  (docs/experiments.md).
 
 ### Pie público (`_partials/public_footer.html.twig`)
 

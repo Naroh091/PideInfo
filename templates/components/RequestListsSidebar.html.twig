@@ -2,11 +2,8 @@
 {# Listas — sidebar block: shows lists this request is in, lets the user
    toggle membership in any visible list they can edit, and create a new
    private list inline (all via LiveActions, no page reload). #}
-    <div class="aside-block">
-        <div class="aside-heading">
-            <span class="aside-heading-name">Listas</span>
-            <span class="aside-heading-rule"></span>
-        </div>
+    <div class="ficha-bloque">
+        <p class="ficha-rotulo">Listas</p>
 
         {% if lists|length > 0 %}
             <div class="lists-toggle-stack">

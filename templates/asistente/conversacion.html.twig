@@ -10,8 +10,7 @@
    Contrato de variables:
      flow == 'request'  → request, siblings, batchId, chatHistory
      flow == 'complaint'→ request, mode, currentDraft, currentBodyHtml,
-                          chatHistory, availableDocuments, alegacionesDoc,
-                          existingDrafts
+                          chatHistory, alegacionesDoc, existingDrafts
      anonymous (bool, opcional) → borrador sin dueño del flujo público
                           /redactar: layout público, endpoints espejo de
                           AnonymousDraftController, sin guardar/presentar,
@@ -28,11 +27,13 @@
     {% set sheetPdfUrl = anonymous ? path('app_public_redactar_pdf', {id: request.id}) : path('app_solicitudes_realizar_pdf', {id: request.id}) %}
     {% set similarUrl = anonymous ? path('app_public_redactar_similar', {id: request.id}) : path('app_solicitudes_realizar_similar', {id: request.id}) %}
     {% set probabilityUrl = anonymous ? path('app_public_redactar_probability', {id: request.id}) : path('app_solicitudes_realizar_probability', {id: request.id}) %}
+    {% set sendUrl = anonymous ? path('app_public_redactar_send', {id: request.id}) : null %}
 {% else %}
     {% set saveUrl = anonymous ? null : path('app_complaint_redactar_save', {id: request.id}) %}
     {% set sheetPdfUrl = anonymous ? path('app_public_redactar_complaint_pdf', {id: request.id}) : path('app_complaint_download_pdf', {id: request.id}) %}
     {% set presentUrl = anonymous ? null : path('app_complaint_present_via_agent', {id: request.id}) %}
     {% set analyzeUrl = anonymous ? path('app_public_redactar_complaint_analyze', {id: request.id}) : path('app_complaint_analyze', {id: request.id}) %}
+    {% set sendUrl = anonymous ? path('app_public_redactar_complaint_send', {id: request.id}) : null %}
 {% endif %}
 {% if isRequest %}
     {% set batchId = batchId|default(null) %}
@@ -171,7 +172,6 @@
     {% if not isRequest %}
         <input type="hidden" name="mode" value="{{ mode }}" data-assistant-chat-target="extra">
         <input type="hidden" name="currentBodyHtml" value="" data-assistant-chat-target="extra">
-        <input type="hidden" name="documentIds" value="" data-assistant-chat-target="extra">
     {% endif %}
 
     {# ── Plantillas que assistant-chat clona al vuelo ─────────── #}

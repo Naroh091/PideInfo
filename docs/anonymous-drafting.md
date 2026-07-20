@@ -29,7 +29,10 @@ borrador pasa a ser suyo.
   de `ChatHistoryStore::load()` — así, tras el claim, el primer load del
   usuario autenticado encuentra los turnos sin migración explícita.
 - No se persiste ningún `Document` anónimo: los adjuntos del chat se procesan
-  en memoria (`ChatAttachmentParser`), como para cualquier usuario.
+  en memoria (`ChatAttachmentParser`), como para cualquier usuario. Excepción:
+  el texto de la reclamación generada sí se persiste, pero como HTML en
+  `metadata['anonymous_complaint_html']`, no como `Document` — la
+  materialización real ocurre recién en el claim (ver más abajo).
 
 ## Sesión y autorización
 
@@ -49,16 +52,33 @@ autenticados (que viven tras `#[IsGranted('ROLE_USER')]` a nivel de clase y no
 pueden abrirse): entrada y creación (`GET /redactar`, `POST /redactar/crear`,
 `destinos.json`, `destinos-facetas.json`), flujo solicitud
 (`/redactar/solicitud/{id}` + `autoguardar`, `resoluciones-similares.json`,
-`probabilidad.json`, `descargar-pdf`) y flujo reclamación
-(`/redactar/reclamacion/{id}` + `analisis`, `descargar-pdf`). La carga de
-resoluciones similares está extraída a `SimilarResolutionsLoader`, compartida
-con `AccessRequestController` y `AssistantChatController`.
+`probabilidad.json`, `descargar-pdf`, `enviar`) y flujo reclamación
+(`/redactar/reclamacion/{id}` + `analisis`, `descargar-pdf`, `enviar`). La
+carga de resoluciones similares está extraída a `SimilarResolutionsLoader`,
+compartida con `AccessRequestController` y `AssistantChatController`.
 
 Los dos endpoints SSE del chat (`POST /asistente/request/{id}` y
 `/asistente/complaint/{id}`) se **comparten**, no se espejan: su
 `IsGranted('view')` se resuelve por la rama de sesión del voter. Con usuario
 null, `AssistantChatController` lee/escribe el historial en metadata y aplica
 los límites anti-abuso.
+
+Las páginas de envío (`GET /redactar/solicitud/{id}/enviar` y
+`GET /redactar/reclamacion/{id}/enviar`) presentan las dos vías: registro
+(PideInfo presenta y hace seguimiento) o envío manual con la vía recomendada
+calculada server-side — `ChannelResolver` (portal con su idAmb / REG) para
+solicitudes, `getComplaintFormUrlFor()` del garante para reclamaciones, y la
+explicación de las tres vías cuando el destino es el centinela genérico.
+Renderizarlas guarda una **intención de envío** en sesión
+(`AnonymousDraftSessionStore::rememberSubmitIntent`). El texto de la
+reclamación anónima se persiste en `metadata['anonymous_complaint_html']`
+(constante `AnonymousDraftClaimer::METADATA_COMPLAINT_HTML`): lo escribe la
+generación (`AssistantChatController`, solo anónimos) y el espejo
+`POST /redactar/reclamacion/{id}/autoguardar` que dispara «Enviar» antes de
+navegar (las ediciones sin pulsar «Enviar» se pierden — no hay autosave
+debounced anónimo). La página de envío descarga el PDF por GET desde esa
+metadata (misma URL `descargar-pdf` con método GET); sin metadata el botón no
+se renderiza y se ofrece la vuelta al chat.
 
 ## Anti-abuso
 
@@ -145,6 +165,26 @@ Se dispara en dos puntos:
    existentes. Los atributos de sesión sobreviven a la migración del id de
    sesión del login, así que los ids siguen ahí.
 
+Si la sesión guarda una intención de envío (el visitante llegó a
+`…/enviar`), `ClaimAnonymousDraftsOnLoginListener` la consume tras el claim
+y redirige el login al expediente reclamado: `app_solicitudes_show` para
+solicitudes, `app_complaint_redactar?mode=complaint` para reclamaciones. La
+redirección solo se aplica si el claim dejó el borrador en manos del usuario.
+
+Además, si el borrador de reclamación tiene `anonymous_complaint_html`, el
+claim lo materializa como `Document` real vía
+`ComplaintGenerator::saveComplaint()` (origen `anonymous_claim`) y COPIA el
+historial anónimo al `aiMetadata['chat_history']` del documento (cap 30,
+mismo patrón que el scratch del editor autenticado), para que el editor
+autenticado muestre la transcripción visible. Solo se limpia
+`anonymous_complaint_html`; `complaint_chat_history_complaint` se mantiene
+deliberadamente en la metadata, porque es el fallback legacy que
+`ChatHistoryStore::load()` lee para sembrar el historial LLM del usuario
+autenticado en el primer turno (mismo mecanismo que el flujo de solicitudes).
+Así el aterrizaje post-registro muestra el borrador y «Presentar», y el
+agente conserva memoria de la conversación anónima. Si la materialización
+falla, se loguea y la metadata queda como fallback.
+
 ## Limpieza
 
 `app:anonymous-drafts:purge --days=7 [--dry-run]` borra los `AccessRequest`
@@ -201,7 +241,8 @@ mensajes claros cuando no hay usuario.
   MISMA plantilla que la redacción autenticada (`AccessRequestController::draft`
   y `ComplaintRedactController::index`), diferenciada por el flag `anonymous`:
   layout público, endpoints espejo (la hoja y el informe reciben las URLs por
-  variables), sin Guardar/Presentar (solo «Descargar PDF»), CTA de registro en
+  variables), sin Guardar/Presentar («Enviar» como acción primaria — lleva a la
+  página de envío — y «Descargar PDF» como secundaria), CTA de registro en
   cabecera y como burbuja tras el primer borrador generado
   (`assistant_chat_controller.js`, valores `anonymous`/`registerUrl`).
   La cabecera `.draft-band` resalta el nombre del organismo (`<em>`) con el

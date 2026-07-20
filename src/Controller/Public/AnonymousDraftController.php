@@ -12,6 +12,7 @@ use App\Repository\RegDestinationRepository;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
 use App\Service\AccessRequest\DeadlineCalculator;
 use App\Service\AI\SimilarResolutionsLoader;
+use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Service\Anonymous\AnonymousDraftSessionStore;
 use App\Service\Anonymous\GenericDestination;
 use App\Service\Complaint\SuccessAnalyzer;
@@ -509,6 +510,47 @@ class AnonymousDraftController extends AbstractController
         ]);
     }
 
+    /**
+     * Send-options page: the generated draft is ready and the visitor picks
+     * between registering (PideInfo submits + tracks) or manual submission
+     * through the recommended channel for this body. Visiting the page
+     * remembers a submit intent so the post-claim login lands here again
+     * (spec docs/superpowers/specs/2026-07-20-envio-publico-design.md).
+     */
+    #[Route('/solicitud/{id}/enviar', name: 'app_public_redactar_send', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function send(AccessRequest $accessRequest, ChannelResolver $channelResolver): Response
+    {
+        if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
+            throw $this->createNotFoundException();
+        }
+
+        $this->sessionStore->rememberSubmitIntent($accessRequest->getId(), 'request');
+
+        $body = $accessRequest->getPublicBody();
+        $generic = (bool) $accessRequest->getMetadataValue(GenericDestination::METADATA_FLAG);
+        $channel = null;
+        $channelUrl = null;
+        if (!$generic) {
+            $channel = $channelResolver->resolveTaskType($body) === AgentTask::TYPE_SUBMIT_REQUEST_PORTAL ? 'portal' : 'reg';
+            $channelUrl = $channel === 'portal'
+                ? $channelResolver->portalWizardUrl($body)
+                : ChannelResolver::REG_PUBLIC_URL;
+        }
+
+        return $this->render('public/enviar.html.twig', [
+            'flow' => 'request',
+            'request' => $accessRequest,
+            'generic' => $generic,
+            'channel' => $channel,
+            'channelUrl' => $channelUrl,
+            'sedeUrl' => $body->getTransparencyPortalUrl(),
+            'regUrl' => ChannelResolver::REG_PUBLIC_URL,
+            'pdfUrl' => $this->generateUrl('app_public_redactar_pdf', ['id' => (string) $accessRequest->getId()]),
+            'backUrl' => $this->generateUrl('app_public_redactar_draft', ['id' => (string) $accessRequest->getId()]),
+        ]);
+    }
+
     // ── Complaint flow mirrors ──────────────────────────────────────────────
 
     /** Mirror of ComplaintRedactController::index (complaint mode, no persisted drafts). */
@@ -529,7 +571,6 @@ class AnonymousDraftController extends AbstractController
             'currentDraft' => null,
             'currentBodyHtml' => '',
             'chatHistory' => is_array($history) ? $history : [],
-            'availableDocuments' => [],
             'alegacionesDoc' => null,
         ]);
     }
@@ -566,6 +607,54 @@ class AnonymousDraftController extends AbstractController
         }
     }
 
+    /**
+     * Persists the anonymous complaint HTML (this flow has no «Guardar»):
+     * called by the sheet's «Enviar» before navigating to the send page.
+     * Generation writes the same key server-side; together they are the
+     * single source of truth for the send-page PDF and the claim-time
+     * Document materialisation.
+     */
+    #[Route('/reclamacion/{id}/autoguardar', name: 'app_public_redactar_complaint_autosave', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function autoSaveComplaint(Request $request, AccessRequest $accessRequest): JsonResponse
+    {
+        $payload = json_decode($request->getContent(), true) ?? [];
+        $html = (string) ($payload['html'] ?? '');
+        if (trim(strip_tags($html)) === '') {
+            return new JsonResponse(['error' => 'empty_content'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $accessRequest->setMetadataValue(AnonymousDraftClaimer::METADATA_COMPLAINT_HTML, mb_substr($html, 0, AnonymousDraftClaimer::COMPLAINT_HTML_MAX_CHARS));
+        $this->entityManager->flush();
+
+        return new JsonResponse(['savedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]);
+    }
+
+    /** Shared PDF pipeline for the POST (live editor HTML) and GET (metadata) variants. */
+    private function complaintPdfResponse(AccessRequest $accessRequest, string $contentHtml, PdfGenerator $pdfGenerator, CitationFootnoteFormatter $footnoteFormatter): Response
+    {
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $footnoteFormatter->formatHtml($contentHtml, is_array($sources) ? $sources : []);
+
+        $html = $this->renderView('complaint/_pdf_from_html.html.twig', [
+            'accessRequest' => $accessRequest,
+            'content_html' => $formatted['html'],
+            'footnotes' => $formatted['notes'],
+        ]);
+
+        return new Response($pdfGenerator->generateFromHtml($html), Response::HTTP_OK, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => sprintf(
+                'attachment; filename="%s"',
+                preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', sprintf(
+                    'reclamacion_%s_%s.pdf',
+                    $accessRequest->getPublicBody()->getName(),
+                    (new \DateTime())->format('Y-m-d')
+                ))
+            ),
+        ]);
+    }
+
     /** Mirror of ComplaintController::downloadPdfFromMarkdown (Trix HTML → PDF). */
     #[Route('/reclamacion/{id}/descargar-pdf', name: 'app_public_redactar_complaint_pdf', methods: ['POST'])]
     #[IsGranted('view', 'accessRequest')]
@@ -582,27 +671,51 @@ class AnonymousDraftController extends AbstractController
             return new JsonResponse(['error' => 'No hay contenido.'], Response::HTTP_BAD_REQUEST);
         }
 
-        $sources = $accessRequest->getMetadataValue('cited_sources');
-        $formatted = $footnoteFormatter->formatHtml((string) $contentHtml, is_array($sources) ? $sources : []);
+        return $this->complaintPdfResponse($accessRequest, (string) $contentHtml, $pdfGenerator, $footnoteFormatter);
+    }
 
-        $html = $this->renderView('complaint/_pdf_from_html.html.twig', [
-            'accessRequest' => $accessRequest,
-            'content_html' => $formatted['html'],
-            'footnotes' => $formatted['notes'],
-        ]);
+    /** GET variant for the send page: renders the PDF from the persisted metadata HTML. */
+    #[Route('/reclamacion/{id}/descargar-pdf', name: 'app_public_redactar_complaint_pdf_get', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function downloadComplaintPdfFromMetadata(
+        AccessRequest $accessRequest,
+        PdfGenerator $pdfGenerator,
+        CitationFootnoteFormatter $footnoteFormatter,
+    ): Response {
+        $html = (string) ($accessRequest->getMetadataValue(AnonymousDraftClaimer::METADATA_COMPLAINT_HTML) ?? '');
+        if (trim(strip_tags($html)) === '') {
+            throw $this->createNotFoundException();
+        }
 
-        $pdfContent = $pdfGenerator->generateFromHtml($html);
+        return $this->complaintPdfResponse($accessRequest, $html, $pdfGenerator, $footnoteFormatter);
+    }
 
-        return new Response($pdfContent, Response::HTTP_OK, [
-            'Content-Type' => 'application/pdf',
-            'Content-Disposition' => sprintf(
-                'attachment; filename="%s"',
-                preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', sprintf(
-                    'reclamacion_%s_%s.pdf',
-                    $accessRequest->getPublicBody()->getName(),
-                    (new \DateTime())->format('Y-m-d')
-                ))
-            ),
+    /**
+     * Complaint counterpart of send(): the manual channel is the competent
+     * transparency council's form (garante of the ApplicableLaw), degrading
+     * to general REG copy when the organism or its form URL is missing. The
+     * complaint HTML IS persisted for anonymous drafts (autoSaveComplaint /
+     * generation write METADATA_COMPLAINT_HTML), so the send page can offer
+     * a plain GET download link instead of degrading client-side.
+     */
+    #[Route('/reclamacion/{id}/enviar', name: 'app_public_redactar_complaint_send', methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function complaintSend(AccessRequest $accessRequest): Response
+    {
+        $this->sessionStore->rememberSubmitIntent($accessRequest->getId(), 'complaint');
+
+        $organism = $accessRequest->getApplicableLaw()?->getComplaintOrganism();
+        $hasPdf = trim(strip_tags((string) ($accessRequest->getMetadataValue(AnonymousDraftClaimer::METADATA_COMPLAINT_HTML) ?? ''))) !== '';
+
+        return $this->render('public/enviar.html.twig', [
+            'flow' => 'complaint',
+            'request' => $accessRequest,
+            'organism' => $organism,
+            'complaintFormUrl' => $organism?->getComplaintFormUrlFor($accessRequest),
+            'regUrl' => ChannelResolver::REG_PUBLIC_URL,
+            'pdfUrl' => $this->generateUrl('app_public_redactar_complaint_pdf_get', ['id' => (string) $accessRequest->getId()]),
+            'backUrl' => $this->generateUrl('app_public_redactar_complaint', ['id' => (string) $accessRequest->getId()]),
+            'hasPdf' => $hasPdf,
         ]);
     }
 }

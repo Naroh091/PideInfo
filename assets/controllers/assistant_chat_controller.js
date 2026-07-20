@@ -343,9 +343,9 @@ export default class extends Controller {
         this._renderChips();
 
         // Refresh the `extra` hidden inputs against fresh state. In sheet mode
-        // the chat owns the sheet, so it fills currentBodyHtml/documentIds
-        // itself; the event stays for host pages (Alpine app on the classic
-        // complaint editor) that refresh extras externally.
+        // the chat owns the sheet, so it fills currentBodyHtml itself; the
+        // event stays for host pages (Alpine app on the classic complaint
+        // editor) that refresh extras externally.
         this._refreshExtras();
         this.dispatch('before-send', { detail: { extras: this.hasExtraTarget ? this.extraTargets : [] } });
 
@@ -659,7 +659,7 @@ export default class extends Controller {
         return null;
     }
 
-    /** Sheet mode: fill currentBodyHtml/documentIds extras from the page. */
+    /** Sheet mode: fill the currentBodyHtml extra from the page. */
     _refreshExtras() {
         if (!this._sheetMode() || !this.hasExtraTarget) return;
         const bodyInput = this.extraTargets.find((el) => el.getAttribute('name') === 'currentBodyHtml');
@@ -667,11 +667,6 @@ export default class extends Controller {
             const sheetEl = this._sheetEl();
             const htmlInput = sheetEl?.querySelector('[data-paper-sheet-target~="htmlInput"]');
             bodyInput.value = htmlInput?.value ?? '';
-        }
-        const docsInput = this.extraTargets.find((el) => el.getAttribute('name') === 'documentIds');
-        if (docsInput) {
-            const checked = this.element.querySelectorAll('input[data-doc-pick]:checked');
-            docsInput.value = Array.from(checked).map((i) => i.value).join(',');
         }
     }
 

@@ -81,7 +81,6 @@ class ComplaintRedactController extends AbstractController
                 'currentDraft' => null,
                 'currentBodyHtml' => '',
                 'chatHistory' => [],
-                'availableDocuments' => [],
                 'alegacionesDoc' => null,
             ]);
         }
@@ -129,18 +128,13 @@ class ComplaintRedactController extends AbstractController
             $chatHistory = $this->loadScratch($accessRequest, $mode);
         }
 
-        // Available documents for the right-side picker (same logic as the old assistant view).
-        $availableDocuments = [];
+        // Las alegaciones alimentan el panel lateral; el resto de documentos ya
+        // no se preseleccionan — el agente los lee con `read_request_documents`.
         $alegacionesDoc = null;
-        $excludedTypes = [DocumentType::Complaint, DocumentType::AlegationResponse, DocumentType::Unprocessed];
         foreach ($accessRequest->getDocuments() as $document) {
-            if ($document->getType() === DocumentType::Alegaciones && $alegacionesDoc === null) {
+            if ($document->getType() === DocumentType::Alegaciones) {
                 $alegacionesDoc = $document;
-            }
-            if (!in_array($document->getType(), $excludedTypes, true)
-                && $document->isProcessed()
-                && $document->getExtractedText()) {
-                $availableDocuments[] = $document;
+                break;
             }
         }
 
@@ -154,7 +148,6 @@ class ComplaintRedactController extends AbstractController
             'currentDraft' => $currentDraft,
             'currentBodyHtml' => $currentBodyHtml,
             'chatHistory' => $chatHistory,
-            'availableDocuments' => $availableDocuments,
             'alegacionesDoc' => $alegacionesDoc,
         ]);
     }

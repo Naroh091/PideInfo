@@ -528,6 +528,59 @@ export default class extends Controller {
         window.location.href = url;
     }
 
+    /**
+     * «Enviar» (flujo anónimo): navega a la página de envío. En la solicitud
+     * primero vuelca el autosave pendiente; en la reclamación (shape
+     * complaint, sin autosave) hace POST del HTML del editor al mirror de
+     * autoguardado para que la página de envío pueda generar el PDF por GET.
+     */
+    async goToSend(event) {
+        event?.preventDefault();
+        const el = event?.currentTarget;
+        const url = el?.dataset?.paperSheetSendUrlParam || el?.getAttribute('href');
+        if (!url) return;
+
+        // If the assistant chat is mid-turn, flushing/storing now would pin a
+        // truncated draft (see dispatchSubmit's identical guard).
+        const chatEl = document.querySelector('[data-controller~="assistant-chat"]');
+        const chatCtrl = chatEl
+            ? this.application?.getControllerForElementAndIdentifier(chatEl, 'assistant-chat')
+            : null;
+        if (chatCtrl && typeof chatCtrl.isBusy === 'function' && chatCtrl.isBusy()) {
+            window.alert('El asistente todavía está generando la respuesta. Espera a que termine y vuelve a pulsar "Enviar".');
+            return;
+        }
+
+        if (this._isHtmlDoc()) {
+            const html = this.getHtml();
+            if (!html.trim()) {
+                window.alert('Aún no hay borrador que enviar. Pídeselo al asistente en el chat.');
+                return;
+            }
+            const saveUrl = el?.dataset?.paperSheetSendSaveUrlParam;
+            if (saveUrl) {
+                try {
+                    const res = await fetch(saveUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ html }),
+                    });
+                    if (!res.ok) {
+                        window.alert('No se pudo guardar el borrador antes de enviar. Inténtalo de nuevo.');
+                        return;
+                    }
+                } catch (e) {
+                    window.alert('Error de red al guardar el borrador.');
+                    return;
+                }
+            }
+        } else {
+            await this.flush();
+        }
+        window.location.href = url;
+    }
+
     /* ── Acciones explícitas (shape=complaint) ─────────────────────────── */
 
     /** "Guardar borrador": persists the Trix HTML as a Document. */
