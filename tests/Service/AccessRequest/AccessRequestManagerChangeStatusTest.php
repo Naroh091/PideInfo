@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\AccessRequest;
 
 use App\Entity\AccessRequest;
+use App\Entity\AccessRequestComplaint;
 use App\Entity\ApplicableLaw;
 use App\Entity\PublicBody;
 use App\Entity\StatusHistory;
@@ -177,5 +178,117 @@ final class AccessRequestManagerChangeStatusTest extends KernelTestCase
         $manager->extendDeadlineByLaw($request);
 
         self::assertSame(AccessRequest::RESULT_PARTIALLY_GRANTED, $request->getResolutionResult());
+    }
+
+    /**
+     * TYPE_RESOLUTION fija la decisión SIN tocar el status, permitiendo que
+     * ambos diverjan (caso: resolución tardía tras un silencio ya completado).
+     */
+    public function testResolutionTypeSetsResultIndependentlyOfStatus(): void
+    {
+        $manager = $this->manager();
+        $request = $this->request(AccessRequest::STATUS_GRANTED_COMPLETED);
+        // El status ya cerró; el resultado había quedado en el silencio inferido.
+        $request->setResolutionResult(AccessRequest::RESULT_SILENCE);
+
+        $ok = $manager->changeStatus($request, StatusHistory::TYPE_RESOLUTION, AccessRequest::RESULT_PARTIALLY_GRANTED);
+
+        self::assertTrue($ok);
+        self::assertSame(AccessRequest::STATUS_GRANTED_COMPLETED, $request->getStatus(), 'no debe tocar el status');
+        self::assertSame(AccessRequest::RESULT_PARTIALLY_GRANTED, $request->getResolutionResult());
+        self::assertNotNull($request->getResolvedAt());
+    }
+
+    public function testResolutionTypeNoneClearsResultAndResolvedAt(): void
+    {
+        $manager = $this->manager();
+        $request = $this->request(AccessRequest::STATUS_DENIED);
+        $request->setResolutionResult(AccessRequest::RESULT_DENIED);
+        $request->setResolvedAt(new \DateTimeImmutable('-2 days'));
+
+        $ok = $manager->changeStatus($request, StatusHistory::TYPE_RESOLUTION, 'none');
+
+        self::assertTrue($ok);
+        self::assertSame(AccessRequest::STATUS_DENIED, $request->getStatus(), 'no debe tocar el status');
+        self::assertNull($request->getResolutionResult());
+        self::assertNull($request->getResolvedAt());
+    }
+
+    public function testResolutionTypeRejectsInvalidValue(): void
+    {
+        $manager = $this->manager();
+        $request = $this->request();
+
+        self::assertFalse($manager->changeStatus($request, StatusHistory::TYPE_RESOLUTION, 'not_a_result'));
+    }
+
+    public function testResolutionChangeRecordsHistory(): void
+    {
+        $manager = $this->manager();
+        $em = static::getContainer()->get('doctrine')->getManager();
+        $request = $this->request(AccessRequest::STATUS_DELAYED);
+        $request->setResolutionResult(AccessRequest::RESULT_SILENCE);
+
+        $manager->changeStatus($request, StatusHistory::TYPE_RESOLUTION, AccessRequest::RESULT_PARTIALLY_GRANTED);
+
+        $rows = $em->getRepository(StatusHistory::class)->findBy([
+            'accessRequest' => $request,
+            'statusType' => StatusHistory::TYPE_RESOLUTION,
+        ]);
+        self::assertCount(1, $rows);
+        self::assertSame(AccessRequest::RESULT_SILENCE, $rows[0]->getFromStatus());
+        self::assertSame(AccessRequest::RESULT_PARTIALLY_GRANTED, $rows[0]->getToStatus());
+        self::assertSame('Resolución', $rows[0]->getStatusTypeLabel());
+    }
+
+    /**
+     * El desenlace fino de reclamación (estimada parcialmente) fija a la vez el
+     * estado de la reclamación y su complaintResult explícito.
+     */
+    public function testComplaintExplicitResultSetsFinerDecision(): void
+    {
+        $manager = $this->manager();
+        $request = $this->request(AccessRequest::STATUS_DELAYED);
+        $manager->changeStatus($request, StatusHistory::TYPE_COMPLAINT, AccessRequestComplaint::STATUS_RECLAIMED);
+
+        $ok = $manager->changeStatus(
+            $request,
+            StatusHistory::TYPE_COMPLAINT,
+            AccessRequestComplaint::STATUS_GRANTED,
+            null,
+            AccessRequestComplaint::RESULT_PARTIALLY_UPHELD,
+        );
+
+        self::assertTrue($ok);
+        self::assertSame(AccessRequestComplaint::STATUS_GRANTED, $request->getComplaint()->getStatus());
+        self::assertSame(AccessRequestComplaint::RESULT_PARTIALLY_UPHELD, $request->getComplaint()->getComplaintResult());
+    }
+
+    /**
+     * Refinar el resultado cuando el estado de la reclamación NO cambia
+     * (estimada → estimada parcialmente, ambas complaint_granted) igualmente
+     * aplica el nuevo complaintResult (no cae en el early-return).
+     */
+    public function testComplaintExplicitResultAppliesWhenStatusUnchanged(): void
+    {
+        $manager = $this->manager();
+        $request = $this->request(AccessRequest::STATUS_DELAYED);
+        $manager->changeStatus($request, StatusHistory::TYPE_COMPLAINT, AccessRequestComplaint::STATUS_RECLAIMED);
+        // Primero "estimada" (resultado inferido: upheld).
+        $manager->changeStatus($request, StatusHistory::TYPE_COMPLAINT, AccessRequestComplaint::STATUS_GRANTED);
+        self::assertSame(AccessRequestComplaint::RESULT_UPHELD, $request->getComplaint()->getComplaintResult());
+
+        // Ahora afinamos a "estimada parcialmente" sin cambiar el estado.
+        $ok = $manager->changeStatus(
+            $request,
+            StatusHistory::TYPE_COMPLAINT,
+            AccessRequestComplaint::STATUS_GRANTED,
+            null,
+            AccessRequestComplaint::RESULT_PARTIALLY_UPHELD,
+        );
+
+        self::assertTrue($ok);
+        self::assertSame(AccessRequestComplaint::STATUS_GRANTED, $request->getComplaint()->getStatus());
+        self::assertSame(AccessRequestComplaint::RESULT_PARTIALLY_UPHELD, $request->getComplaint()->getComplaintResult());
     }
 }

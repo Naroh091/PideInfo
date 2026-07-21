@@ -355,7 +355,20 @@ class AccessRequest
 
     public function getStatusLabel(): string
     {
-        return match ($this->status) {
+        return self::labelForStatus($this->status);
+    }
+
+    /**
+     * Readable label for any status value (parallel to the static
+     * {@see self::statusColor()}) — lets callers that iterate over the whole
+     * set of statuses (e.g. an inline status picker) label each option without
+     * an entity instance. Named `labelForStatus` rather than `statusLabel` so
+     * it doesn't shadow the `getStatusLabel()` getter in Twig's `.statusLabel`
+     * resolution.
+     */
+    public static function labelForStatus(string $status): string
+    {
+        return match ($status) {
             self::STATUS_SENT => 'Enviada',
             self::STATUS_PROCESSING => 'En trámite',
             self::STATUS_GRANTED => 'Concedida (pendiente de recepción)',
@@ -365,7 +378,7 @@ class AccessRequest
             self::STATUS_INADMITTED => 'Inadmitida a trámite',
             self::STATUS_DELAYED => 'Silencio administrativo',
             self::STATUS_PENDING => 'Pendiente de recepción',
-            default => $this->status,
+            default => $status,
         };
     }
 
@@ -382,7 +395,16 @@ class AccessRequest
 
     public function getResolutionResultLabel(): ?string
     {
-        return match ($this->resolutionResult) {
+        return self::labelForResolutionResult($this->resolutionResult);
+    }
+
+    /**
+     * Readable label for any resolution-result value (parallel to
+     * {@see self::labelForStatus()}); NULL for "no resolution yet".
+     */
+    public static function labelForResolutionResult(?string $result): ?string
+    {
+        return match ($result) {
             self::RESULT_GRANTED => 'Concesión total',
             self::RESULT_PARTIALLY_GRANTED => 'Concesión parcial',
             self::RESULT_DENIED => 'Denegación',

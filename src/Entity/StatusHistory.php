@@ -15,6 +15,7 @@ class StatusHistory
     public const TYPE_STATUS = 'status';
     public const TYPE_COMPLAINT = 'complaint';
     public const TYPE_COURT = 'courtStatus';
+    public const TYPE_RESOLUTION = 'resolution';
 
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
@@ -82,6 +83,7 @@ class StatusHistory
             self::TYPE_STATUS => 'Estado principal',
             self::TYPE_COMPLAINT => 'Reclamación',
             self::TYPE_COURT => 'Vía judicial',
+            self::TYPE_RESOLUTION => 'Resolución',
             default => $this->statusType,
         };
     }
@@ -129,6 +131,15 @@ class StatusHistory
                 'in_court' => 'En tribunal',
                 'court_granted' => 'Favorable',
                 'court_denied' => 'Desfavorable',
+                default => $status,
+            },
+            self::TYPE_RESOLUTION => match ($status) {
+                'none' => 'Sin resolución',
+                'granted' => 'Concesión total',
+                'partially_granted' => 'Concesión parcial',
+                'denied' => 'Denegación',
+                'inadmitted' => 'Inadmisión',
+                'silence' => 'Silencio administrativo',
                 default => $status,
             },
             default => $status,

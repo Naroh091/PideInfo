@@ -232,12 +232,22 @@ class AccessRequestComplaint
 
     public function getStatusLabel(): string
     {
-        return match ($this->status) {
+        return self::labelForStatus($this->status);
+    }
+
+    /**
+     * Readable label for any complaint-status value (parallel to the static
+     * {@see self::statusColor()}). Named `labelForStatus` so it doesn't shadow
+     * the `getStatusLabel()` getter in Twig's `.statusLabel` resolution.
+     */
+    public static function labelForStatus(string $status): string
+    {
+        return match ($status) {
             self::STATUS_RECLAIMED => 'Reclamada',
             self::STATUS_GRANTED => 'Reclamación estimada',
             self::STATUS_DENIED => 'Reclamación desestimada',
             self::STATUS_ARCHIVED => 'Reclamación archivada',
-            default => $this->status,
+            default => $status,
         };
     }
 
@@ -254,7 +264,16 @@ class AccessRequestComplaint
 
     public function getComplaintResultLabel(): ?string
     {
-        return match ($this->complaintResult) {
+        return self::labelForComplaintResult($this->complaintResult);
+    }
+
+    /**
+     * Readable label for any complaint-result value (parallel to
+     * {@see self::labelForStatus()}); NULL for "not resolved yet".
+     */
+    public static function labelForComplaintResult(?string $result): ?string
+    {
+        return match ($result) {
             self::RESULT_UPHELD => 'Estimada',
             self::RESULT_PARTIALLY_UPHELD => 'Estimada parcialmente',
             self::RESULT_DISMISSED => 'Desestimada',

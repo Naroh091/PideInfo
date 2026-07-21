@@ -1,0 +1,53 @@
+{#
+   Menú desplegable de un badge editable en el detalle de la solicitud.
+
+   Se teletransporta al <body> (x-teleport) por el mismo motivo que los modales
+   de esta plantilla: el contenedor `.hcarta-cuerpo` tiene overflow:hidden y el
+   transform de `.rise` crea un contexto de apilamiento que atraparía y
+   recortaría un menú posicionado dentro. Posición fija calculada desde el
+   trigger; un backdrop transparente cierra al clicar fuera (sin el parpadeo de
+   click-away sobre el propio trigger).
+
+   Cada opción es su propio <form> (cero JS de envío) que POSTea a
+   app_solicitudes_change_status variando statusType. Las opciones vienen de
+   App\Service\AccessRequest\RequestStatusPicker.
+
+   Comparte el scope Alpine del `.badge-edit` que lo envuelve: usa `open`,
+   `mx`, `my`.
+
+   Parámetros:
+     request_id  — id de la solicitud
+     status_type — 'status' | 'resolution' | 'complaint'
+     options     — lista {value, result, label, class, active}
+#}
+{% macro status_menu(request_id, status_type, options) %}
+    <template x-teleport="body">
+        <div x-show="open" x-cloak style="display: none;" @scroll.window="open = false">
+            <div class="badge-edit-backdrop" @click="open = false"></div>
+            <div class="badge-edit-menu"
+                 x-transition
+                 :style="'left:' + mx + 'px; top:' + my + 'px;'"
+                 role="menu">
+                {% for opt in options %}
+                    <form method="post"
+                          action="{{ path('app_solicitudes_change_status', {id: request_id}) }}"
+                          class="badge-edit-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request_id) }}">
+                        <input type="hidden" name="statusType" value="{{ status_type }}">
+                        <input type="hidden" name="newStatus" value="{{ opt.value }}">
+                        {% if opt.result %}
+                            <input type="hidden" name="complaintResult" value="{{ opt.result }}">
+                        {% endif %}
+                        <input type="hidden" name="notes" value="Cambio manual desde el detalle">
+                        <button type="submit" class="badge-edit-item{{ opt.active ? ' is-active' }}" role="menuitem">
+                            <span class="badge {{ opt.class }}">{{ opt.label }}</span>
+                            {% if opt.active %}
+                                <svg class="badge-edit-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            {% endif %}
+                        </button>
+                    </form>
+                {% endfor %}
+            </div>
+        </div>
+    </template>
+{% endmacro %}

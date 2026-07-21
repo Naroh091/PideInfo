@@ -408,6 +408,16 @@ Cada cambio de estado — ya lo dispare una persona usuaria, un administrador o 
 
 El timeline en la página de detalle de la solicitud renderiza estos registros de forma cronológica, con iconos codificados por color para los distintos tipos de evento (traslado, terceros, inicio de tramitación, ampliación, resolución). Las etiquetas las traduce `StatusHistory::getToStatusLabel()`, que cubre todos los estados principales — incluidos `partially_granted` ("Estimación parcial") e `inadmitted` ("Inadmitida"), que antes caían al valor crudo.
 
+### Edición inline desde el detalle (desplegables de los badges)
+
+En la cabecera del expediente (`solicitudes/show.html.twig`), quien tenga permiso `edit` puede cambiar los tres badges —**Estado**, **Resolución** y **Reclamación**— con un desplegable, sin pasar por el formulario de edición completo. Los tres POSTean al mismo endpoint `app_solicitudes_change_status` (`statusType` distinto) y pasan por `changeStatus()`, así que registran `StatusHistory` y aplican los mismos efectos colaterales que cualquier otra vía:
+
+- **Estado** → `statusType=status` (los 9 estados del workflow; el `resolutionResult` se deriva/limpia como siempre).
+- **Resolución** → `statusType=resolution`, una vía que fija `resolutionResult` **con independencia del `status`** (para el caso ortogonal legítimo: p. ej. `granted_completed` con `resolutionResult = partially_granted`). El valor `none` limpia la resolución. No toca `status`.
+- **Reclamación** → `statusType=complaint` (crea/actualiza/elimina la entidad y deriva `complaintResult`); los desenlaces finos que el estado no distingue (*Estimada parcialmente*, *Inadmitida*) viajan además en el parámetro opcional `complaintResult` (`changeStatus(..., $explicitComplaintResult)`), que vence a la inferencia — y se aplica incluso cuando el estado de la reclamación no cambia. *Inadmitida* se modela como reclamación desfavorable (`complaint_denied` + resultado `inadmitted`) para no bloquear la vía judicial posterior.
+
+Las opciones de cada desplegable las construye `App\Service\AccessRequest\RequestStatusPicker` (etiquetas desde los helpers estáticos `AccessRequest::labelForStatus()` / `labelForResolutionResult()` y `AccessRequestComplaint::labelForStatus()` / `labelForComplaintResult()`, nunca decididas en Twig).
+
 ## Recordatorios en el detalle
 
 La barra lateral del detalle (`RequestStatusSidebar`) incluye, junto al bloque "Plazos", un bloque **"Recordatorios"** que lista los recordatorios pendientes del expediente: los `CustomDeadline` (fecha + descripción propias, con enlaces a crear/editar/eliminar vía `app_solicitudes_deadline_*`) y los avisos ligeros `Reminder` ("recuérdamelo", `ReminderRepository::findAllPendingForRequest()`).

@@ -126,6 +126,58 @@
         }
         .exp-meta-valor.es-mono { font-family: 'JetBrains Mono', monospace; font-size: .8rem; font-variant-numeric: tabular-nums; }
 
+        /* ── Badges editables (desplegable inline de Estado/Resolución/Reclamación) ── */
+        .badge-edit { position: relative; display: inline-flex; }
+        .badge-edit-trigger {
+            display: inline-flex; align-items: center; gap: .3rem;
+            background: transparent; border: 0; padding: 0; margin: 0;
+            cursor: pointer; border-radius: 999px;
+        }
+        .badge-edit-trigger:focus-visible { outline: 2px solid rgb(14 165 233); outline-offset: 2px; }
+        .badge-edit-caret { color: rgb(148 163 184); transition: transform .15s ease; flex-shrink: 0; }
+        .badge-edit-trigger:hover .badge-edit-caret { color: rgb(71 85 105); }
+        /* El menú se teletransporta al <body>: posición fija calculada en JS. */
+        .badge-edit-backdrop { position: fixed; inset: 0; z-index: 55; background: transparent; }
+        .badge-edit-menu {
+            position: fixed; z-index: 56;
+            background: white;
+            border: 1px solid rgb(226 232 240);
+            border-radius: .6rem;
+            box-shadow: 0 12px 32px -16px rgba(15, 23, 42, .3);
+            padding: .3rem;
+            min-width: 210px; max-height: 20rem; overflow-y: auto;
+        }
+        .badge-edit-form { margin: 0; }
+        .badge-edit-item {
+            display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+            width: 100%; text-align: left;
+            background: transparent; border: 0; cursor: pointer;
+            padding: .3rem .4rem; border-radius: .4rem;
+            transition: background-color .12s ease;
+        }
+        .badge-edit-item:hover { background: rgb(248 250 252); }
+        .badge-edit-item.is-active { background: rgb(240 249 255); }
+        .badge-edit-check { width: .85rem; height: .85rem; color: rgb(2 132 199); flex-shrink: 0; }
+
+        /* ── Tooltip (i) del label «Estado» ── */
+        .estado-info { position: relative; display: inline-flex; vertical-align: middle; margin-left: .15rem; }
+        .estado-info-btn {
+            display: inline-flex; background: transparent; border: 0; padding: 0; margin: 0;
+            color: rgb(148 163 184); cursor: help; line-height: 0;
+        }
+        .estado-info-btn:hover { color: rgb(71 85 105); }
+        .estado-info-btn:focus-visible { outline: 2px solid rgb(14 165 233); outline-offset: 2px; border-radius: 999px; }
+        /* Teletransportado al <body>: posición fija calculada en JS. */
+        .estado-info-tip {
+            position: fixed;
+            width: 15rem;
+            background: rgb(15 23 42); color: white;
+            font-family: 'DM Sans', sans-serif; font-size: .72rem; font-weight: 400; line-height: 1.35;
+            padding: .5rem .6rem; border-radius: .5rem;
+            box-shadow: 0 12px 32px -16px rgba(15, 23, 42, .5);
+            z-index: 60;
+        }
+
         /* Aviso «Vista admin / Compartida por» */
         .exp-viendo-como {
             display: inline-flex; align-items: center; gap: .5rem;
@@ -685,6 +737,11 @@
 {% endblock %}
 
 {% block content %}
+{% import '_macros/status_picker.html.twig' as picker %}
+{% set canEditStatus = is_granted('edit', request) %}
+{# Scope Alpine compartido por los tres badges editables: abre el menú
+   teletransportado calculando su posición fija desde el propio trigger. #}
+{% set pickerData = '{ open: false, mx: 0, my: 0, openMenu() { const r = $refs.trigger.getBoundingClientRect(); this.mx = Math.min(r.left, window.innerWidth - 232); this.my = r.bottom + 6; this.open = true; } }' %}
 {# ── Migas + editar ── #}
 <div class="flex items-center justify-between gap-3 mb-1 rise rise-1">
     <nav class="flex items-center gap-2 text-xs text-slate-500 min-w-0" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
@@ -818,31 +875,94 @@
                 <span class="exp-meta-valor es-mono">{{ request.sentAt|date('d/m/Y') }}</span>
             </div>
             <div class="exp-meta-celda">
-                <span class="exp-meta-clave">Estado</span>
+                <span class="exp-meta-clave">
+                    Estado
+                    <span class="estado-info"
+                          x-data="{ tip: false, tx: 0, ty: 0, show() { const r = $refs.ibtn.getBoundingClientRect(); this.tx = Math.min(r.left, window.innerWidth - 256); this.ty = r.bottom + 6; this.tip = true; } }"
+                          @mouseenter="show()" @mouseleave="tip = false">
+                        <button type="button" class="estado-info-btn" x-ref="ibtn"
+                                @focus="show()" @blur="tip = false"
+                                aria-label="Qué significa este estado">
+                            <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                        </button>
+                        <template x-teleport="body">
+                            <span x-show="tip" x-cloak style="display: none;" class="estado-info-tip" role="tooltip"
+                                  :style="'left:' + tx + 'px; top:' + ty + 'px;'">
+                                Estado interno de trámite de la solicitud, que puede no coincidir con los trámites de la administración.
+                            </span>
+                        </template>
+                    </span>
+                </span>
+                {# Trigger editable: el status CRUDO de la solicitud (su propio eje,
+                   coherente con el desplegable). Vista de solo lectura: el estado
+                   EFECTIVO, donde una reclamación activa manda sobre el badge. #}
+                {% set estadoBadgeRaw %}<span class="badge {{ statusBadge[request.status]|default('badge-secondary') }}">{{ request.statusLabel }}</span>{% endset %}
                 <span class="exp-meta-valor">
-                    {% if request.hasActiveComplaint %}
+                    {% if canEditStatus %}
+                        <span class="badge-edit" x-data="{{ pickerData }}" @keydown.escape.window="open = false">
+                            <button type="button" class="badge-edit-trigger" x-ref="trigger"
+                                    @click="open ? (open = false) : openMenu()"
+                                    :aria-expanded="open" aria-haspopup="true">
+                                {{ estadoBadgeRaw }}
+                                <i data-lucide="chevron-down" class="badge-edit-caret w-3 h-3" :class="open && 'rotate-180'"></i>
+                            </button>
+                            {{ picker.status_menu(request.id, 'status', statusPicker.status) }}
+                        </span>
+                    {% elseif request.hasActiveComplaint %}
                         <span class="badge {{ complaintBadge[request.complaint.status]|default('badge-info') }}">{{ request.effectiveStatusLabel }}</span>
                     {% else %}
-                        <span class="badge {{ statusBadge[request.status]|default('badge-secondary') }}">{{ request.statusLabel }}</span>
+                        {{ estadoBadgeRaw }}
                     {% endif %}
                     {% if request.isDeadlineSuspended %}
                         <span class="badge badge-warning">Plazo suspendido</span>
                     {% endif %}
                 </span>
             </div>
-            {% if request.resolutionResult %}
+            {% if canEditStatus or request.resolutionResult %}
                 <div class="exp-meta-celda">
                     <span class="exp-meta-clave">Resolución</span>
+                    {% set resolucionBadge %}
+                        <span class="badge {{ resultBadge[request.resolutionResult]|default('badge-secondary') }}">{{ request.resolutionResultLabel|default('Sin resolución') }}</span>
+                    {% endset %}
                     <span class="exp-meta-valor">
-                        <span class="badge {{ resultBadge[request.resolutionResult]|default('badge-secondary') }}">{{ request.resolutionResultLabel }}</span>
+                        {% if canEditStatus %}
+                            <span class="badge-edit" x-data="{{ pickerData }}" @keydown.escape.window="open = false">
+                                <button type="button" class="badge-edit-trigger" x-ref="trigger"
+                                        @click="open ? (open = false) : openMenu()"
+                                        :aria-expanded="open" aria-haspopup="true">
+                                    {{ resolucionBadge }}
+                                    <i data-lucide="chevron-down" class="badge-edit-caret w-3 h-3" :class="open && 'rotate-180'"></i>
+                                </button>
+                                {{ picker.status_menu(request.id, 'resolution', statusPicker.resolution) }}
+                            </span>
+                        {% else %}
+                            {{ resolucionBadge }}
+                        {% endif %}
                     </span>
                 </div>
             {% endif %}
-            {% if request.complaint and request.complaint.complaintResult %}
+            {% if request.complaint and (canEditStatus or request.complaint.complaintResult) %}
                 <div class="exp-meta-celda">
                     <span class="exp-meta-clave">Reclamación</span>
+                    {% set reclamacionBadge %}
+                        {% set reclLabel = request.complaint.complaintResultLabel|default(request.complaint.statusLabel) %}
+                        {% set reclClass = resultBadge[request.complaint.complaintResult]|default(complaintBadge[request.complaint.status])|default('badge-secondary') %}
+                        <span class="badge {{ reclClass }}">{{ reclLabel }}</span>
+                    {% endset %}
                     <span class="exp-meta-valor">
-                        <span class="badge {{ resultBadge[request.complaint.complaintResult]|default('badge-secondary') }}">{{ request.complaint.complaintResultLabel }}</span>
+                        {% if canEditStatus %}
+                            <span class="badge-edit" x-data="{{ pickerData }}" @keydown.escape.window="open = false">
+                                <button type="button" class="badge-edit-trigger" x-ref="trigger"
+                                        @click="open ? (open = false) : openMenu()"
+                                        :aria-expanded="open" aria-haspopup="true">
+                                    {{ reclamacionBadge }}
+                                    <i data-lucide="chevron-down" class="badge-edit-caret w-3 h-3" :class="open && 'rotate-180'"></i>
+                                </button>
+                                {{ picker.status_menu(request.id, 'complaint', statusPicker.complaint) }}
+                            </span>
+                        {% else %}
+                            {{ reclamacionBadge }}
+                        {% endif %}
                     </span>
                 </div>
             {% endif %}

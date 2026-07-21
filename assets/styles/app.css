@@ -420,7 +420,7 @@ body {
 /* Hero */
 .home-hero {
   position: relative;
-  padding: 2.75rem 0 4.5rem;
+  padding: 3.5rem 0 5.5rem;
   background:
     radial-gradient(48rem 24rem at 85% -10%, rgba(14, 165, 233, .10), transparent 65%),
     linear-gradient(168deg, #ffffff 0%, #ffffff 55%, #f0f9ff 100%);
@@ -433,7 +433,7 @@ body {
   grid-template-columns: minmax(0, 1fr);
 }
 @media (min-width: 1024px) {
-  .home-hero { padding: 3.5rem 0 5.5rem; }
+  .home-hero { padding: 5rem 0 7rem; }
   .home-hero-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 4rem; }
 }
 
@@ -545,7 +545,6 @@ body {
 .btn-editorial--primario {
   background: var(--color-primary-600);
   color: #fff;
-  box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 8px 24px -12px rgba(2, 132, 199, .55);
 }
 .btn-editorial--primario:hover { background: var(--color-primary-700); color: #fff; transform: translateY(-1px); }
 .btn-editorial--secundario {
@@ -555,8 +554,9 @@ body {
   box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
 }
 .btn-editorial--secundario:hover { border-color: #cbd5e1; background: #f8fafc; color: #0f172a; }
-/* Primario sobre banda tinta: anillo + glow sky */
-.btn-editorial--tinta { box-shadow: 0 0 0 1px rgba(56, 189, 248, .25), 0 12px 32px -12px rgba(14, 165, 233, .5); }
+/* Primario sobre banda tinta: invertido — fondo blanco, texto azul */
+.btn-editorial--tinta { background: #fff; color: var(--color-primary-700); }
+.btn-editorial--tinta:hover { background: #f0f9ff; color: var(--color-primary-800); transform: translateY(-1px); }
 
 /* La hoja que se escribe sola */
 .home-hoja-marco { position: relative; }
@@ -637,18 +637,18 @@ body {
 /* Banda tinta: el repositorio */
 .home-repo-oscuro {
   background:
-    radial-gradient(44rem 22rem at 12% 0%, rgba(14, 165, 233, .1), transparent 60%),
-    #020617;
+    radial-gradient(44rem 22rem at 12% 0%, rgba(56, 189, 248, .24), transparent 60%),
+    linear-gradient(165deg, #1379ac 0%, #0d5f8c 100%);
   color: #cbd5e1;
   padding: 4.5rem 0 3rem;
-  border-top: 1px solid #1e293b;
+  border-top: 1px solid rgba(56, 189, 248, .2);
 }
 .home-repo-oscuro-grid { display: grid; gap: 2.5rem; align-items: center; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1024px) { .home-repo-oscuro-grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 4rem; } }
 .home-repo-oscuro .home-seccion-titulo { color: #f8fafc; text-align: left; }
 .home-repo-oscuro .home-seccion-titulo .home-acento { background: linear-gradient(135deg, var(--color-primary-300), var(--color-primary-400)); -webkit-background-clip: text; background-clip: text; }
-.home-repo-oscuro-sub { color: #94a3b8; font-size: 1.0625rem; max-width: 32rem; margin: 0; }
-.home-repo-oscuro-sub b { font-weight: 600; color: #e2e8f0; }
+.home-repo-oscuro-sub { color: #b6cfe0; font-size: 1.0625rem; max-width: 32rem; margin: 0; }
+.home-repo-oscuro-sub b { font-weight: 600; color: #f0f9ff; }
 .home-repo-cta { margin-top: 1.875rem; display: flex; gap: .875rem; flex-wrap: wrap; }
 
 .home-franja {

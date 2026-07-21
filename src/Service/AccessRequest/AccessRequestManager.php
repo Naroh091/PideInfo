@@ -445,13 +445,18 @@ class AccessRequestManager
         AccessRequest $request,
         string $statusType,
         string $newStatus,
-        ?string $notes = null
+        ?string $notes = null,
+        ?string $explicitComplaintResult = null
     ): bool {
         // Validate status type and get current value
         $currentStatus = match ($statusType) {
             StatusHistory::TYPE_STATUS => $request->getStatus(),
             StatusHistory::TYPE_COMPLAINT => $request->getComplaintStatus(),
             StatusHistory::TYPE_COURT => $request->getCourtStatus(),
+            // The resolution decision is not a workflow marking; treat the
+            // "not yet resolved" case as the 'none' sentinel so it doesn't
+            // trip the null guard below.
+            StatusHistory::TYPE_RESOLUTION => $request->getResolutionResult() ?? 'none',
             default => null,
         };
 
@@ -485,11 +490,35 @@ class AccessRequestManager
                 AccessRequest::COURT_GRANTED,
                 AccessRequest::COURT_DENIED,
             ],
+            StatusHistory::TYPE_RESOLUTION => [
+                'none',
+                AccessRequest::RESULT_GRANTED,
+                AccessRequest::RESULT_PARTIALLY_GRANTED,
+                AccessRequest::RESULT_DENIED,
+                AccessRequest::RESULT_INADMITTED,
+                AccessRequest::RESULT_SILENCE,
+            ],
             default => [],
         };
 
         if (!in_array($newStatus, $validStatuses, true)) {
             return false;
+        }
+
+        // An explicit complaint result (e.g. "estimada parcialmente" /
+        // "inadmitida") can differ from what the coarse status transition
+        // would infer, and both may share the same complaint status. Apply it
+        // even when the status itself doesn't move — otherwise the early
+        // return below would silently drop the finer decision.
+        if (
+            $statusType === StatusHistory::TYPE_COMPLAINT
+            && $explicitComplaintResult !== null
+            && $currentStatus === $newStatus
+            && $request->getComplaint() !== null
+        ) {
+            $request->getComplaint()->setComplaintResult($explicitComplaintResult);
+            $this->em->flush();
+            return true;
         }
 
         // Don't do anything if status hasn't changed
@@ -515,7 +544,11 @@ class AccessRequestManager
                     $this->em->persist($complaint);
                 }
                 $complaint->setStatus($newStatus);
-                if ($complaint->getComplaintResult() === null) {
+                // An explicit result (estimada parcialmente / inadmitida) wins
+                // over the coarse inference; otherwise infer as before.
+                if ($explicitComplaintResult !== null) {
+                    $complaint->setComplaintResult($explicitComplaintResult);
+                } elseif ($complaint->getComplaintResult() === null) {
                     $inferred = match ($newStatus) {
                         AccessRequestComplaint::STATUS_GRANTED => AccessRequestComplaint::RESULT_UPHELD,
                         AccessRequestComplaint::STATUS_DENIED => AccessRequestComplaint::RESULT_DISMISSED,
@@ -570,6 +603,19 @@ class AccessRequestManager
             }
         } elseif ($statusType === StatusHistory::TYPE_COURT) {
             $request->setCourtStatus($newStatus);
+        } elseif ($statusType === StatusHistory::TYPE_RESOLUTION) {
+            // The administration's decision, set independently of the workflow
+            // status (they can legitimately diverge — e.g. granted_completed
+            // with a partially_granted resolution). Does NOT touch $status.
+            if ($newStatus === 'none') {
+                $request->setResolutionResult(null);
+                $request->setResolvedAt(null);
+            } else {
+                $request->setResolutionResult($newStatus);
+                if ($request->getResolvedAt() === null) {
+                    $request->setResolvedAt(new \DateTimeImmutable());
+                }
+            }
         }
 
         // Set complaint deadline when changing to "Reclamada"

@@ -1009,6 +1009,7 @@ class AccessRequestController extends AbstractController
         AccessRequest $accessRequest,
         \App\Repository\AgentTaskRepository $agentTasks,
         \App\Service\AI\Chat\ChatHistoryStore $chatHistoryStore,
+        \App\Service\AccessRequest\RequestStatusPicker $statusPicker,
     ): Response {
         // Historial persistido del chat de consulta libre (tabla ai_chat_messages),
         // para retomar la conversación al reabrir el chat.
@@ -1023,6 +1024,7 @@ class AccessRequestController extends AbstractController
             'request' => $accessRequest,
             'agentTasks' => $agentTasks->findByRequest($accessRequest),
             'consultChatHistory' => $consultHistory,
+            'statusPicker' => $statusPicker->options($accessRequest),
         ]);
     }
 
@@ -1281,6 +1283,9 @@ class AccessRequestController extends AbstractController
         $statusType = $request->request->get('statusType');
         $newStatus = $request->request->get('newStatus');
         $notes = $request->request->get('notes');
+        // Optional finer complaint decision (estimada parcialmente / inadmitida)
+        // that the coarse status transition can't express on its own.
+        $complaintResult = $request->request->get('complaintResult') ?: null;
 
         // Validate required fields
         if (!$statusType || !$newStatus) {
@@ -1292,7 +1297,7 @@ class AccessRequestController extends AbstractController
         }
 
         // Attempt to change the status
-        $success = $manager->changeStatus($accessRequest, $statusType, $newStatus, $notes);
+        $success = $manager->changeStatus($accessRequest, $statusType, $newStatus, $notes, $complaintResult);
 
         if (!$success) {
             if ($request->isXmlHttpRequest()) {
