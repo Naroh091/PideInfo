@@ -79,35 +79,23 @@ class AccessRequestController extends AbstractController
         $lists = $this->accessRequestListRepository->findVisibleToUser($this->getUser());
         $currentList = $listId ? $this->accessRequestListRepository->find($listId) : null;
 
-        $statusCounts = $this->accessRequestRepository->getStatusCounts($this->getUser());
-        $totalCount = array_sum($statusCounts);
+        // Índice de estados en el ESTADO INTERNO derivado (los 8): la
+        // clasificación única de AccessRequest::getInternalState(), coherente
+        // con el filtro del TableType y con el chart del panel.
+        $internalCounts = $this->accessRequestRepository->getInternalStateCounts($this->getUser());
+        $totalCount = array_sum($internalCounts);
 
-        // Índice de estados en recuentos EFECTIVOS: una solicitud con
-        // reclamación activa sale de su bucket de estado y cuenta (y filtra)
-        // como «Reclamada», en cualquier fase de la vía. Coherente con el
-        // filtro del TableType y con el chart del panel.
-        $effectiveCounts = $this->accessRequestRepository->getEffectiveStatusCounts($this->getUser());
-        $reclamadasCount = ($effectiveCounts[AccessRequestComplaint::STATUS_RECLAIMED] ?? 0)
-            + ($effectiveCounts[AccessRequestComplaint::STATUS_GRANTED] ?? 0)
-            + ($effectiveCounts[AccessRequestComplaint::STATUS_DENIED] ?? 0);
-
-        // Franja de la cabecera: misma aritmética que el panel/StatusStats.
-        $activeCount = ($statusCounts[AccessRequest::STATUS_SENT] ?? 0)
-            + ($statusCounts[AccessRequest::STATUS_PROCESSING] ?? 0)
-            + ($statusCounts[AccessRequest::STATUS_PENDING] ?? 0);
+        // Franja de la cabecera: «en curso» = borrador + enviada + en trámite.
+        $activeCount = ($internalCounts[AccessRequest::INTERNAL_DRAFT] ?? 0)
+            + ($internalCounts[AccessRequest::INTERNAL_SENT] ?? 0)
+            + ($internalCounts[AccessRequest::INTERNAL_PROCESSING] ?? 0);
         $upcomingCount = count($this->deadlineCollector->collect($this->getUser(), 7));
 
-        // Colores del índice: la fuente única vive en las entidades
-        // (AccessRequest::statusColor / AccessRequestComplaint::statusColor).
-        $bucketColors = [];
-        foreach ([
-            AccessRequest::STATUS_SENT, AccessRequest::STATUS_PROCESSING, AccessRequest::STATUS_PENDING,
-            AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED, AccessRequest::STATUS_PARTIALLY_GRANTED,
-            AccessRequest::STATUS_DENIED, AccessRequest::STATUS_INADMITTED, AccessRequest::STATUS_DELAYED,
-        ] as $s) {
-            $bucketColors[$s] = AccessRequest::statusColor($s);
+        // Colores del índice: fuente única en la entidad (colorForInternalState).
+        $stateColors = [];
+        foreach (AccessRequest::INTERNAL_STATES as $s) {
+            $stateColors[$s] = AccessRequest::colorForInternalState($s);
         }
-        $bucketColors['reclaimed'] = AccessRequestComplaint::statusColor(AccessRequestComplaint::STATUS_RECLAIMED);
 
         return $this->render('solicitudes/index.html.twig', [
             'datatable' => $table,
@@ -116,12 +104,11 @@ class AccessRequestController extends AbstractController
             'lists' => $lists,
             'currentList' => $currentList,
             'listId' => $listId,
-            'effectiveCounts' => $effectiveCounts,
-            'reclamadasCount' => $reclamadasCount,
+            'internalCounts' => $internalCounts,
             'totalCount' => $totalCount,
             'activeCount' => $activeCount,
             'upcomingCount' => $upcomingCount,
-            'bucketColors' => $bucketColors,
+            'stateColors' => $stateColors,
         ]);
     }
 
@@ -994,8 +981,10 @@ class AccessRequestController extends AbstractController
                 'title' => $ar->getTitle(),
                 'publicBody' => ['name' => $ar->getPublicBody()->getName()],
                 'externalId' => $ar->getExternalId(),
-                'status' => $ar->getStatus(),
-                'statusLabel' => $ar->getStatusLabel(),
+                // Estado INTERNO derivado (los 8) — es lo que pintan la command
+                // palette y el desplegable de listas; mismas claves de siempre.
+                'status' => $ar->getInternalState(),
+                'statusLabel' => $ar->getInternalStateLabel(),
                 'sentAt' => $ar->getSentAt()->format('d/m/Y'),
             ];
         }

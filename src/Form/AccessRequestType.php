@@ -69,15 +69,14 @@ class AccessRequestType extends AbstractType
             $builder
                 ->add('status', ChoiceType::class, [
                     'label' => 'Estado',
+                    // Las 6 posiciones vivas. La decisión (concesión/denegación/
+                    // inadmisión) se fija en el campo Resolución, no aquí.
                     'choices' => [
-                        'Pendiente de recepción' => AccessRequest::STATUS_PENDING,
+                        'Borrador' => AccessRequest::STATUS_PENDING,
                         'Enviada' => AccessRequest::STATUS_SENT,
                         'En trámite' => AccessRequest::STATUS_PROCESSING,
-                        'Concedida (pendiente de recepción)' => AccessRequest::STATUS_GRANTED,
-                        'Concedida y completada' => AccessRequest::STATUS_GRANTED_COMPLETED,
-                        'Estimación parcial' => AccessRequest::STATUS_PARTIALLY_GRANTED,
-                        'Denegada' => AccessRequest::STATUS_DENIED,
-                        'Inadmitida a trámite' => AccessRequest::STATUS_INADMITTED,
+                        'Pendiente de recepción' => AccessRequest::STATUS_GRANTED,
+                        'Finalizada' => AccessRequest::STATUS_FINISHED,
                         'Silencio administrativo' => AccessRequest::STATUS_DELAYED,
                     ],
                 ])

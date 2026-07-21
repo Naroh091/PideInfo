@@ -1,11 +1,14 @@
-{% set statusClass = {
+{# Estado INTERNO derivado (los 8) como badge principal; el detalle de la
+   reclamación se mantiene como badge secundario cuando existe. #}
+{% set internalStateBadge = {
+    'draft': 'badge-secondary',
     'sent': 'status-sent',
     'processing': 'status-processing',
-    'granted': 'status-granted',
-    'granted_completed': 'status-granted-completed',
-    'denied': 'status-denied',
-    'delayed': 'status-delayed',
-    'pending': 'status-pending'
+    'pending_reception': 'status-granted',
+    'finished': 'status-granted-completed',
+    'silence': 'status-delayed',
+    'in_complaint': 'badge-warning',
+    'in_court': 'badge-info',
 } %}
 {% set complaintClass = {
     'reclaimed': 'badge-warning',
@@ -14,14 +17,9 @@
     'complaint_archived': 'badge-secondary'
 } %}
 <div class="inline-flex flex-col items-start gap-1">
-    {# Estado EFECTIVO: con reclamación activa (cualquier fase, no archivada)
-       manda la vía de reclamación y el estado crudo se oculta — la misma
-       precedencia que AccessRequest::getEffectiveStatusLabel(). #}
-    {% if not row.hasActiveComplaint %}
-        <span class="badge {{ statusClass[row.status]|default('badge-secondary') }}">
-            {{ row.statusLabel }}
-        </span>
-    {% endif %}
+    <span class="badge {{ internalStateBadge[row.internalState]|default('badge-secondary') }}">
+        {{ row.internalStateLabel }}
+    </span>
     {% if row.isDeadlineSuspended %}
         <span class="badge badge-warning">Plazo suspendido</span>
     {% endif %}

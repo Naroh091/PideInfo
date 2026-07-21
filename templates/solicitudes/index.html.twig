@@ -541,18 +541,18 @@
 {% if search %}{% set metricBase = metricBase|merge({q: search}) %}{% endif %}
 {% if listId %}{% set metricBase = metricBase|merge({list: listId}) %}{% endif %}
 
+{# Tabs por ESTADO INTERNO derivado (los 8). La clave se postea como ?status=
+   y el filtro del AccessRequestTableType la traduce con la misma precedencia. #}
 {% set metrics = [
-    {key: '',                  label: 'Todas',       count: totalCount},
-    {key: 'sent',              label: 'Enviadas',    count: effectiveCounts.sent|default(0)},
-    {key: 'processing',        label: 'En trámite',  count: effectiveCounts.processing|default(0)},
-    {key: 'pending',           label: 'Pendientes',  count: effectiveCounts.pending|default(0)},
-    {key: 'granted',           label: 'Concedidas',  count: effectiveCounts.granted|default(0)},
-    {key: 'granted_completed', label: 'Completadas', count: effectiveCounts.granted_completed|default(0)},
-    {key: 'partially_granted', label: 'Parciales',   count: effectiveCounts.partially_granted|default(0)},
-    {key: 'denied',            label: 'Denegadas',   count: effectiveCounts.denied|default(0)},
-    {key: 'inadmitted',        label: 'Inadmitidas', count: effectiveCounts.inadmitted|default(0)},
-    {key: 'delayed',           label: 'Silencio',    count: effectiveCounts.delayed|default(0)},
-    {key: 'reclaimed',         label: 'Reclamadas',  count: reclamadasCount},
+    {key: '',                  label: 'Todas',                     count: totalCount},
+    {key: 'draft',             label: 'Borrador',                  count: internalCounts.draft|default(0)},
+    {key: 'sent',              label: 'Enviadas',                  count: internalCounts.sent|default(0)},
+    {key: 'processing',        label: 'En trámite',                count: internalCounts.processing|default(0)},
+    {key: 'pending_reception', label: 'Pendientes de recepción',   count: internalCounts.pending_reception|default(0)},
+    {key: 'silence',           label: 'Silencio',                  count: internalCounts.silence|default(0)},
+    {key: 'in_complaint',      label: 'En reclamación',            count: internalCounts.in_complaint|default(0)},
+    {key: 'in_court',          label: 'En vía judicial',           count: internalCounts.in_court|default(0)},
+    {key: 'finished',          label: 'Finalizadas',               count: internalCounts.finished|default(0)},
 ] %}
 
 <nav class="sol-indice" aria-label="Filtrar por estado">
@@ -560,7 +560,7 @@
         {% set isActive = (status|default('') == m.key) %}
         {% set href = path('app_solicitudes_index', metricBase|merge(m.key ? {status: m.key} : {})) %}
         <a href="{{ href }}" class="sol-tab {{ isActive ? 'is-active' : '' }} {{ m.count == 0 ? 'is-zero' : '' }}">
-            {% if bucketColors[m.key]|default(null) %}<span class="sol-tab-dot" style="background: {{ bucketColors[m.key] }}"></span>{% endif %}
+            {% if stateColors[m.key]|default(null) %}<span class="sol-tab-dot" style="background: {{ stateColors[m.key] }}"></span>{% endif %}
             {{ m.label }} <b>{{ m.count }}</b>
         </a>
     {% endfor %}
@@ -644,9 +644,9 @@
                 <span class="filter-chip-key">Estado</span>
                 <span>
                     {% set statusLabels = {
-                        'sent':'Enviadas','processing':'En trámite','granted':'Concedidas','granted_completed':'Completadas',
-                        'partially_granted':'Parciales','inadmitted':'Inadmitidas',
-                        'denied':'Denegadas','delayed':'Silencio','pending':'Pendientes','reclaimed':'Reclamadas'
+                        'draft':'Borrador','sent':'Enviadas','processing':'En trámite',
+                        'pending_reception':'Pendientes de recepción','silence':'Silencio',
+                        'in_complaint':'En reclamación','in_court':'En vía judicial','finished':'Finalizadas'
                     } %}
                     {{ statusLabels[status]|default(status) }}
                 </span>

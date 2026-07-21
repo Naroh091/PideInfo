@@ -26,11 +26,14 @@ final class StatusHistoryLabelTest extends TestCase
      */
     public static function statusLabelProvider(): iterable
     {
-        // Regression: partially_granted/inadmitted previously fell through to the
-        // raw value in the timeline (issue #79).
+        // Posiciones vivas (vocabulario del rediseño de 6 posiciones).
+        yield 'pending' => ['pending', 'Borrador'];
+        yield 'granted' => ['granted', 'Pendiente de recepción'];
+        yield 'finished' => ['finished', 'Finalizada'];
+        // Posiciones deprecated: las filas históricas siguen traduciéndose
+        // (regresión original: caían al valor crudo, issue #79).
         yield 'partially granted' => ['partially_granted', 'Estimación parcial'];
         yield 'inadmitted' => ['inadmitted', 'Inadmitida'];
-        yield 'granted' => ['granted', 'Concedida'];
         yield 'granted completed' => ['granted_completed', 'Completada'];
         yield 'denied' => ['denied', 'Denegada'];
     }

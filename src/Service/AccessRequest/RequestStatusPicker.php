@@ -43,28 +43,16 @@ final class RequestStatusPicker
     /** @return list<array> */
     private function statusOptions(AccessRequest $request): array
     {
-        // Lifecycle order.
-        $values = [
-            AccessRequest::STATUS_PENDING,
-            AccessRequest::STATUS_SENT,
-            AccessRequest::STATUS_PROCESSING,
-            AccessRequest::STATUS_GRANTED,
-            AccessRequest::STATUS_GRANTED_COMPLETED,
-            AccessRequest::STATUS_PARTIALLY_GRANTED,
-            AccessRequest::STATUS_DENIED,
-            AccessRequest::STATUS_INADMITTED,
-            AccessRequest::STATUS_DELAYED,
-        ];
+        // Las 6 posiciones vivas, en orden de ciclo de vida. La decisión
+        // (parcial/denegada/inadmitida) se fija por el desplegable de Resolución.
+        $values = AccessRequest::POSITIONS;
         $classes = [
+            AccessRequest::STATUS_PENDING => 'status-pending',
             AccessRequest::STATUS_SENT => 'status-sent',
             AccessRequest::STATUS_PROCESSING => 'status-processing',
             AccessRequest::STATUS_GRANTED => 'status-granted',
-            AccessRequest::STATUS_GRANTED_COMPLETED => 'status-granted-completed',
-            AccessRequest::STATUS_DENIED => 'status-denied',
+            AccessRequest::STATUS_FINISHED => 'status-granted-completed',
             AccessRequest::STATUS_DELAYED => 'status-delayed',
-            AccessRequest::STATUS_PENDING => 'status-pending',
-            AccessRequest::STATUS_PARTIALLY_GRANTED => 'badge-warning',
-            AccessRequest::STATUS_INADMITTED => 'badge-danger',
         ];
 
         $current = $request->getStatus();
@@ -85,12 +73,15 @@ final class RequestStatusPicker
     /** @return list<array> */
     private function resolutionOptions(AccessRequest $request): array
     {
+        // El silencio administrativo es una POSICIÓN del procedimiento (Estado),
+        // no una decisión de la administración, así que no se ofrece como
+        // Resolución elegible (RESULT_SILENCE se sigue infiriendo del status
+        // `delayed`, pero no se fija a mano por aquí).
         $classes = [
             AccessRequest::RESULT_GRANTED => 'badge-success',
             AccessRequest::RESULT_PARTIALLY_GRANTED => 'badge-warning',
             AccessRequest::RESULT_DENIED => 'badge-danger',
             AccessRequest::RESULT_INADMITTED => 'badge-danger',
-            AccessRequest::RESULT_SILENCE => 'badge-secondary',
         ];
 
         $current = $request->getResolutionResult() ?? 'none';

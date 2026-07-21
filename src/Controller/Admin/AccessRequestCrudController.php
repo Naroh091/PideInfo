@@ -62,15 +62,12 @@ class AccessRequestCrudController extends AbstractCrudController
         return $filters
             ->add(TextFilter::new('title', 'Título'))
             ->add(ChoiceFilter::new('status', 'Estado')->setChoices([
+                'Borrador' => 'pending',
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
-                'Concedida' => 'granted',
-                'Concedida y completada' => 'granted_completed',
-                'Estimación parcial' => 'partially_granted',
-                'Denegada' => 'denied',
-                'Inadmitida a trámite' => 'inadmitted',
+                'Pendiente de recepción' => 'granted',
+                'Finalizada' => 'finished',
                 'Silencio' => 'delayed',
-                'Pendiente' => 'pending',
             ]))
             ->add(ChoiceFilter::new('resolutionResult', 'Tipo de concesión')->setChoices([
                 'Concesión total' => AccessRequest::RESULT_GRANTED,
@@ -264,26 +261,25 @@ class AccessRequestCrudController extends AbstractCrudController
 
         yield ChoiceField::new('status', 'Estado')
             ->setChoices([
+                'Borrador' => 'pending',
                 'Enviada' => 'sent',
                 'En trámite' => 'processing',
-                'Concedida' => 'granted',
-                'Concedida y completada' => 'granted_completed',
-                'Estimación parcial' => 'partially_granted',
-                'Denegada' => 'denied',
-                'Inadmitida a trámite' => 'inadmitted',
+                'Pendiente de recepción' => 'granted',
+                'Finalizada' => 'finished',
                 'Silencio' => 'delayed',
-                'Pendiente' => 'pending',
             ])
             ->renderAsBadges([
+                'pending' => 'secondary',
                 'sent' => 'primary',
                 'processing' => 'info',
                 'granted' => 'success',
+                'finished' => 'success',
+                'delayed' => 'warning',
+                // Posiciones deprecated que puedan quedar en filas antiguas.
                 'granted_completed' => 'success',
                 'partially_granted' => 'warning',
                 'denied' => 'danger',
                 'inadmitted' => 'danger',
-                'delayed' => 'warning',
-                'pending' => 'secondary',
             ]);
 
         yield ChoiceField::new('resolutionResult', 'Tipo de concesión')

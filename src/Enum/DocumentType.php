@@ -218,8 +218,8 @@ enum DocumentType: string
     public static function statusFromAiValue(string $aiValue): ?string
     {
         return match ($aiValue) {
-            'inadmitida' => \App\Entity\AccessRequest::STATUS_INADMITTED,
-            'parcialmente_concedida' => \App\Entity\AccessRequest::STATUS_PARTIALLY_GRANTED,
+            'inadmitida',
+            'parcialmente_concedida' => \App\Entity\AccessRequest::STATUS_FINISHED,
             default => null,
         };
     }

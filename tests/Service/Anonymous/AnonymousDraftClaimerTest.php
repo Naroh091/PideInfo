@@ -79,7 +79,7 @@ final class AnonymousDraftClaimerTest extends KernelTestCase
 
             $em->refresh($draft);
             self::assertSame($user->getId()->toRfc4122(), $draft->getUser()?->getId()->toRfc4122());
-            self::assertSame(AccessRequest::STATUS_DENIED, $draft->getStatus(), 'resolutionResult denied → estado denied');
+            self::assertSame(AccessRequest::STATUS_FINISHED, $draft->getStatus(), 'resolutionResult denied → posición finished');
             self::assertNull($draft->getMetadataValue('anonymous'), 'la marca anónima desaparece');
             self::assertIsArray($draft->getMetadataValue('complaint_chat_history_complaint'), 'el historial de chat sobrevive para el fallback');
             self::assertSame([], $session->get('anon_draft_ids', []), 'la sesión queda limpia');
@@ -225,7 +225,7 @@ final class AnonymousDraftClaimerTest extends KernelTestCase
 
             $em->refresh($draft);
             self::assertNull($draft->getComplaintDraftDocument(), 'sin HTML no hay nada que materializar');
-            self::assertSame(AccessRequest::STATUS_DENIED, $draft->getStatus(), 'la reparación de estado sigue funcionando sin materializar');
+            self::assertSame(AccessRequest::STATUS_FINISHED, $draft->getStatus(), 'la reparación de estado sigue funcionando sin materializar');
         } finally {
             $stack = $container->get('request_stack');
             $stack->pop();

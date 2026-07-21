@@ -761,15 +761,23 @@
    siguen el mismo criterio que el listado.
 #}
 {% set statusBadge = {
+    'pending': 'status-pending',
     'sent': 'status-sent',
     'processing': 'status-processing',
     'granted': 'status-granted',
-    'granted_completed': 'status-granted-completed',
-    'denied': 'status-denied',
+    'finished': 'status-granted-completed',
     'delayed': 'status-delayed',
-    'pending': 'status-pending',
-    'partially_granted': 'badge-warning',
-    'inadmitted': 'badge-danger'
+} %}
+{# Estado interno derivado (los 8) → clase de badge. #}
+{% set internalStateBadge = {
+    'draft': 'badge-secondary',
+    'sent': 'status-sent',
+    'processing': 'status-processing',
+    'pending_reception': 'status-granted',
+    'finished': 'status-granted-completed',
+    'silence': 'status-delayed',
+    'in_complaint': 'badge-warning',
+    'in_court': 'badge-info',
 } %}
 {% set complaintBadge = {
     'reclaimed': 'badge-warning',
@@ -893,36 +901,39 @@
                         </template>
                     </span>
                 </span>
-                {# Trigger editable: el status CRUDO de la solicitud (su propio eje,
-                   coherente con el desplegable). Vista de solo lectura: el estado
-                   EFECTIVO, donde una reclamación activa manda sobre el badge. #}
-                {% set estadoBadgeRaw %}<span class="badge {{ statusBadge[request.status]|default('badge-secondary') }}">{{ request.statusLabel }}</span>{% endset %}
+                {# El badge muestra el ESTADO INTERNO derivado (los 8); el
+                   desplegable edita la POSICIÓN cruda (las 6). Cuando hay
+                   reclamación/judicial el interno manda («En proceso de…»)
+                   aunque la posición editable sea otra. #}
+                {% set estadoBadge %}<span class="badge {{ internalStateBadge[request.internalState]|default('badge-secondary') }}">{{ request.internalStateLabel }}</span>{% endset %}
                 <span class="exp-meta-valor">
                     {% if canEditStatus %}
                         <span class="badge-edit" x-data="{{ pickerData }}" @keydown.escape.window="open = false">
                             <button type="button" class="badge-edit-trigger" x-ref="trigger"
                                     @click="open ? (open = false) : openMenu()"
                                     :aria-expanded="open" aria-haspopup="true">
-                                {{ estadoBadgeRaw }}
+                                {{ estadoBadge }}
                                 <i data-lucide="chevron-down" class="badge-edit-caret w-3 h-3" :class="open && 'rotate-180'"></i>
                             </button>
                             {{ picker.status_menu(request.id, 'status', statusPicker.status) }}
                         </span>
-                    {% elseif request.hasActiveComplaint %}
-                        <span class="badge {{ complaintBadge[request.complaint.status]|default('badge-info') }}">{{ request.effectiveStatusLabel }}</span>
                     {% else %}
-                        {{ estadoBadgeRaw }}
+                        {{ estadoBadge }}
                     {% endif %}
                     {% if request.isDeadlineSuspended %}
                         <span class="badge badge-warning">Plazo suspendido</span>
                     {% endif %}
                 </span>
             </div>
-            {% if canEditStatus or request.resolutionResult %}
+            {# El silencio NO es una decisión de la administración: se muestra
+               como «Sin resolución» y no cuenta como resolución real. #}
+            {% set hasRealResolution = request.resolutionResult and request.resolutionResult != 'silence' %}
+            {% if canEditStatus or hasRealResolution %}
                 <div class="exp-meta-celda">
                     <span class="exp-meta-clave">Resolución</span>
                     {% set resolucionBadge %}
-                        <span class="badge {{ resultBadge[request.resolutionResult]|default('badge-secondary') }}">{{ request.resolutionResultLabel|default('Sin resolución') }}</span>
+                        {% set resolLabel = hasRealResolution ? request.resolutionResultLabel : 'Sin resolución' %}
+                        <span class="badge {{ hasRealResolution ? resultBadge[request.resolutionResult]|default('badge-secondary') : 'badge-secondary' }}">{{ resolLabel }}</span>
                     {% endset %}
                     <span class="exp-meta-valor">
                         {% if canEditStatus %}
@@ -1676,8 +1687,8 @@
                    information was never actually delivered despite the nominal "yes". #}
                 {% set canReclaim = request.complaint is null and (
                     request.resolutionResult is not null
-                    or request.status in ['denied', 'delayed']
-                    or (request.isDeadlinePassed and request.status not in ['granted', 'granted_completed'])
+                    or request.status == 'delayed'
+                    or (request.isDeadlinePassed and request.status not in ['granted', 'finished'])
                 ) %}
                 {% if canReclaim %}
                     <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="ficha-enlace">

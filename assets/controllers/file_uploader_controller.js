@@ -932,13 +932,16 @@ export default class extends Controller {
             return;
         }
 
+        // Claves = los 8 estados INTERNOS derivados (payload del backend).
         const statusBadgeMap = {
+            'draft': 'status-pending',
             'sent': 'status-sent',
             'processing': 'status-processing',
-            'granted': 'status-granted',
-            'denied': 'status-denied',
-            'delayed': 'status-delayed',
-            'pending': 'status-pending'
+            'pending_reception': 'status-granted',
+            'finished': 'status-granted-completed',
+            'silence': 'status-delayed',
+            'in_complaint': 'badge-warning',
+            'in_court': 'badge-info'
         };
 
         container.innerHTML = `

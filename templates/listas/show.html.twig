@@ -429,12 +429,13 @@
 
 {# List items #}
 {% if list.items|length > 0 %}
+    {# Tonos por estado INTERNO derivado (los 8). #}
     {% set statusTone = {
-        'granted': 'is-emerald', 'granted_completed': 'is-emerald',
-        'denied': 'is-red',
-        'delayed': 'is-amber',
+        'pending_reception': 'is-emerald', 'finished': 'is-emerald',
+        'silence': 'is-amber', 'in_complaint': 'is-amber',
+        'in_court': 'is-amber',
         'processing': 'is-sky', 'sent': 'is-sky',
-        'pending': ''
+        'draft': ''
     } %}
     <div class="lista-items">
         {% for item in list.items %}
@@ -449,9 +450,9 @@
                             <span class="ext-id">#{{ ar.externalId }}</span>
                         {% endif %}
                         <span class="sep">·</span>
-                        <span class="status {{ statusTone[ar.status] ?? '' }}">
+                        <span class="status {{ statusTone[ar.internalState] ?? '' }}">
                             <span class="pulse"></span>
-                            {{ ar.statusLabel }}
+                            {{ ar.internalStateLabel }}
                         </span>
                     </div>
                 </div>

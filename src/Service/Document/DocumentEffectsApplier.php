@@ -90,8 +90,7 @@ final class DocumentEffectsApplier
         // Resolved statuses — don't regress the primary status past these
         $isResolved = in_array($accessRequest->getStatus(), [
             AccessRequest::STATUS_GRANTED,
-            AccessRequest::STATUS_GRANTED_COMPLETED,
-            AccessRequest::STATUS_DENIED,
+            AccessRequest::STATUS_FINISHED,
             AccessRequest::STATUS_DELAYED,
         ], true);
 
@@ -456,12 +455,14 @@ final class DocumentEffectsApplier
 
     private function mapAnalysisStatusToAccessRequestStatus(?string $status): ?string
     {
+        // La DECISIÓN (parcial/denegada/inadmitida/completada) es una posición
+        // `finished`; el matiz va por mapAnalysisStatusToResolutionResult().
         return match ($status) {
-            'concedida' => AccessRequest::STATUS_GRANTED,
-            'concedida_completada' => AccessRequest::STATUS_GRANTED_COMPLETED,
-            'parcialmente_concedida' => AccessRequest::STATUS_PARTIALLY_GRANTED,
-            'denegada' => AccessRequest::STATUS_DENIED,
-            'inadmitida' => AccessRequest::STATUS_INADMITTED,
+            'concedida' => AccessRequest::STATUS_GRANTED,          // pendiente de recepción
+            'concedida_completada',
+            'parcialmente_concedida',
+            'denegada',
+            'inadmitida' => AccessRequest::STATUS_FINISHED,
             'en_tramite' => AccessRequest::STATUS_PROCESSING,
             'pendiente' => AccessRequest::STATUS_PENDING,
             'silencio' => AccessRequest::STATUS_DELAYED,

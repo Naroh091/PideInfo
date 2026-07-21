@@ -4,26 +4,54 @@ Ciclo de vida completo de una solicitud de acceso desde su presentación hasta l
 
 ## Estados
 
-Una solicitud de acceso transita por estos estados principales (consulta `AccessRequest::STATUS_*` y `config/packages/workflow.yaml`):
+### Posición (`AccessRequest::$status`) — 6 valores
 
-| Estado | Etiqueta | Significado |
+`status` describe **la posición en el procedimiento**, NO la decisión. Desde el
+rediseño (migración `Version20260721120000`) son 6 posiciones — las cuatro
+terminales viejas (`granted_completed`, `partially_granted`, `denied`,
+`inadmitted`) se colapsaron en `finished`, y la decisión vive ahora **siempre**
+en `$resolutionResult` (`granted | partially_granted | denied | inadmitted |
+silence | NULL`).
+
+| Posición | Etiqueta | Significado |
 |--------|----------|-------------|
-| `pending` | Pendiente de recepción | Creada pero aún no confirmada como enviada (borrador previo al envío) |
+| `pending` | Borrador | Creada pero aún no despachada (borrador previo al envío) |
 | `sent` | Enviada | Presentada ante el organismo público, a la espera de respuesta |
 | `processing` | En trámite | El organismo público ha acusado recibo y está tramitando |
-| `granted` | Concedida (pendiente de recepción) | Solicitud aprobada — a la espera de que se entregue la información |
-| `granted_completed` | Concedida y completada | Solicitud aprobada e información recibida |
-| `partially_granted` | Estimación parcial | El organismo público ha concedido parte de la solicitud |
-| `inadmitted` | Inadmitida a trámite | El organismo público se ha negado a admitir la solicitud |
-| `denied` | Denegada | Solicitud denegada de forma expresa |
-| `delayed` | Silencio administrativo | Vencido el plazo de respuesta sin contestación (silencio administrativo = denegación implícita) |
+| `granted` | Pendiente de recepción | Solicitud aprobada — a la espera de que se entregue la información |
+| `finished` | Finalizada | Procedimiento terminado con una decisión (la decisión, en `resolutionResult`) |
+| `delayed` | Silencio administrativo | Vencido el plazo de respuesta sin contestación |
+
+### Estado interno derivado (`getInternalState()`) — lo que ve el usuario
+
+La app **no muestra la posición cruda**: muestra un **estado interno derivado**
+(clasificador único `AccessRequest::getInternalState()`) que colapsa posición +
+resolución + reclamación + vía judicial en uno de **ocho** valores, con esta
+prioridad: **judicial > reclamación abierta > reclamación resuelta (→Finalizada)
+> posición**.
+
+| Interno | Etiqueta | De dónde sale |
+|---------|----------|---------------|
+| `draft` | Borrador | posición `pending` |
+| `sent` | Enviada | posición `sent` |
+| `processing` | En trámite | posición `processing` |
+| `pending_reception` | Pendiente de recepción | posición `granted` |
+| `finished` | Finalizada | posición `finished`, o reclamación resuelta |
+| `silence` | Silencio administrativo | posición `delayed` |
+| `in_complaint` | En proceso de reclamación | reclamación abierta (`reclaimed`) |
+| `in_court` | En proceso judicial | `courtStatus = in_court` |
+
+Cualquier UI que muestre «un estado» debe leer `getInternalState()` /
+`getInternalStateLabel()` / `getInternalStateColor()`; nunca re-derivar la
+precedencia en Twig ni en una query. `getEffectiveStatusLabel/Color()` son ahora
+alias de esta derivación (retrocompatibilidad).
 
 ### Estado vs. resultado — la posición en el workflow no es la decisión administrativa
 
 `status` describe **en qué punto del procedimiento se encuentra la solicitud**; no es un registro fiable de lo que la administración ha decidido realmente. La decisión vive en `AccessRequest::$resolutionResult` (`granted | partially_granted | denied | inadmitted | silence | NULL`) y ambos evolucionan de forma independiente:
 
-- Una solicitud puede permanecer en `granted_completed` (el ciudadano ha recibido la documentación) mientras `resolutionResult = partially_granted` — la concesión original fue parcial y una transición posterior del workflow no sobrescribe ese hecho.
-- Una solicitud marcada como `granted` puede no corresponderse con lo que se entregó realmente; el ciudadano puede presentar una reclamación sin que el resultado vuelva a `denied`.
+- Una solicitud puede estar en `finished` (procedimiento terminado, información recibida) mientras `resolutionResult = partially_granted` — la concesión fue parcial y cerrar el procedimiento no sobrescribe ese hecho.
+- Una solicitud marcada como `granted` puede no corresponderse con lo que se entregó realmente; el ciudadano puede presentar una reclamación sin que el resultado cambie.
 - `delayed` es una posición del workflow (silencio detectado); `resolutionResult = silence` es el equivalente a la decisión registrado para consumidores aguas abajo (p. ej., el mapeo de motivos de reclamación). Tanto el `delayed` manual como el automático (jobs de expiración, que pasan por `changeStatus()`) infieren `silence`.
 - **Reabrir limpia la decisión.** Al volver a un estado pre-decisión (`sent`, `processing`, `pending`), `changeStatus()` pone `resolutionResult` y `resolvedAt` a `NULL`: una decisión anulada por la corrección no debe seguir alimentando estadísticas ni el generador de reclamaciones. La prórroga que levanta un silencio (`extendDeadlineByLaw()`) hace lo mismo, pero solo si el resultado era el `silence` inferido — una decisión expresa previa nunca se toca por esa vía.
 
@@ -37,33 +65,25 @@ Generado a partir de `config/packages/workflow.yaml`. Las tres máquinas de esta
 stateDiagram-v2
     direction LR
 
-    state "AccessRequest::$status" as Solicitud {
-        [*] --> pending: creación
+    state "AccessRequest::$status (posición)" as Solicitud {
+        [*] --> pending: creación (Borrador)
         pending --> sent: dispatch
 
         sent --> processing: acknowledge\n(acuse de recibo)
-        sent --> granted: grant
-        sent --> partially_granted: grant_partially
-        sent --> denied: deny
-        sent --> inadmitted: inadmit
+        sent --> granted: grant\n(pendiente de recepción)
+        sent --> finished: resolve\n(decisión en resolutionResult)
         sent --> delayed: delay\n(silencio)
 
         processing --> granted: grant
-        processing --> partially_granted: grant_partially
-        processing --> denied: deny
-        processing --> inadmitted: inadmit
+        processing --> finished: resolve
         processing --> delayed: delay
 
         delayed --> granted: grant\n(respuesta tardía)
-        delayed --> partially_granted: grant_partially
-        delayed --> denied: deny
+        delayed --> finished: resolve
 
-        granted --> granted_completed: confirm_reception\n(banner "Confirmar recepción")
+        granted --> finished: resolve\n(información recibida)
 
-        granted_completed --> [*]
-        partially_granted --> [*]
-        inadmitted --> [*]
-        denied --> [*]
+        finished --> [*]
     }
 
     state "AccessRequestComplaint::$status" as Reclamacion {
@@ -93,11 +113,9 @@ flowchart LR
     classDef terminal fill:#e8e8e8,stroke:#888;
     classDef trigger fill:#fff3bf,stroke:#c79b00;
 
-    delayed[delayed]:::terminal
-    denied[denied]:::terminal
-    partially_granted[partially_granted]:::terminal
-    inadmitted[inadmitted]:::terminal
-    grantedExpired["granted / granted_completed<br/>(con plazo vencido)"]:::terminal
+    delayed["posición delayed<br/>(silencio)"]:::terminal
+    anyResult["resolutionResult ≠ NULL<br/>(concesión total/parcial,<br/>denegación, inadmisión, silencio)"]:::terminal
+    expired["plazo vencido sin decisión<br/>(posición ∉ granted/finished)"]:::terminal
 
     canComplain{{"canGenerateComplaint()<br/>devuelve true"}}:::trigger
     fileComplaint["AccessRequestComplaint creada<br/>(status = reclaimed)"]
@@ -105,10 +123,8 @@ flowchart LR
     goCourt["courtStatus = in_court"]
 
     delayed --> canComplain
-    denied --> canComplain
-    partially_granted --> canComplain
-    inadmitted --> canComplain
-    grantedExpired --> canComplain
+    anyResult --> canComplain
+    expired --> canComplain
     canComplain --> fileComplaint
 
     complaintDenied --> goCourt
@@ -277,30 +293,24 @@ Si el organismo público no dispone de la información, traslada la solicitud al
 
 ### 4. Resolución
 
-La solicitud se resuelve de una de estas maneras:
+La resolución es un movimiento en **dos ejes**: la decisión de la administración se registra en `resolutionResult` (desplegable «Resolución» del detalle, o inferida por el análisis de documentos) y la posición del procedimiento avanza a `granted` (pendiente de recepción) o `finished` (finalizada). Los casos:
 
-**Concedida** (`granted`) — El organismo público aprueba la solicitud. Se fija `resolvedAt`. La solicitud entra en un estado de "pendiente de recepción" — la administración ha dicho que sí, pero la información puede no haberse entregado todavía. Un banner en la página de detalle de la solicitud invita a la persona usuaria a confirmar la recepción.
+**Concesión (pendiente de recepción)** — posición `granted`, `resolutionResult = granted` (inferido si faltaba). La administración ha dicho que sí, pero la información puede no haberse entregado todavía; un banner invita a confirmar la recepción (→ `finished`). Se fija `resolvedAt`.
 
-**Concedida y completada** (`granted_completed`) — La persona usuaria confirma que ha recibido la información solicitada. Este es el verdadero estado terminal para las solicitudes con éxito. La transición desde `granted` se hace mediante el banner o el desplegable de estado.
+**Finalizada** (`finished`) — el procedimiento termina. La posición NO dice cómo terminó: eso lo dice `resolutionResult` (`granted` = información recibida tras concesión; `partially_granted` = concesión parcial; `denied` = denegación expresa, motivo en `resolutionNotes`; `inadmitted` = inadmisión, p. ej. art. 18 Ley 19/2013). Cualquier decisión desfavorable o parcial abre la vía de reclamación; `ComplaintGenerator` adapta el prompt al `resolutionResult`. El banner de concesión parcial ofrece, además de reclamar, el atajo **Marcar como finalizada** (→ `finished`) que conserva `resolutionResult = partially_granted`.
 
-**Estimación parcial** (`partially_granted`) — El organismo público concede parte de la información solicitada. Se fija `resolvedAt`. La persona usuaria puede presentar una reclamación por la parte no facilitada; `ComplaintGenerator` adapta el prompt en consecuencia cuando `resolutionResult = partially_granted`. El banner de concesión parcial en el detalle ofrece, además de la reclamación, dos atajos de cierre — **Marcar como completada** (→ `granted`) y **Marcar como completada y recibida** (→ `granted_completed`) — que pasan por `AccessRequestManager::changeStatus()` y conservan `resolutionResult = partially_granted` (la concesión sigue siendo parcial aunque el procedimiento se cierre).
-
-**Inadmitida** (`inadmitted`) — El organismo público se niega a admitir la solicitud a trámite (p. ej., por causas del art. 18 Ley 19/2013). Se fija `resolvedAt`. También está disponible la posibilidad de presentar una reclamación.
-
-**Denegada** (`denied`) — El organismo público deniega de forma expresa. El motivo de la denegación se guarda en `resolutionNotes`. Esto abre la posibilidad de presentar una reclamación. Se fija `resolvedAt`.
-
-**Silencio administrativo** (`delayed`) — El plazo vence sin respuesta. Conforme a la legislación española, esto equivale a una denegación. El sistema lo detecta mediante la comprobación `isDeadlinePassed()`, que devuelve `false` en cuanto existe una decisión expresa (`hasReceivedResponse()`: `granted`, `granted_completed`, `partially_granted`, `denied`, `inadmitted`) — una estimación parcial o una inadmisión con el plazo original vencido **no** está en silencio. La transición automática la ejecutan los jobs de expiración (`app:requests:update-expired` y `UpdateExpiredRequestsHandler`) a través de `changeStatus()`, con lo que también queda `resolutionResult = silence`. La persona usuaria puede reclamar frente al silencio.
+**Silencio administrativo** (`delayed`) — El plazo vence sin respuesta. Conforme a la legislación española, esto equivale a una denegación. El sistema lo detecta mediante `isDeadlinePassed()`, que devuelve `false` en cuanto existe una decisión expresa (`hasReceivedResponse()` mira `resolutionResult ∈ {granted, partially_granted, denied, inadmitted}`) — una parcial o una inadmisión con el plazo vencido **no** está en silencio. La transición automática la ejecutan los jobs de expiración (`app:requests:update-expired` y `UpdateExpiredRequestsHandler`) a través de `changeStatus()`, con lo que también queda `resolutionResult = silence` (inferido). La persona usuaria puede reclamar frente al silencio.
 
 ### 5. Vías posteriores a la resolución
 
 Tras la resolución, la solicitud puede entrar en fases adicionales:
 
 ```
-granted
+granted (pendiente de recepción)
       │
-      └──► granted_completed (user confirms info received)
+      └──► finished (usuario confirma la recepción)
 
-denied / delayed
+resolutionResult desfavorable / delayed
       │
       ├──► Complaint filed (see complaint-workflow.md)
       │         │
@@ -413,7 +423,7 @@ El timeline en la página de detalle de la solicitud renderiza estos registros d
 En la cabecera del expediente (`solicitudes/show.html.twig`), quien tenga permiso `edit` puede cambiar los tres badges —**Estado**, **Resolución** y **Reclamación**— con un desplegable, sin pasar por el formulario de edición completo. Los tres POSTean al mismo endpoint `app_solicitudes_change_status` (`statusType` distinto) y pasan por `changeStatus()`, así que registran `StatusHistory` y aplican los mismos efectos colaterales que cualquier otra vía:
 
 - **Estado** → `statusType=status` (los 9 estados del workflow; el `resolutionResult` se deriva/limpia como siempre).
-- **Resolución** → `statusType=resolution`, una vía que fija `resolutionResult` **con independencia del `status`** (para el caso ortogonal legítimo: p. ej. `granted_completed` con `resolutionResult = partially_granted`). El valor `none` limpia la resolución. No toca `status`.
+- **Resolución** → `statusType=resolution`, una vía que fija `resolutionResult` **con independencia del `status`** (para el caso ortogonal legítimo: p. ej. `granted_completed` con `resolutionResult = partially_granted`). El valor `none` limpia la resolución. No toca `status`. El desplegable ofrece *Concesión total · parcial · Denegación · Inadmisión · Sin resolución*, pero **no** «Silencio administrativo»: el silencio es una posición del procedimiento (Estado `delayed`), no una decisión elegible a mano — `resolutionResult = silence` solo se infiere del status.
 - **Reclamación** → `statusType=complaint` (crea/actualiza/elimina la entidad y deriva `complaintResult`); los desenlaces finos que el estado no distingue (*Estimada parcialmente*, *Inadmitida*) viajan además en el parámetro opcional `complaintResult` (`changeStatus(..., $explicitComplaintResult)`), que vence a la inferencia — y se aplica incluso cuando el estado de la reclamación no cambia. *Inadmitida* se modela como reclamación desfavorable (`complaint_denied` + resultado `inadmitted`) para no bloquear la vía judicial posterior.
 
 Las opciones de cada desplegable las construye `App\Service\AccessRequest\RequestStatusPicker` (etiquetas desde los helpers estáticos `AccessRequest::labelForStatus()` / `labelForResolutionResult()` y `AccessRequestComplaint::labelForStatus()` / `labelForComplaintResult()`, nunca decididas en Twig).

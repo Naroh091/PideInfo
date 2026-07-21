@@ -598,8 +598,9 @@ class DocumentController extends AbstractController
                 'accessRequest' => $accessRequest ? [
                     'id' => (string) $accessRequest->getId(),
                     'title' => $accessRequest->getTitle(),
-                    'status' => $accessRequest->getStatus(),
-                    'statusLabel' => $accessRequest->getStatusLabel(),
+                    // Estado INTERNO derivado — lo pinta file_uploader_controller.js.
+                    'status' => $accessRequest->getInternalState(),
+                    'statusLabel' => $accessRequest->getInternalStateLabel(),
                     'url' => $this->generateUrl('app_solicitudes_show', ['id' => $accessRequest->getId()]),
                     'isNew' => $document->getMatchMethod() === Document::MATCH_CREATED,
                 ] : null,

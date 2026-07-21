@@ -71,33 +71,41 @@ final class AccessRequestManagerChangeStatusTest extends KernelTestCase
         return $request;
     }
 
-    public function testPartiallyGrantedIsAcceptedAndInfersResolution(): void
+    public function testDecisionValuesAreNoLongerValidPositions(): void
+    {
+        // Tras el rediseño, la decisión no es una posición: fijarla vía
+        // TYPE_STATUS se rechaza (va por TYPE_RESOLUTION).
+        $manager = $this->manager();
+
+        foreach ([
+            AccessRequest::STATUS_PARTIALLY_GRANTED,
+            AccessRequest::STATUS_DENIED,
+            AccessRequest::STATUS_INADMITTED,
+            AccessRequest::STATUS_GRANTED_COMPLETED,
+        ] as $legacy) {
+            $request = $this->request();
+            self::assertFalse(
+                $manager->changeStatus($request, StatusHistory::TYPE_STATUS, $legacy),
+                sprintf('%s no debe aceptarse como posición', $legacy),
+            );
+        }
+    }
+
+    public function testFinishedIsAcceptedAndIsTerminal(): void
     {
         $manager = $this->manager();
         $request = $this->request();
 
-        $ok = $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_PARTIALLY_GRANTED);
+        $ok = $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_FINISHED);
 
         self::assertTrue($ok);
-        self::assertSame(AccessRequest::STATUS_PARTIALLY_GRANTED, $request->getStatus());
-        self::assertSame(AccessRequest::RESULT_PARTIALLY_GRANTED, $request->getResolutionResult());
+        self::assertSame(AccessRequest::STATUS_FINISHED, $request->getStatus());
+        // `finished` no infiere una decisión concreta (se fija por Resolución),
+        // pero sí marca resolvedAt por ser terminal.
         self::assertNotNull($request->getResolvedAt());
     }
 
-    public function testInadmittedIsAcceptedAndInfersResolution(): void
-    {
-        $manager = $this->manager();
-        $request = $this->request();
-
-        $ok = $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_INADMITTED);
-
-        self::assertTrue($ok);
-        self::assertSame(AccessRequest::STATUS_INADMITTED, $request->getStatus());
-        self::assertSame(AccessRequest::RESULT_INADMITTED, $request->getResolutionResult());
-        self::assertNotNull($request->getResolvedAt());
-    }
-
-    public function testPartiallyGrantedClearsThirdPartySuspension(): void
+    public function testFinishedClearsThirdPartySuspension(): void
     {
         $manager = $this->manager();
         $request = $this->request();
@@ -105,7 +113,7 @@ final class AccessRequestManagerChangeStatusTest extends KernelTestCase
         $request->setSuspendedDaysRemaining(7);
         $request->setThirdPartyStatus(AccessRequest::THIRD_PARTY_PENDING);
 
-        $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_PARTIALLY_GRANTED);
+        $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_FINISHED);
 
         self::assertNull($request->getDeadlineSuspendedAt());
         self::assertNull($request->getSuspendedDaysRemaining());
@@ -115,7 +123,7 @@ final class AccessRequestManagerChangeStatusTest extends KernelTestCase
     public function testReopeningClearsResolutionResultAndResolvedAt(): void
     {
         $manager = $this->manager();
-        $request = $this->request(AccessRequest::STATUS_DENIED);
+        $request = $this->request(AccessRequest::STATUS_FINISHED);
         $request->setResolutionResult(AccessRequest::RESULT_DENIED);
         $request->setResolvedAt(new \DateTimeImmutable('-2 days'));
 
@@ -127,16 +135,16 @@ final class AccessRequestManagerChangeStatusTest extends KernelTestCase
         self::assertNull($request->getResolvedAt());
     }
 
-    public function testCompletionAfterPartialGrantKeepsPartialResult(): void
+    public function testFinishingAfterPartialGrantKeepsPartialResult(): void
     {
         $manager = $this->manager();
-        $request = $this->request(AccessRequest::STATUS_PARTIALLY_GRANTED);
+        $request = $this->request(AccessRequest::STATUS_GRANTED);
         $request->setResolutionResult(AccessRequest::RESULT_PARTIALLY_GRANTED);
         $request->setResolvedAt(new \DateTimeImmutable('-2 days'));
 
-        $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_GRANTED_COMPLETED);
+        $manager->changeStatus($request, StatusHistory::TYPE_STATUS, AccessRequest::STATUS_FINISHED);
 
-        self::assertSame(AccessRequest::STATUS_GRANTED_COMPLETED, $request->getStatus());
+        self::assertSame(AccessRequest::STATUS_FINISHED, $request->getStatus());
         self::assertSame(AccessRequest::RESULT_PARTIALLY_GRANTED, $request->getResolutionResult());
     }
 

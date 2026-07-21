@@ -26,7 +26,7 @@ use Symfony\Component\Uid\Uuid;
  */
 #[McpTool(
     name: 'update_request_status',
-    description: 'Actualiza el estado del flujo principal (sent/processing/granted/granted_completed/partially_granted/denied/inadmitted/delayed/pending) de una solicitud propia y deja traza en el historial.',
+    description: 'Actualiza la posición del flujo principal (pending=borrador/sent/processing/granted=pendiente de recepción/finished=finalizada/delayed=silencio) de una solicitud propia y deja traza en el historial. La DECISIÓN de la administración vive en resolutionResult; los valores legacy de decisión (denied/inadmitted/partially_granted/granted_completed) se aceptan y se traducen a posición finished + resolución.',
 )]
 final class UpdateRequestStatusTool
 {
@@ -41,7 +41,7 @@ final class UpdateRequestStatusTool
 
     /**
      * @param string      $requestId UUID of the access request.
-     * @param string      $status    New status: sent, processing, granted, granted_completed, partially_granted, denied, inadmitted, delayed, pending.
+     * @param string      $status    New position: pending (borrador), sent, processing, granted (pendiente de recepción), finished (finalizada), delayed (silencio). Legacy decision values (denied, inadmitted, partially_granted, granted_completed) are accepted and translated to finished + resolutionResult.
      * @param string|null $note      Optional note recorded in StatusHistory.
      */
     public function __invoke(string $requestId, string $status, ?string $note = null): AccessRequestSummary
@@ -62,12 +62,39 @@ final class UpdateRequestStatusTool
 
         $taggedNote = \sprintf('[mcp/%s] %s', $this->tokenContext->getClientId(), trim((string) $note));
 
-        $ok = $this->em->wrapInTransaction(fn () => $this->accessRequestManager->changeStatus(
-            $request,
-            StatusHistory::TYPE_STATUS,
-            $status,
-            $taggedNote,
-        ));
+        // Los valores legacy de decisión se traducen a la vía coherente del
+        // rediseño: la decisión va por TYPE_RESOLUTION y la posición terminal
+        // es `finished`. `granted_completed` solo mueve la posición.
+        $legacyResolution = match ($status) {
+            AccessRequest::STATUS_DENIED => AccessRequest::RESULT_DENIED,
+            AccessRequest::STATUS_INADMITTED => AccessRequest::RESULT_INADMITTED,
+            AccessRequest::STATUS_PARTIALLY_GRANTED => AccessRequest::RESULT_PARTIALLY_GRANTED,
+            default => null,
+        };
+        $position = \in_array($status, [
+            AccessRequest::STATUS_DENIED,
+            AccessRequest::STATUS_INADMITTED,
+            AccessRequest::STATUS_PARTIALLY_GRANTED,
+            AccessRequest::STATUS_GRANTED_COMPLETED,
+        ], true) ? AccessRequest::STATUS_FINISHED : $status;
+
+        $ok = $this->em->wrapInTransaction(function () use ($request, $position, $legacyResolution, $taggedNote): bool {
+            if ($legacyResolution !== null && !$this->accessRequestManager->changeStatus(
+                $request,
+                StatusHistory::TYPE_RESOLUTION,
+                $legacyResolution,
+                $taggedNote,
+            )) {
+                return false;
+            }
+
+            return $this->accessRequestManager->changeStatus(
+                $request,
+                StatusHistory::TYPE_STATUS,
+                $position,
+                $taggedNote,
+            );
+        });
 
         if (!$ok) {
             throw new InvalidArgumentException(\sprintf('Invalid status transition to "%s".', $status));

@@ -18,16 +18,50 @@ use Symfony\Component\Uid\Uuid;
 #[ORM\Index(columns: ['user_id'], name: 'idx_user')]
 class AccessRequest
 {
-    // Primary status constants
-    public const STATUS_SENT = 'sent';
-    public const STATUS_PROCESSING = 'processing';
-    public const STATUS_GRANTED = 'granted';
+    // Primary status constants — the workflow POSITION only. The administrative
+    // DECISION lives in $resolutionResult (orthogonal). Since the redesign the
+    // position enum is 6 values: pending, sent, processing, granted, finished,
+    // delayed. The three "decision" values below are DEPRECATED as positions
+    // (migrated to `finished` + resolutionResult) and kept only so historical
+    // StatusHistory rows and the timeline still resolve their labels.
+    public const STATUS_PENDING = 'pending';               // Borrador
+    public const STATUS_SENT = 'sent';                     // Enviada
+    public const STATUS_PROCESSING = 'processing';         // En trámite
+    public const STATUS_GRANTED = 'granted';               // Pendiente de recepción
+    public const STATUS_FINISHED = 'finished';             // Finalizada (terminal; decisión en resolutionResult)
+    public const STATUS_DELAYED = 'delayed';               // Silencio administrativo
+
+    /** The six live workflow positions, in lifecycle order. */
+    public const POSITIONS = [
+        self::STATUS_PENDING,
+        self::STATUS_SENT,
+        self::STATUS_PROCESSING,
+        self::STATUS_GRANTED,
+        self::STATUS_FINISHED,
+        self::STATUS_DELAYED,
+    ];
+
+    /** @deprecated position — migrated to STATUS_FINISHED + resolutionResult. */
     public const STATUS_GRANTED_COMPLETED = 'granted_completed';
+    /** @deprecated position — migrated to STATUS_FINISHED + resolutionResult. */
     public const STATUS_PARTIALLY_GRANTED = 'partially_granted';
+    /** @deprecated position — migrated to STATUS_FINISHED + resolutionResult. */
     public const STATUS_DENIED = 'denied';
+    /** @deprecated position — migrated to STATUS_FINISHED + resolutionResult. */
     public const STATUS_INADMITTED = 'inadmitted';
-    public const STATUS_DELAYED = 'delayed';
-    public const STATUS_PENDING = 'pending';
+
+    // Derived internal state (getInternalState) — what the app SHOWS as "where
+    // is this expediente", collapsing position + resolution + complaint + court
+    // into one of eight values. This is the single classifier; UI must read it,
+    // never re-derive the precedence.
+    public const INTERNAL_DRAFT = 'draft';                   // Borrador (pending)
+    public const INTERNAL_SENT = 'sent';                     // Enviada
+    public const INTERNAL_PROCESSING = 'processing';         // En trámite
+    public const INTERNAL_PENDING_RECEPTION = 'pending_reception'; // Pendiente de recepción (granted)
+    public const INTERNAL_FINISHED = 'finished';             // Finalizada
+    public const INTERNAL_SILENCE = 'silence';               // Silencio administrativo (delayed)
+    public const INTERNAL_IN_COMPLAINT = 'in_complaint';     // En proceso de reclamación
+    public const INTERNAL_IN_COURT = 'in_court';             // En proceso judicial
 
     // Resolution result — what the administration actually decided.
     // Orthogonal to $status (which tracks where we are in the workflow). NULL until resolved.
@@ -369,15 +403,17 @@ class AccessRequest
     public static function labelForStatus(string $status): string
     {
         return match ($status) {
+            self::STATUS_PENDING => 'Borrador',
             self::STATUS_SENT => 'Enviada',
             self::STATUS_PROCESSING => 'En trámite',
-            self::STATUS_GRANTED => 'Concedida (pendiente de recepción)',
+            self::STATUS_GRANTED => 'Pendiente de recepción',
+            self::STATUS_FINISHED => 'Finalizada',
+            self::STATUS_DELAYED => 'Silencio administrativo',
+            // Deprecated positions — kept for historical StatusHistory rows.
             self::STATUS_GRANTED_COMPLETED => 'Concedida y completada',
             self::STATUS_PARTIALLY_GRANTED => 'Estimación parcial',
             self::STATUS_DENIED => 'Denegada',
             self::STATUS_INADMITTED => 'Inadmitida a trámite',
-            self::STATUS_DELAYED => 'Silencio administrativo',
-            self::STATUS_PENDING => 'Pendiente de recepción',
             default => $status,
         };
     }
@@ -421,27 +457,27 @@ class AccessRequest
 
     /**
      * The administration produced an explicit decision (regardless of outcome).
-     * Excludes silence (`STATUS_DELAYED`) and pre-decision states.
+     * Now keyed on the DECISION axis (resolutionResult), not the position:
+     * silence is NOT an express response, NULL means no decision yet.
      */
     public function hasReceivedResponse(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_GRANTED,
-            self::STATUS_GRANTED_COMPLETED,
-            self::STATUS_PARTIALLY_GRANTED,
-            self::STATUS_DENIED,
-            self::STATUS_INADMITTED,
+        return in_array($this->resolutionResult, [
+            self::RESULT_GRANTED,
+            self::RESULT_PARTIALLY_GRANTED,
+            self::RESULT_DENIED,
+            self::RESULT_INADMITTED,
         ], true);
     }
 
     public function isInadmitted(): bool
     {
-        return $this->status === self::STATUS_INADMITTED;
+        return $this->resolutionResult === self::RESULT_INADMITTED;
     }
 
     public function isPartiallyGranted(): bool
     {
-        return $this->status === self::STATUS_PARTIALLY_GRANTED;
+        return $this->resolutionResult === self::RESULT_PARTIALLY_GRANTED;
     }
 
     public function getComplaint(): ?AccessRequestComplaint
@@ -487,13 +523,15 @@ class AccessRequest
     public static function statusColor(string $status): string
     {
         return match ($status) {
+            self::STATUS_PENDING => '#94a3b8',          // slate — borrador
             self::STATUS_SENT => '#7dd3fc',
             self::STATUS_PROCESSING => '#38bdf8',
-            self::STATUS_PENDING => '#bae6fd',
             self::STATUS_GRANTED => '#34d399',
+            self::STATUS_FINISHED => '#10b981',
+            self::STATUS_DELAYED => '#f59e0b',
+            // Deprecated positions — kept for historical StatusHistory rows.
             self::STATUS_GRANTED_COMPLETED => '#10b981',
             self::STATUS_PARTIALLY_GRANTED => '#6ee7b7',
-            self::STATUS_DELAYED => '#f59e0b',
             self::STATUS_DENIED => '#f87171',
             self::STATUS_INADMITTED => '#fca5a5',
             default => '#94a3b8',
@@ -506,37 +544,121 @@ class AccessRequest
     }
 
     /**
-     * Color companion of getEffectiveStatusLabel(): the complaint route's
-     * color when a complaint is active, the request status color otherwise.
+     * The DERIVED internal state — the single "where is this expediente"
+     * classifier that the whole app shows, collapsing the four orthogonal axes
+     * (position, resolution, complaint, court) into one of eight values.
+     *
+     * Precedence (approved product rule):
+     *   judicial > reclamación abierta > reclamación resuelta (→Finalizada) > posición
+     *
+     * Any UI showing one combined state MUST read this — never re-derive the
+     * precedence in Twig or in a repository query.
      */
-    public function getEffectiveStatusColor(): string
+    public function getInternalState(): string
     {
-        if ($this->hasActiveComplaint()) {
-            return $this->complaint->getStatusColor();
-        }
-
-        return $this->getStatusColor();
+        return self::internalStateFor($this->status, $this->courtStatus, $this->complaint?->getStatus());
     }
 
     /**
-     * The label the USER should read as "where is this expediente": the
-     * request status and the complaint are two dimensions, and when a
-     * complaint is active it is the route that matters — a solicitud in
-     * silencio that has been reclaimed reads «Reclamada», not «Silencio
-     * administrativo». The underlying `status` is NOT rewritten (silencio is
-     * a fact: they never answered; a late express answer still lands as
-     * granted/denied through the normal flow).
-     *
-     * Derived, single classifier — any UI that shows one combined state must
-     * use this method, never re-derive the precedence in Twig.
+     * The precedence rule, factored out so aggregation (repository counts) and
+     * the instance share ONE classifier. `$complaintStatus` is null when there
+     * is no complaint entity.
      */
-    public function getEffectiveStatusLabel(): string
+    public static function internalStateFor(string $status, string $courtStatus, ?string $complaintStatus): string
     {
-        if ($this->hasActiveComplaint()) {
-            return $this->complaint->getStatusLabel();
+        if ($courtStatus === self::COURT_IN_COURT) {
+            return self::INTERNAL_IN_COURT;
+        }
+        if ($complaintStatus !== null) {
+            if ($complaintStatus === AccessRequestComplaint::STATUS_RECLAIMED) {
+                return self::INTERNAL_IN_COMPLAINT;
+            }
+            // Reclamación resuelta (estimada/desestimada/archivada) → Finalizada.
+            return self::INTERNAL_FINISHED;
         }
 
-        return $this->getStatusLabel();
+        return match ($status) {
+            self::STATUS_PENDING => self::INTERNAL_DRAFT,
+            self::STATUS_SENT => self::INTERNAL_SENT,
+            self::STATUS_PROCESSING => self::INTERNAL_PROCESSING,
+            self::STATUS_GRANTED => self::INTERNAL_PENDING_RECEPTION,
+            self::STATUS_DELAYED => self::INTERNAL_SILENCE,
+            self::STATUS_FINISHED => self::INTERNAL_FINISHED,
+            // Deprecated positions still lingering before/around migration.
+            self::STATUS_GRANTED_COMPLETED,
+            self::STATUS_PARTIALLY_GRANTED,
+            self::STATUS_DENIED,
+            self::STATUS_INADMITTED => self::INTERNAL_FINISHED,
+            default => self::INTERNAL_PROCESSING,
+        };
+    }
+
+    /** The eight internal states in display order. */
+    public const INTERNAL_STATES = [
+        self::INTERNAL_DRAFT,
+        self::INTERNAL_SENT,
+        self::INTERNAL_PROCESSING,
+        self::INTERNAL_PENDING_RECEPTION,
+        self::INTERNAL_SILENCE,
+        self::INTERNAL_IN_COMPLAINT,
+        self::INTERNAL_IN_COURT,
+        self::INTERNAL_FINISHED,
+    ];
+
+    public function getInternalStateLabel(): string
+    {
+        return self::labelForInternalState($this->getInternalState());
+    }
+
+    public static function labelForInternalState(string $internalState): string
+    {
+        return match ($internalState) {
+            self::INTERNAL_DRAFT => 'Borrador',
+            self::INTERNAL_SENT => 'Enviada',
+            self::INTERNAL_PROCESSING => 'En trámite',
+            self::INTERNAL_PENDING_RECEPTION => 'Pendiente de recepción',
+            self::INTERNAL_FINISHED => 'Finalizada',
+            self::INTERNAL_SILENCE => 'Silencio administrativo',
+            self::INTERNAL_IN_COMPLAINT => 'En proceso de reclamación',
+            self::INTERNAL_IN_COURT => 'En proceso judicial',
+            default => $internalState,
+        };
+    }
+
+    public function getInternalStateColor(): string
+    {
+        return self::colorForInternalState($this->getInternalState());
+    }
+
+    public static function colorForInternalState(string $internalState): string
+    {
+        return match ($internalState) {
+            self::INTERNAL_DRAFT => '#94a3b8',            // slate
+            self::INTERNAL_SENT => '#7dd3fc',             // sky
+            self::INTERNAL_PROCESSING => '#38bdf8',       // sky
+            self::INTERNAL_PENDING_RECEPTION => '#34d399',// emerald claro
+            self::INTERNAL_FINISHED => '#10b981',         // emerald
+            self::INTERNAL_SILENCE => '#f59e0b',          // amber
+            self::INTERNAL_IN_COMPLAINT => '#f59e0b',     // amber (vía reclamación)
+            self::INTERNAL_IN_COURT => '#8b5cf6',         // violet (vía judicial)
+            default => '#94a3b8',
+        };
+    }
+
+    /**
+     * Back-compat aliases: the old "effective" label/color now resolve through
+     * the single {@see getInternalState()} classifier, so every existing caller
+     * (recent cards, activity summary, datatable, detail read-only) shows the
+     * eight-state vocabulary without change.
+     */
+    public function getEffectiveStatusColor(): string
+    {
+        return $this->getInternalStateColor();
+    }
+
+    public function getEffectiveStatusLabel(): string
+    {
+        return $this->getInternalStateLabel();
     }
 
     public function getCourtStatus(): string
@@ -1026,7 +1148,7 @@ class AccessRequest
 
     public function isActive(): bool
     {
-        return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_GRANTED_COMPLETED, self::STATUS_DENIED], true)
+        return !in_array($this->status, [self::STATUS_GRANTED, self::STATUS_FINISHED], true)
             || $this->complaint?->getStatus() === AccessRequestComplaint::STATUS_RECLAIMED
             || $this->courtStatus === self::COURT_IN_COURT;
     }

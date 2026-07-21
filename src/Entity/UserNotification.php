@@ -191,13 +191,16 @@ class UserNotification
     public static function translateStatus(string $status): string
     {
         return match ($status) {
+            // Posiciones vivas (vocabulario del rediseño).
+            'pending' => 'Borrador',
             'sent' => 'Enviada',
             'processing' => 'En trámite',
-            'granted' => 'Concedida',
+            'granted' => 'Pendiente de recepción',
+            'finished' => 'Finalizada',
+            'delayed' => 'Silencio',
+            // Posiciones deprecated — notificaciones históricas.
             'granted_completed' => 'Completada',
             'denied' => 'Denegada',
-            'delayed' => 'Silencio',
-            'pending' => 'Pendiente',
             'none' => 'Sin reclamación',
             'reclaimed' => 'Reclamada',
             'complaint_granted' => 'Estimada',
@@ -216,7 +219,7 @@ class UserNotification
             'sent' => 'status-sent',
             'processing' => 'status-processing',
             'granted', 'complaint_granted', 'court_granted' => 'status-granted',
-            'granted_completed' => 'status-granted-completed',
+            'finished', 'granted_completed' => 'status-granted-completed',
             'denied', 'complaint_denied', 'court_denied' => 'status-denied',
             'delayed' => 'status-delayed',
             'pending' => 'status-pending',

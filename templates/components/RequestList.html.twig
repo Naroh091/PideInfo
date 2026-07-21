@@ -96,12 +96,11 @@
                         </div>
                         <div class="text-end ms-3">
                             <span class="badge bg-{{
-                                request.status in ['granted', 'granted_completed'] ? 'success' :
-                                (request.status == 'denied' ? 'danger' :
-                                (request.status == 'delayed' ? 'warning' :
-                                (request.status == 'pending' ? 'info' : 'primary')))
+                                request.internalState in ['pending_reception', 'finished'] ? 'success' :
+                                (request.internalState in ['silence', 'in_complaint', 'in_court'] ? 'warning' :
+                                (request.internalState == 'draft' ? 'info' : 'primary'))
                             }} fs-6">
-                                {{ request.statusLabel }}
+                                {{ request.internalStateLabel }}
                             </span>
                             {% if request.complaint %}
                                 <br>

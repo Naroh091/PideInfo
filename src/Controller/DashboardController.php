@@ -24,27 +24,6 @@ class DashboardController extends AbstractController
      * (AccessRequest::statusColor / AccessRequestComplaint::statusColor),
      * the single place to pick them.
      */
-    private const CHART_STATUSES = [
-        AccessRequest::STATUS_SENT => 'Enviadas',
-        AccessRequest::STATUS_PROCESSING => 'En trámite',
-        AccessRequest::STATUS_PENDING => 'Pendientes',
-        AccessRequest::STATUS_GRANTED => 'Concedidas',
-        AccessRequest::STATUS_GRANTED_COMPLETED => 'Completadas',
-        AccessRequest::STATUS_PARTIALLY_GRANTED => 'Parciales',
-        AccessRequest::STATUS_DELAYED => 'Silencio',
-        AccessRequest::STATUS_DENIED => 'Denegadas',
-        AccessRequest::STATUS_INADMITTED => 'Inadmitidas',
-        AccessRequestComplaint::STATUS_RECLAIMED => 'Reclamadas',
-        AccessRequestComplaint::STATUS_GRANTED => 'Recl. estimadas',
-        AccessRequestComplaint::STATUS_DENIED => 'Recl. desestimadas',
-    ];
-
-    private const COMPLAINT_STATUSES = [
-        AccessRequestComplaint::STATUS_RECLAIMED,
-        AccessRequestComplaint::STATUS_GRANTED,
-        AccessRequestComplaint::STATUS_DENIED,
-    ];
-
     #[Route('/panel', name: 'app_dashboard')]
     public function index(
         AccessRequestRepository $repository,
@@ -52,31 +31,33 @@ class DashboardController extends AbstractController
         UsageHintRepository $usageHintRepository,
     ): Response {
         $user = $this->getUser();
-        $counts = $repository->getStatusCounts($user);
-        $totalRequests = array_sum($counts);
+        $internalCounts = $repository->getInternalStateCounts($user);
+        $totalRequests = array_sum($internalCounts);
 
-        // Franja de contadores del hero. Misma aritmética que StatusStats
-        // (activas = enviadas+trámite+pendientes; resueltas y tasa ignoran
-        // parciales/inadmitidas) para que ambas vistas cuenten igual.
-        $granted = ($counts[AccessRequest::STATUS_GRANTED] ?? 0) + ($counts[AccessRequest::STATUS_GRANTED_COMPLETED] ?? 0);
-        $denied = $counts[AccessRequest::STATUS_DENIED] ?? 0;
-        $activeCount = ($counts[AccessRequest::STATUS_SENT] ?? 0)
-            + ($counts[AccessRequest::STATUS_PROCESSING] ?? 0)
-            + ($counts[AccessRequest::STATUS_PENDING] ?? 0);
-        $resolvedCount = $granted + $denied + ($counts[AccessRequest::STATUS_DELAYED] ?? 0);
+        // Franja de contadores del hero. «Activas» = borrador+enviada+trámite;
+        // «resueltas» y la tasa de éxito van por la DECISIÓN (resolutionResult),
+        // que es donde vive ya el resultado. Estimada total/parcial cuenta como
+        // favorable; denegada/inadmitida como desfavorable.
+        $results = $repository->getResolutionResultCounts($user);
+        $granted = ($results[AccessRequest::RESULT_GRANTED] ?? 0) + ($results[AccessRequest::RESULT_PARTIALLY_GRANTED] ?? 0);
+        $denied = ($results[AccessRequest::RESULT_DENIED] ?? 0) + ($results[AccessRequest::RESULT_INADMITTED] ?? 0);
+        $silence = $results[AccessRequest::RESULT_SILENCE] ?? 0;
+        $activeCount = ($internalCounts[AccessRequest::INTERNAL_DRAFT] ?? 0)
+            + ($internalCounts[AccessRequest::INTERNAL_SENT] ?? 0)
+            + ($internalCounts[AccessRequest::INTERNAL_PROCESSING] ?? 0);
+        $resolvedCount = $granted + $denied + $silence;
         $successRate = ($granted + $denied) > 0 ? (int) round($granted / ($granted + $denied) * 100) : null;
 
-        // Barras horizontales de estados EFECTIVOS (solo los que existen)
-        // para el apex_chart de la sidebar: las reclamadas salen de su bucket
-        // de estado y se muestran por la vía de reclamación.
-        $effectiveCounts = $repository->getEffectiveStatusCounts($user);
+        // Barras horizontales del apex_chart de la sidebar: los 8 estados
+        // internos (solo los que existen), con la fuente única de color.
         $chartStatuses = [];
-        foreach (self::CHART_STATUSES as $status => $label) {
-            if (($effectiveCounts[$status] ?? 0) > 0) {
-                $color = in_array($status, self::COMPLAINT_STATUSES, true)
-                    ? AccessRequestComplaint::statusColor($status)
-                    : AccessRequest::statusColor($status);
-                $chartStatuses[] = ['label' => $label, 'count' => $effectiveCounts[$status], 'color' => $color];
+        foreach (AccessRequest::INTERNAL_STATES as $state) {
+            if (($internalCounts[$state] ?? 0) > 0) {
+                $chartStatuses[] = [
+                    'label' => AccessRequest::labelForInternalState($state),
+                    'count' => $internalCounts[$state],
+                    'color' => AccessRequest::colorForInternalState($state),
+                ];
             }
         }
 

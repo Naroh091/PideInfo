@@ -43,11 +43,13 @@ final class AnonymousDraftClaimer
     /** Size cap (chars) for the persisted anonymous complaint HTML. */
     public const COMPLAINT_HTML_MAX_CHARS = 200000;
 
+    // La decisión (denegada/inadmitida/parcial) es la posición `finished`; el
+    // silencio es su propia posición.
     private const RESULT_TO_STATUS = [
-        AccessRequest::RESULT_DENIED => AccessRequest::STATUS_DENIED,
-        AccessRequest::RESULT_INADMITTED => AccessRequest::STATUS_INADMITTED,
+        AccessRequest::RESULT_DENIED => AccessRequest::STATUS_FINISHED,
+        AccessRequest::RESULT_INADMITTED => AccessRequest::STATUS_FINISHED,
         AccessRequest::RESULT_SILENCE => AccessRequest::STATUS_DELAYED,
-        AccessRequest::RESULT_PARTIALLY_GRANTED => AccessRequest::STATUS_PARTIALLY_GRANTED,
+        AccessRequest::RESULT_PARTIALLY_GRANTED => AccessRequest::STATUS_FINISHED,
     ];
 
     public function __construct(

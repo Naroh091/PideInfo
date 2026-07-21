@@ -462,7 +462,7 @@ final class ComplaintGenerator
 
     public function canGenerateComplaint(AccessRequest $accessRequest): bool
     {
-        if (in_array($accessRequest->getStatus(), [AccessRequest::STATUS_DENIED, AccessRequest::STATUS_DELAYED], true)) {
+        if ($accessRequest->getStatus() === AccessRequest::STATUS_DELAYED) {
             return true;
         }
 
@@ -476,7 +476,7 @@ final class ComplaintGenerator
             return true;
         }
 
-        if ($accessRequest->isDeadlinePassed() && !in_array($accessRequest->getStatus(), [AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED], true)) {
+        if ($accessRequest->isDeadlinePassed() && !in_array($accessRequest->getStatus(), [AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_FINISHED], true)) {
             return true;
         }
 
@@ -641,7 +641,7 @@ TXT;
             $accessRequest->getResolutionResult() === AccessRequest::RESULT_PARTIALLY_GRANTED => 'estimada parcialmente (concesión parcial)',
             $accessRequest->getResolutionResult() === AccessRequest::RESULT_INADMITTED => 'inadmitida a trámite',
             $accessRequest->getResolutionResult() === AccessRequest::RESULT_GRANTED => 'concedida en la resolución pero información no facilitada',
-            $accessRequest->getStatus() === AccessRequest::STATUS_DENIED => 'denegada expresamente',
+            $accessRequest->getResolutionResult() === AccessRequest::RESULT_DENIED => 'denegada expresamente',
             $accessRequest->getStatus() === AccessRequest::STATUS_DELAYED => 'no contestada (' . $silenceLabel . ')',
             $accessRequest->isDeadlinePassed() => 'plazo vencido sin respuesta (' . $silenceLabel . ')',
             default => 'pendiente de resolución',

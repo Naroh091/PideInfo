@@ -53,7 +53,7 @@ final class ListUpcomingDeadlinesTool
             if (null === $deadline || $deadline > $until) {
                 continue;
             }
-            if (in_array($request->getStatus(), [AccessRequest::STATUS_GRANTED_COMPLETED], true)) {
+            if (in_array($request->getStatus(), [AccessRequest::STATUS_FINISHED], true)) {
                 continue;
             }
             $entries[] = DeadlineEntry::fromEntity($request, $now);

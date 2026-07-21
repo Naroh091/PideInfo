@@ -8,7 +8,7 @@
         {# Plazo de respuesta de la administración #}
         <div class="ficha-fila">
             <span class="ficha-clave">Respuesta</span>
-            {% if request.status in ['granted', 'granted_completed', 'denied'] %}
+            {% if request.status in ['granted', 'finished'] %}
                 <span class="ficha-valor">
                     {{ request.deadlineAt|date('d/m/Y') }}
                     <span class="ficha-tag is-resolved">Resuelta</span>
@@ -31,7 +31,7 @@
         {% if request.deadlineAt and request.sentAt
             and not request.isDeadlineSuspended
             and not request.isDeadlinePassed
-            and request.status not in ['granted', 'granted_completed', 'denied'] %}
+            and request.status not in ['granted', 'finished'] %}
             {% set spanTotal = request.deadlineAt|date('U') - request.sentAt|date('U') %}
             {% if spanTotal > 0 %}
                 {% set pct = min(100, max(0, (("now"|date('U') - request.sentAt|date('U')) / spanTotal * 100)|round)) %}

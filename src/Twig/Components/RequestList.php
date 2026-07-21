@@ -144,13 +144,12 @@ final class RequestList extends AbstractController
 
     public function getStatusOptions(): array
     {
-        return [
-            'sent' => 'Enviada',
-            'processing' => 'En trámite',
-            'granted' => 'Concedida',
-            'denied' => 'Denegada',
-            'delayed' => 'Silencio',
-            'pending' => 'Pendiente',
-        ];
+        // Las 6 posiciones vivas, etiquetadas desde la fuente única.
+        $options = [];
+        foreach (\App\Entity\AccessRequest::POSITIONS as $position) {
+            $options[$position] = \App\Entity\AccessRequest::labelForStatus($position);
+        }
+
+        return $options;
     }
 }

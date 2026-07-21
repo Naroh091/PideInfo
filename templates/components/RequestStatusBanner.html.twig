@@ -235,27 +235,20 @@
             <form method="post" action="{{ path('app_solicitudes_change_status', {id: request.id}) }}">
                 <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
                 <input type="hidden" name="statusType" value="status">
-                <input type="hidden" name="newStatus" value="granted">
-                <button type="submit" class="btn btn-ghost btn-sm">
-                    <i data-lucide="check" class="w-4 h-4 mr-1.5"></i>
-                    Marcar como completada
-                </button>
-            </form>
-            <form method="post" action="{{ path('app_solicitudes_change_status', {id: request.id}) }}">
-                <input type="hidden" name="_token" value="{{ csrf_token('change-status-' ~ request.id) }}">
-                <input type="hidden" name="statusType" value="status">
-                <input type="hidden" name="newStatus" value="granted_completed">
+                <input type="hidden" name="newStatus" value="finished">
                 <button type="submit" class="btn btn-ghost btn-sm">
                     <i data-lucide="package-check" class="w-4 h-4 mr-1.5"></i>
-                    Marcar como completada y recibida
+                    Marcar como finalizada
                 </button>
             </form>
         </div>
     </section>
 {% endif %}
 
-{# Solicitud denegada — invita a reclamar (skip if a complaint already exists) #}
-{% if request.status == 'denied' and request.complaint is null %}
+{# Solicitud denegada — invita a reclamar (skip if a complaint already exists).
+   Se mira resolutionResult (no status): la denegación es una decisión, la
+   posición es `finished`. #}
+{% if request.resolutionResult == 'denied' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
     <section class="paso3 paso3--rojo">
         <div class="paso3-cab">

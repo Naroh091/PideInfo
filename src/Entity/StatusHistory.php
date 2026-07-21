@@ -107,15 +107,18 @@ class StatusHistory
     {
         return match ($statusType) {
             self::TYPE_STATUS => match ($status) {
+                // Posiciones vivas (vocabulario del rediseño).
+                'pending' => 'Borrador',
                 'sent' => 'Enviada',
                 'processing' => 'En trámite',
-                'granted' => 'Concedida',
+                'granted' => 'Pendiente de recepción',
+                'finished' => 'Finalizada',
+                'delayed' => 'Silencio',
+                // Posiciones deprecated — las filas históricas las conservan.
                 'granted_completed' => 'Completada',
                 'partially_granted' => 'Estimación parcial',
                 'denied' => 'Denegada',
                 'inadmitted' => 'Inadmitida',
-                'delayed' => 'Silencio',
-                'pending' => 'Pendiente',
                 default => $status,
             },
             self::TYPE_COMPLAINT => match ($status) {

@@ -63,13 +63,19 @@ class AccessRequestRepository extends ServiceEntityRepository
         ?string $status = null,
         ?string $search = null,
         int $page = 1,
-        int $limit = 20
+        int $limit = 20,
+        ?string $resolutionResult = null
     ): array {
         $qb = $this->createQueryBuilderForUser($user);
 
         if ($status !== null) {
             $qb->andWhere('ar.status = :status')
                ->setParameter('status', $status);
+        }
+
+        if ($resolutionResult !== null) {
+            $qb->andWhere('ar.resolutionResult = :resolutionResult')
+               ->setParameter('resolutionResult', $resolutionResult);
         }
 
         if ($search !== null && $search !== '') {
@@ -85,7 +91,7 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    public function countByFilters(User $user, ?string $status = null, ?string $search = null): int
+    public function countByFilters(User $user, ?string $status = null, ?string $search = null, ?string $resolutionResult = null): int
     {
         $qb = $this->createQueryBuilderForUser($user)
             ->select('COUNT(ar.id)');
@@ -93,6 +99,11 @@ class AccessRequestRepository extends ServiceEntityRepository
         if ($status !== null) {
             $qb->andWhere('ar.status = :status')
                ->setParameter('status', $status);
+        }
+
+        if ($resolutionResult !== null) {
+            $qb->andWhere('ar.resolutionResult = :resolutionResult')
+               ->setParameter('resolutionResult', $resolutionResult);
         }
 
         if ($search !== null && $search !== '') {
@@ -364,6 +375,55 @@ class AccessRequestRepository extends ServiceEntityRepository
         return $counts;
     }
 
+    /**
+     * Counts bucketed by the DERIVED internal state (the eight values of
+     * AccessRequest::getInternalState()). Groups by the raw axes and folds them
+     * through the single classifier so it can never drift from the entity.
+     *
+     * @return array<string, int>
+     */
+    public function getInternalStateCounts(User $user): array
+    {
+        $rows = $this->createQueryBuilderForUser($user)
+            ->select('ar.status AS status, ar.courtStatus AS court, c.status AS cstatus, COUNT(ar.id) AS count')
+            ->leftJoin('ar.complaint', 'c')
+            ->groupBy('ar.status')
+            ->addGroupBy('ar.courtStatus')
+            ->addGroupBy('c.status')
+            ->getQuery()
+            ->getResult();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $state = AccessRequest::internalStateFor($row['status'], $row['court'], $row['cstatus']);
+            $counts[$state] = ($counts[$state] ?? 0) + (int) $row['count'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Counts by the DECISION axis (resolutionResult), NULL excluded.
+     *
+     * @return array<string, int>
+     */
+    public function getResolutionResultCounts(User $user): array
+    {
+        $rows = $this->createQueryBuilderForUser($user)
+            ->select('ar.resolutionResult AS result, COUNT(ar.id) AS count')
+            ->andWhere('ar.resolutionResult IS NOT NULL')
+            ->groupBy('ar.resolutionResult')
+            ->getQuery()
+            ->getResult();
+
+        $counts = [];
+        foreach ($rows as $row) {
+            $counts[$row['result']] = (int) $row['count'];
+        }
+
+        return $counts;
+    }
+
     public function countAppealed(User $user): int
     {
         return (int) $this->createQueryBuilderForUser($user)
@@ -381,6 +441,7 @@ class AccessRequestRepository extends ServiceEntityRepository
      * @return array{
      *     totalCount: int,
      *     statusCounts: array<string,int>,
+     *     internalStateCounts: array<string,int>,
      *     resolutionResultCounts: array<string,int>,
      *     complaintCount: int,
      *     complaintStatusCounts: array<string,int>,
@@ -418,6 +479,20 @@ class AccessRequestRepository extends ServiceEntityRepository
             $statusCounts[$row['status']] = (int) $row['count'];
         }
         $totalCount = array_sum($statusCounts);
+
+        // Internal-state distribution (range-aware) — the donut «por estado»
+        // shows the eight derived states, not the raw positions.
+        $internalRows = $applyRange($this->createQueryBuilderForUser($user))
+            ->select('ar.status AS status, ar.courtStatus AS court, c.status AS cstatus, COUNT(ar.id) AS count')
+            ->leftJoin('ar.complaint', 'c')
+            ->groupBy('ar.status')->addGroupBy('ar.courtStatus')->addGroupBy('c.status')
+            ->getQuery()
+            ->getResult();
+        $internalStateCounts = [];
+        foreach ($internalRows as $row) {
+            $state = AccessRequest::internalStateFor($row['status'], $row['court'], $row['cstatus']);
+            $internalStateCounts[$state] = ($internalStateCounts[$state] ?? 0) + (int) $row['count'];
+        }
 
         // Resolution result counts (only non-null)
         $resultRows = $applyRange($this->createQueryBuilderForUser($user))
@@ -498,6 +573,7 @@ class AccessRequestRepository extends ServiceEntityRepository
         return [
             'totalCount' => $totalCount,
             'statusCounts' => $statusCounts,
+            'internalStateCounts' => $internalStateCounts,
             'resolutionResultCounts' => $resolutionResultCounts,
             'complaintCount' => $complaintCount,
             'complaintStatusCounts' => $complaintStatusCounts,

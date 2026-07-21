@@ -174,24 +174,26 @@
             <div class="card-body space-y-4">
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 mb-1">Estado actual</h4>
-                    {% set statusClass = {
+                    {# Estado INTERNO derivado (los 8). #}
+                    {% set internalStateBadge = {
+                        'draft': 'badge-secondary',
                         'sent': 'status-sent',
                         'processing': 'status-processing',
-                        'granted': 'status-granted',
-                        'granted_completed': 'status-granted-completed',
-                        'denied': 'status-denied',
-                        'delayed': 'status-delayed',
-                        'pending': 'status-pending'
+                        'pending_reception': 'status-granted',
+                        'finished': 'status-granted-completed',
+                        'silence': 'status-delayed',
+                        'in_complaint': 'badge-warning',
+                        'in_court': 'badge-info'
                     } %}
-                    <span class="badge {{ statusClass[request.status]|default('badge-secondary') }}">
-                        {{ request.statusLabel }}
+                    <span class="badge {{ internalStateBadge[request.internalState]|default('badge-secondary') }}">
+                        {{ request.internalStateLabel }}
                     </span>
                     <p class="text-xs text-slate-500 mt-1">Puedes cambiar el estado en el formulario</p>
                 </div>
 
                 <div>
                     <h4 class="text-xs font-medium text-slate-500 mb-1">Plazo actual</h4>
-                    {% if request.status in ['granted', 'granted_completed', 'denied'] %}
+                    {% if request.status in ['granted', 'finished'] %}
                         <p class="text-sm text-slate-500">
                             {{ request.deadlineAt|date('d/m/Y') }}
                             <span class="badge badge-success ml-1">Resuelta</span>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mcp\Tool;
 
+use App\Entity\AccessRequest;
 use App\Entity\User;
 use App\Mcp\Dto\AccessRequestSummary;
 use App\Repository\AccessRequestRepository;
@@ -29,7 +30,7 @@ final class SearchRequestsTool
 
     /**
      * @param string|null $query    Optional free-text matched against title, description and external ID.
-     * @param string|null $status   Filter by status: sent, processing, granted, granted_completed, partially_granted, denied, inadmitted, delayed, pending.
+     * @param string|null $status   Filter by workflow position: pending (borrador), sent, processing, granted (pendiente de recepción), finished (finalizada), delayed (silencio). Legacy decision values (denied, inadmitted, partially_granted) filter by resolutionResult instead; granted_completed maps to finished.
      * @param int         $limit    Maximum results to return (1-100, default 20).
      * @param int         $page     1-based page number for pagination.
      *
@@ -47,12 +48,27 @@ final class SearchRequestsTool
         $limit = max(1, min(100, $limit));
         $page = max(1, $page);
 
+        // Los valores legacy de decisión ya no son posiciones: filtran por el
+        // eje resolución. `granted_completed` es la posición `finished`.
+        $resolutionResult = null;
+        if (\in_array($status, [
+            AccessRequest::RESULT_DENIED,
+            AccessRequest::RESULT_INADMITTED,
+            AccessRequest::RESULT_PARTIALLY_GRANTED,
+        ], true)) {
+            $resolutionResult = $status;
+            $status = null;
+        } elseif ($status === AccessRequest::STATUS_GRANTED_COMPLETED) {
+            $status = AccessRequest::STATUS_FINISHED;
+        }
+
         $results = $this->accessRequestRepository->findByFilters(
             user: $user,
             status: $status,
             search: $query,
             page: $page,
             limit: $limit,
+            resolutionResult: $resolutionResult,
         );
 
         $requests = array_map(

@@ -297,6 +297,8 @@
     .status-cmdk-completed  { background: rgb(187 247 208); color: rgb(22 101 52); }
     .status-cmdk-denied     { background: rgb(254 226 226); color: rgb(185 28 28); }
     .status-cmdk-delayed    { background: rgb(254 243 199); color: rgb(180 83 9); }
+    .status-cmdk-complaint  { background: rgb(254 243 199); color: rgb(146 64 14); }
+    .status-cmdk-court      { background: rgb(237 233 254); color: rgb(109 40 217); }
 
     .cmdk-row-kbd {
         flex-shrink: 0;
@@ -459,15 +461,17 @@ function commandPalette() {
             window.location.href = '{{ path('app_solicitudes_show', {id: '__ID__'}) }}'.replace('__ID__', r.id);
         },
 
+        // Claves = los 8 estados INTERNOS derivados (payload de /solicitudes/buscar).
         statusClass(status) {
             const map = {
+                draft: 'status-cmdk-sent',
                 sent: 'status-cmdk-sent',
                 processing: 'status-cmdk-processing',
-                granted: 'status-cmdk-granted',
-                granted_completed: 'status-cmdk-completed',
-                denied: 'status-cmdk-denied',
-                delayed: 'status-cmdk-delayed',
-                pending: 'status-cmdk-sent',
+                pending_reception: 'status-cmdk-granted',
+                finished: 'status-cmdk-completed',
+                silence: 'status-cmdk-delayed',
+                in_complaint: 'status-cmdk-complaint',
+                in_court: 'status-cmdk-court',
             };
             return map[status] || 'status-cmdk-sent';
         },

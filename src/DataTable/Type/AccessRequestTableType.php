@@ -81,23 +81,39 @@ class AccessRequestTableType implements DataTableTypeInterface
                             ->setParameter('email', $user->getEmail());
                     }
 
-                    // Filter by EFFECTIVE status: a request with an active
-                    // complaint (filed, not archived) belongs to «Reclamadas»
-                    // in any phase of the route, and leaves its raw-status
-                    // bucket — the list must agree with the índice counts
-                    // (AccessRequestRepository::getEffectiveStatusCounts).
+                    // Filter by DERIVED internal state (the eight buckets of
+                    // AccessRequest::getInternalState()). Mirrors the same
+                    // precedence (judicial > reclamación abierta > reclamación
+                    // resuelta → finalizada > posición) so the list agrees with
+                    // the índice counts (getInternalStateCounts).
                     if ($status !== null && $status !== '') {
-                        if ($status === 'reclaimed') {
-                            // The LEFT JOIN above turns effectively INNER here.
-                            $builder
-                                ->andWhere('c.id IS NOT NULL AND c.status != :complaintArchived')
-                                ->setParameter('complaintArchived', AccessRequestComplaint::STATUS_ARCHIVED);
+                        $inCourt = AccessRequest::COURT_IN_COURT;
+                        $reclaimed = AccessRequestComplaint::STATUS_RECLAIMED;
+                        $positionByState = [
+                            'draft' => AccessRequest::STATUS_PENDING,
+                            'sent' => AccessRequest::STATUS_SENT,
+                            'processing' => AccessRequest::STATUS_PROCESSING,
+                            'pending_reception' => AccessRequest::STATUS_GRANTED,
+                            'silence' => AccessRequest::STATUS_DELAYED,
+                        ];
+
+                        if ($status === 'in_court') {
+                            $builder->andWhere('ar.courtStatus = :inCourt')->setParameter('inCourt', $inCourt);
+                        } elseif ($status === 'in_complaint') {
+                            $builder->andWhere('ar.courtStatus != :inCourt')->setParameter('inCourt', $inCourt)
+                                ->andWhere('c.id IS NOT NULL AND c.status = :reclaimed')->setParameter('reclaimed', $reclaimed);
+                        } elseif ($status === 'finished') {
+                            $builder->andWhere('ar.courtStatus != :inCourt')->setParameter('inCourt', $inCourt)
+                                ->andWhere('(c.id IS NOT NULL AND c.status != :reclaimed) OR (c.id IS NULL AND ar.status = :finished)')
+                                ->setParameter('reclaimed', $reclaimed)
+                                ->setParameter('finished', AccessRequest::STATUS_FINISHED);
+                        } elseif (isset($positionByState[$status])) {
+                            $builder->andWhere('ar.courtStatus != :inCourt')->setParameter('inCourt', $inCourt)
+                                ->andWhere('c.id IS NULL')
+                                ->andWhere('ar.status = :status')->setParameter('status', $positionByState[$status]);
                         } else {
-                            $builder
-                                ->andWhere('ar.status = :status')
-                                ->setParameter('status', $status)
-                                ->andWhere('c.id IS NULL OR c.status = :complaintArchived')
-                                ->setParameter('complaintArchived', AccessRequestComplaint::STATUS_ARCHIVED);
+                            // Clave desconocida (p. ej. bookmark antiguo) → sin resultados.
+                            $builder->andWhere('ar.status = :status')->setParameter('status', $status);
                         }
                     }
 

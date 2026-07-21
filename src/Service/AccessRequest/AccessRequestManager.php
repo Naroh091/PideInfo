@@ -466,17 +466,9 @@ class AccessRequestManager
 
         // Validate the new status value
         $validStatuses = match ($statusType) {
-            StatusHistory::TYPE_STATUS => [
-                AccessRequest::STATUS_SENT,
-                AccessRequest::STATUS_PROCESSING,
-                AccessRequest::STATUS_GRANTED,
-                AccessRequest::STATUS_GRANTED_COMPLETED,
-                AccessRequest::STATUS_PARTIALLY_GRANTED,
-                AccessRequest::STATUS_DENIED,
-                AccessRequest::STATUS_INADMITTED,
-                AccessRequest::STATUS_DELAYED,
-                AccessRequest::STATUS_PENDING,
-            ],
+            // Solo las 6 posiciones vivas. La decisión (parcial/denegada/
+            // inadmitida) va por TYPE_RESOLUTION, no por aquí.
+            StatusHistory::TYPE_STATUS => AccessRequest::POSITIONS,
             StatusHistory::TYPE_COMPLAINT => [
                 AccessRequest::COMPLAINT_NONE,
                 AccessRequestComplaint::STATUS_RECLAIMED,
@@ -563,12 +555,13 @@ class AccessRequestManager
         } elseif ($statusType === StatusHistory::TYPE_STATUS) {
             $request->setStatus($newStatus);
 
+            // Con el modelo de 6 posiciones solo dos posiciones implican por sí
+            // mismas una decisión: `granted` (concedida, pendiente de recibir) y
+            // `delayed` (silencio). El resto de decisiones (parcial/denegada/
+            // inadmitida) se fijan por TYPE_RESOLUTION; `finished` no infiere.
             if ($request->getResolutionResult() === null) {
                 $inferred = match ($newStatus) {
-                    AccessRequest::STATUS_GRANTED, AccessRequest::STATUS_GRANTED_COMPLETED => AccessRequest::RESULT_GRANTED,
-                    AccessRequest::STATUS_PARTIALLY_GRANTED => AccessRequest::RESULT_PARTIALLY_GRANTED,
-                    AccessRequest::STATUS_DENIED => AccessRequest::RESULT_DENIED,
-                    AccessRequest::STATUS_INADMITTED => AccessRequest::RESULT_INADMITTED,
+                    AccessRequest::STATUS_GRANTED => AccessRequest::RESULT_GRANTED,
                     AccessRequest::STATUS_DELAYED => AccessRequest::RESULT_SILENCE,
                     default => null,
                 };
@@ -593,9 +586,7 @@ class AccessRequestManager
             // clear the suspension — the request is resolved, the suspended deadline is moot
             if ($request->isDeadlineSuspended() && in_array($newStatus, [
                 AccessRequest::STATUS_GRANTED,
-                AccessRequest::STATUS_PARTIALLY_GRANTED,
-                AccessRequest::STATUS_DENIED,
-                AccessRequest::STATUS_INADMITTED,
+                AccessRequest::STATUS_FINISHED,
             ], true)) {
                 $request->setDeadlineSuspendedAt(null);
                 $request->setSuspendedDaysRemaining(null);
@@ -636,10 +627,7 @@ class AccessRequestManager
         // Set resolvedAt for terminal statuses
         $terminalStatuses = [
             AccessRequest::STATUS_GRANTED,
-            AccessRequest::STATUS_GRANTED_COMPLETED,
-            AccessRequest::STATUS_PARTIALLY_GRANTED,
-            AccessRequest::STATUS_DENIED,
-            AccessRequest::STATUS_INADMITTED,
+            AccessRequest::STATUS_FINISHED,
             AccessRequestComplaint::STATUS_GRANTED,
             AccessRequestComplaint::STATUS_DENIED,
             AccessRequestComplaint::STATUS_ARCHIVED,

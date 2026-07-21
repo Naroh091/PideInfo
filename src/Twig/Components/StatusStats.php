@@ -29,57 +29,64 @@ final class StatusStats extends AbstractController
             return $this->getEmptyStats();
         }
 
-        $counts = $this->repository->getStatusCounts($user);
-        $total = array_sum($counts);
+        $internal = $this->repository->getInternalStateCounts($user);
+        $results = $this->repository->getResolutionResultCounts($user);
 
         return [
-            'total' => $total,
-            'sent' => $counts[AccessRequest::STATUS_SENT] ?? 0,
-            'processing' => $counts[AccessRequest::STATUS_PROCESSING] ?? 0,
-            'granted' => $counts[AccessRequest::STATUS_GRANTED] ?? 0,
-            'granted_completed' => $counts[AccessRequest::STATUS_GRANTED_COMPLETED] ?? 0,
-            'denied' => $counts[AccessRequest::STATUS_DENIED] ?? 0,
-            'delayed' => $counts[AccessRequest::STATUS_DELAYED] ?? 0,
-            'pending' => $counts[AccessRequest::STATUS_PENDING] ?? 0,
-            'appealed' => $this->repository->countAppealed($user),
+            'total' => array_sum($internal),
+            // Estados internos (para la barra de proporción).
+            'draft' => $internal[AccessRequest::INTERNAL_DRAFT] ?? 0,
+            'sent' => $internal[AccessRequest::INTERNAL_SENT] ?? 0,
+            'processing' => $internal[AccessRequest::INTERNAL_PROCESSING] ?? 0,
+            'pending_reception' => $internal[AccessRequest::INTERNAL_PENDING_RECEPTION] ?? 0,
+            'finished' => $internal[AccessRequest::INTERNAL_FINISHED] ?? 0,
+            'silence' => $internal[AccessRequest::INTERNAL_SILENCE] ?? 0,
+            'in_complaint' => $internal[AccessRequest::INTERNAL_IN_COMPLAINT] ?? 0,
+            'in_court' => $internal[AccessRequest::INTERNAL_IN_COURT] ?? 0,
+            // Decisión (para resueltas / tasa de éxito).
+            'granted' => ($results[AccessRequest::RESULT_GRANTED] ?? 0) + ($results[AccessRequest::RESULT_PARTIALLY_GRANTED] ?? 0),
+            'denied' => ($results[AccessRequest::RESULT_DENIED] ?? 0) + ($results[AccessRequest::RESULT_INADMITTED] ?? 0),
+            'silence_result' => $results[AccessRequest::RESULT_SILENCE] ?? 0,
         ];
     }
 
     public function getActiveCount(): int
     {
         $stats = $this->getStats();
-        return $stats['sent'] + $stats['processing'] + $stats['pending'];
+        return $stats['draft'] + $stats['sent'] + $stats['processing'];
     }
 
     public function getResolvedCount(): int
     {
         $stats = $this->getStats();
-        return $stats['granted'] + $stats['granted_completed'] + $stats['denied'] + $stats['delayed'];
+        return $stats['granted'] + $stats['denied'] + $stats['silence_result'];
     }
 
     public function getSuccessRate(): float
     {
         $stats = $this->getStats();
-        $totalGranted = $stats['granted'] + $stats['granted_completed'];
-        $resolved = $totalGranted + $stats['denied'];
+        $resolved = $stats['granted'] + $stats['denied'];
         if ($resolved === 0) {
             return 0.0;
         }
-        return round(($totalGranted / $resolved) * 100, 1);
+        return round(($stats['granted'] / $resolved) * 100, 1);
     }
 
     private function getEmptyStats(): array
     {
         return [
             'total' => 0,
+            'draft' => 0,
             'sent' => 0,
             'processing' => 0,
+            'pending_reception' => 0,
+            'finished' => 0,
+            'silence' => 0,
+            'in_complaint' => 0,
+            'in_court' => 0,
             'granted' => 0,
-            'granted_completed' => 0,
             'denied' => 0,
-            'delayed' => 0,
-            'pending' => 0,
-            'appealed' => 0,
+            'silence_result' => 0,
         ];
     }
 }

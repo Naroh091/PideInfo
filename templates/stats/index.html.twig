@@ -3,27 +3,26 @@
 {% block title %}Estadísticas · PideInfo{% endblock %}
 
 {# ────────── Maps for labels and colours ────────── #}
+{# Etiquetas/colores del donut «por estado» = los 8 estados internos. #}
 {% set statusLabels = {
+    draft: 'Borrador',
     sent: 'Enviada',
     processing: 'En trámite',
-    granted: 'Concedida (pendiente)',
-    granted_completed: 'Concedida y completada',
-    partially_granted: 'Estimación parcial',
-    denied: 'Denegada',
-    inadmitted: 'Inadmitida',
-    delayed: 'Silencio',
-    pending: 'Pendiente de recepción',
+    pending_reception: 'Pendiente de recepción',
+    finished: 'Finalizada',
+    silence: 'Silencio administrativo',
+    in_complaint: 'En reclamación',
+    in_court: 'En vía judicial',
 } %}
 {% set statusColors = {
-    sent: '#64748b',
-    processing: '#0ea5e9',
-    granted: '#10b981',
-    granted_completed: '#059669',
-    partially_granted: '#84cc16',
-    denied: '#ef4444',
-    inadmitted: '#f97316',
-    delayed: '#a855f7',
-    pending: '#94a3b8',
+    draft: '#94a3b8',
+    sent: '#7dd3fc',
+    processing: '#38bdf8',
+    pending_reception: '#34d399',
+    finished: '#10b981',
+    silence: '#f59e0b',
+    in_complaint: '#fbbf24',
+    in_court: '#8b5cf6',
 } %}
 {% set resolutionLabels = {
     granted: 'Concesión total',
@@ -81,7 +80,7 @@
 {# ────────── Chart configs ────────── #}
 {# Status donut #}
 {% set statusSeries = [] %}{% set statusKeys = [] %}{% set statusPalette = [] %}
-{% for k, c in stats.statusCounts %}
+{% for k, c in stats.internalStateCounts %}
     {% if c > 0 %}
         {% set statusSeries = statusSeries|merge([c]) %}
         {% set statusKeys = statusKeys|merge([statusLabels[k]|default(k)]) %}

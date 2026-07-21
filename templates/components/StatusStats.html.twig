@@ -2,12 +2,14 @@
     {% set stats = this.stats %}
 
     {% set statItems = [
-        { count: stats.sent, label: 'Enviadas', icon: 'send', color: '#0ea5e9', variant: 'primary' },
-        { count: stats.processing, label: 'En trámite', icon: 'loader', color: '#38bdf8', variant: 'info' },
-        { count: stats.granted, label: 'Concedidas', icon: 'package', color: '#34d399', variant: 'success' },
-        { count: stats.granted_completed, label: 'Completadas', icon: 'check-circle', color: '#059669', variant: 'complete' },
-        { count: stats.delayed, label: 'Silencio', icon: 'clock', color: '#a78bfa', variant: 'accent' },
-        { count: stats.appealed, label: 'Reclamadas', icon: 'scale', color: '#fbbf24', variant: 'warning' },
+        { count: stats.draft, label: 'Borrador', color: '#94a3b8' },
+        { count: stats.sent, label: 'Enviadas', color: '#7dd3fc' },
+        { count: stats.processing, label: 'En trámite', color: '#38bdf8' },
+        { count: stats.pending_reception, label: 'Pendientes de recepción', color: '#34d399' },
+        { count: stats.finished, label: 'Finalizadas', color: '#10b981' },
+        { count: stats.silence, label: 'Silencio', color: '#f59e0b' },
+        { count: stats.in_complaint, label: 'En reclamación', color: '#fbbf24' },
+        { count: stats.in_court, label: 'En vía judicial', color: '#8b5cf6' },
     ] %}
 
     {% if stats.total > 0 %}

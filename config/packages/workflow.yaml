@@ -33,16 +33,21 @@ framework:
                 property: status
             supports:
                 - App\Entity\AccessRequest
+            # POSICIÓN, no decisión. Desde el rediseño el enum son 6 posiciones;
+            # la decisión (concesión total/parcial, denegación, inadmisión,
+            # silencio) vive SIEMPRE en AccessRequest::$resolutionResult. Las
+            # cuatro terminales viejas (granted_completed / partially_granted /
+            # denied / inadmitted) se colapsaron en `finished`
+            # (migración Version20260721120000). NB: ningún código llama a
+            # Workflow::apply() para esta máquina — las transiciones se hacen por
+            # AccessRequestManager::changeStatus(); esta declaración es doc/audit.
             initial_marking: pending
             places:
-                - pending             # Borrador creado, aún no despachado al organismo
+                - pending             # Borrador (aún no despachado)
                 - sent                # Enviada, pendiente de acuse
                 - processing          # En trámite (acuse recibido)
-                - granted             # Concedida (pendiente de recibir la información)
-                - granted_completed   # Concedida y la información ya recibida (terminal)
-                - partially_granted   # Estimación parcial (terminal a efectos de flujo)
-                - inadmitted          # Inadmitida a trámite (terminal)
-                - denied              # Denegada explícitamente (terminal)
+                - granted             # Concedida, pendiente de recibir la información
+                - finished            # Finalizada (terminal; la decisión, en resolutionResult)
                 - delayed             # Silencio administrativo (puede aún resolverse)
             transitions:
                 dispatch:
@@ -59,32 +64,17 @@ framework:
                     from: [sent, processing, delayed]
                     to: granted
                     metadata:
-                        label: Conceder acceso
-                grant_partially:
-                    from: [sent, processing, delayed]
-                    to: partially_granted
+                        label: Conceder acceso (pendiente de recepción)
+                resolve:
+                    from: [sent, processing, delayed, granted]
+                    to: finished
                     metadata:
-                        label: Conceder parcialmente
-                deny:
-                    from: [sent, processing, delayed]
-                    to: denied
-                    metadata:
-                        label: Denegar acceso
-                inadmit:
-                    from: [sent, processing]
-                    to: inadmitted
-                    metadata:
-                        label: Inadmitir a trámite
+                        label: Finalizar (decisión en resolutionResult)
                 delay:
                     from: [sent, processing]
                     to: delayed
                     metadata:
                         label: Marcar como silencio administrativo
-                confirm_reception:
-                    from: granted
-                    to: granted_completed
-                    metadata:
-                        label: Confirmar recepción de la información
 
         # Reclamación ante el consejo de transparencia.
         #

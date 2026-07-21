@@ -120,6 +120,10 @@
                         {% set dotColor = 'bg-emerald-500' %}
                         {% set title = 'Solicitud concedida' %}
                         {% set fuerte = true %}
+                    {% elseif to == 'finished' %}
+                        {% set dotColor = 'bg-emerald-600' %}
+                        {% set title = 'Solicitud finalizada' %}
+                        {% set fuerte = true %}
                     {% elseif to == 'granted_completed' %}
                         {% set dotColor = 'bg-emerald-600' %}
                         {% set title = 'Información recibida' %}

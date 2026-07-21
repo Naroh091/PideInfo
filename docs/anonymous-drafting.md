@@ -150,11 +150,11 @@ restricciones deterministas sobre el agente. Todo corre **solo para anónimos**
 `AnonymousDraftClaimer::claim(User)` recorre los ids de la sesión y, para cada
 `AccessRequest` sin dueño: asigna `user` + `organization`, elimina
 `metadata['anonymous']` y deja rastro en `StatusHistory`. Si el borrador era
-`flow=complaint`, repara la incoherencia mapeando `resolutionResult` → estado
-real vía `AccessRequestManager::changeStatus()` (denied→denied,
-inadmitted→inadmitted, silence→delayed, partially_granted→partially_granted),
-con lo que auditoría, notificación y pre-cálculo del análisis se disparan como
-en un cambio manual. Es idempotente (salta borradores con dueño) y limpia la
+`flow=complaint`, repara la incoherencia mapeando `resolutionResult` → posición
+real vía `AccessRequestManager::changeStatus()` (denied/inadmitted/
+partially_granted→`finished`, silence→`delayed` — la decisión ya vive en
+`resolutionResult`), con lo que auditoría, notificación y pre-cálculo del
+análisis se disparan como en un cambio manual. Es idempotente (salta borradores con dueño) y limpia la
 sesión al terminar.
 
 Se dispara en dos puntos:

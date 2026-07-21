@@ -167,8 +167,8 @@ La IA clasifica los documentos en estos tipos:
 | `acuse_recibo` | Receipt | Acuse de recibo |
 | `inicio_tramitacion` | ProcessingStart | Inicio de tramitación |
 | `resolucion` | Response | Respuesta (denegada o concedida total) |
-| `inadmitida` | Response | Respuesta — además fija `AccessRequest.status = inadmitted` |
-| `parcialmente_concedida` | Response | Respuesta — además fija `AccessRequest.status = partially_granted` |
+| `inadmitida` | Response | Respuesta — además fija posición `finished` + `resolutionResult = inadmitted` |
+| `parcialmente_concedida` | Response | Respuesta — además fija posición `finished` + `resolutionResult = partially_granted` |
 | `notificacion` | Notification | Notificación pura (sin contener decisión de fondo) |
 | `prorroga` | Extension | Prórroga |
 | `traslado` | Redirection | Traslado a otro órgano |
