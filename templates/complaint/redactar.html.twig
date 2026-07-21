@@ -9,9 +9,8 @@
 
 {% block stylesheets %}
     {{ parent() }}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+    {# Trix aún se usa en esta página legacy (editor Alpine propio, distinto del
+       paper-sheet del asistente). Las fuentes del documento vienen de base.html.twig. #}
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
     <style>
         /* Cabecera local heredada — no migrar a app.css: .page-title ya existe
@@ -246,22 +245,6 @@
                     </section>
                 {% endif %}
 
-                {% if availableDocuments|length > 0 %}
-                    <section class="panel">
-                        <div class="panel-label"><i data-lucide="files" class="w-3.5 h-3.5"></i> Documentos como contexto</div>
-                        <p class="text-xs mb-2" style="color:#64748b;font-family:'DM Sans',sans-serif;">Los documentos marcados se enviarán al modelo como evidencia primaria.</p>
-                        {% for doc in availableDocuments %}
-                            <label class="file-row cursor-pointer">
-                                <input type="checkbox" value="{{ doc.id }}" x-model="selectedDocIds"
-                                       {% if doc.type.value == 'response' or doc.type.value == 'alegaciones' %}checked{% endif %}>
-                                <div class="min-w-0">
-                                    <p class="file-name truncate">{{ doc.originalFilename }}</p>
-                                    <p class="file-meta">{{ doc.typeLabel }} · {{ doc.fileSizeFormatted }}</p>
-                                </div>
-                            </label>
-                        {% endfor %}
-                    </section>
-                {% endif %}
             </aside>
         </div>
 
@@ -269,19 +252,16 @@
         <div data-controller="assistant-chat"
              data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
              data-assistant-chat-canvas-outlet-selector-value="#complaint-canvas"
-             @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.innerHTML : ''); $refs.assistantDocumentIds.value = selectedDocIds.join(',')">
+             @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.innerHTML : '')">
 
             {# Hidden fields the assistant-chat controller appends to every turn's FormData.
                The :before-send event handler above refreshes them with current Trix HTML
-               and selected document IDs right before serialization. #}
+               right before serialization. #}
             <input type="hidden" name="mode" value="{{ mode }}"
                    data-assistant-chat-target="extra">
             <input type="hidden" name="currentBodyHtml" value=""
                    data-assistant-chat-target="extra"
                    x-ref="assistantCurrentBodyHtml">
-            <input type="hidden" name="documentIds" value=""
-                   data-assistant-chat-target="extra"
-                   x-ref="assistantDocumentIds">
 
             <button type="button"
                     class="chatbot-fab"
@@ -384,7 +364,6 @@ function redactarApp() {
         chatOpen: false,
         charCount: 0,
         displayPercentage: 0,
-        selectedDocIds: [{% for doc in availableDocuments %}{% if doc.type.value in ['response', 'alegaciones'] %}'{{ doc.id }}',{% endif %}{% endfor %}],
 
         init() {
             // Always init Trix — empty if no draft yet — so the user can write

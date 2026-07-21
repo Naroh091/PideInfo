@@ -10,6 +10,8 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
 final class CriteriaRetriever
 {
+    use DoctrinePriorityBoostTrait;
+
     public function __construct(
         #[Autowire(service: 'ai.store.postgres.ctbg_criteria')]
         private readonly StoreInterface $ctbgCriteriaStore,
@@ -26,13 +28,15 @@ final class CriteriaRetriever
      * complete text — so the caller can read each criterion in full and judge
      * applicability. Mirrors ResolutionRetriever::retrieveSimilarCases().
      *
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted
+     *                               in the ranking (garante competente + CTBG). Empty = no boost.
      * @return array<int, array{
      *     reference: string, criterionId: string, year: int|null, topic: string,
      *     summary: string, keypoints: array<int, string>, fullText: string,
-     *     source: string, score: float|null,
+     *     source: string, complaintOrganism: string|null, score: float|null,
      * }>
      */
-    public function retrieveFull(string $query, int $topK = 6): array
+    public function retrieveFull(string $query, int $topK = 6, array $priorityOrganismIds = []): array
     {
         try {
             $embedding = $this->embeddingGenerator->generate($query);
@@ -41,7 +45,8 @@ final class CriteriaRetriever
         }
 
         try {
-            // Cast a wider net: several chunks may map to the same criterion.
+            // Cast a wider net: several chunks may map to the same criterion, and we
+            // re-rank the whole deduplicated pool before keeping the top-K.
             $documents = $this->ctbgCriteriaStore->query(new VectorQuery(new Vector($embedding)), [
                 'limit' => max($topK * 3, $topK + 5),
             ]);
@@ -84,15 +89,17 @@ final class CriteriaRetriever
                 'keypoints' => $criterion->getKeypoints() ?? [],
                 'fullText' => $criterion->getFullText(),
                 'source' => $criterion->getSource(),
+                'complaintOrganism' => $criterion->getComplaintOrganism()?->getName(),
+                // Authoritative organism id used by the priority boost — never the metadata `source`.
+                'complaintOrganismId' => $criterion->getComplaintOrganism()?->getId()?->toRfc4122(),
                 'score' => $scores[$criterionId] ?? null,
             ];
-
-            if (count($results) >= $topK) {
-                break;
-            }
         }
 
-        return $results;
+        // Re-rank preferring the garante/CTBG (moderate boost), then keep the top-K.
+        $results = $this->applyDoctrinePriorityBoost($results, $priorityOrganismIds);
+
+        return array_slice($results, 0, $topK);
     }
 
     /**
@@ -100,9 +107,10 @@ final class CriteriaRetriever
      *
      * @param string $query The search query
      * @param int $topK Number of results to return
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted.
      * @return array<int, array{text: string, criterion: string, year: int, topic: string, source: string, score: float|null}>
      */
-    public function retrieve(string $query, int $topK = 5): array
+    public function retrieve(string $query, int $topK = 5, array $priorityOrganismIds = []): array
     {
         try {
             $embedding = $this->embeddingGenerator->generate($query);
@@ -110,7 +118,7 @@ final class CriteriaRetriever
             return [];
         }
 
-        return $this->retrieveByVector(new Vector($embedding), $topK);
+        return $this->retrieveByVector(new Vector($embedding), $topK, $priorityOrganismIds);
     }
 
     /**
@@ -119,14 +127,18 @@ final class CriteriaRetriever
      * a document chunk stored in ai_documents) so we can skip the embedding
      * round-trip.
      *
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted.
      * @return array<int, array<string, mixed>>
      */
-    public function retrieveByVector(Vector $vector, int $topK = 5): array
+    public function retrieveByVector(Vector $vector, int $topK = 5, array $priorityOrganismIds = []): array
     {
         $results = [];
 
         try {
-            $documents = $this->ctbgCriteriaStore->query(new VectorQuery($vector), ['limit' => $topK]);
+            // Widen the pool when boosting so priority criteria just outside the raw
+            // top-K still get a chance to surface after re-ranking.
+            $limit = $priorityOrganismIds === [] ? $topK : max($topK * 3, $topK + 5);
+            $documents = $this->ctbgCriteriaStore->query(new VectorQuery($vector), ['limit' => $limit]);
 
             foreach ($documents as $document) {
                 $metadata = $document->getMetadata();
@@ -147,7 +159,48 @@ final class CriteriaRetriever
             return [];
         }
 
-        return $results;
+        // Stamp the authoritative issuing organism (one query) only when a priority
+        // set is in play, then re-rank. With an empty set this is a plain ascending
+        // sort by distance (the store's native order), no extra query.
+        if ($priorityOrganismIds !== []) {
+            $results = $this->stampCriterionOrganismIds($results);
+        }
+        $results = $this->applyDoctrinePriorityBoost($results, $priorityOrganismIds);
+
+        return array_slice($results, 0, $topK);
+    }
+
+    /**
+     * Stamp each row with its criterion's authoritative `complaintOrganismId`
+     * (RFC 4122). Rows come from vector metadata (no organism), so resolve it in
+     * a single `findByIds` over the distinct criterion ids present.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function stampCriterionOrganismIds(array $rows): array
+    {
+        $ids = [];
+        foreach ($rows as $row) {
+            $criterionId = $row['criterionId'] ?? null;
+            if ($criterionId !== null) {
+                $ids[(string) $criterionId] = true;
+            }
+        }
+
+        if ($ids === []) {
+            return $rows;
+        }
+
+        $map = $this->criterionRepository->findByIds(array_keys($ids));
+        foreach ($rows as $i => $row) {
+            $criterionId = $row['criterionId'] ?? null;
+            $rows[$i]['complaintOrganismId'] = ($criterionId !== null && isset($map[(string) $criterionId]))
+                ? $map[(string) $criterionId]->getComplaintOrganism()?->getId()?->toRfc4122()
+                : null;
+        }
+
+        return $rows;
     }
 
     /**
@@ -157,26 +210,28 @@ final class CriteriaRetriever
      * surface different relevant criteria, and we want all of them.
      *
      * @param array<int, Vector> $vectors
+     * @param list<string> $priorityOrganismIds Organism UUIDs (RFC 4122) whose doctrine is boosted.
      * @return array<int, array<string, mixed>>
      */
-    public function retrieveByVectors(array $vectors, int $topK = 5): array
+    public function retrieveByVectors(array $vectors, int $topK = 5, array $priorityOrganismIds = []): array
     {
         if ($vectors === []) {
             return [];
         }
 
         // Per-vector top-K so each chunk gets a chance to surface its best matches
-        // before we merge. With cosine distance, lower score is closer for the
-        // raw distance returned by the store, but the StoreInterface normalises
-        // it: higher score = more similar. We dedup by criterion id (or, when
-        // the row predates `criterionId` metadata, by the reference + source).
+        // before we merge. Each sub-call already boosts and stamps `adjustedScore`
+        // (cosine DISTANCE — lower = closer/better; the store does NOT normalise).
+        // Keep the BEST (lowest) occurrence per criterion and sort ascending. We
+        // dedup by criterion id (or, when the row predates `criterionId` metadata,
+        // by the reference + source).
         $merged = [];
         foreach ($vectors as $vector) {
-            $hits = $this->retrieveByVector($vector, $topK);
+            $hits = $this->retrieveByVector($vector, $topK, $priorityOrganismIds);
             foreach ($hits as $hit) {
                 $key = $hit['criterionId'] ?? ($hit['criterion'] . '|' . $hit['source']);
                 $existing = $merged[$key] ?? null;
-                if ($existing === null || ($hit['score'] ?? -INF) > ($existing['score'] ?? -INF)) {
+                if ($existing === null || ($hit['adjustedScore'] ?? \INF) < ($existing['adjustedScore'] ?? \INF)) {
                     $merged[$key] = $hit;
                 }
             }
@@ -184,7 +239,7 @@ final class CriteriaRetriever
 
         usort(
             $merged,
-            static fn (array $a, array $b) => ($b['score'] ?? -INF) <=> ($a['score'] ?? -INF),
+            static fn (array $a, array $b): int => ($a['adjustedScore'] ?? \INF) <=> ($b['adjustedScore'] ?? \INF),
         );
 
         return array_slice(array_values($merged), 0, $topK);

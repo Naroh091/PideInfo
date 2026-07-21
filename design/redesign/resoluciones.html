@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repositorio de resoluciones — PideInfo</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="repo.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="contenedor contenedor--ancho nav-fila">
+        <div class="nav-izq">
+            <a href="home.html" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="home.html" class="nav-enlace"><i data-lucide="home"></i> Inicio</a>
+                <a href="resoluciones.html" class="nav-enlace activo"><i data-lucide="scale"></i> Repositorio de resoluciones</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="nav-login">Iniciar sesión</a>
+            <a href="#" class="btn btn-primario">Crear cuenta</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Cabecera del repositorio ────────────────────────────── -->
+<header class="rcab">
+    <div class="contenedor contenedor--ancho">
+        <p class="rcab-eyebrow"><span>Corpus público · 2004–2026 · actualizado el 19/6/2026</span></p>
+        <h1 class="rcab-titulo">Repositorio <span class="marca">unificado</span> de resoluciones y&nbsp;sentencias</h1>
+        <p class="rcab-sub">Los 14 consejos de transparencia publican sus resoluciones, pero cada uno a su manera y sin buscador común. Aquí están todas — con las <b>sentencias judiciales</b> que las confirman o anulan — para que sepas qué se ganó, qué se perdió y con qué argumentos.</p>
+
+        <nav class="consejos" aria-label="Ver todas las resoluciones o las de un consejo">
+            <span class="consejo consejo--activo">Todas <b>45.891</b></span>
+            <a href="organismo.html" class="consejo">CTBG <b>14.111</b></a>
+            <a href="organismo.html" class="consejo">GAIP <b>10.741</b></a>
+            <a href="organismo.html" class="consejo">CTPDA <b>6.390</b></a>
+            <a href="organismo.html" class="consejo">Canarias <b>4.050</b></a>
+            <a href="organismo.html" class="consejo">GVA Consell <b>2.398</b></a>
+            <a href="organismo.html" class="consejo">CTBG Aragón <b>1.874</b></a>
+            <a href="#" class="consejo consejo--mas">+8 consejos más</a>
+        </nav>
+
+        <div class="prop" aria-label="Distribución de resultados">
+            <div class="prop-barra">
+                <span class="prop-seg prop-seg--fav" style="width:47%"></span>
+                <span class="prop-seg prop-seg--desfav" style="width:27%"></span>
+                <span class="prop-seg prop-seg--otras" style="width:26%"></span>
+            </div>
+            <div class="prop-leyenda">
+                <span><i class="prop-seg--fav"></i><b>47%</b> favorables — estimadas, parciales y mediación</span>
+                <span><i class="prop-seg--desfav"></i><b>27%</b> desfavorables — desestimadas e inadmitidas</span>
+                <span><i class="prop-seg--otras"></i><b>26%</b> otras — archivo, pérdida de objeto, desistimiento</span>
+            </div>
+        </div>
+
+        <div class="datos">
+            <div class="dato">
+                <span class="dato-valor">45.891</span>
+                <span class="dato-label">Resoluciones</span>
+            </div>
+            <div class="dato dato--accion">
+                <span class="dato-valor">64%</span>
+                <span class="dato-label">Tasa de estimación</span>
+                <span class="dato-sub">favorables / (fav. + desfav.)</span>
+            </div>
+            <div class="dato">
+                <span class="dato-valor">425</span>
+                <span class="dato-label"><a href="resoluciones.html">Sentencias judiciales</a></span>
+            </div>
+            <div class="dato">
+                <span class="dato-valor">9.280</span>
+                <span class="dato-label"><a href="#">Administraciones reclamadas</a></span>
+            </div>
+            <div class="dato">
+                <span class="dato-valor">18.643</span>
+                <span class="dato-label"><a href="#">Invocaciones de límites</a></span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<!-- ── Filtros + resultados ────────────────────────────────── -->
+<section class="rcuerpo">
+    <div class="contenedor contenedor--ancho">
+
+        <form class="buscador" aria-label="Buscar resoluciones">
+            <i data-lucide="search"></i>
+            <input type="text" placeholder="Busca por asunto, referencia o argumento — p. ej. «contratos de emergencia»">
+            <span class="buscador-hint" aria-hidden="true">⏎</span>
+        </form>
+
+        <div class="filtros-fila">
+            <button type="button" class="chip-filtro"><i data-lucide="landmark"></i> Organismo <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="circle-check"></i> Resultado <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="building-2"></i> Reclamado <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="scale"></i> Situación judicial <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro"><i data-lucide="calendar"></i> Fecha <i data-lucide="chevron-down"></i></button>
+            <button type="button" class="chip-filtro chip-filtro--mas"><i data-lucide="sliders-horizontal"></i> Más filtros</button>
+            <span class="filtros-resumen">45.891 resoluciones</span>
+        </div>
+
+        <div class="registro">
+            <div class="registro-cab" aria-hidden="true">
+                <span>Expediente</span>
+                <span>Asunto</span>
+                <span>Resultado</span>
+            </div>
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">R/0642/2023</span>
+                            <span class="rrow-fecha">14/11/2023</span>
+                            <span class="rrow-org">CTBG</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Informes técnicos previos a la ampliación del aeropuerto</h2>
+                            <p class="rrow-resumen">El Consejo estimó la reclamación y ordenó entregar los informes técnicos que fundamentaron la declaración de impacto, rechazando el límite de intereses económicos invocado por el Ministerio. La Audiencia Nacional anuló después la resolución.</p>
+                            <div class="rrow-chips"><span class="chip-kw">medio ambiente</span><span class="chip-kw">infraestructuras</span><span class="chip-kw">informes técnicos</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--estimada">Estimada</span>
+                            <span class="pildora pildora--judicial-mal" title="Un tribunal anuló esta resolución. Su doctrina ya no está en vigor."><i data-lucide="shield-x"></i>Anulada (firme)</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">RT 0187/2022</span>
+                            <span class="rrow-fecha">03/05/2022</span>
+                            <span class="rrow-org">GAIP</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Retribuciones e indemnizaciones de los altos cargos del sector público</h2>
+                            <p class="rrow-resumen">La Comissió desestimó por protección de datos, pero el TSJ de Cataluña anuló la resolución y reconoció el derecho a conocer las retribuciones individualizadas: en cargos de confianza prevalece el escrutinio público.</p>
+                            <div class="rrow-chips"><span class="chip-kw">retribuciones</span><span class="chip-kw">altos cargos</span><span class="chip-kw">datos personales</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--desestimada">Desestimada</span>
+                            <span class="pildora pildora--judicial-bien" title="El tribunal concedió más acceso que el Consejo."><i data-lucide="scale"></i>Anulada (firme)</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">R/0155/2021</span>
+                            <span class="rrow-fecha">15/03/2021</span>
+                            <span class="rrow-org">CTBG</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Contratos de emergencia adjudicados durante la pandemia</h2>
+                            <p class="rrow-resumen">Estimada: la relación de contratos de emergencia, con adjudicatarios e importes, es información pública. La Audiencia Nacional confirmó la resolución en 2023 y la doctrina quedó firme.</p>
+                            <div class="rrow-chips"><span class="chip-kw">contratación</span><span class="chip-kw">emergencia</span><span class="chip-kw">covid-19</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--estimada">Estimada</span>
+                            <span class="pildora pildora--judicial-bien" title="Respaldada por los tribunales."><i data-lucide="shield-check"></i>Confirmada (firme)</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">S/0233/2024</span>
+                            <span class="rrow-fecha">28/06/2024</span>
+                            <span class="rrow-org">CTPDA</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Listas de espera quirúrgicas por hospital y especialidad</h2>
+                            <p class="rrow-resumen">Parcialmente estimada: procede entregar los datos agregados por centro y especialidad, pero no el detalle por facultativo, que exigiría una reelaboración con datos de terceros.</p>
+                            <div class="rrow-chips"><span class="chip-kw">sanidad</span><span class="chip-kw">listas de espera</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--parcial">Estimación parcial</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">R/1044/2025</span>
+                            <span class="rrow-fecha">09/01/2025</span>
+                            <span class="rrow-org">CTBG</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Borradores del anteproyecto de ley de vivienda</h2>
+                            <p class="rrow-resumen">Inadmitida por tratarse de información en curso de elaboración (art. 18.1.a). El reclamante ha recurrido ante los juzgados centrales de lo contencioso-administrativo.</p>
+                            <div class="rrow-chips"><span class="chip-kw">vivienda</span><span class="chip-kw">borradores</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--inadmitida">Inadmitida</span>
+                            <span class="pildora pildora--judicial-pendiente" title="Sin sentencia firme todavía."><i data-lucide="scale"></i>Recurrida</span>
+                        </div>
+                    </a>
+
+                    <a href="resolucion.html" class="rrow">
+                        <div class="rrow-marge">
+                            <span class="rrow-ref">RT 0512/2024</span>
+                            <span class="rrow-fecha">17/09/2024</span>
+                            <span class="rrow-org">GAIP</span>
+                        </div>
+                        <div>
+                            <h2 class="rrow-titulo">Actas de la mesa de contratación del servicio de limpieza viaria</h2>
+                            <p class="rrow-resumen">El ayuntamiento y la persona reclamante alcanzaron un acuerdo en la mediación de la GAIP: entrega de las actas con los datos de terceros anonimizados.</p>
+                            <div class="rrow-chips"><span class="chip-kw">contratación</span><span class="chip-kw">mediación</span></div>
+                        </div>
+                        <div class="rrow-estado">
+                            <span class="pildora pildora--mediacion">Acuerdo de mediación</span>
+                        </div>
+                    </a>
+                </div>
+
+        <div class="paginacion">
+            <span class="paginacion-info">1–50 de 45.891</span>
+            <div class="paginacion-botones">
+                <span class="pag-btn actual">1</span>
+                <a href="#" class="pag-btn">2</a>
+                <a href="#" class="pag-btn">3</a>
+                <a href="#" class="pag-btn">4</a>
+                <a href="#" class="pag-btn" aria-label="Siguiente"><i data-lucide="chevron-right"></i></a>
+                <a href="#" class="pag-btn" aria-label="Última"><i data-lucide="chevrons-right"></i></a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer class="footer">
+    <div class="contenedor contenedor--ancho footer-fila">
+        <span class="footer-marca"><i data-lucide="search"></i> PideInfo</span>
+        <a href="#">Política de privacidad</a>
+    </div>
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

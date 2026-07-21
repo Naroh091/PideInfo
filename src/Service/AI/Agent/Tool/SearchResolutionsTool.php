@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Agent\Tool;
 
 use App\Prompt\PromptStore;
+use App\Service\AI\Agent\AgentDoctrineContext;
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
@@ -34,14 +35,29 @@ final class SearchResolutionsTool
     private const MAX_FULL_TEXT_CHARS = 25_000;
 
     /** Max candidates that proceed from Stage 1 (keypoints screen) to Stage 2 (full-text LLM). */
-    private const MAX_DEEP_REVIEW = 4;
+    // Screens are cheap (keypoints, ~128 output tokens); deep reviews are the
+    // expensive stage (≤25k chars of full text each, sequential — the cap bounds
+    // LATENCY more than cost: ~3-5s per review inside the agent turn).
+    private const MAX_DEEP_REVIEW = 8;
 
-    /** Structured-output schema for the keypoints screen (guaranteed valid JSON). */
+    /**
+     * Structured-output schema for the BATCHED keypoints screen: one call screens
+     * every candidate at once (14 sequential ~1s calls became one ~2-3s call).
+     * `promising` holds 1-based candidate numbers ordered most-promising first,
+     * so the MAX_DEEP_REVIEW slice keeps the screener's best picks — not merely
+     * the first by retrieval order.
+     */
     private const SCREEN_SCHEMA = [
         'type'                 => 'object',
         'additionalProperties' => false,
         'required'             => ['promising'],
-        'properties'           => ['promising' => ['type' => 'boolean']],
+        'properties'           => [
+            'promising' => [
+                'type'        => 'array',
+                'items'       => ['type' => 'integer'],
+                'description' => 'Números (1-based) de las resoluciones que merecen lectura completa, ordenados de más a menos prometedora.',
+            ],
+        ],
     ];
 
     /** Structured-output schema for the full-text deep review. */
@@ -60,16 +76,17 @@ final class SearchResolutionsTool
         private readonly LlmClient $llmClient,
         private readonly PromptStore $promptStore,
         private readonly AgentProgress $progress,
+        private readonly AgentDoctrineContext $doctrineContext,
     ) {
     }
 
     /**
      * @param string $argumentation Argumentación legal en construcción: describe el derecho vulnerado, el tipo de información solicitada, el motivo de denegación o el criterio jurídico que se quiere fundamentar.
-     * @param int    $topK          Número de candidatas a recuperar (1-10). Por defecto 6.
+     * @param int    $topK          Número de candidatas a recuperar (1-20). Por defecto 14.
      */
-    public function __invoke(string $argumentation, int $topK = 6): string
+    public function __invoke(string $argumentation, int $topK = 14): string
     {
-        $topK = max(1, min(10, $topK));
+        $topK = max(1, min(20, $topK));
 
         // Primary pass: estimatory precedents (favorable + partial) — the best
         // doctrine to SUPPORT a claim.
@@ -124,21 +141,16 @@ final class SearchResolutionsTool
             query: $argumentation,
             topK: $topK,
             outcomes: $outcomes,
+            priorityOrganismIds: $this->doctrineContext->getPriorityOrganismIds(),
         );
 
         if ($candidates === []) {
             return ['relevant' => [], 'candidates' => [], 'totalCandidates' => 0, 'promisingCount' => 0];
         }
 
-        // Stage 1: screen candidates using summary + keypoints only.
-        $promising = [];
-        foreach ($candidates as $candidate) {
-            $ref = $candidate['reference'] ?? '—';
-            $this->progress->step("Comprobando {$ref}…", 'search_resolutions');
-            if ($this->screenByKeypoints($argumentation, $candidate)) {
-                $promising[] = $candidate;
-            }
-        }
+        // Stage 1: one batched screen over every candidate's summary + keypoints.
+        $this->progress->step(sprintf('Cribando %d candidatas por puntos clave…', count($candidates)), 'search_resolutions');
+        $promising = $this->screenBatch($argumentation, $candidates);
 
         // Stage 2: deep review — cap at MAX_DEEP_REVIEW to bound LLM call count.
         $promising = array_slice($promising, 0, self::MAX_DEEP_REVIEW);
@@ -162,48 +174,82 @@ final class SearchResolutionsTool
     }
 
     /**
-     * Stage 1: cheap pre-filter using summary and keypoints only.
-     * Returns true if the resolution is worth a full-text review.
+     * Stage 1: cheap pre-filter using summary and keypoints only — ONE LLM call
+     * for the whole candidate set. Returns the promising candidates ordered
+     * most-promising first (the screener's ranking decides who gets the limited
+     * deep-review slots). Candidates without summary AND keypoints cannot be
+     * screened; they keep the benefit of the doubt and are appended at the end.
      *
-     * @param array<string, mixed> $candidate
+     * @param array<int, array<string, mixed>> $candidates
+     * @return array<int, array<string, mixed>>
      */
-    private function screenByKeypoints(string $argumentation, array $candidate): bool
+    private function screenBatch(string $argumentation, array $candidates): array
     {
-        $keypointsList = $candidate['keypoints'] ?? [];
-        if ($keypointsList === [] && ($candidate['summary'] ?? '') === '') {
-            // No metadata to screen with — proceed to deep review.
-            return true;
+        $screenable = [];
+        $blind = [];
+        foreach (array_values($candidates) as $candidate) {
+            if (($candidate['keypoints'] ?? []) === [] && ($candidate['summary'] ?? '') === '') {
+                $blind[] = $candidate;
+            } else {
+                $screenable[] = $candidate;
+            }
         }
 
-        $keypointsText = $keypointsList !== []
-            ? implode("\n- ", $keypointsList)
-            : '(sin puntos clave registrados)';
+        if ($screenable === []) {
+            return $blind;
+        }
 
-        $prompt = $this->promptStore->compile('pideinfo-resolution-keypoints-screen', [
+        $blocks = [];
+        foreach ($screenable as $i => $candidate) {
+            $keypointsList = $candidate['keypoints'] ?? [];
+            $keypointsText = $keypointsList !== []
+                ? '- ' . implode("\n- ", $keypointsList)
+                : '(sin puntos clave registrados)';
+
+            $blocks[] = sprintf(
+                "### Resolución %d\n**Referencia:** %s | **Resultado:** %s | **Administración:** %s\n**Resumen:** %s\n**Puntos clave:**\n%s",
+                $i + 1,
+                $candidate['reference'] ?? '—',
+                $candidate['outcome'] ?? '—',
+                $candidate['publicBody'] ?? '—',
+                $candidate['summary'] ?? '(sin resumen)',
+                $keypointsText,
+            );
+        }
+
+        $prompt = $this->promptStore->compile('pideinfo-resolution-keypoints-screen-batch', [
             'argumentation' => $argumentation,
-            'reference'     => $candidate['reference'] ?? '—',
-            'outcome'       => $candidate['outcome'] ?? '—',
-            'public_body'   => $candidate['publicBody'] ?? '—',
-            'summary'       => $candidate['summary'] ?? '(sin resumen)',
-            'keypoints'     => "- {$keypointsText}",
+            'total'         => (string) count($screenable),
+            'candidates'    => implode("\n\n", $blocks),
         ]);
 
         try {
             $result = $this->llmClient->chatJson(new ChatRequest(
                 systemPrompt: $prompt,
                 jsonSchema: self::SCREEN_SCHEMA,
-                schemaName: 'resolution_screen',
-                maxOutputTokens: 128,
+                schemaName: 'resolution_screen_batch',
+                maxOutputTokens: 256,
                 maxRetries: 1,
                 requiredJsonKeys: ['promising'],
-                label: 'agent.resolution.screen',
+                label: 'agent.resolution.screen-batch',
             ));
-
-            return (bool) ($result['promising'] ?? false);
         } catch (\Throwable) {
-            // On failure, give the candidate the benefit of the doubt.
-            return true;
+            // On failure, give every candidate the benefit of the doubt in
+            // retrieval order — same fallback the per-candidate screen had.
+            return $candidates;
         }
+
+        $promising = [];
+        $seen = [];
+        foreach ((array) ($result['promising'] ?? []) as $number) {
+            $index = (int) $number - 1;
+            if (isset($screenable[$index]) && !isset($seen[$index])) {
+                $seen[$index] = true;
+                $promising[] = $screenable[$index];
+            }
+        }
+
+        return array_merge($promising, $blind);
     }
 
     /**

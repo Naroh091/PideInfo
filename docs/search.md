@@ -167,6 +167,38 @@ fallback lo mantiene. La aproximación de `cardinality` sólo afecta a la tarjet
 sirve de `getGlobalStats()` (Postgres, cacheada); en las vistas con contexto el número de reclamados
 distintos es pequeño y el recuento es exacto.
 
+## Brazo lexical del retrieval híbrido (RRF)
+
+Además del buscador público, el índice `resolutions` alimenta el **brazo BM25 del retrieval
+híbrido del agente** cuando `RESOLUTION_HYBRID_RETRIEVAL=1`:
+
+- `ResolutionSearchInterface::rankIds(query, outcomes, limit)` devuelve solo UUIDs en orden
+  de relevancia, sin hidratar. La query (`ResolutionElasticaQueryFactory::createRankIdsQuery`)
+  difiere a propósito de la pública: **operator OR + `minimum_should_match: 3<30%`** (las
+  queries de argumentación son frases largas; AND no casaría casi nada) y **orden por `_score`
+  puro** (el tie-break por fecha corrompería los rangos que consume la fusión).
+- `ResolutionRetriever` fusiona ese ranking con el ranking dense de pgvector mediante
+  **Reciprocal Rank Fusion** (`App\Search\ReciprocalRankFusion`, k=60): solo rangos, lo que
+  esquiva que el dense puntúe por distancia coseno (menor=mejor) y ES por `_score`
+  (mayor=mejor). El boost doctrinal (garante+CTBG) se aplica al brazo dense ANTES de fusionar
+  (está calibrado en unidades de distancia). En modo híbrido las filas llevan `rrfScore`
+  (mayor=mejor) y el orden final es por él, no por distancia ascendente.
+- **Peso adaptativo por query** (routing mínimo): las queries con ≤6 palabras de contenido
+  (≥4 caracteres, proxy de stopword español) llevan el brazo BM25 a peso 1.0 — en queries
+  cortas el vocabulario exacto ES la señal y BM25 gana con diferencia (recall@10 0.46→0.74
+  medido). Las frases largas de argumentación lo llevan amortiguado a
+  `RESOLUTION_HYBRID_LEXICAL_WEIGHT` (default 0.3-0.5): con peso 1.0 el brazo lexical
+  desplazaba aciertos del dense con matches sueltos (recall@5 0.49→0.26 medido). Ver
+  `ResolutionRetriever::lexicalArmWeight()`.
+- Los callers que solo tienen vectores precalculados pasan su context-query como
+  `lexicalQuery`; con `null` el retrieval es dense-only (comportamiento pre-híbrido).
+- **Degradación**: cualquier fallo del brazo lexical (cluster caído, backend `doctrine` — cuyo
+  `rankIds` devuelve `[]` a propósito: un LIKE sin scoring metería rangos basura en la fusión)
+  colapsa a dense-only. El híbrido nunca es peor que el statu quo.
+
+Cualquier cambio aquí se valida con `app:retrieval:eval --config=dense|hybrid` **antes** de
+mergear (docs/retrieval-eval.md).
+
 ## Índice `laws` (legislación)
 
 El segundo índice del cluster. Guarda el articulado de las 28 normas trackeadas de legalize-es

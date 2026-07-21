@@ -33,6 +33,17 @@ final readonly class DoctrineResolutionSearch implements ResolutionSearchInterfa
         );
     }
 
+    /**
+     * Deliberately empty: the LIKE search has no relevance scoring, so its "ranks"
+     * would be date order — feeding those into the RRF fusion would pollute the
+     * result with junk candidates ranked as if they were relevant. Returning no
+     * lexical arm degrades the hybrid retrieval to dense-only, which is safer.
+     */
+    public function rankIds(string $query, array $outcomes = [], int $limit = 20): array
+    {
+        return [];
+    }
+
     public function outcomeStats(ResolutionSearchQuery $query): array
     {
         return $this->resolutionRepository->getOutcomeStats($query->toRepositoryFilters());

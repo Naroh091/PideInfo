@@ -2,13 +2,31 @@
 {% set html = this.cachedHtml %}
 {% set stale = this.isStale %}
 {% set ago = this.cachedAgo %}
+{% set resolvedItems = this.resolvedItems %}
+
+{# Iconos por categoría de item (kinds del ActivitySummarizer). #}
+{% set kindIcons = {
+    'estimacion': 'party-popper',
+    'alegaciones': 'alarm-clock',
+    'silencio': 'bell-off',
+    'inadmision': 'file-x-2',
+    'denegacion': 'file-x-2',
+    'caducidad': 'hourglass',
+    'otro': 'info',
+} %}
 
 <div {{ attributes.defaults({
     'data-action': 'notification_created@window->live#$render activity_summary_updated@window->live#$render',
 }) }}{% if stale %} data-poll="delay(8000)|$render"{% endif %}>
     {% if visible %}
+        {# El estado del dialog «Ver» vive AQUÍ, por encima de la sección
+           animada: fade-slide-up (fill both) deja un transform residual y un
+           ancestro con transform es containing block de los position:fixed —
+           los dialogs deben quedar fuera para cubrir la página entera. #}
+        <div x-data="{ verGrupo: null }" @keydown.escape.window="verGrupo = null">
         <section class="activity-summary {{ stale ? 'is-stale' : '' }}"
                  style="animation: fade-slide-up 0.5s ease-out both">
+            <div class="activity-summary-hoja">
             <header class="activity-summary-head">
                 <div class="activity-summary-eyebrow-wrap">
                     <span class="activity-summary-eyebrow">
@@ -29,31 +47,138 @@
                 {% endif %}
             </header>
 
+            {# ── El lede: la voz del LLM, en la serif de la hoja ── #}
             {% if html %}
-                <div class="activity-summary-body">
+                <div class="panel-lede">
                     {{ html|raw }}
                 </div>
             {% else %}
-                <div class="activity-summary-body activity-summary-loading">
+                <div class="activity-summary-loading">
                     <span class="activity-summary-loading-bar"></span>
                     <span class="activity-summary-loading-bar w-3/4"></span>
                     <span class="activity-summary-loading-bar w-2/3"></span>
                 </div>
             {% endif %}
+            </div>
+
+            {# ── Necesita tu acción: el detalle accionable de los items.
+                 Items de UNA solicitud enlazan directo; los agrupados abren
+                 un dialog con sus solicitudes. ── #}
+            {% if resolvedItems|length > 0 %}
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <h2 class="flex items-center gap-2 text-[.9375rem] font-semibold text-slate-900">
+                            <i data-lucide="list-todo" class="w-4 h-4 text-primary-500"></i>
+                            Necesita tu acción
+                        </h2>
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                            {{ resolvedItems|length }} pendiente{{ resolvedItems|length == 1 ? '' : 's' }}
+                        </span>
+                    </div>
+                    {% for entry in resolvedItems %}
+                        {% set item = entry.item %}
+                        {% set requests = entry.requests %}
+                        <div class="flex items-start gap-3 py-3 {{ not loop.first ? 'border-t border-slate-100' : '' }}">
+                            <span class="panel-icono panel-icono--{{ item.severity }}">
+                                <i data-lucide="{{ kindIcons[item.kind]|default('info') }}"></i>
+                            </span>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm font-medium text-slate-900">
+                                    {% if requests|length == 1 %}
+                                        <a href="{{ path('app_solicitudes_show', {id: requests[0].id}) }}" class="hover:text-primary-700">{{ item.title }}</a>
+                                    {% elseif requests|length > 1 %}
+                                        <button type="button" class="text-left hover:text-primary-700" @click="verGrupo = {{ loop.index0 }}">{{ item.title }}</button>
+                                    {% else %}
+                                        {{ item.title }}
+                                    {% endif %}
+                                </p>
+                                {% if item.detail %}
+                                    <p class="text-[.78rem] text-slate-500 mt-0.5 truncate">{{ item.detail }}</p>
+                                {% endif %}
+                            </div>
+                            {% if requests|length == 1 %}
+                                <a href="{{ path('app_solicitudes_show', {id: requests[0].id}) }}" class="btn btn-outline btn-sm self-center shrink-0">
+                                    {{ item.action|default('Ver') }}
+                                </a>
+                            {% elseif requests|length > 1 %}
+                                <button type="button" class="btn btn-outline btn-sm self-center shrink-0" @click="verGrupo = {{ loop.index0 }}">
+                                    Ver ({{ requests|length }})
+                                </button>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </section>
+
+        {# Dialogs de los grupos, fuera de la sección animada (ver nota arriba).
+           Reutilizan la papelería de la paleta ⌘K: cmdk-backdrop/shell/row. #}
+        {% set severityTones = {
+            exito: 'tone-emerald',
+            aviso: 'tone-amber',
+            fallo: 'tone-red',
+            curso: 'tone-primary',
+            neutro: 'tone-slate',
+        } %}
+        {% for entry in resolvedItems %}
+            {% set item = entry.item %}
+            {% set requests = entry.requests %}
+            {% if requests|length > 1 %}
+                <div class="cmdk-backdrop" x-show="verGrupo === {{ loop.index0 }}" x-cloak style="display: none;"
+                     @click.self="verGrupo = null">
+                    <div class="cmdk-shell" role="dialog" aria-modal="true" aria-label="{{ item.title }}">
+                        <div class="cmdk-input-row">
+                            <span class="cmdk-row-icon {{ severityTones[item.severity]|default('tone-slate') }}">
+                                <i data-lucide="{{ kindIcons[item.kind]|default('info') }}" class="w-3.5 h-3.5"></i>
+                            </span>
+                            <span class="min-w-0 flex-1 text-sm font-semibold text-slate-900 truncate">{{ item.title }}</span>
+                            <button type="button" class="cmdk-esc cursor-pointer" @click="verGrupo = null" aria-label="Cerrar">ESC</button>
+                        </div>
+                        <div class="cmdk-body">
+                            <div class="cmdk-section">
+                                <div class="cmdk-section-label">
+                                    Solicitudes
+                                    <span class="cmdk-count">{{ requests|length }}</span>
+                                </div>
+                                {% for request in requests %}
+                                    <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="cmdk-row">
+                                        <span class="cmdk-row-icon {{ severityTones[item.severity]|default('tone-slate') }}">
+                                            <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                        </span>
+                                        <span class="cmdk-row-main">
+                                            <span class="cmdk-row-title">{{ request.title }}</span>
+                                            <span class="cmdk-row-sub">{{ request.publicBody.name }} · {{ request.effectiveStatusLabel }}</span>
+                                        </span>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+        </div>
     {% endif %}
 </div>
 
 <style>
-    .activity-summary {
-        position: relative;
-        background: linear-gradient(180deg, white 0%, rgb(240 249 255) 140%);
-        border: 1px solid rgb(186 230 253);
+    /* El parte del día sobre su hoja: en la columna de tarjetas el lede
+       suelto flotaba, así que el resumen (cabecera + lede) vive en una carta
+       blanca con la sombra suave de la hoja; «Necesita tu acción» sigue
+       siendo su propia tarjeta debajo. */
+    .activity-summary { position: relative; }
+    .activity-summary-hoja {
+        background: #fff;
+        border: 1px solid rgb(226 232 240);
         border-radius: 1rem;
         padding: 1.1rem 1.4rem 1.25rem;
-        margin-bottom: 1.5rem;
-        overflow: hidden;
+        box-shadow: 0 14px 40px -30px rgba(15, 23, 42, .25);
     }
+
+    /* Los dialogs «Ver» reutilizan la papelería de la paleta ⌘K; la paleta
+       marca la fila activa por teclado (.is-active), aquí navegamos con
+       ratón — hover equivalente, acotado a los dialogs. */
+    .cmdk-backdrop .cmdk-row:hover { background: rgb(241 245 249); }
 
     .activity-summary-head {
         display: flex; align-items: baseline; justify-content: space-between;
@@ -97,23 +222,8 @@
         50%      { opacity: .35; transform: scale(.85); }
     }
 
-    .activity-summary-body {
-        font-family: 'DM Sans', sans-serif;
-        font-size: .95rem;
-        line-height: 1.6;
-        color: rgb(51 65 85);
-    }
-    .activity-summary-body b {
-        font-weight: 600;
-        color: rgb(15 23 42);
-    }
-    .activity-summary-body i {
-        font-style: italic;
-        color: rgb(71 85 105);
-    }
-
     /* "Open in new tab" badge attached to each <b>solicitud</b> mention. */
-    .activity-summary-body .ref-badge {
+    .panel-lede .ref-badge {
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -131,14 +241,14 @@
         vertical-align: 1px;
         transition: background .12s ease, color .12s ease, transform .12s ease;
     }
-    .activity-summary-body .ref-badge:hover {
+    .panel-lede .ref-badge:hover {
         background: rgb(186 230 253);
         color: rgb(7 89 133);
         transform: translateY(-1px);
     }
 
     /* Fallback footer for references whose label didn't match any <b> in the text. */
-    .activity-summary-body .ref-fallback {
+    .panel-lede .ref-fallback {
         display: inline-flex;
         flex-wrap: wrap;
         gap: .15rem;

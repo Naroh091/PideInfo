@@ -109,6 +109,10 @@ class ResolutionRepository extends ServiceEntityRepository
         }
 
         $rows = $this->createQueryBuilder('r')
+            // Eager-load the issuing organism: the RAG retriever reads it for every
+            // candidate (priority boost + prompt formatting), so avoid the N+1.
+            ->leftJoin('r.complaintOrganism', 'co')
+            ->addSelect('co')
             ->where('r.id IN (:ids)')
             ->setParameter('ids', array_values(array_unique($ids)))
             ->getQuery()
@@ -210,11 +214,13 @@ class ResolutionRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array{dateFrom: ?string, dateTo: ?string, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?float}
+     * @return array{dateFrom: ?string, dateTo: ?string, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?float, favorablePct: int, partialPct: int, unfavorablePct: int}
      */
     public function getGlobalStats(): array
     {
-        return $this->cache->get('resolutions_global_stats', function (): array {
+        // La clave lleva versión: al añadir campos nuevos hay que invalidar
+        // las entradas cacheadas con la forma antigua.
+        return $this->cache->get('resolutions_global_stats_v2', function (): array {
             $conn = $this->getEntityManager()->getConnection();
             $result = $conn->fetchAssociative(
                 "SELECT
@@ -224,13 +230,20 @@ class ResolutionRepository extends ServiceEntityRepository
                     SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS total_with_outcome,
                     COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
                     SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
+                    SUM(CASE WHEN outcome = 'partial' THEN 1 ELSE 0 END)::int AS partial_count,
                     SUM(CASE WHEN outcome IN ('unfavorable','inadmissible') THEN 1 ELSE 0 END)::int AS unfavorable_count,
                     ROUND(AVG(resolution_date - claim_date) FILTER (WHERE resolution_date >= claim_date))::int AS avg_days
                  FROM resolution"
             );
 
             $favorableCount = (int) $result['favorable_count'];
+            $partialCount = (int) $result['partial_count'];
             $decisiveTotal = $favorableCount + (int) $result['unfavorable_count'];
+
+            // Desglose estimadas/parciales/desestimadas sobre el total decisivo,
+            // forzado a sumar 100 para la barra de resultados del home.
+            $favorablePct = $decisiveTotal > 0 ? (int) round(($favorableCount - $partialCount) / $decisiveTotal * 100) : 0;
+            $partialPct = $decisiveTotal > 0 ? (int) round($partialCount / $decisiveTotal * 100) : 0;
 
             return [
                 'totalCount' => (int) $result['total_count'],
@@ -240,6 +253,9 @@ class ResolutionRepository extends ServiceEntityRepository
                 'distinctPublicBodies' => (int) $result['distinct_public_bodies'],
                 'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
                 'meanDaysToResolve' => $result['avg_days'] !== null ? (int) $result['avg_days'] : null,
+                'favorablePct' => $favorablePct,
+                'partialPct' => $partialPct,
+                'unfavorablePct' => $decisiveTotal > 0 ? 100 - $favorablePct - $partialPct : 0,
             ];
         });
     }

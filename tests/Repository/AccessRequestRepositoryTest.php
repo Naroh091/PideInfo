@@ -53,4 +53,62 @@ class AccessRequestRepositoryTest extends KernelTestCase
         self::assertNotEmpty($lower, 'lowercase query must match');
         self::assertCount(\count($lower), $upper, 'upper/lower must return the same count');
     }
+
+    /**
+     * Las queries que alimentan los avisos por email deben ignorar los
+     * borradores anónimos (/redactar): no hay usuario a quien avisar.
+     */
+    public function testNotificationQueriesSkipAnonymousDrafts(): void
+    {
+        self::bootKernel();
+        $em = static::getContainer()->get('doctrine')->getManager();
+        /** @var AccessRequestRepository $repo */
+        $repo = $em->getRepository(AccessRequest::class);
+
+        $body = new PublicBody();
+        $body->setName('Organismo notificaciones anónimas');
+        $em->persist($body);
+
+        $law = new ApplicableLaw();
+        $law->setName('Ley 19/2013 de transparencia');
+        $law->setShortCode('LTBG');
+        $em->persist($law);
+
+        $ar = new AccessRequest();
+        $ar->setPublicBody($body);
+        $ar->setTitle('Borrador anónimo con plazo hoy');
+        $ar->setDescription('Fixture');
+        $ar->setApplicableLaw($law);
+        $ar->setSentAt(new \DateTimeImmutable('-5 days'));
+        $ar->setDeadlineAt(new \DateTimeImmutable('today'));
+        $ar->setStatus(AccessRequest::STATUS_PENDING);
+
+        // createdAt lo fija el constructor a "ahora"; lo retrasamos para que
+        // caiga dentro de la ventana de findPendingRegisteredDaysAgo(5).
+        $createdAt = new \ReflectionProperty(AccessRequest::class, 'createdAt');
+        $createdAt->setValue($ar, new \DateTimeImmutable('-5 days'));
+
+        $em->persist($ar);
+        $em->flush();
+        $id = $ar->getId()->toRfc4122();
+
+        try {
+            $expiringIds = array_map(
+                static fn (AccessRequest $r) => $r->getId()->toRfc4122(),
+                $repo->findExpiringToday(),
+            );
+            self::assertNotContains($id, $expiringIds, 'findExpiringToday no debe listar borradores anónimos');
+
+            $pendingIds = array_map(
+                static fn (AccessRequest $r) => $r->getId()->toRfc4122(),
+                $repo->findPendingRegisteredDaysAgo(5, atLeast: true),
+            );
+            self::assertNotContains($id, $pendingIds, 'findPendingRegisteredDaysAgo no debe listar borradores anónimos');
+        } finally {
+            $em->remove($ar);
+            $em->remove($body);
+            $em->remove($law);
+            $em->flush();
+        }
+    }
 }

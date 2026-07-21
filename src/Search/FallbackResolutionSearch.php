@@ -51,6 +51,11 @@ final readonly class FallbackResolutionSearch implements ResolutionSearchInterfa
         }
     }
 
+    public function rankIds(string $query, array $outcomes = [], int $limit = 20): array
+    {
+        return $this->call('rankIds', fn (ResolutionSearchInterface $backend): array => $backend->rankIds($query, $outcomes, $limit));
+    }
+
     public function outcomeStats(ResolutionSearchQuery $query): array
     {
         return $this->call('outcomeStats', fn (ResolutionSearchInterface $backend): array => $backend->outcomeStats($query));

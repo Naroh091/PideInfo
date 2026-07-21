@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitudes · Opción A «El registro» — PideInfo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="panel.css">
+    <link rel="stylesheet" href="solicitudes.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="pn-fondo-cielo">
+
+<nav class="nav">
+    <div class="pn-wrap nav-fila">
+        <div class="nav-izq">
+            <a href="#" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="panel-c.html" class="nav-enlace"><i data-lucide="layout-dashboard"></i> Panel</a>
+                <a href="#" class="nav-enlace activo"><i data-lucide="file-text"></i> Solicitudes</a>
+                <a href="#" class="nav-enlace"><i data-lucide="folder-open"></i> Documentos</a>
+                <a href="resoluciones.html" class="nav-enlace"><i data-lucide="scale"></i> Repositorio</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="pn-usuario"><span class="pn-avatar">DA</span> David</a>
+        </div>
+    </div>
+</nav>
+
+<header class="sol-cab">
+    <div class="pn-wrap">
+        <p class="pn-opcion">Opción A v2 (mix A+B) · «El registro» — índice a rotulador + asientos de registro sobre carta blanca</p>
+        <div class="sol-cab-fila">
+            <div class="min-w-0">
+                <h1 class="sol-titulo">Mis <span class="marca">solicitudes</span></h1>
+                <p class="sol-sub">Tu libro de registro: cada asiento, con su número y su reloj. <a href="#">Ver estadísticas →</a></p>
+            </div>
+            <a href="#" class="sol-cta"><i data-lucide="pen-line"></i> Nueva solicitud</a>
+        </div>
+
+        <div class="pn-franja">
+            <span class="pn-dato"><b>125</b><span>expedientes</span></span>
+            <span class="pn-dato"><b>23</b><span>en curso</span></span>
+            <span class="pn-dato pn-dato--aviso"><b>3</b><span>vencen esta semana</span></span>
+        </div>
+
+        <!-- Índice de estados: línea tipográfica; el activo, subrayado a rotulador -->
+        <nav class="regA-indice">
+            <a href="#" class="regA-tab is-active">Todas <b>125</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#38bdf8"></span> En trámite <b>1</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#bae6fd"></span> Pendientes <b>22</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#34d399"></span> Concedidas <b>5</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#10b981"></span> Completadas <b>35</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#6ee7b7"></span> Parciales <b>2</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#f87171"></span> Denegadas <b>10</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#f59e0b"></span> Silencio <b>49</b></a>
+            <a href="#" class="regA-tab"><span class="dot" style="background:#d97706"></span> Reclamadas <b>1</b></a>
+        </nav>
+    </div>
+</header>
+
+<main class="pn-cuerpo" style="padding-top:1.25rem;">
+    <div class="pn-wrap">
+
+        <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem;">
+            <label class="sol-buscador">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Buscar por título, organismo, descripción o nº de registro…">
+                <kbd>/</kbd>
+            </label>
+            <button type="button" class="sol-listas">
+                <i data-lucide="bookmark"></i> Todas las listas <i data-lucide="chevron-down"></i>
+            </button>
+        </div>
+
+        <!-- El libro: asientos con número de registro y fecha en mono,
+             sobre su hoja (la superficie de tarjeta de B) -->
+        <div class="regA-carta">
+        <table class="regA-tabla">
+            <thead>
+                <tr>
+                    <th style="width:8.5rem;">Asiento</th>
+                    <th>Solicitud</th>
+                    <th style="width:10rem;">Estado</th>
+                    <th style="width:11rem;">Plazo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-0412</b><span>12/03/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Contratos de conservación de carreteras 2023–2024</p>
+                        <p class="regA-org">Mº de Transportes y Movilidad Sostenible · <span class="recl">Recl: R/0412/2026</span></p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--exito">Reclamación estimada</span></td>
+                    <td><span class="sol-mono">—</span><br><span class="sol-dias sol-dias--exito">entrega en 10 días</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-0987</b><span>02/06/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Retribuciones de altos cargos</p>
+                        <p class="regA-org">Comunidad de Madrid</p>
+                    </td>
+                    <td>
+                        <span class="pn-pill pn-pill--curso">En trámite</span>
+                        <span class="pn-pill pn-pill--aviso" style="margin-top:.25rem; display:inline-block;">Alegaciones</span>
+                    </td>
+                    <td><span class="sol-mono">21/07/2026</span><br><span class="sol-dias sol-dias--rojo">quedan 2 días</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-1044</b><span>16/06/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Coste del alumbrado navideño 2025</p>
+                        <p class="regA-org">Ayuntamiento de Madrid</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--aviso">Silencio administrativo</span></td>
+                    <td><span class="sol-mono">16/07/2026</span><br><span class="sol-dias sol-dias--rojo">vencido · reclamable</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>GAIP-0233/26</b><span>28/05/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Agendas de reuniones con grupos de interés</p>
+                        <p class="regA-org">Generalitat de Catalunya · <span class="recl">Recl: 0233/2026</span></p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--curso">Reclamada</span></td>
+                    <td><span class="sol-mono">05/08/2026</span><br><span class="sol-dias sol-dias--ok">resolución del consejo</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>SAS-77821</b><span>30/04/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Listas de espera quirúrgicas por hospital</p>
+                        <p class="regA-org">Servicio Andaluz de Salud</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--neutro">Pendiente de subsanación</span></td>
+                    <td><span class="sol-mono">30/07/2026</span><br><span class="sol-dias sol-dias--aviso">caduca en 11 días</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-1310</b><span>24/06/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Puntualidad real de Cercanías</p>
+                        <p class="regA-org">Renfe Viajeros, S.M.E., S.A.</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--curso">Enviada</span></td>
+                    <td><span class="sol-mono">24/07/2026</span><br><span class="sol-dias sol-dias--aviso">quedan 5 días</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>—</b><span>10/06/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Cachés de las orquestas de las fiestas</p>
+                        <p class="regA-org">Ayuntamiento de Ponferrada</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--aviso">Prorrogada</span></td>
+                    <td><span class="sol-mono">10/08/2026</span><br><span class="sol-dias sol-dias--ok">plazo ampliado 1 mes</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-0655</b><span>05/05/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Los radares que más multan</p>
+                        <p class="regA-org">Dirección General de Tráfico</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--exito">Concedida</span></td>
+                    <td><span class="sol-mono">—</span><br><span class="sol-dias sol-dias--ok">pendiente de recepción</span></td>
+                </tr>
+                <tr class="regA-fila">
+                    <td class="regA-asiento"><b>REG-2026-0201</b><span>02/02/2026</span></td>
+                    <td>
+                        <p class="regA-titulo">Expedientes sobre fenómenos aéreos no identificados</p>
+                        <p class="regA-org">Ministerio de Defensa</p>
+                    </td>
+                    <td><span class="pn-pill pn-pill--exito">Completada</span></td>
+                    <td><span class="sol-mono">12/04/2026</span><br><span class="sol-dias sol-dias--exito">resuelta</span></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+
+        <div class="sol-pag">
+            <span>1–50 de 125</span>
+            <nav class="sol-pag-nav">
+                <span class="is-current">1</span>
+                <a href="#">2</a>
+                <a href="#">3</a>
+                <a href="#">›</a>
+            </nav>
+        </div>
+    </div>
+</main>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

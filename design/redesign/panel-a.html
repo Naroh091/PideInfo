@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel · Opción A «El parte del día» — PideInfo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="panel.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<nav class="nav">
+    <div class="pn-wrap nav-fila">
+        <div class="nav-izq">
+            <a href="#" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="#" class="nav-enlace activo"><i data-lucide="layout-dashboard"></i> Panel</a>
+                <a href="#" class="nav-enlace"><i data-lucide="file-text"></i> Solicitudes</a>
+                <a href="#" class="nav-enlace"><i data-lucide="folder-open"></i> Documentos</a>
+                <a href="resoluciones.html" class="nav-enlace"><i data-lucide="scale"></i> Repositorio</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="pn-usuario"><span class="pn-avatar">DA</span> David</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Cabecera editorial: saludo + lede del LLM ───────────── -->
+<header class="pn-hero">
+    <div class="pn-wrap">
+        <p class="pn-opcion">Opción A · «El parte del día» — el resumen como boletín editorial a ancho completo</p>
+        <p class="pn-eyebrow"><span>Viernes, 18 de julio de 2026 · 14 solicitudes en curso</span></p>
+        <div class="pn-hero-fila">
+            <h1 class="pn-saludo">Buenos días, David.</h1>
+            <div class="pn-hero-cta">
+                <a href="#" class="btn btn-secundario"><i data-lucide="inbox"></i> Bandeja</a>
+                <a href="#" class="btn btn-primario"><i data-lucide="pen-line"></i> Nueva solicitud</a>
+            </div>
+        </div>
+
+        <!-- El lede: 1–2 frases del LLM. Un rotulador (máx. uno por
+             vista) sobre la palabra clave del día. Los ↗ enlazan a la
+             solicitud (references[] del ActivitySummarizer). -->
+        <p class="pn-lede">
+            El Consejo de Transparencia te ha dado la razón: la reclamación de los
+            <b>contratos de carreteras</b><a class="pn-ref" href="#" title="Ver solicitud">↗</a>
+            queda <span class="marca">estimada</span> y el ministerio tiene diez días hábiles para entregarte
+            la información. Esta semana mandan dos relojes: las alegaciones de las
+            <b>retribuciones</b><a class="pn-ref" href="#" title="Ver solicitud">↗</a> vencen el lunes
+            y el expediente del <b>alumbrado navideño</b><a class="pn-ref" href="#" title="Ver solicitud">↗</a>
+            ya está en silencio administrativo.
+        </p>
+        <p class="pn-actualizado">Resumen generado hoy a las 09:14 · últimas 24 h</p>
+    </div>
+</header>
+
+<main class="pn-cuerpo">
+    <div class="pn-wrap">
+
+        <!-- ── El parte del día: los items estructurados del LLM ──
+             Cada despacho: {tipo, severidad, solicitud, detalle, cta}. -->
+        <section class="parte" style="margin-bottom:1.5rem;">
+            <div class="parte-cab">
+                <h2 class="parte-rotulo"><i data-lucide="newspaper"></i> El parte del día</h2>
+                <span class="pn-pill pn-pill--curso">5 movimientos</span>
+            </div>
+            <div class="parte-items">
+
+                <article class="parte-item">
+                    <span class="pn-icono pn-icono--exito"><i data-lucide="party-popper"></i></span>
+                    <div>
+                        <h3 class="parte-titulo">Reclamación estimada <span class="pn-pill pn-pill--exito">Estimación</span></h3>
+                        <p class="parte-exp"><b>Contratos de conservación de carreteras 2023–2024</b> · CTBG · R/0412/2026</p>
+                        <p class="parte-txt">El organismo dispone de 10 días hábiles para entregarte la información.</p>
+                    </div>
+                    <a href="#" class="btn btn-fantasma parte-cta">Ver resolución <i data-lucide="arrow-right"></i></a>
+                </article>
+
+                <article class="parte-item">
+                    <span class="pn-icono pn-icono--aviso"><i data-lucide="alarm-clock"></i></span>
+                    <div>
+                        <h3 class="parte-titulo">Alegaciones: vencen el lunes 21 <span class="pn-pill pn-pill--aviso">Plazo de alegaciones</span></h3>
+                        <p class="parte-exp"><b>Retribuciones de altos cargos</b> · Comunidad de Madrid</p>
+                        <p class="parte-txt">Trámite de audiencia abierto; quedan 3 días para presentar alegaciones.</p>
+                    </div>
+                    <a href="#" class="btn btn-fantasma parte-cta">Redactar alegaciones <i data-lucide="arrow-right"></i></a>
+                </article>
+
+                <article class="parte-item">
+                    <span class="pn-icono pn-icono--fallo"><i data-lucide="bell-off"></i></span>
+                    <div>
+                        <h3 class="parte-titulo">Silencio administrativo <span class="pn-pill pn-pill--fallo">Sin respuesta</span></h3>
+                        <p class="parte-exp"><b>Coste del alumbrado navideño 2025</b> · Ayuntamiento de Madrid</p>
+                        <p class="parte-txt">El plazo de resolución venció el 16 de julio sin respuesta: ya puedes reclamar.</p>
+                    </div>
+                    <a href="#" class="btn btn-fantasma parte-cta">Preparar reclamación <i data-lucide="arrow-right"></i></a>
+                </article>
+
+                <article class="parte-item">
+                    <span class="pn-icono pn-icono--fallo"><i data-lucide="file-x-2"></i></span>
+                    <div>
+                        <h3 class="parte-titulo">Inadmitida por «reelaboración» <span class="pn-pill pn-pill--fallo">Inadmisión</span></h3>
+                        <p class="parte-exp"><b>Agendas de reuniones con grupos de interés</b> · Generalitat de Catalunya</p>
+                        <p class="parte-txt">Invocan el art. 18.1.c de la Ley 19/2013; hay resoluciones recientes que lo tumban.</p>
+                    </div>
+                    <a href="#" class="btn btn-fantasma parte-cta">Valorar reclamación <i data-lucide="arrow-right"></i></a>
+                </article>
+
+                <article class="parte-item">
+                    <span class="pn-icono pn-icono--neutro"><i data-lucide="hourglass"></i></span>
+                    <div>
+                        <h3 class="parte-titulo">Caducidad el 30 de julio <span class="pn-pill pn-pill--neutro">Caducidad</span></h3>
+                        <p class="parte-exp"><b>Listas de espera quirúrgicas</b> · Servicio Andaluz de Salud</p>
+                        <p class="parte-txt">Sin actividad desde hace 80 días; responde al requerimiento de subsanación o el expediente caduca.</p>
+                    </div>
+                    <a href="#" class="btn btn-fantasma parte-cta">Reactivar <i data-lucide="arrow-right"></i></a>
+                </article>
+
+            </div>
+        </section>
+
+        <!-- ── Cuerpo sobrio de gestión ── -->
+        <div class="pn-grid">
+            <div class="pn-main">
+
+                <section class="pn-card">
+                    <div class="pn-card-cab">
+                        <h2 class="pn-card-titulo"><i data-lucide="calendar-clock"></i> Plazos próximos</h2>
+                        <a href="#" class="pn-mas">Ver todos</a>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">lun 21 jul</span>
+                        <span class="pn-punto pn-punto--aviso"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Fin del plazo de alegaciones</a></p>
+                            <p class="pn-item-sub">Retribuciones de altos cargos · Comunidad de Madrid</p>
+                        </div>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">jue 24 jul</span>
+                        <span class="pn-punto pn-punto--curso"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Vence el plazo de resolución</a></p>
+                            <p class="pn-item-sub">Puntualidad real de Cercanías · Renfe Viajeros</p>
+                        </div>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">mié 30 jul</span>
+                        <span class="pn-punto pn-punto--fallo"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Caducidad del expediente</a></p>
+                            <p class="pn-item-sub">Listas de espera quirúrgicas · Servicio Andaluz de Salud</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pn-card">
+                    <div class="pn-card-cab">
+                        <h2 class="pn-card-titulo"><i data-lucide="activity"></i> Actividad reciente</h2>
+                        <a href="#" class="pn-mas">Ver toda</a>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">hoy 09:12</span>
+                        <span class="pn-punto pn-punto--exito"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Resolución estimatoria recibida</a></p>
+                            <p class="pn-item-sub">R/0412/2026 · CTBG · registrada en el expediente</p>
+                        </div>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">ayer 18:40</span>
+                        <span class="pn-punto pn-punto--curso"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Correo del organismo clasificado</a></p>
+                            <p class="pn-item-sub">Coste del alumbrado navideño · Ayuntamiento de Madrid</p>
+                        </div>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-item-fecha">mié 16:05</span>
+                        <span class="pn-punto pn-punto--neutro"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Subsanación presentada</a></p>
+                            <p class="pn-item-sub">Los radares que más multan · Dirección General de Tráfico</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="pn-card">
+                    <div class="pn-card-cab">
+                        <h2 class="pn-card-titulo"><i data-lucide="file-text"></i> Solicitudes recientes</h2>
+                        <a href="#" class="pn-mas">Ver todas</a>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-punto pn-punto--curso"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Puntualidad real de Cercanías</a></p>
+                            <p class="pn-item-sub">Renfe Viajeros · presentada el 24 de junio</p>
+                        </div>
+                        <span class="pn-pill pn-pill--curso">En plazo</span>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-punto pn-punto--aviso"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Cachés de las orquestas de las fiestas</a></p>
+                            <p class="pn-item-sub">Ayuntamiento de Ponferrada · prorrogada un mes</p>
+                        </div>
+                        <span class="pn-pill pn-pill--aviso">Prorrogada</span>
+                    </div>
+                    <div class="pn-item">
+                        <span class="pn-punto pn-punto--exito"></span>
+                        <div class="pn-item-cuerpo">
+                            <p class="pn-item-titulo"><a href="#">Contratos de conservación de carreteras</a></p>
+                            <p class="pn-item-sub">Mº de Transportes · reclamación estimada</p>
+                        </div>
+                        <span class="pn-pill pn-pill--exito">Estimada</span>
+                    </div>
+                </section>
+
+            </div>
+
+            <aside class="pn-side">
+                <section>
+                    <div class="pn-stats">
+                        <div class="pn-stat"><span class="pn-stat-cifra">14</span><span class="pn-stat-label">En curso</span></div>
+                        <div class="pn-stat"><span class="pn-stat-cifra">9</span><span class="pn-stat-label">Resueltas</span></div>
+                        <div class="pn-stat pn-stat--accion"><span class="pn-stat-cifra">64%</span><span class="pn-stat-label">Tasa de éxito</span></div>
+                    </div>
+                </section>
+
+                <section class="pn-card">
+                    <div class="pn-card-cab">
+                        <h2 class="pn-card-titulo"><i data-lucide="inbox"></i> Bandeja de entrada</h2>
+                    </div>
+                    <div class="pn-dropzone">
+                        <i data-lucide="upload"></i>
+                        Arrastra aquí una respuesta o resolución en PDF y la clasificamos en su expediente.
+                    </div>
+                </section>
+
+                <section class="pn-card">
+                    <div class="pn-card-cab">
+                        <h2 class="pn-card-titulo"><i data-lucide="mail"></i> Tu email de expedientes</h2>
+                    </div>
+                    <div class="pn-email">
+                        <span>david.k3f9@buzon.pideinfo.es</span>
+                        <button title="Copiar"><i data-lucide="copy"></i></button>
+                    </div>
+                    <p class="pn-nota">Ponlo como email de contacto en tus solicitudes: las respuestas entran solas al expediente. <a href="#" class="pn-mas">3 emails esta semana</a></p>
+                </section>
+            </aside>
+        </div>
+    </div>
+</main>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

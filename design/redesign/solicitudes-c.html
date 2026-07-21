@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitudes · Opción C «La bandeja» — PideInfo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="home.css">
+    <link rel="stylesheet" href="panel.css">
+    <link rel="stylesheet" href="solicitudes.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="pn-fondo-cielo">
+
+<nav class="nav">
+    <div class="pn-wrap nav-fila">
+        <div class="nav-izq">
+            <a href="#" class="nav-marca"><i data-lucide="search"></i> PideInfo</a>
+            <span class="nav-sep" aria-hidden="true"></span>
+            <div class="nav-enlaces">
+                <a href="panel-c.html" class="nav-enlace"><i data-lucide="layout-dashboard"></i> Panel</a>
+                <a href="#" class="nav-enlace activo"><i data-lucide="file-text"></i> Solicitudes</a>
+                <a href="#" class="nav-enlace"><i data-lucide="folder-open"></i> Documentos</a>
+                <a href="resoluciones.html" class="nav-enlace"><i data-lucide="scale"></i> Repositorio</a>
+            </div>
+        </div>
+        <div class="nav-der">
+            <a href="#" class="pn-usuario"><span class="pn-avatar">DA</span> David</a>
+        </div>
+    </div>
+</nav>
+
+<header class="sol-cab">
+    <div class="pn-wrap">
+        <p class="pn-opcion">Opción C · «La bandeja» — el listado ordenado por lo que toca hacer: te toca mover / esperando respuesta / resueltas</p>
+        <div class="sol-cab-fila">
+            <div class="min-w-0">
+                <h1 class="sol-titulo">Mis solicitudes</h1>
+                <p class="sol-sub">125 expedientes · lo urgente primero, lo resuelto al final · <a href="#">Ver estadísticas →</a></p>
+            </div>
+            <a href="#" class="sol-cta"><i data-lucide="pen-line"></i> Nueva solicitud</a>
+        </div>
+
+        <div class="pn-franja">
+            <span class="pn-dato"><b>4</b><span>te toca mover</span></span>
+            <span class="pn-dato"><b>19</b><span>esperando respuesta</span></span>
+            <span class="pn-dato"><b>102</b><span>resueltas o cerradas</span></span>
+        </div>
+    </div>
+</header>
+
+<main class="pn-cuerpo" style="padding-top:1rem;">
+    <div class="pn-wrap">
+
+        <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+            <label class="sol-buscador">
+                <i data-lucide="search"></i>
+                <input type="text" placeholder="Buscar por título, organismo, descripción o nº de registro…">
+                <kbd>/</kbd>
+            </label>
+            <button type="button" class="sol-listas">
+                <i data-lucide="bookmark"></i> Todas las listas <i data-lucide="chevron-down"></i>
+            </button>
+            <button type="button" class="sol-listas">
+                <i data-lucide="filter"></i> Todos los estados <i data-lucide="chevron-down"></i>
+            </button>
+        </div>
+
+        <!-- ── 1. Te toca mover: reclamables, alegaciones, caducidades ── -->
+        <section class="regC-seccion">
+            <div class="regC-cab">
+                <h2><i data-lucide="flame"></i> Te toca mover</h2>
+                <span class="pn-pill pn-pill--aviso">4 expedientes</span>
+            </div>
+            <a href="#" class="regC-fila">
+                <span class="pn-icono pn-icono--aviso"><i data-lucide="alarm-clock"></i></span>
+                <div class="cuerpo">
+                    <p class="titulo">Retribuciones de altos cargos — alegaciones abiertas</p>
+                    <p class="sub">Comunidad de Madrid · REG-2026-0987 · trámite de audiencia</p>
+                </div>
+                <div class="plazo"><span class="sol-mono">21/07</span><br><span class="sol-dias sol-dias--rojo">quedan 2 días</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <span class="pn-icono pn-icono--fallo"><i data-lucide="bell-off"></i></span>
+                <div class="cuerpo">
+                    <p class="titulo">Coste del alumbrado navideño 2025 — silencio administrativo</p>
+                    <p class="sub">Ayuntamiento de Madrid · REG-2026-1044 · venció el 16/07</p>
+                </div>
+                <div class="plazo"><span class="sol-mono">16/07</span><br><span class="sol-dias sol-dias--rojo">reclamable ya</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <span class="pn-icono pn-icono--neutro"><i data-lucide="hourglass"></i></span>
+                <div class="cuerpo">
+                    <p class="titulo">Listas de espera quirúrgicas — responde a la subsanación</p>
+                    <p class="sub">Servicio Andaluz de Salud · SAS-77821</p>
+                </div>
+                <div class="plazo"><span class="sol-mono">30/07</span><br><span class="sol-dias sol-dias--aviso">caduca en 11 días</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <span class="pn-icono pn-icono--exito"><i data-lucide="party-popper"></i></span>
+                <div class="cuerpo">
+                    <p class="titulo">Contratos de conservación de carreteras — exige la entrega</p>
+                    <p class="sub">Mº de Transportes · reclamación estimada R/0412/2026</p>
+                </div>
+                <div class="plazo"><span class="sol-mono">—</span><br><span class="sol-dias sol-dias--exito">10 días hábiles</span></div>
+            </a>
+        </section>
+
+        <!-- ── 2. Esperando respuesta: los relojes corren solos ── -->
+        <section class="regC-seccion">
+            <div class="regC-cab">
+                <h2><i data-lucide="clock"></i> Esperando respuesta</h2>
+                <span class="pn-pill pn-pill--curso">19 expedientes</span>
+            </div>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Puntualidad real de Cercanías</p>
+                    <p class="sub">Renfe Viajeros · REG-2026-1310 · enviada el 24/06</p>
+                </div>
+                <span class="pn-pill pn-pill--curso" style="align-self:center;">Enviada</span>
+                <div class="plazo"><span class="sol-mono">24/07</span><br><span class="sol-dias sol-dias--aviso">quedan 5 días</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Cachés de las orquestas de las fiestas</p>
+                    <p class="sub">Ayuntamiento de Ponferrada · prórroga comunicada el 10/07</p>
+                </div>
+                <span class="pn-pill pn-pill--aviso" style="align-self:center;">Prorrogada</span>
+                <div class="plazo"><span class="sol-mono">10/08</span><br><span class="sol-dias sol-dias--ok">plazo ampliado</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Agendas de reuniones con grupos de interés</p>
+                    <p class="sub">Generalitat de Catalunya · reclamada ante la GAIP el 28/05</p>
+                </div>
+                <span class="pn-pill pn-pill--curso" style="align-self:center;">Reclamada</span>
+                <div class="plazo"><span class="sol-mono">05/08</span><br><span class="sol-dias sol-dias--ok">resolución del consejo</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Los radares que más multan</p>
+                    <p class="sub">Dirección General de Tráfico · REG-2026-0655</p>
+                </div>
+                <span class="pn-pill pn-pill--exito" style="align-self:center;">Concedida</span>
+                <div class="plazo"><span class="sol-mono">—</span><br><span class="sol-dias sol-dias--ok">pendiente de recepción</span></div>
+            </a>
+            <button type="button" class="pn-vermas"><span>Ver las 19</span> <i data-lucide="chevron-down"></i></button>
+        </section>
+
+        <!-- ── 3. Resueltas ── -->
+        <section class="regC-seccion">
+            <div class="regC-cab">
+                <h2><i data-lucide="archive"></i> Resueltas y cerradas</h2>
+                <span class="pn-pill pn-pill--neutro">102 expedientes</span>
+            </div>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Expedientes sobre fenómenos aéreos no identificados</p>
+                    <p class="sub">Ministerio de Defensa · REG-2026-0201</p>
+                </div>
+                <span class="pn-pill pn-pill--exito" style="align-self:center;">Completada</span>
+                <div class="plazo"><span class="sol-mono">12/04</span><br><span class="sol-dias sol-dias--exito">resuelta</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Convenios con entidades deportivas 2024</p>
+                    <p class="sub">Ayuntamiento de Zaragoza</p>
+                </div>
+                <span class="pn-pill pn-pill--fallo" style="align-self:center;">Denegada</span>
+                <div class="plazo"><span class="sol-mono">02/05</span><br><span class="sol-dias sol-dias--ok">valorar reclamación</span></div>
+            </a>
+            <a href="#" class="regC-fila">
+                <div class="cuerpo">
+                    <p class="titulo">Subvenciones a clubes deportivos 2023</p>
+                    <p class="sub">Diputación de León · estimación parcial</p>
+                </div>
+                <span class="pn-pill pn-pill--exito" style="align-self:center;">Parcial</span>
+                <div class="plazo"><span class="sol-mono">18/03</span><br><span class="sol-dias sol-dias--exito">resuelta</span></div>
+            </a>
+            <button type="button" class="pn-vermas"><span>Ver las 102</span> <i data-lucide="chevron-down"></i></button>
+        </section>
+
+        <div class="sol-pag">
+            <span>125 expedientes en total</span>
+        </div>
+    </div>
+</main>
+
+<script>
+    lucide.createIcons();
+    document.querySelectorAll('.pn-vermas').forEach((btn) => {
+        btn.addEventListener('click', () => { btn.querySelector('span').textContent = '(maqueta: desplegaría el resto)'; });
+    });
+</script>
+</body>
+</html>

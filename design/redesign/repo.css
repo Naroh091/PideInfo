@@ -1,0 +1,449 @@
+/* ─────────────────────────────────────────────────────────────
+   PideInfo — rediseño del repositorio (mockups estáticos)
+   Se carga DESPUÉS de home.css y reutiliza sus tokens (:root),
+   botones, nav, footer y píldoras. Aquí viven las piezas propias
+   de las vistas de repositorio: cabecera, fichas de datos, barra
+   de proporción, filtros, tarjetas de resolución, expediente y
+   el bloque judicial (sentencias).
+   ───────────────────────────────────────────────────────────── */
+
+/* Las vistas de repositorio son de trabajo: contenedor más ancho */
+.contenedor--ancho { max-width: 80rem; }
+
+/* ── Cabecera de repositorio — la identidad azul se queda aquí ── */
+.rcab {
+    padding: 3rem 0 2.5rem;
+    background:
+        radial-gradient(50rem 22rem at 88% -15%, rgba(14, 165, 233, .12), transparent 62%),
+        linear-gradient(160deg, #ffffff 0%, #f0f9ff 45%, #e0f2fe 100%);
+    border-bottom: 1px solid rgba(186, 230, 253, .5);
+}
+.rcab-miga {
+    font: 500 .75rem/1.5 var(--f-mono);
+    color: var(--texto-3);
+    margin: 0 0 1.25rem;
+    display: flex; flex-wrap: wrap; gap: .375rem;
+}
+.rcab-miga a { color: var(--texto-3); text-decoration: none; }
+.rcab-miga a:hover { color: var(--accion); }
+.rcab-miga .sep { color: #cbd5e1; }
+.rcab-titulo {
+    font: 400 clamp(1.875rem, 3.6vw, 2.75rem)/1.15 var(--f-display);
+    color: var(--tinta);
+    margin: 0 0 .875rem;
+    letter-spacing: -.01em;
+}
+.rcab-sub { color: var(--texto-2); font-size: 1rem; max-width: 46rem; margin: 0; }
+.rcab-sub b { font-weight: 600; color: var(--tinta); }
+.rcab-fila { display: flex; align-items: flex-start; justify-content: space-between; gap: 2rem; }
+.rcab-logo {
+    flex-shrink: 0;
+    width: 5.5rem; height: 5.5rem;
+    border-radius: 1.25rem;
+    background: #fff;
+    border: 1px solid var(--borde);
+    box-shadow: 0 10px 24px -14px rgba(15, 23, 42, .25);
+    display: none; align-items: center; justify-content: center;
+    font: 400 1.5rem/1 var(--f-display);
+    color: var(--accion);
+}
+@media (min-width: 768px) { .rcab-logo { display: flex; } }
+.rcab-chevron { display: inline-block; width: 1.25rem; height: 1.25rem; color: var(--texto-3); vertical-align: baseline; }
+.rcab-eyebrow {
+    font: 500 .75rem/1.6 var(--f-mono);
+    color: var(--texto-3);
+    margin: 0 0 1rem;
+    display: flex; align-items: baseline; gap: .5rem;
+}
+.rcab-eyebrow::before { content: ''; width: 2rem; height: 1px; background: #cbd5e1; flex-shrink: 0; align-self: center; }
+
+/* Aviso de organismo (extinción / fusiones) */
+.rcab-aviso {
+    margin-top: 1rem;
+    display: flex; gap: .625rem; align-items: flex-start;
+    font-size: .8125rem; color: var(--texto-2);
+    background: var(--papel-suave);
+    border: 1px solid var(--borde);
+    border-radius: .75rem;
+    padding: .75rem 1rem;
+    max-width: 46rem;
+}
+.rcab-aviso svg { width: .9375rem; height: .9375rem; color: var(--texto-3); flex-shrink: 0; margin-top: .125rem; }
+
+/* ── Carril de consejos: todas ↔ un organismo ──────────────── */
+.consejos { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1.5rem; }
+.consejo {
+    display: inline-flex; align-items: baseline; gap: .4375rem;
+    font: 500 .8125rem/1 var(--f-ui);
+    color: var(--texto-2);
+    background: rgba(255, 255, 255, .75);
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: .5rem .875rem;
+    text-decoration: none;
+    transition: border-color .15s, color .15s, background-color .15s;
+}
+.consejo:hover { border-color: #7dd3fc; color: var(--accion-oscura); background: #fff; }
+.consejo b { font: 600 .6875rem/1 var(--f-mono); color: #94a3b8; font-variant-numeric: tabular-nums; }
+.consejo--activo { background: var(--accion); border-color: var(--accion); color: #fff; }
+.consejo--activo b { color: #bae6fd; }
+.consejo--activo:hover { background: var(--accion-oscura); border-color: var(--accion-oscura); color: #fff; }
+.consejo--mas { border-style: dashed; background: transparent; }
+
+/* ── Barra de proporción de resultados + leyenda ───────────── */
+.prop { margin-top: 2rem; max-width: 46rem; }
+.prop-fila { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: .875rem; align-items: center; }
+.prop-fila + .prop-fila { margin-top: .5rem; }
+.prop-fila-label { font: 500 .6875rem/1.3 var(--f-mono); color: var(--texto-3); text-align: right; }
+.prop-barra { display: flex; height: .625rem; border-radius: 999px; overflow: hidden; gap: 2px; }
+/* Barra de referencia del corpus completo: fina y atenuada, para
+   comparar el organismo con la visión general sin robar protagonismo */
+.prop-barra--ref { height: .375rem; }
+.prop-barra--ref .prop-seg { opacity: .4; }
+.prop-seg { min-width: 6px; }
+.prop-seg--fav { background: #10b981; }
+.prop-seg--desfav { background: #f87171; }
+.prop-seg--otras { background: #cbd5e1; }
+.prop-leyenda {
+    display: flex; flex-wrap: wrap; gap: .375rem 1.375rem;
+    font: 400 .6875rem/1.6 var(--f-mono);
+    color: var(--texto-3);
+    margin-top: .625rem;
+}
+.prop-leyenda i { font-style: normal; display: inline-block; width: .5rem; height: .5rem; border-radius: 2px; margin-right: .375rem; }
+.prop-leyenda b { color: var(--tinta); font-weight: 600; }
+
+/* ── Datos del corpus: tarjetas compactas ──────────────────── */
+.datos {
+    display: flex; flex-wrap: wrap;
+    gap: .75rem;
+    margin-top: 1.75rem;
+}
+.dato {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .75rem;
+    padding: .625rem 1.125rem;
+}
+.dato-valor {
+    font: 600 1.125rem/1.3 var(--f-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--tinta);
+    letter-spacing: -.01em;
+}
+.dato--accion .dato-valor { color: var(--accion); }
+.dato-label { font: 500 .75rem/1.5 var(--f-ui); color: var(--texto-3); display: block; }
+.dato-label a { color: var(--accion); text-decoration: none; }
+.dato-label a:hover { text-decoration: underline; }
+.dato-sub { font: 400 .6875rem/1.5 var(--f-ui); color: #94a3b8; display: block; }
+
+/* ── Buscador protagonista + fila de filtros ───────────────── */
+.rcuerpo { padding: 2rem 0 4rem; background: var(--papel); }
+.buscador {
+    display: flex; align-items: center; gap: .75rem;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: .75rem;
+    padding: .375rem .5rem .375rem 1.125rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+.buscador:focus-within { border-color: var(--accion-viva); box-shadow: 0 0 0 3px rgba(14, 165, 233, .15); }
+.buscador > svg { width: 1.25rem; height: 1.25rem; color: var(--texto-3); flex-shrink: 0; }
+.buscador input {
+    flex: 1; min-width: 0;
+    border: none; outline: none;
+    font: 400 1rem/1.4 var(--f-ui);
+    color: var(--texto);
+    background: transparent;
+    padding: .5rem 0;
+}
+.buscador input::placeholder { color: #94a3b8; }
+.buscador-hint {
+    flex-shrink: 0;
+    font: 500 .6875rem/1 var(--f-mono);
+    color: #94a3b8;
+    border: 1px solid var(--borde);
+    border-radius: .375rem;
+    padding: .3125rem .4375rem;
+    margin-right: .375rem;
+}
+
+.filtros-fila { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .875rem 0 1.75rem; }
+.chip-filtro {
+    display: inline-flex; align-items: center; gap: .4375rem;
+    font: 500 .8125rem/1 var(--f-ui);
+    color: var(--texto-2);
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: 999px;
+    padding: .5rem .875rem;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background-color .15s;
+}
+.chip-filtro:hover { border-color: #bae6fd; color: var(--accion); }
+.chip-filtro svg { width: .875rem; height: .875rem; color: #94a3b8; }
+.chip-filtro b { font-weight: 600; color: var(--tinta); }
+.chip-filtro--activo { background: var(--accion-tinte); border-color: #bae6fd; color: var(--accion-oscura); }
+.chip-filtro--activo svg { color: var(--accion); }
+.chip-filtro--mas { border-style: dashed; }
+.filtros-limpiar { font: 500 .8125rem/1 var(--f-ui); color: var(--texto-3); text-decoration: none; margin-left: .25rem; }
+.filtros-limpiar:hover { color: var(--accion); }
+.filtros-resumen { margin-left: auto; font: 400 .75rem/1.4 var(--f-mono); color: #94a3b8; }
+
+/* ── El registro: tabla-índice de expedientes.
+      Ni tarjetas ni llanura: un cuadro con cabecera en mono y una
+      regla vertical que separa el margen (expediente) del asunto. ── */
+.registro {
+    border: 1px solid var(--borde);
+    border-radius: .5rem;
+    background: #fff;
+    overflow: hidden;
+}
+.registro-cab {
+    display: none;
+    grid-template-columns: 8.25rem minmax(0, 1fr) 11rem;
+    gap: 0 1.75rem;
+    padding: .625rem 1.25rem;
+    background: var(--papel-suave);
+    border-bottom: 1px solid var(--borde);
+    font: 600 .6875rem/1.4 var(--f-mono);
+    color: #94a3b8;
+}
+@media (min-width: 768px) { .registro-cab { display: grid; } }
+.registro-cab span:last-child { text-align: right; }
+.rrow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .375rem 1.75rem;
+    padding: 1.25rem 1.25rem;
+    border-top: 1px solid var(--borde-suave);
+    text-decoration: none;
+    color: inherit;
+    transition: background-color .15s;
+}
+.rrow:first-of-type { border-top: none; }
+@media (min-width: 768px) { .rrow { grid-template-columns: 8.25rem minmax(0, 1fr) 11rem; } }
+.rrow:hover { background: #f0f9ff59; }
+
+.rrow-marge { display: flex; flex-direction: row; gap: .75rem; align-items: baseline; }
+@media (min-width: 768px) {
+    .rrow-marge {
+        flex-direction: column; gap: .25rem; align-items: flex-start;
+        border-right: 1px solid var(--borde-suave);
+        padding-right: 1.25rem;
+    }
+}
+.rrow-ref { font: 600 .8125rem/1.3 var(--f-mono); color: var(--texto-2); letter-spacing: -.01em; }
+.rrow-fecha { font: 400 .75rem/1.3 var(--f-mono); color: #94a3b8; }
+.rrow-org { font: 500 .6875rem/1.3 var(--f-ui); color: var(--accion); }
+
+.rrow-titulo {
+    font: 600 1.0625rem/1.4 var(--f-ui);
+    color: var(--tinta);
+    margin: 0 0 .25rem;
+}
+.rrow:hover .rrow-titulo { color: var(--accion-oscura); }
+.rrow-resumen {
+    font-size: .875rem; color: var(--texto-2); margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rrow-chips { display: flex; flex-wrap: wrap; gap: .375rem; margin-top: .5rem; }
+.chip-kw {
+    font: 500 .6875rem/1 var(--f-ui);
+    padding: .3125rem .5625rem;
+    border-radius: 999px;
+    background: var(--papel-suave);
+    border: 1px solid var(--borde);
+    color: var(--texto-3);
+}
+
+.rrow-estado { display: flex; flex-direction: row; flex-wrap: wrap; gap: .375rem; align-items: flex-start; }
+@media (min-width: 768px) { .rrow-estado { flex-direction: column; align-items: flex-end; } }
+.rrow-estado .pildora { margin-left: 0; }
+
+/* Píldoras de resultado y situación judicial (completa las de home.css) */
+.pildora--mediacion { background: var(--exito-tinte); border-color: #a7f3d0; color: #047857; }
+.pildora--inadmitida { background: #faf5ff; border-color: #e9d5ff; color: #7e22ce; }
+.pildora--archivada { background: var(--accion-tinte); border-color: #bae6fd; color: var(--accion-oscura); }
+.pildora--neutra { background: var(--papel-suave); border-color: var(--borde); color: var(--texto-3); }
+.pildora--judicial-mal { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.pildora--judicial-bien { background: var(--exito-tinte); border-color: #a7f3d0; color: #047857; }
+.pildora--judicial-pendiente { background: #fffbeb; border-color: #fde68a; color: #b45309; }
+.pildora svg { width: .75rem; height: .75rem; vertical-align: -1px; margin-right: .25rem; }
+/* home.css les da margin-left:auto (contexto repo-fila); aquí fluyen en línea */
+.rcard .pildora, .exp-meta .pildora, .ficha-lateral .pildora { margin-left: 0; }
+
+/* Paginación */
+.paginacion { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+.paginacion-info { font: 400 .8125rem/1 var(--f-mono); color: var(--texto-3); }
+.paginacion-botones { display: flex; gap: .25rem; }
+.pag-btn {
+    min-width: 2.25rem; height: 2.25rem;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: .625rem;
+    font: 500 .875rem/1 var(--f-ui);
+    color: var(--texto-2);
+    text-decoration: none;
+    border: 1px solid transparent;
+}
+.pag-btn:hover { background: #fff; border-color: var(--borde); }
+.pag-btn.actual { background: var(--accion); color: #fff; }
+.pag-btn svg { width: 1rem; height: 1rem; }
+
+/* ── Detalle: el expediente ────────────────────────────────── */
+.exp-cab {
+    padding: 2.5rem 0 2rem;
+    background:
+        radial-gradient(50rem 22rem at 88% -15%, rgba(14, 165, 233, .12), transparent 62%),
+        linear-gradient(160deg, #ffffff 0%, #f0f9ff 55%, #e0f2fe 110%);
+    border-bottom: 1px solid rgba(186, 230, 253, .5);
+}
+.exp-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .875rem; margin-bottom: 1rem; }
+.exp-dato { font: 400 .8125rem/1 var(--f-mono); color: var(--texto-3); display: inline-flex; align-items: center; gap: .375rem; }
+.exp-dato svg { width: .875rem; height: .875rem; }
+.exp-titulo {
+    font: 400 clamp(1.625rem, 3vw, 2.375rem)/1.2 var(--f-display);
+    color: var(--tinta);
+    margin: 0;
+    max-width: 52rem;
+    letter-spacing: -.01em;
+}
+
+/* Bloque judicial — SIEMPRE lo primero tras el título.
+   Colores por estado (mismos semánticos que JudicialStatus). */
+.judicial {
+    margin-top: 1.5rem;
+    border-radius: var(--radio);
+    border: 1px solid;
+    padding: 1.25rem 1.5rem;
+    max-width: 52rem;
+}
+.judicial--mal { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+.judicial--bien { background: var(--exito-tinte); border-color: #a7f3d0; color: #064e3b; }
+.judicial--pendiente { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+.judicial-cab { display: flex; align-items: flex-start; gap: .75rem; }
+.judicial-cab svg { width: 1.375rem; height: 1.375rem; flex-shrink: 0; margin-top: .125rem; }
+.judicial-titulo { font: 600 1.0625rem/1.35 var(--f-ui); margin: 0 0 .25rem; }
+.judicial-detalle { font-size: .875rem; margin: 0; opacity: .9; }
+.judicial-efecto {
+    margin: .875rem 0 0;
+    padding: .625rem .875rem;
+    border-left: 3px solid currentColor;
+    background: rgba(255, 255, 255, .55);
+    border-radius: 0 .5rem .5rem 0;
+    font-size: .875rem;
+}
+.judicial-efecto b { font-weight: 600; }
+
+/* Cadena de sentencias dentro del bloque */
+.sentencias { list-style: none; margin: 1.125rem 0 0; padding: .875rem 0 0; border-top: 1px dashed currentColor; display: grid; gap: .75rem; }
+.sentencia { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; font-size: .8125rem; }
+.sentencia-punto { width: .5625rem; height: .5625rem; border-radius: 999px; flex-shrink: 0; }
+.sentencia-punto--pro { background: #10b981; }
+.sentencia-punto--contra { background: #ef4444; }
+.sentencia-punto--neutro { background: #94a3b8; }
+.sentencia-instancia { font: 600 .6875rem/1 var(--f-ui); text-transform: uppercase; letter-spacing: .02em; opacity: .75; }
+.sentencia-cita { font: 500 .8125rem/1.4 var(--f-mono); }
+.sentencia-cita a { color: inherit; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
+.sentencia-chip { font: 500 .625rem/1 var(--f-ui); padding: .25rem .5rem; border-radius: 999px; }
+.sentencia-chip--pro { background: #d1fae5; color: #065f46; }
+.sentencia-chip--contra { background: #fee2e2; color: #991b1b; }
+.sentencia-chip--neutro { background: #f1f5f9; color: #475569; }
+.sentencia-firme { font: 600 .625rem/1 var(--f-mono); padding: .25rem .5rem; border-radius: .375rem; background: var(--tinta); color: #fff; }
+.sentencia-efecto { width: 100%; font-size: .75rem; opacity: .8; padding-left: 1.3125rem; }
+
+/* Cuerpo del detalle: contenido + ficha lateral */
+.exp-cuerpo { padding: 2.5rem 0 4rem; background: var(--papel-suave); border-top: 1px solid var(--borde-suave); }
+.exp-grid { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 1024px) { .exp-grid { grid-template-columns: minmax(0, 1fr) 20rem; } }
+
+.exp-resumen {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-left: 4px solid var(--acento-outcome, var(--borde));
+    border-radius: var(--radio);
+    padding: 1.25rem 1.5rem;
+    font-size: .9375rem;
+    color: var(--texto-2);
+}
+.exp-resumen b { color: var(--tinta); font-weight: 600; }
+
+.exp-seccion { margin-top: 2rem; }
+.exp-seccion-titulo {
+    font: 600 .8125rem/1.4 var(--f-ui);
+    color: var(--texto-3);
+    margin: 0 0 .875rem;
+    display: flex; align-items: center; gap: .5rem;
+}
+.exp-seccion-titulo svg { width: .9375rem; height: .9375rem; }
+.keypoints { list-style: none; margin: 0; padding: 0; display: grid; gap: .625rem; counter-reset: kp; }
+.keypoint {
+    counter-increment: kp;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .75rem;
+    padding: .875rem 1.125rem .875rem 3.25rem;
+    position: relative;
+    font-size: .875rem; color: var(--texto-2);
+}
+.keypoint::before {
+    content: counter(kp);
+    position: absolute; left: .875rem; top: .875rem;
+    width: 1.625rem; height: 1.625rem;
+    border-radius: .5rem;
+    background: var(--accion-tinte);
+    color: var(--accion);
+    display: flex; align-items: center; justify-content: center;
+    font: 400 .9375rem/1 var(--f-display);
+}
+
+/* El texto completo, como documento: papel y serifa de lectura */
+.exp-texto {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .5rem;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 16px 40px -24px rgba(15, 23, 42, .25);
+    padding: 2.25rem 2.5rem;
+    font: 400 .9375rem/1.75 var(--f-hoja);
+    color: #1e293b;
+}
+.exp-texto h2 { font: 600 1.0625rem/1.4 var(--f-hoja); color: var(--tinta); margin: 1.75rem 0 .75rem; }
+.exp-texto h2:first-child { margin-top: 0; }
+.exp-texto p { margin: 0 0 1em; }
+
+/* Ficha lateral de metadatos */
+.ficha-lateral {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: var(--radio);
+    position: sticky; top: 5rem;
+}
+.ficha-lateral > div { padding: .875rem 1.125rem; border-bottom: 1px solid var(--borde-suave); }
+.ficha-lateral > div:last-child { border-bottom: none; }
+.fl-label { display: block; font: 600 .6875rem/1.4 var(--f-ui); color: #94a3b8; margin-bottom: .375rem; }
+.fl-valor { font-size: .875rem; color: var(--texto); }
+.fl-valor a { color: var(--accion); text-decoration: none; }
+.fl-valor a:hover { text-decoration: underline; }
+.fl-mono { font: 500 .8125rem/1.4 var(--f-mono); color: var(--texto-2); }
+.fl-nota { font-size: .75rem; color: var(--texto-3); margin-top: .375rem; }
+.fl-chips { display: flex; flex-wrap: wrap; gap: .375rem; }
+.chip-limite { font: 500 .6875rem/1.3 var(--f-ui); padding: .3125rem .5625rem; border-radius: 999px; background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; text-decoration: none; }
+.chip-causa { font: 500 .6875rem/1.3 var(--f-ui); padding: .3125rem .5625rem; border-radius: 999px; background: #fffbeb; border: 1px solid #fde68a; color: #b45309; text-decoration: none; }
+
+/* Cronología */
+.crono { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.crono li { position: relative; padding: 0 0 1rem 1.375rem; }
+.crono li:last-child { padding-bottom: 0; }
+.crono li::before {
+    content: '';
+    position: absolute; left: .3125rem; top: .875rem; bottom: -.125rem;
+    width: 1px; background: var(--borde);
+}
+.crono li:last-child::before { display: none; }
+.crono-punto { position: absolute; left: 0; top: .3125rem; width: .6875rem; height: .6875rem; border-radius: 999px; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--borde); }
+.crono-punto--sky { background: var(--accion-viva); }
+.crono-punto--ambar { background: #f59e0b; }
+.crono-punto--verde { background: #10b981; }
+.crono-titulo { font: 500 .8125rem/1.4 var(--f-ui); color: var(--texto); }
+.crono-fecha { font: 400 .75rem/1.4 var(--f-mono); color: var(--texto-3); }
+.crono-gap { font: 400 .6875rem/1.4 var(--f-mono); color: #94a3b8; }

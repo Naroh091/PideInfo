@@ -61,6 +61,42 @@ final class ResolutionElasticaQueryFactory
     }
 
     /**
+     * Id-only ranking query for the lexical arm of the hybrid retrieval.
+     *
+     * Differs deliberately from the public search: retrieval queries are long
+     * argumentation sentences, so requiring every term (operator AND) would match
+     * almost nothing. OR + minimum_should_match widens the candidate pool and lets
+     * BM25 do the ranking; RRF only consumes the rank order. Pure _score sort — the
+     * public date tie-breaking would corrupt the ranks the fusion relies on.
+     *
+     * @param list<string> $outcomes
+     */
+    public function createRankIdsQuery(string $search, array $outcomes, int $limit): Query
+    {
+        $bool = new BoolQuery();
+        $bool->addMust(
+            (new MultiMatch())
+                ->setQuery($search)
+                ->setFields(self::SEARCH_FIELDS)
+                ->setType(MultiMatch::TYPE_BEST_FIELDS)
+                ->setOperator(MultiMatch::OPERATOR_OR)
+                // ≤3 terms: all required; longer queries: ~30% suffices (stopwords are
+                // already stripped by spanish_stop, so terms are content words).
+                ->setParam('minimum_should_match', '3<30%')
+        );
+
+        if ($outcomes !== []) {
+            $bool->addFilter(new TermsQuery('outcome', array_values($outcomes)));
+        }
+
+        return Query::create($bool)
+            ->setTrackTotalHits(false)
+            ->setSource(false)
+            ->setSize($limit)
+            ->setSort([['_score' => ['order' => 'desc']], ['id' => ['order' => 'desc']]]);
+    }
+
+    /**
      * Aggregation-only query: no hits, just the numbers behind the summary cards.
      */
     public function createAggregatesQuery(ResolutionSearchQuery $query): Query

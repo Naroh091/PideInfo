@@ -1,12 +1,96 @@
-<footer class="border-t border-slate-200/50 bg-white/50 py-6 mt-auto">
+{# Pie público (tinta). Consejos de transparencia desde BD
+   (transparency_councils()); enlaces fijos desde el global footer_links
+   (config/packages/twig.yaml). Cada enlace se pinta solo si tiene URL. #}
+<footer class="site-footer">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div class="flex items-center gap-2 text-slate-500 text-sm">
-                <i data-lucide="search" class="w-4 h-4 text-primary-500"></i>
-                <span>PideInfo</span>
+        <div class="site-footer-inner">
+            <div class="site-footer-grid">
+                {# ── Marca ── #}
+                <div>
+                    <a href="{{ path('app_home') }}" class="site-footer-brand-name">
+                        <i data-lucide="search"></i> PideInfo
+                    </a>
+                    <p class="site-footer-tagline">
+                        Ejerce tu <span class="marca-mini">derecho de acceso</span> a la información
+                        pública: de la solicitud a la reclamación, con resoluciones reales detrás.
+                    </p>
+                </div>
+
+                {# ── Consejos de transparencia (catálogo en BD) ── #}
+                <div>
+                    <p class="site-footer-label">Consejos de transparencia</p>
+                    <div class="site-footer-chips">
+                        {% for council in transparency_councils() %}
+                            <a href="{{ council.url }}" class="site-footer-chip"
+                               target="_blank" rel="noopener noreferrer"
+                               title="{{ council.name }}">{{ council.shortName }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {# ── Portales de transparencia ── #}
+                <div>
+                    <p class="site-footer-label">Portales de transparencia</p>
+                    <ul class="site-footer-links">
+                        {% if footer_links.portal_estatal %}
+                            <li>
+                                <a href="{{ footer_links.portal_estatal }}" class="site-footer-link"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i data-lucide="building-2"></i> Portal de Transparencia (AGE)
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                    {% if footer_links.portales_autonomicos is not empty %}
+                        <div class="site-footer-chips" style="margin-top:.75rem;">
+                            {% for portal in footer_links.portales_autonomicos %}
+                                <a href="{{ portal.url }}" class="site-footer-chip"
+                                   target="_blank" rel="noopener noreferrer"
+                                   title="{{ portal.label }}">{{ portal.label }}</a>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {# ── Otros proyectos y apoyo ── #}
+                <div>
+                    <p class="site-footer-label">Proyectos y apoyo</p>
+                    <ul class="site-footer-links">
+                        {% if footer_links.contratacionabierta %}
+                            <li>
+                                <a href="{{ footer_links.contratacionabierta }}" class="site-footer-link"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i data-lucide="landmark"></i> ContrataciónAbierta
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if footer_links.patreon %}
+                            <li>
+                                <a href="{{ footer_links.patreon }}" class="site-footer-link"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i data-lucide="heart"></i> Apóyame en Patreon
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if footer_links.buymeacoffee %}
+                            <li>
+                                <a href="{{ footer_links.buymeacoffee }}" class="site-footer-link"
+                                   target="_blank" rel="noopener noreferrer">
+                                    <i data-lucide="coffee"></i> Invítame a un café
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </div>
             </div>
-            <div class="flex items-center gap-4 text-slate-400 text-xs">
-                <a href="{{ path('app_privacidad') }}" class="hover:text-primary-600 transition-colors">Política de privacidad</a>
+
+            {# ── Barra inferior ── #}
+            <div class="site-footer-bar">
+                <span class="site-footer-copy">© {{ 'now'|date('Y') }} PideInfo · beta abierta</span>
+                <div class="site-footer-bar-links">
+                    <a href="{{ path('app_privacidad') }}">Política de privacidad</a>
+                    <a href="{{ path('app_resoluciones_index') }}">Repositorio de resoluciones</a>
+                </div>
             </div>
         </div>
     </div>

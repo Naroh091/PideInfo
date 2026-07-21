@@ -8,167 +8,136 @@
     {{ parent() }}
     <style>
         /* ─────────────────────────────────────────────────────────────
-           PAGE-SCOPED — "El Expediente" editorial dossier
-           Strictly respects the palette: primary (sky), accent (amber),
-           slate as neutrals, contextual emerald/red/blue/violet/purple
-           already used elsewhere. No new colors introduced.
+           PAGE-SCOPED — «El expediente» (diseño v2, design/redesign/
+           expediente-v2.html): hero carpeta con papel, cards paso,
+           actuaciones cronológicas y ficha registral lateral.
+           Paleta del kit: tinta slate, acción sky, rotulador ámbar.
            ───────────────────────────────────────────────────────────── */
 
-        /* ── Masthead ── */
-        .dossier-masthead {
-            position: relative;
-            margin: 0 0 2.5rem;
-            padding: 2.25rem 1.75rem 1.75rem;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+        /* ── Hero: la carpeta del expediente ── */
+        .hcarta { position: relative; margin-top: 2rem; --papel-carpeta: #fffefb; }
+        .hcarta-tab {
+            position: absolute; top: -1.72rem; left: 1.4rem; z-index: 2;
+            display: inline-flex; align-items: center; gap: .55rem;
+            background: var(--papel-carpeta);
             border: 1px solid rgb(226 232 240);
-            border-radius: .85rem;
-            overflow: hidden;
-            isolation: isolate;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
-        }
-        .dossier-masthead::before {
-            content: "";
-            position: absolute; inset: 0; z-index: -1;
-            background-image:
-                radial-gradient(circle at 12% 80%, rgba(14, 165, 233, .07) 0%, transparent 55%),
-                radial-gradient(circle at 92% 18%, rgba(245, 158, 11, .055) 0%, transparent 50%);
-            pointer-events: none;
-        }
-        /* hairline grid texture — paper feel */
-        .dossier-masthead::after {
-            content: "";
-            position: absolute; inset: 0; z-index: -1;
-            background-image:
-                linear-gradient(rgba(15, 23, 42, .025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(15, 23, 42, .025) 1px, transparent 1px);
-            background-size: 28px 28px;
-            mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
-            -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 30%, transparent 75%);
-            opacity: .8;
-            pointer-events: none;
-        }
-
-        .dossier-eyebrow {
-            font-family: 'Inter', sans-serif;
-            font-size: .8rem;
-            font-weight: 600;
-            color: var(--color-primary-700, #0369a1);
-            display: inline-flex;
-            align-items: center;
-            gap: .55rem;
-        }
-        .dossier-eyebrow .label {
-            text-transform: uppercase;
-            letter-spacing: .06em;
-            font-size: .7rem;
-            font-weight: 700;
-        }
-        .dossier-eyebrow .sep {
-            width: 4px; height: 4px; border-radius: 50%;
-            background: var(--color-accent-500);
-            display: inline-block;
-        }
-
-        .dossier-title {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-weight: 400;
-            line-height: 1.04;
-            letter-spacing: -0.018em;
-            color: rgb(15 23 42);
-            font-size: clamp(1.85rem, 3.5vw, 2.85rem);
-            margin-top: .5rem;
-        }
-
-        /* Metadata strip under title (hairline-separated) */
-        .dossier-meta {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0;
-            margin-top: 1.1rem;
-            border-top: 1px solid rgb(226 232 240);
-            border-bottom: 1px solid rgb(226 232 240);
-            padding: .5rem 0;
-            position: relative;
-        }
-        /* faux double-rule */
-        .dossier-meta::before {
-            content: "";
-            position: absolute;
-            top: 3px; left: 0; right: 0; height: 1px;
-            background: rgb(241 245 249);
-        }
-        .dossier-meta::after {
-            content: "";
-            position: absolute;
-            bottom: 3px; left: 0; right: 0; height: 1px;
-            background: rgb(241 245 249);
-        }
-        .dossier-meta-cell {
-            display: flex;
-            flex-direction: column;
-            padding: .15rem 1rem;
-            border-right: 1px solid rgb(226 232 240);
-            min-width: 0;
-        }
-        .dossier-meta-cell:first-child { padding-left: 0; }
-        .dossier-meta-cell:last-child { border-right: none; }
-        .dossier-meta-key {
-            font-family: 'Inter', sans-serif;
-            font-size: .68rem;
-            font-weight: 600;
-            letter-spacing: 0;
-            color: rgb(148 163 184);
-            margin-bottom: .15rem;
-        }
-        .dossier-meta-value {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .92rem;
-            color: rgb(30 41 59);
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-            min-width: 0;
-        }
-        .dossier-meta-value .truncate-inline {
-            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-            max-width: 18rem;
-        }
-
-        /* Status badge inside the metadata strip */
-        .dossier-status {
-            display: inline-flex;
-            align-items: center;
-            gap: .4rem;
-            font-family: 'Inter', sans-serif;
+            border-bottom: 0;
+            border-radius: .65rem .65rem 0 0;
+            padding: .45rem .85rem .5rem;
+            font-family: 'JetBrains Mono', monospace;
             font-size: .72rem;
             font-weight: 600;
-            letter-spacing: .04em;
-            padding: .25rem .6rem .25rem .55rem;
-            border-radius: 999px;
-            border: 1px solid;
-            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            box-shadow: 0 -8px 18px -14px rgba(15, 23, 42, .25);
         }
-        .dossier-status .pulse {
-            width: 7px; height: 7px; border-radius: 50%;
-            background: currentColor;
-            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
+        .hcarta-tab::after {
+            /* tapa el borde superior de la carta bajo la pestaña: papel continuo */
+            content: "";
+            position: absolute; left: 0; right: 0; bottom: -2px; height: 3px;
+            background: var(--papel-carpeta);
         }
-        .dossier-status.is-emerald { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
-        .dossier-status.is-red     { color: #b91c1c; background: #fef2f2; border-color: #fecaca; }
-        .dossier-status.is-amber   { color: var(--color-accent-700); background: var(--color-accent-50); border-color: var(--color-accent-200); }
-        .dossier-status.is-sky     { color: var(--color-primary-700); background: var(--color-primary-50); border-color: var(--color-primary-200); }
-        .dossier-status.is-slate   { color: rgb(71 85 105); background: rgb(248 250 252); border-color: rgb(226 232 240); }
+        .hcarta-ref {
+            display: inline-flex; align-items: center; gap: .35rem;
+            font: inherit;
+            color: var(--color-primary-700, #0369a1);
+            background: none; border: 0; padding: 0;
+            cursor: pointer;
+            transition: color .12s ease;
+        }
+        .hcarta-ref:hover { color: var(--color-primary-800, #075985); }
+        .hcarta-ref--recl { color: #b45309; }
+        .hcarta-ref--recl:hover { color: #92400e; }
+        .hcarta-tab-sep { color: #cbd5e1; }
+        .hcarta-cuerpo {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            background: var(--papel-carpeta);
+            border: 1px solid rgb(226 232 240);
+            border-radius: 0 1rem 1rem 1rem;
+            box-shadow:
+                0 14px 40px -30px rgba(15, 23, 42, .25),
+                inset 0 0 22px rgba(146, 106, 26, .018);
+            padding: 1.35rem 1.6rem 1.1rem;
+        }
+        /* Sin nº de registro no hay pestaña: la esquina vuelve a redondearse */
+        .hcarta--sin-tab .hcarta-cuerpo { border-radius: 1rem; }
+        .hcarta-cuerpo::before {
+            /* grano del papel: turbulencia SVG desaturada a ~5% de alfa */
+            content: "";
+            position: absolute; inset: 0; z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='180'%20height='180'%3E%3Cfilter%20id='g'%3E%3CfeTurbulence%20type='fractalNoise'%20baseFrequency='.85'%20numOctaves='2'%20stitchTiles='stitch'/%3E%3CfeColorMatrix%20type='saturate'%20values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA%20type='linear'%20slope='.055'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect%20width='100%25'%20height='100%25'%20filter='url(%23g)'/%3E%3C/svg%3E");
+            pointer-events: none;
+        }
+        .hcarta-cuerpo::after {
+            /* luz rasante: el papel no es perfectamente plano */
+            content: "";
+            position: absolute; inset: 0; z-index: -1;
+            background: radial-gradient(120% 90% at 8% 0%, rgba(255, 255, 255, .85) 0%, transparent 55%),
+                        radial-gradient(90% 70% at 100% 100%, rgba(146, 106, 26, .022) 0%, transparent 60%);
+            pointer-events: none;
+        }
+        .hcarta-titulo {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-weight: 400;
+            line-height: 1.12;
+            letter-spacing: -.018em;
+            color: rgb(15 23 42);
+            font-size: clamp(1.6rem, 3.2vw, 2.35rem);
+            margin: 0;
+        }
 
-        /* Edit pill */
-        .dossier-edit {
-            display: inline-flex;
-            align-items: center;
-            gap: .4rem;
+        /* Franja de metadatos: celdas separadas por filete */
+        .exp-meta {
+            display: flex; flex-wrap: wrap;
+            margin-top: 1rem;
+            border-top: 1px solid rgba(146, 106, 26, .14);
+            padding-top: .7rem;
+            gap: .35rem 0;
+        }
+        .exp-meta-celda {
+            display: flex; flex-direction: column; gap: .25rem;
+            padding: 0 1.1rem;
+            border-right: 1px solid rgba(146, 106, 26, .14);
+            min-width: 0;
+        }
+        .exp-meta-celda:first-child { padding-left: 0; }
+        .exp-meta-celda:last-child { border-right: 0; }
+        .exp-meta-clave {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .68rem; font-weight: 500;
+            color: rgb(148 163 184);
+        }
+        .exp-meta-valor {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem; font-weight: 500;
+            color: rgb(71 85 105);
+            display: inline-flex; align-items: center; gap: .4rem;
+            min-width: 0;
+        }
+        .exp-meta-valor .trunca {
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            max-width: 17rem;
+        }
+        .exp-meta-valor.es-mono { font-family: 'JetBrains Mono', monospace; font-size: .8rem; font-variant-numeric: tabular-nums; }
+
+        /* Aviso «Vista admin / Compartida por» */
+        .exp-viendo-como {
+            display: inline-flex; align-items: center; gap: .5rem;
             font-family: 'Inter', sans-serif;
-            font-size: .82rem;
-            font-weight: 500;
+            font-size: .82rem; font-weight: 500;
+            padding: .35rem .75rem;
+            border-radius: 999px;
+            margin-top: .75rem;
+        }
+        .exp-viendo-como.is-admin { background: var(--color-accent-50); color: var(--color-accent-800); border: 1px solid var(--color-accent-200); }
+        .exp-viendo-como.is-org { background: var(--color-primary-50); color: var(--color-primary-800); border: 1px solid var(--color-primary-200); }
+
+        /* Editar (píldora discreta junto a las migas) */
+        .exp-editar {
+            display: inline-flex; align-items: center; gap: .4rem;
+            font-family: 'Inter', sans-serif;
+            font-size: .82rem; font-weight: 500;
             color: rgb(71 85 105);
             background: white;
             border: 1px solid rgb(226 232 240);
@@ -176,250 +145,69 @@
             padding: .35rem .85rem;
             transition: all .15s ease;
         }
-        .dossier-edit:hover {
+        .exp-editar:hover {
             border-color: var(--color-primary-400);
             color: var(--color-primary-700);
             box-shadow: 0 0 0 3px rgba(2, 132, 199, .08);
         }
 
-        /* Viewing-as-other-user notice (compact) */
-        .dossier-viewing-as {
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            font-family: 'Inter', sans-serif;
-            font-size: .82rem;
-            font-weight: 500;
-            padding: .35rem .75rem;
-            border-radius: 999px;
-            margin-top: .85rem;
+        /* ── La card del paso: una hoja más; la urgencia vive en la
+             cabecera (rótulo serif itálica + filete + plazo en mono) ── */
+        .paso3 {
+            background: #fff;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 1rem;
+            box-shadow: 0 14px 40px -30px rgba(15, 23, 42, .25);
+            padding: 1.05rem 1.4rem 1.2rem;
+            margin-bottom: 1.25rem;
         }
-        .dossier-viewing-as.is-admin {
-            background: var(--color-accent-50);
-            color: var(--color-accent-800);
-            border: 1px solid var(--color-accent-200);
-        }
-        .dossier-viewing-as.is-org {
-            background: var(--color-primary-50);
-            color: var(--color-primary-800);
-            border: 1px solid var(--color-primary-200);
-        }
-        .dossier-viewing-as strong {
-            text-transform: none;
-            letter-spacing: 0;
-            margin-left: .15rem;
-        }
-
-        /* ── Chapter labels ── */
-        .chapter-label {
-            display: flex;
-            align-items: baseline;
-            gap: .9rem;
-            margin: 0 0 1rem .25rem;
-        }
-        .chapter-num {
+        .paso3-cab { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+        .paso3-nombre {
             font-family: 'DM Serif Display', Georgia, serif;
-            font-style: italic;
-            font-size: 1.15rem;
-            color: var(--color-primary-600);
-            letter-spacing: 0;
+            font-style: italic; font-weight: 400;
+            font-size: .95rem; line-height: 1.2;
+            color: #b45309;
         }
-        .chapter-rule {
-            flex: 1;
-            height: 1px;
-            background:
-                linear-gradient(90deg, rgb(226 232 240), transparent);
-            position: relative;
-            top: -.4rem;
+        .paso3-filete {
+            flex: 1; min-width: 3rem; height: 1px;
+            background: linear-gradient(90deg, var(--color-accent-200, #fde68a), transparent);
+            position: relative; top: -.3rem;
         }
-        .chapter-name {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-size: 1.05rem;
-            font-weight: 400;
-            color: rgb(30 41 59);
-            letter-spacing: -.005em;
-        }
-        .chapter-aside {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .8rem;
-            color: rgb(148 163 184);
-        }
-
-        /* ── Description block ── */
-        .dossier-description {
-            position: relative;
-            padding: .25rem 0 .5rem 1.4rem;
-            border-left: 2px solid var(--color-primary-200);
-        }
-        .dossier-description::before {
-            content: "“";
-            position: absolute;
-            left: -.45rem; top: -1.6rem;
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-size: 4.5rem;
-            line-height: 1;
-            color: var(--color-primary-300);
-            opacity: .55;
-            pointer-events: none;
-        }
-        .dossier-description .prose {
-            font-family: 'DM Sans', sans-serif;
-            color: rgb(51 65 85);
-            font-size: .95rem;
-            line-height: 1.65;
-        }
-
-        /* ── Definition list (Ley aplicable / Fecha) ── */
-        .dossier-deflist {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 1.25rem;
-            margin-top: 1.5rem;
-            padding-top: 1.25rem;
-            border-top: 1px solid rgb(241 245 249);
-        }
-        @media (min-width: 640px) {
-            .dossier-deflist { grid-template-columns: 1fr 1fr; gap: 2rem; }
-        }
-        .dossier-defterm {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .78rem;
-            font-weight: 600;
-            color: rgb(148 163 184);
-            margin-bottom: .35rem;
-        }
-        .dossier-defvalue {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .92rem;
-            font-weight: 500;
-            color: rgb(51 65 85);
-            line-height: 1.4;
-        }
-
-        /* ── Compact reference / complaint chips ── */
-        .ref-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
+        .paso3-plazo {
             font-family: 'JetBrains Mono', monospace;
-            font-size: .72rem;
-            font-weight: 500;
-            color: var(--color-primary-700);
-            background: white;
-            border: 1px solid rgb(226 232 240);
-            border-radius: .35rem;
-            padding: .28rem .55rem;
-            transition: border-color .15s, color .15s, background .15s;
-            cursor: pointer;
+            font-size: .76rem; font-weight: 500;
+            color: rgb(100 116 139);
+            font-variant-numeric: tabular-nums;
         }
-        .ref-chip:hover { border-color: var(--color-primary-400); color: var(--color-primary-800); }
-        .ref-chip.is-complaint { color: var(--color-accent-700); }
-        .ref-chip.is-complaint:hover { border-color: var(--color-accent-400); color: var(--color-accent-800); }
-
-        /* ── Entrance animation ── */
-        @keyframes dossier-rise {
-            from { opacity: 0; transform: translateY(6px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-        .rise { animation: dossier-rise .55s ease-out both; }
-        .rise-1 { animation-delay: 0s; }
-        .rise-2 { animation-delay: .08s; }
-        .rise-3 { animation-delay: .16s; }
-        .rise-4 { animation-delay: .24s; }
-        .rise-5 { animation-delay: .32s; }
-        .rise-6 { animation-delay: .4s; }
-        @media (prefers-reduced-motion: reduce) {
-            .rise { animation: none; }
-        }
-
-        /* ── Dossier Notice (status banner) — light tinted with grain ── */
-        .dossier-notice {
-            position: relative;
-            background: transparent;
-            border: 1px solid rgb(226 232 240);
-            border-radius: .65rem;
-            overflow: hidden;
-            isolation: isolate;
-        }
-        .dossier-notice + .dossier-notice { margin-top: .8rem; }
-        /* contextual stripe */
-        .dossier-notice::before {
-            content: "";
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 3px;
-            background: rgb(148 163 184);
-            z-index: 1;
-        }
-        /* Radial glow + hairline grid, layered over the tonal background */
-        .dossier-notice::after {
-            content: "";
-            position: absolute; inset: 0; z-index: 0;
-            background-image:
-                radial-gradient(ellipse 80% 60% at top right, rgba(148, 163, 184, .08), transparent 70%),
-                linear-gradient(rgba(15, 23, 42, .025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(15, 23, 42, .025) 1px, transparent 1px);
-            background-size: auto, 22px 22px, 22px 22px;
-            mask-image: radial-gradient(ellipse at top right, #000 0%, transparent 60%);
-            -webkit-mask-image: radial-gradient(ellipse at top right, #000 0%, transparent 60%);
-            pointer-events: none;
-        }
-
-        .dossier-notice-body {
-            display: flex;
-            gap: 1rem;
-            padding: 1rem 1.25rem .9rem 1.4rem;
-            position: relative;
-            z-index: 1;
-        }
-        .dossier-notice-icon {
-            width: 38px; height: 38px;
-            border-radius: .55rem;
-            display: inline-flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
-            border: 1px solid;
-        }
-        .dossier-notice-content { flex: 1; min-width: 0; }
-        .dossier-notice-eyebrow {
+        .paso3-plazo b { color: rgb(15 23 42); font-weight: 600; }
+        .paso3-plazo .rojo { color: #b91c1c; font-weight: 600; }
+        .paso3-frase {
             font-family: 'DM Sans', sans-serif;
-            font-size: .82rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            margin-bottom: .45rem;
-        }
-        .dossier-notice-eyebrow .dot {
-            width: 6px; height: 6px; border-radius: 50%;
-            background: currentColor;
-            box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 22%, transparent);
-        }
-        .dossier-notice-eyebrow .meta {
-            color: rgb(148 163 184);
-            font-weight: 400;
-        }
-        .dossier-notice-headline {
-            font-family: 'DM Sans', sans-serif;
-            font-weight: 600;
-            font-size: 1.05rem;
-            line-height: 1.35;
+            font-size: .95rem; font-weight: 600; line-height: 1.5;
             color: rgb(15 23 42);
-            letter-spacing: -.005em;
-            margin-bottom: .45rem;
+            margin: .65rem 0 0;
+            max-width: 46rem;
         }
-        .dossier-notice-prose {
-            color: rgb(71 85 105);
-            font-size: .92rem;
-            line-height: 1.6;
+        .paso3-texto {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .83rem; line-height: 1.55;
+            color: rgb(100 116 139);
+            margin: .35rem 0 0;
+            max-width: 48rem;
         }
-        .dossier-notice-prose p + p { margin-top: .65rem; }
-        .dossier-notice-prose strong { color: rgb(30 41 59); font-weight: 600; }
-        .dossier-notice-prose em { color: rgb(51 65 85); }
-
-        .dossier-notice-meta-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: .45rem;
+        .paso3-texto strong { color: rgb(51 65 85); font-weight: 600; }
+        .paso3-texto p + p { margin-top: .5rem; }
+        .paso3-acciones { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .95rem; }
+        .paso3-lista { margin-top: .5rem; }
+        .paso3-lista li {
+            display: flex; align-items: flex-start; gap: .55rem;
+            padding: .35rem 0;
+            font-size: .85rem; color: rgb(51 65 85);
+            border-bottom: 1px dashed rgb(241 245 249);
+        }
+        .paso3-lista li:last-child { border-bottom: 0; }
+        .paso3-pill {
+            display: inline-flex; align-items: center; gap: .45rem;
             font-family: 'Inter', sans-serif;
             font-size: .72rem;
             color: rgb(71 85 105);
@@ -427,202 +215,379 @@
             border: 1px solid rgb(226 232 240);
             border-radius: 999px;
             padding: .3rem .75rem;
-            margin-top: .85rem;
+            margin-top: .75rem;
         }
-        .dossier-notice-meta-pill strong { color: rgb(30 41 59); font-weight: 600; }
+        .paso3-pill strong { color: rgb(30 41 59); font-weight: 600; }
+        /* Tonos: el rótulo y el filete cambian de tinta; la hoja no */
+        .paso3--rojo .paso3-nombre { color: #b91c1c; }
+        .paso3--rojo .paso3-filete { background: linear-gradient(90deg, #fecaca, transparent); }
+        .paso3--verde .paso3-nombre { color: #047857; }
+        .paso3--verde .paso3-filete { background: linear-gradient(90deg, #a7f3d0, transparent); }
+        .paso3--cielo .paso3-nombre { color: var(--color-primary-700); }
+        .paso3--cielo .paso3-filete { background: linear-gradient(90deg, var(--color-primary-200), transparent); }
 
-        .dossier-notice-footer {
-            display: flex;
-            flex-wrap: wrap;
-            gap: .55rem;
-            padding: .75rem 1.25rem .85rem 1.4rem;
-            border-top: 1px solid rgb(241 245 249);
-            position: relative;
-            z-index: 1;
+        /* ── Rótulos de sección: serif + filete ── */
+        .exp-seccion {
+            display: flex; align-items: baseline; gap: .75rem;
+            margin: 0 0 .8rem .1rem;
         }
-        .dossier-notice.is-amber   .dossier-notice-footer { border-top-color: var(--color-accent-200); }
-        .dossier-notice.is-emerald .dossier-notice-footer { border-top-color: #a7f3d0; }
-        .dossier-notice.is-red     .dossier-notice-footer { border-top-color: rgb(254 202 202); }
-        .dossier-notice.is-sky     .dossier-notice-footer { border-top-color: var(--color-primary-200); }
-
-        .dossier-notice-list {
-            margin-top: .25rem;
+        .exp-seccion-nombre {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-size: 1.02rem; font-weight: 400; line-height: 1.2;
+            color: rgb(15 23 42);
         }
-        .dossier-notice-list li {
-            display: flex; align-items: flex-start;
-            gap: .55rem;
-            padding: .35rem 0;
-            font-size: .9rem;
-            color: rgb(51 65 85);
-            border-bottom: 1px dashed rgb(241 245 249);
+        .exp-seccion-filete {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, rgb(226 232 240), transparent);
+            position: relative; top: -.3rem;
         }
-        .dossier-notice-list li:last-child { border-bottom: 0; }
-        .dossier-notice-list .pip {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: .7rem;
-            color: rgb(148 163 184);
-            min-width: 1.6rem;
-            padding-top: .12rem;
-        }
-
-        /* Tonal variants — soft tinted bg + tonal grain, no shadow */
-        .dossier-notice.is-amber {
-            background: color-mix(in srgb, var(--color-accent-50) 70%, transparent);
-            border-color: var(--color-accent-200);
-        }
-        .dossier-notice.is-amber::before { background: var(--color-accent-500); }
-        .dossier-notice.is-amber::after {
-            background-image:
-                radial-gradient(ellipse 80% 60% at top right, rgba(245, 158, 11, .14), transparent 70%),
-                linear-gradient(rgba(180, 83, 9, .05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(180, 83, 9, .05) 1px, transparent 1px);
-            background-size: auto, 22px 22px, 22px 22px;
-        }
-        .dossier-notice.is-amber .dossier-notice-eyebrow { color: var(--color-accent-700); }
-        .dossier-notice.is-amber .dossier-notice-icon    { color: var(--color-accent-700); border-color: var(--color-accent-200); background: transparent; }
-
-        .dossier-notice.is-emerald {
-            background: color-mix(in srgb, #ecfdf5 65%, transparent);
-            border-color: #a7f3d0;
-        }
-        .dossier-notice.is-emerald::before { background: #10b981; }
-        .dossier-notice.is-emerald::after {
-            background-image:
-                radial-gradient(ellipse 80% 60% at top right, rgba(16, 185, 129, .14), transparent 70%),
-                linear-gradient(rgba(6, 95, 70, .05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(6, 95, 70, .05) 1px, transparent 1px);
-            background-size: auto, 22px 22px, 22px 22px;
-        }
-        .dossier-notice.is-emerald .dossier-notice-eyebrow { color: #047857; }
-        .dossier-notice.is-emerald .dossier-notice-icon    { color: #047857; border-color: #a7f3d0; background: transparent; }
-
-        .dossier-notice.is-red {
-            background: color-mix(in srgb, rgb(254 242 242) 65%, transparent);
-            border-color: rgb(254 202 202);
-        }
-        .dossier-notice.is-red::before { background: rgb(220 38 38); }
-        .dossier-notice.is-red::after {
-            background-image:
-                radial-gradient(ellipse 80% 60% at top right, rgba(220, 38, 38, .13), transparent 70%),
-                linear-gradient(rgba(127, 29, 29, .05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(127, 29, 29, .05) 1px, transparent 1px);
-            background-size: auto, 22px 22px, 22px 22px;
-        }
-        .dossier-notice.is-red .dossier-notice-eyebrow { color: rgb(185 28 28); }
-        .dossier-notice.is-red .dossier-notice-icon    { color: rgb(185 28 28); border-color: rgb(254 202 202); background: transparent; }
-
-        .dossier-notice.is-sky {
-            background: color-mix(in srgb, var(--color-primary-50) 60%, transparent);
-            border-color: var(--color-primary-200);
-        }
-        .dossier-notice.is-sky::before { background: var(--color-primary-500); }
-        .dossier-notice.is-sky::after {
-            background-image:
-                radial-gradient(ellipse 80% 60% at top right, rgba(14, 165, 233, .13), transparent 70%),
-                linear-gradient(rgba(3, 105, 161, .05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(3, 105, 161, .05) 1px, transparent 1px);
-            background-size: auto, 22px 22px, 22px 22px;
-        }
-        .dossier-notice.is-sky .dossier-notice-eyebrow { color: var(--color-primary-700); }
-        .dossier-notice.is-sky .dossier-notice-icon    { color: var(--color-primary-700); border-color: var(--color-primary-200); background: transparent; }
-
-        @media (max-width: 640px) {
-            .dossier-notice-body { flex-direction: column; gap: .65rem; }
-            .dossier-notice-headline { font-size: 1.15rem; }
-        }
-
-        /* ── Sidebar marginalia (discreet, card-less) ── */
-        .dossier-aside {
+        .exp-seccion-nota {
             font-family: 'DM Sans', sans-serif;
-            color: rgb(71 85 105);
-            padding: .25rem 0 0 .25rem;
+            font-size: .75rem; color: rgb(148 163 184);
         }
-        /* Direct-child selector so the spacing applies even when a Live
-           Component wrapper (<div data-action="...">) sits between
-           consecutive .aside-block elements. */
-        .dossier-aside > * + * {
-            padding-top: 1.25rem;
+        .exp-seccion-nota .pendiente-dot {
+            display: inline-block;
+            width: .45rem; height: .45rem; border-radius: 999px;
+            background: var(--color-accent-500);
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, .18);
+            animation: expPulso 1.2s ease-in-out infinite;
+            margin-right: .25rem;
+            vertical-align: 1px;
+        }
+        @keyframes expPulso { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+
+        /* ── La hoja: superficie común ── */
+        .exp-hoja {
+            background: #fff;
+            border: 1px solid rgb(226 232 240);
+            border-radius: 1rem;
+            box-shadow: 0 14px 40px -30px rgba(15, 23, 42, .25);
+        }
+        .exp-hoja-cuerpo { padding: 1.25rem 1.4rem; }
+
+        /* Piezas del expediente (actuaciones) */
+        .pieza-cab {
+            display: flex; align-items: center; gap: .7rem;
+            padding: .85rem 1.25rem .1rem;
+        }
+        .pieza-cab .panel-icono { width: 2rem; height: 2rem; border-radius: .5rem; flex-shrink: 0; }
+        .pieza-titulo {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .92rem; font-weight: 600; line-height: 1.3;
+            color: rgb(15 23 42);
+            margin: 0;
+        }
+        .pieza-fecha {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .7rem; line-height: 1.4;
+            color: rgb(148 163 184);
+            font-variant-numeric: tabular-nums;
+            margin: .1rem 0 0;
+        }
+        .pieza-cuerpo { padding: .8rem 1.25rem 1.1rem; }
+        .pieza-intro {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem; color: rgb(100 116 139);
+            margin: 0 0 .7rem;
+        }
+        .pieza-acciones {
+            display: flex; gap: .5rem; flex-wrap: wrap; align-items: center;
+            margin-top: .9rem; padding-top: .85rem;
             border-top: 1px solid rgb(241 245 249);
         }
-        .aside-heading {
-            display: flex;
-            align-items: baseline;
-            gap: .65rem;
-            margin-bottom: .85rem;
+        .pieza-doc {
+            display: flex; align-items: center; gap: .4rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem; font-weight: 500;
+            color: rgb(148 163 184); text-decoration: none;
+            margin-top: .9rem; padding-top: .75rem;
+            border-top: 1px solid rgb(241 245 249);
+            width: 100%;
+            min-width: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            transition: color .12s ease;
         }
-        .aside-heading-name {
+        .pieza-doc i, .pieza-doc svg { flex-shrink: 0; }
+        .pieza-doc:hover { color: var(--color-primary-700); }
+        .pieza--pendiente { border-style: dashed; }
+        .pieza-nota-roja {
+            margin-top: .75rem;
+            padding: .65rem .8rem;
+            background: rgb(254 242 242);
+            border-radius: .5rem;
+            font-size: .83rem;
+        }
+        .pieza-nota-roja b { color: rgb(153 27 27); font-weight: 600; display: block; margin-bottom: .15rem; }
+        .pieza-nota-roja span { color: rgb(185 28 28); }
+
+        /* El texto de la solicitud, citado */
+        .exp-cita {
+            border-left: 2px solid var(--color-primary-200, #bae6fd);
+            padding-left: 1.1rem;
+        }
+        .exp-cita .prose { font-size: .9rem; line-height: 1.65; color: rgb(51 65 85); }
+
+        /* Puntos clave numerados (el escrito real va enumerado) */
+        .exp-puntos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+        .exp-puntos li {
+            display: flex; gap: .65rem; align-items: flex-start;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .85rem; line-height: 1.5;
+            color: rgb(51 65 85);
+        }
+        .exp-puntos .n {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .68rem; font-weight: 600; line-height: 1;
+            color: rgb(100 116 139);
+            background: rgb(248 250 252);
+            border: 1px solid rgb(226 232 240);
+            border-radius: .35rem;
+            padding: .22rem .38rem;
+            margin-top: .1rem;
+            flex-shrink: 0;
+        }
+        .exp-puntos--exito .n { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+        .exp-puntos--fallo .n { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+        .exp-puntos--ambar .n { background: var(--color-accent-50); border-color: var(--color-accent-200); color: #b45309; }
+        .exp-puntos--curso .n { background: var(--color-primary-50); border-color: var(--color-primary-200); color: var(--color-primary-700); }
+
+        /* ── Documentos ── */
+        .exp-drop {
+            display: flex; align-items: center; gap: .8rem;
+            border: 1px dashed #cbd5e1;
+            border-radius: .65rem;
+            padding: .65rem .9rem;
+            color: rgb(100 116 139);
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem; font-weight: 500;
+            cursor: pointer;
+            transition: border-color .12s, background .12s;
+            margin-bottom: .75rem;
+        }
+        .exp-drop:hover, .exp-drop.dragover {
+            border-color: var(--color-primary-400);
+            background: var(--color-primary-50);
+            color: var(--color-primary-700);
+        }
+        .exp-drop .sub { font-size: .72rem; font-weight: 400; color: rgb(148 163 184); display: block; }
+
+        .exp-doc-fila {
+            display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; gap: .7rem;
+            align-items: flex-start;
+            padding: .6rem .25rem .65rem;
+            border-bottom: 1px solid rgb(241 245 249);
+        }
+        .exp-doc-fila:last-child { border-bottom: 0; }
+        .exp-doc-icono { display: inline-flex; margin-top: .15rem; color: rgb(148 163 184); }
+        .exp-doc-nombre {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .83rem; font-weight: 500; line-height: 1.3;
+            color: rgb(71 85 105);
+            margin: 0;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .exp-doc-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .7rem; line-height: 1.4;
+            color: rgb(148 163 184);
+            margin: .1rem 0 0;
+            display: flex; align-items: center; gap: .45rem; flex-wrap: wrap;
+        }
+        .exp-doc-fila.tramite .exp-doc-nombre { color: rgb(100 116 139); font-weight: 400; }
+        .exp-doc-fila.tramite .exp-doc-icono { opacity: .55; }
+        .exp-doc-fila.tramite .exp-doc-resumen { color: rgb(148 163 184); }
+        .exp-doc-resumen {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem; line-height: 1.5;
+            color: rgb(100 116 139);
+            margin: .35rem 0 0;
+            padding-left: .6rem;
+            border-left: 2px solid rgb(226 232 240);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .exp-doc-acciones { display: inline-flex; gap: .1rem; opacity: .45; transition: opacity .12s ease; margin-top: -.1rem; }
+        .exp-doc-fila:hover .exp-doc-acciones { opacity: 1; }
+        .exp-doc-acciones a, .exp-doc-acciones button {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.8rem; height: 1.8rem;
+            border-radius: .4rem;
+            color: rgb(148 163 184);
+            background: none; border: 0; cursor: pointer;
+            transition: background .12s ease, color .12s ease;
+        }
+        .exp-doc-acciones a:hover, .exp-doc-acciones button:hover { background: rgb(241 245 249); color: var(--color-primary-700); }
+        .exp-doc-tag {
+            display: inline-flex; align-items: center; gap: .3rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .62rem; font-weight: 500; line-height: 1;
+            padding: .14rem .45rem;
+            border-radius: 999px;
+            vertical-align: 1px;
+        }
+        .exp-doc-tag--borrador { background: var(--color-accent-50); color: #b45309; border: 1px solid var(--color-accent-200); }
+        .exp-doc-tag--previo { background: rgb(248 250 252); color: rgb(100 116 139); border: 1px solid rgb(226 232 240); }
+        .exp-doc-tag--proceso { background: var(--color-accent-50); color: #b45309; }
+        .exp-doc-tag--proceso .punto {
+            width: .35rem; height: .35rem; border-radius: 999px;
+            background: var(--color-accent-500);
+            animation: expPulso 1.2s ease-in-out infinite;
+        }
+        .exp-doc-grupo { display: flex; align-items: baseline; gap: .6rem; margin: 1rem 0 .2rem; }
+        .exp-doc-grupo b {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic; font-weight: 400;
+            font-size: .9rem; line-height: 1.2;
+            color: #b45309;
+        }
+        .exp-doc-grupo .filete {
+            flex: 1; height: 1px;
+            background: linear-gradient(90deg, var(--color-accent-200), transparent);
+            position: relative; top: -.3rem;
+        }
+        .exp-doc-vacia {
+            padding: 1.5rem 1rem;
+            text-align: center;
+            color: rgb(148 163 184);
+            font-size: .9rem;
+        }
+        .exp-doc-vacia em {
             font-family: 'DM Serif Display', Georgia, serif;
             font-style: italic;
+            color: rgb(100 116 139);
             font-size: 1rem;
-            font-weight: 400;
-            color: rgb(30 41 59);
-            letter-spacing: -.005em;
+            display: block;
+            margin-bottom: .25rem;
         }
-        .aside-heading-rule {
-            flex: 1;
-            height: 1px;
-            background: linear-gradient(90deg, rgb(226 232 240), transparent);
-            position: relative;
-            top: -.35rem;
+        .exp-doc-pie {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            margin-top: .85rem; padding-top: .7rem;
+            border-top: 1px solid rgb(241 245 249);
         }
+        .exp-doc-pie-enlace {
+            display: inline-flex; align-items: center; gap: .35rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .78rem; color: rgb(100 116 139);
+            background: none; border: 0; padding: 0; cursor: pointer;
+            transition: color .12s ease;
+        }
+        .exp-doc-pie-enlace:hover { color: var(--color-primary-700); }
 
-        .aside-row {
-            display: flex;
-            flex-direction: column;
-            gap: .15rem;
-            padding: .2rem 0;
+        /* ── La ficha registral (lateral) ── */
+        .ficha-bloque { padding: 1.05rem 1.25rem; border-top: 1px solid rgb(241 245 249); }
+        .ficha-bloque--primero { border-top: 0; }
+        .ficha-rotulo {
+            font-family: 'DM Serif Display', Georgia, serif;
+            font-style: italic; font-weight: 400;
+            font-size: .92rem; line-height: 1.2;
+            color: rgb(15 23 42);
+            margin: 0 0 .65rem;
         }
-        .aside-row + .aside-row {
-            margin-top: .55rem;
+        .ficha-fila { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .15rem .75rem; padding: .28rem 0; }
+        .ficha-clave { font-family: 'DM Sans', sans-serif; font-size: .76rem; color: rgb(100 116 139); white-space: nowrap; }
+        .ficha-valor {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .78rem; font-weight: 500; line-height: 1.4;
+            color: rgb(71 85 105);
+            font-variant-numeric: tabular-nums;
+            text-align: right;
+            display: inline-flex; align-items: center; gap: .4rem;
+            min-width: 0; max-width: 100%;
+            word-break: break-all;   /* nº de expediente kilométricos: saltan a su propia línea */
+            margin-left: auto;
         }
-        .aside-key {
-            font-size: .72rem;
-            font-weight: 500;
-            color: rgb(148 163 184);
-        }
-        .aside-value {
-            font-size: .92rem;
-            font-weight: 500;
-            color: rgb(51 65 85);
-            display: inline-flex;
-            align-items: center;
-            gap: .5rem;
-            flex-wrap: wrap;
-        }
-        .aside-value .meta {
-            font-size: .78rem;
-            color: rgb(148 163 184);
-            font-weight: 400;
-        }
-        .aside-tag {
-            display: inline-flex;
-            align-items: center;
-            font-size: .72rem;
-            font-weight: 500;
+        .ficha-valor.es-ui { font-family: 'DM Sans', sans-serif; }
+        .ficha-valor.rojo { color: #b91c1c; font-weight: 600; }
+        .ficha-valor.ambar { color: #b45309; }
+        .ficha-barra { height: .3rem; border-radius: 999px; background: rgb(241 245 249); margin: .3rem 0 .1rem; overflow: hidden; }
+        .ficha-barra i { display: block; height: 100%; border-radius: 999px; background: var(--color-accent-500); }
+        .ficha-barra i.es-cielo { background: var(--color-primary-300); }
+        .ficha-tag {
+            display: inline-flex; align-items: center;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .68rem; font-weight: 500; line-height: 1.4;
             padding: .05rem .5rem;
             border-radius: 999px;
         }
-        .aside-tag.is-resolved { background: rgb(236 253 245); color: rgb(5 150 105); }
-        .aside-tag.is-passed   { background: rgb(254 242 242); color: rgb(185 28 28); }
-        .aside-tag.is-warn     { background: var(--color-accent-50); color: var(--color-accent-700); }
-        .aside-tag.is-info     { background: var(--color-primary-50); color: var(--color-primary-700); }
-        .aside-tag.is-suspended {
-            background: var(--color-accent-50);
-            color: var(--color-accent-700);
-            font-style: italic;
-        }
-        .aside-note {
-            font-size: .78rem;
+        .ficha-tag.is-resolved { background: rgb(236 253 245); color: rgb(5 150 105); }
+        .ficha-tag.is-passed { background: rgb(254 242 242); color: rgb(185 28 28); }
+        .ficha-tag.is-suspended { background: var(--color-accent-50); color: var(--color-accent-700); font-style: italic; }
+        .ficha-nota {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .74rem; line-height: 1.5;
             color: rgb(148 163 184);
-            margin-top: .25rem;
-            line-height: 1.45;
+            margin: .3rem 0 0;
         }
+        .ficha-enlace {
+            display: flex; align-items: center; gap: .5rem;
+            font-family: 'DM Sans', sans-serif;
+            font-size: .83rem; font-weight: 500;
+            color: rgb(71 85 105);
+            background: none; border: 0; cursor: pointer;
+            text-decoration: none;
+            padding: .3rem 0;
+            text-align: left;
+            transition: color .12s ease;
+        }
+        .ficha-enlace i, .ficha-enlace svg { color: rgb(148 163 184); transition: color .12s ease; }
+        .ficha-enlace:hover { color: var(--color-primary-700); }
+        .ficha-enlace:hover i, .ficha-enlace:hover svg { color: var(--color-primary-600); }
+        .ficha-enlace.peligro { color: rgb(127 29 29); opacity: .68; }
+        .ficha-enlace.peligro i, .ficha-enlace.peligro svg { color: rgb(185 28 28); }
+        .ficha-enlace.peligro:hover { color: rgb(185 28 28); opacity: 1; }
+        .ficha-mail {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem;
+            color: rgb(71 85 105);
+            background: none; border: 0; padding: 0;
+            text-align: left;
+            display: inline-flex; align-items: center; gap: .35rem;
+            cursor: pointer;
+            transition: color .12s ease;
+            word-break: break-all;
+        }
+        .ficha-mail:hover { color: var(--color-primary-700); }
+        .ficha-mail i { opacity: .55; flex-shrink: 0; }
+        .ficha-accion-form { margin: 0; padding: 0; }
 
-        /* Lists sidebar — toggle pills + inline create form */
-        .lists-toggle-stack {
-            display: flex; flex-direction: column; gap: .3rem;
-            margin-bottom: .75rem;
+        /* ── Cronología compacta ── */
+        .crono-fila {
+            display: grid; grid-template-columns: 5.2rem .9rem minmax(0, 1fr) auto; gap: .5rem;
+            align-items: flex-start;
+            padding: .42rem 0;
+            border-bottom: 1px solid rgb(241 245 249);
         }
+        .crono-fila:last-child { border-bottom: 0; }
+        .crono-fecha {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: .7rem; font-weight: 500; line-height: 1.65;
+            color: rgb(148 163 184);
+            font-variant-numeric: tabular-nums;
+        }
+        .crono-punto { width: .5rem; height: .5rem; border-radius: 999px; justify-self: center; margin-top: .32rem; }
+        .crono-texto {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .8rem; line-height: 1.45;
+            color: rgb(71 85 105);
+        }
+        .crono-texto.es-fuerte { font-weight: 600; color: rgb(15 23 42); }
+        .crono-notas {
+            font-family: 'DM Sans', sans-serif;
+            font-size: .72rem; line-height: 1.45;
+            color: rgb(148 163 184);
+            margin: .15rem 0 0;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .crono-borrar { opacity: 0; transition: opacity .12s ease; align-self: center; }
+        .crono-fila:hover .crono-borrar { opacity: 1; }
+
+        /* Listas — toggle pills + formulario de alta (heredado del diseño previo) */
+        .lists-toggle-stack { display: flex; flex-direction: column; gap: .3rem; margin-bottom: .75rem; }
         .list-pill {
             display: flex; align-items: center; gap: .5rem;
             padding: .35rem .55rem;
@@ -651,29 +616,12 @@
             background: rgb(241 245 249);
             color: rgb(148 163 184);
         }
-        .list-pill.is-in .list-pill-check {
-            background: var(--color-primary-600, rgb(2 132 199));
-            color: #ffffff;
-        }
+        .list-pill.is-in .list-pill-check { background: var(--color-primary-600, rgb(2 132 199)); color: #ffffff; }
         .list-pill-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .list-pill-meta {
-            font-family: 'Inter', sans-serif;
-            font-size: .7rem; color: rgb(148 163 184);
-            font-weight: 500;
-        }
+        .list-pill-meta { font-family: 'Inter', sans-serif; font-size: .7rem; color: rgb(148 163 184); font-weight: 500; }
         .list-pill.is-in .list-pill-meta { color: var(--color-primary-700, rgb(3 105 161)); }
-
-        .lists-empty {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .82rem; color: rgb(148 163 184);
-            line-height: 1.5;
-            margin-bottom: .65rem;
-        }
-
-        .list-create-row {
-            display: flex; gap: .35rem; align-items: stretch;
-            margin-top: .25rem;
-        }
+        .lists-empty { font-family: 'DM Sans', sans-serif; font-size: .82rem; color: rgb(148 163 184); line-height: 1.5; margin-bottom: .65rem; }
+        .list-create-row { display: flex; gap: .35rem; align-items: stretch; margin-top: .25rem; }
         .list-create-input {
             flex: 1; min-width: 0;
             font-family: 'DM Sans', sans-serif;
@@ -684,10 +632,7 @@
             background: #ffffff; color: rgb(15 23 42);
             outline: none;
         }
-        .list-create-input:focus {
-            border-color: var(--color-primary-300, rgb(125 211 252));
-            box-shadow: 0 0 0 2px rgba(2, 132, 199, .12);
-        }
+        .list-create-input:focus { border-color: var(--color-primary-300, rgb(125 211 252)); box-shadow: 0 0 0 2px rgba(2, 132, 199, .12); }
         .list-create-btn {
             display: inline-flex; align-items: center; gap: .3rem;
             padding: .35rem .6rem;
@@ -701,577 +646,247 @@
             white-space: nowrap;
         }
         .list-create-btn:hover:not(:disabled) { background: #000; border-color: #000; }
-        .list-create-btn:disabled {
-            background: rgb(203 213 225); border-color: rgb(203 213 225);
-            cursor: not-allowed;
-        }
-        .list-error {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .78rem;
-            color: rgb(185 28 28);
-            margin-top: .45rem;
-        }
+        .list-create-btn:disabled { background: rgb(203 213 225); border-color: rgb(203 213 225); cursor: not-allowed; }
+        .list-error { font-family: 'DM Sans', sans-serif; font-size: .78rem; color: rgb(185 28 28); margin-top: .45rem; }
 
-        .aside-link {
-            display: flex;
-            align-items: center;
-            gap: .5rem;
-            font-family: 'DM Sans', sans-serif;
-            font-size: .88rem;
-            color: rgb(71 85 105);
-            background: transparent;
-            border: 0;
-            padding: .35rem 0;
-            cursor: pointer;
-            text-decoration: none;
-            transition: color .12s ease, transform .12s ease;
-        }
-        .aside-link i {
-            color: rgb(148 163 184);
-            transition: color .12s ease;
-        }
-        .aside-link:hover {
-            color: var(--color-primary-700);
-        }
-        .aside-link:hover i {
-            color: var(--color-primary-600);
-        }
-        .aside-link.is-danger {
-            color: rgb(127 29 29);
-            opacity: .68;
-        }
-        .aside-link.is-danger i { color: rgb(185 28 28); opacity: .68; }
-        .aside-link.is-danger:hover { color: rgb(185 28 28); opacity: 1; }
-        .aside-link.is-danger:hover i { color: rgb(185 28 28); opacity: 1; }
-        .aside-action-form { margin: 0; padding: 0; }
-
-        .aside-mail {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: .75rem;
-            color: rgb(71 85 105);
-            background: transparent;
-            border: none;
-            padding: 0;
-            text-align: left;
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-            cursor: pointer;
-            transition: color .12s ease;
-            word-break: break-all;
-        }
-        .aside-mail:hover { color: var(--color-primary-700); }
-        .aside-mail i { opacity: .55; }
-
-        /* ── Documents card — borrows the /reclamacion .doc aesthetic ── */
-        .doc-card {
-            position: relative;
+        /* Referencias alternativas (desplegable de la pestaña) */
+        .hcarta-altrefs {
+            position: absolute; top: 100%; left: 0; margin-top: .35rem;
             background: white;
             border: 1px solid rgb(226 232 240);
-            border-radius: 6px;
-            box-shadow:
-                0 1px 2px rgba(15, 23, 42, .04),
-                0 12px 32px -20px rgba(15, 23, 42, .12);
-            overflow: hidden;
-        }
-        .doc-card::before {
-            content: "";
-            position: absolute;
-            top: 0; bottom: 0; left: 0;
-            width: 3px;
-            background: linear-gradient(180deg, var(--color-accent-500) 0%, #075985 100%);
-            z-index: 1;
-        }
-        .doc-card-body {
-            padding: 1rem 1.25rem 1.1rem;
-        }
-        .chapter-aside .pending-dot {
-            display: inline-block;
-            width: .45rem; height: .45rem; border-radius: 999px;
-            background: var(--color-accent-500);
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, .18);
-            animation: pulseDot 1.2s ease-in-out infinite;
-            margin-right: .25rem;
-            vertical-align: 1px;
-        }
-        @keyframes pulseDot {
-            0%, 100% { opacity: 1; }
-            50%      { opacity: .55; }
-        }
-
-        /* Legacy class kept as a thin alias so any leftover markup still flows */
-        .docs-block {
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-        }
-
-        .docs-dropzone {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            padding: .85rem 1.1rem;
-            border-radius: .55rem;
-            background: color-mix(in srgb, var(--color-primary-50) 50%, transparent);
-            cursor: pointer;
-            transition: background .15s ease, transform .15s ease;
-            margin-bottom: 1rem;
-            border: 1px dashed transparent;
-        }
-        .docs-dropzone:hover {
-            background: color-mix(in srgb, var(--color-primary-50) 90%, transparent);
-        }
-        .docs-dropzone.dragover {
-            border-color: var(--color-primary-300);
-            background: var(--color-primary-50);
-            transform: translateY(-1px);
-        }
-        .docs-dropzone-icon {
-            width: 32px; height: 32px;
-            border-radius: .45rem;
-            background: white;
-            display: inline-flex; align-items: center; justify-content: center;
-            color: var(--color-primary-600);
-            flex-shrink: 0;
-            box-shadow: inset 0 0 0 1px rgba(2, 132, 199, .12);
-        }
-        .docs-dropzone-text { flex: 1; min-width: 0; }
-        .docs-dropzone-headline {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .92rem;
-            font-weight: 500;
-            color: rgb(30 41 59);
-            line-height: 1.25;
-        }
-        .docs-dropzone-sub {
-            font-size: .78rem;
-            color: rgb(148 163 184);
-            margin-top: .15rem;
-        }
-        .docs-dropzone-cta {
-            flex-shrink: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-            font-family: 'DM Sans', sans-serif;
-            font-size: .82rem;
-            font-weight: 600;
-            color: var(--color-primary-700);
-            padding: .4rem .85rem;
             border-radius: .5rem;
-            border: 1px solid var(--color-primary-200);
-            background: white;
-            transition: background .12s ease;
-        }
-        .docs-dropzone-cta:hover { background: var(--color-primary-50); }
-
-        .docs-list {
-            display: flex;
-            flex-direction: column;
-        }
-        .docs-row {
-            display: grid;
-            grid-template-columns: 18px minmax(0, 1fr) auto;
-            gap: .7rem;
-            align-items: flex-start;
-            padding: .65rem .35rem;
-            transition: background .12s ease;
-            border-bottom: 1px solid rgb(241 245 249);
-            border-radius: .35rem;
-        }
-        .docs-row:last-child { border-bottom: none; }
-        .docs-row:hover { background: rgb(248 250 252); }
-        .docs-row:hover .docs-actions { opacity: 1; }
-
-        /* "Documentación de mero trámite" (acuses, inicios de tramitación,
-           prórrogas, traslados, afectación a terceros): same layout, resumen
-           and order, just a lighter visual weight so it doesn't compete with
-           the core procedure documents. */
-        .docs-row--muted .docs-name { color: rgb(100 116 139); font-weight: 400; }
-        .docs-row--muted .docs-icon { opacity: .55; }
-        .docs-row--muted .docs-summary { color: rgb(148 163 184); }
-
-        .docs-icon {
-            display: inline-flex; align-items: center; justify-content: center;
-            color: rgb(148 163 184);
-            margin-top: .25rem;
+            box-shadow: 0 12px 32px -16px rgba(15, 23, 42, .25);
+            padding: .25rem 0;
+            z-index: 30;
+            min-width: 220px;
         }
 
-        .docs-main { min-width: 0; }
-        .docs-name {
-            font-family: 'DM Sans', sans-serif;
-            font-size: .92rem;
-            font-weight: 500;
-            color: rgb(30 41 59);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            line-height: 1.3;
+        /* ── Entrada ── */
+        @keyframes expRise {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-        .docs-meta {
-            margin-top: .2rem;
-            font-size: .75rem;
-            color: rgb(148 163 184);
-            display: flex;
-            align-items: center;
-            gap: .5rem;
-            flex-wrap: wrap;
+        .rise { animation: expRise .55s ease-out both; }
+        .rise-1 { animation-delay: 0s; }
+        .rise-2 { animation-delay: .08s; }
+        .rise-3 { animation-delay: .16s; }
+        .rise-4 { animation-delay: .24s; }
+        .rise-5 { animation-delay: .32s; }
+        @media (prefers-reduced-motion: reduce) {
+            .rise { animation: none; }
+            .expPulso, .exp-seccion-nota .pendiente-dot, .exp-doc-tag--proceso .punto { animation: none; }
         }
-        .docs-meta .sep { color: rgb(203 213 225); }
-        .docs-status {
-            display: inline-flex; align-items: center;
-            font-size: .7rem;
-            font-weight: 500;
-            padding: .05rem .5rem;
-            border-radius: 999px;
-        }
-        .docs-status.is-done    { color: rgb(5 150 105); background: rgb(236 253 245); }
-        .docs-status.is-pending { color: var(--color-accent-700); background: var(--color-accent-50); }
-        .docs-summary {
-            font-family: 'DM Sans', sans-serif;
-            margin-top: .4rem;
-            font-size: .82rem;
-            color: rgb(100 116 139);
-            line-height: 1.45;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            border-left: 2px solid rgb(226 232 240);
-            padding-left: .65rem;
-        }
-
-        .docs-actions {
-            display: inline-flex;
-            align-items: center;
-            gap: .15rem;
-            opacity: .35;
-            transition: opacity .12s ease;
-            margin-top: .1rem;
-        }
-        .docs-actions a, .docs-actions button {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 30px; height: 30px;
-            border-radius: .35rem;
-            color: rgb(148 163 184);
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            transition: background .12s ease, color .12s ease;
-        }
-        .docs-actions a:hover, .docs-actions button:hover {
-            color: var(--color-primary-700);
-            background: rgb(241 245 249);
-        }
-
-        .docs-group-label {
-            display: flex;
-            align-items: baseline;
-            gap: .65rem;
-            margin: 1.1rem 0 .35rem;
-        }
-        .docs-group-label-name {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-style: italic;
-            font-size: .95rem;
-            color: var(--color-accent-700);
-        }
-        .docs-group-label-rule {
-            flex: 1; height: 1px;
-            background: linear-gradient(90deg, var(--color-accent-200), transparent);
-            position: relative;
-            top: -.3rem;
-        }
-
-        .docs-empty {
-            padding: 1.5rem 1rem;
-            text-align: center;
-            color: rgb(148 163 184);
-            font-size: .9rem;
-        }
-        .docs-empty em {
-            font-family: 'DM Serif Display', Georgia, serif;
-            font-style: italic;
-            color: rgb(100 116 139);
-            font-size: 1rem;
-            display: block;
-            margin-bottom: .25rem;
-        }
-
-        .docs-footer {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            margin-top: 1rem;
-            padding-top: .75rem;
-            border-top: 1px solid rgb(241 245 249);
-        }
-        .docs-footer-link {
-            display: inline-flex;
-            align-items: center;
-            gap: .35rem;
-            font-family: 'DM Sans', sans-serif;
-            font-size: .8rem;
-            color: rgb(100 116 139);
-            transition: color .12s ease;
-            background: none;
-            border: 0;
-            padding: 0;
-            cursor: pointer;
-        }
-        .docs-footer-link:hover { color: var(--color-primary-700); }
-        .docs-footer-link i { color: rgb(148 163 184); transition: color .12s ease; }
-        .docs-footer-link:hover i { color: var(--color-primary-600); }
     </style>
 {% endblock %}
 
 {% block content %}
-{# ── Breadcrumb ── #}
-<div class="flex items-center justify-between gap-3 mb-3 rise rise-1">
+{# ── Migas + editar ── #}
+<div class="flex items-center justify-between gap-3 mb-1 rise rise-1">
     <nav class="flex items-center gap-2 text-xs text-slate-500 min-w-0" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
         <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
         <span class="text-slate-300">/</span>
         <span class="text-slate-800 font-medium truncate max-w-[24rem]">{{ request.title|u.truncate(50) }}</span>
     </nav>
-    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="dossier-edit flex-shrink-0">
+    <a href="{{ path('app_solicitudes_edit', {id: request.id}) }}" class="exp-editar flex-shrink-0">
         <i data-lucide="pencil" class="w-3 h-3"></i>
         Editar
     </a>
 </div>
 
 {#
-   Effective-status helper:
-   While there is an active complaint (status = reclaimed) the displayed status
-   is forced to "Reclamada" (sky tone). Once the complaint has been resolved
-   (estimada / desestimada / archivada) we revert to the underlying
-   request.status.
+   Estado efectivo: con una reclamación activa (no archivada) manda la vía de
+   reclamación — AccessRequest::getEffectiveStatusLabel(). Los colores de badge
+   siguen el mismo criterio que el listado.
 #}
-{% set complaintStatus = request.complaint ? request.complaint.status : null %}
-{% set effectiveStatusKey = (complaintStatus == 'reclaimed') ? 'reclaimed' : request.status %}
-{% set effectiveStatusLabel = (complaintStatus == 'reclaimed') ? 'Reclamada' : request.statusLabel %}
-{% set statusTone = {
-    'granted': 'is-emerald',
-    'granted_completed': 'is-emerald',
-    'denied': 'is-red',
-    'delayed': 'is-amber',
-    'processing': 'is-sky',
-    'sent': 'is-sky',
-    'pending': 'is-slate',
-    'reclaimed': 'is-amber'
+{% set statusBadge = {
+    'sent': 'status-sent',
+    'processing': 'status-processing',
+    'granted': 'status-granted',
+    'granted_completed': 'status-granted-completed',
+    'denied': 'status-denied',
+    'delayed': 'status-delayed',
+    'pending': 'status-pending',
+    'partially_granted': 'badge-warning',
+    'inadmitted': 'badge-danger'
 } %}
-{% set statusIcon = {
-    'granted': 'check-circle',
-    'granted_completed': 'package-check',
-    'denied': 'x-circle',
-    'delayed': 'clock',
-    'processing': 'loader',
-    'sent': 'send',
-    'pending': 'inbox',
-    'reclaimed': 'scale'
+{% set complaintBadge = {
+    'reclaimed': 'badge-warning',
+    'complaint_granted': 'badge-success',
+    'complaint_denied': 'badge-danger',
+    'complaint_archived': 'badge-secondary'
 } %}
-{% set resultTone = {
-    'granted': 'is-emerald',
-    'partially_granted': 'is-amber',
-    'denied': 'is-red',
-    'inadmitted': 'is-red',
-    'silence': 'is-slate',
-    'upheld': 'is-emerald',
-    'partially_upheld': 'is-amber',
-    'dismissed': 'is-red',
-    'archived': 'is-slate'
-} %}
-{% set resultIcon = {
-    'granted': 'check-circle',
-    'partially_granted': 'pie-chart',
-    'denied': 'x-circle',
-    'inadmitted': 'ban',
-    'silence': 'clock',
-    'upheld': 'check-circle',
-    'partially_upheld': 'pie-chart',
-    'dismissed': 'x-circle',
-    'archived': 'archive'
+{% set resultBadge = {
+    'granted': 'badge-success',
+    'partially_granted': 'badge-warning',
+    'denied': 'badge-danger',
+    'inadmitted': 'badge-danger',
+    'silence': 'badge-secondary',
+    'upheld': 'badge-success',
+    'partially_upheld': 'badge-warning',
+    'dismissed': 'badge-danger',
+    'archived': 'badge-secondary'
 } %}
 
-{# ── Masthead (dossier header) ── #}
-<header class="dossier-masthead rise rise-2">
-    {# Title #}
-    <h1 class="dossier-title">{{ request.title }}</h1>
-
-    {# Viewing-as-other-user notice (compact pill, kept here for context) #}
-    {% if is_granted('ROLE_ADMIN') and request.user != app.user %}
-        <div class="dossier-viewing-as is-admin">
-            <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
-            Vista admin · <strong>{{ request.user.fullName }}</strong>
-            <span class="opacity-60">· {{ request.user.email }}</span>
-        </div>
-    {% elseif request.user != app.user %}
-        <div class="dossier-viewing-as is-org">
-            <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
-            Compartida por <strong>{{ request.user.fullName }}</strong>
-        </div>
-    {% endif %}
-
-    {# Metadata strip #}
-    <div class="dossier-meta">
-        <div class="dossier-meta-cell">
-            <span class="dossier-meta-key">Administración</span>
-            {% set displayedAdmin = request.regDestination ? request.regDestination.displayLabel : request.publicBody.name %}
-            {% set adminTitle = request.regDestination
-                ? request.regDestination.displayLabel ~ ' · ' ~ request.publicBody.name
-                : request.publicBody.name %}
-            <span class="dossier-meta-value">
-                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span class="truncate-inline" title="{{ adminTitle }}">{{ displayedAdmin }}</span>
-            </span>
-        </div>
-        <div class="dossier-meta-cell">
-            <span class="dossier-meta-key">Presentada</span>
-            <span class="dossier-meta-value" style="font-family: 'JetBrains Mono', monospace; font-size: .85rem;">
-                {{ request.sentAt|date('d/m/Y') }}
-            </span>
-        </div>
-        <div class="dossier-meta-cell">
-            <span class="dossier-meta-key">Estado</span>
-            <span class="dossier-meta-value">
-                <span class="dossier-status {{ statusTone[effectiveStatusKey] ?? 'is-slate' }}">
-                    <span class="pulse"></span>
-                    <i data-lucide="{{ statusIcon[effectiveStatusKey] ?? 'circle' }}" class="w-3 h-3"></i>
-                    {{ effectiveStatusLabel }}
-                </span>
-            </span>
-        </div>
-        {% if request.resolutionResult %}
-            <div class="dossier-meta-cell">
-                <span class="dossier-meta-key">Resolución</span>
-                <span class="dossier-meta-value">
-                    <span class="dossier-status {{ resultTone[request.resolutionResult] ?? 'is-slate' }}">
-                        <i data-lucide="{{ resultIcon[request.resolutionResult] ?? 'circle' }}" class="w-3 h-3"></i>
-                        {{ request.resolutionResultLabel }}
-                    </span>
-                </span>
-            </div>
-        {% endif %}
-        {% if request.complaint and request.complaint.complaintResult %}
-            <div class="dossier-meta-cell">
-                <span class="dossier-meta-key">Reclamación</span>
-                <span class="dossier-meta-value">
-                    <span class="dossier-status {{ resultTone[request.complaint.complaintResult] ?? 'is-slate' }}">
-                        <i data-lucide="{{ resultIcon[request.complaint.complaintResult] ?? 'circle' }}" class="w-3 h-3"></i>
-                        {{ request.complaint.complaintResultLabel }}
-                    </span>
-                </span>
-            </div>
-        {% endif %}
-        {% if request.externalId %}
-            <div class="dossier-meta-cell" x-data="{ showAltRefs: false }">
-                <span class="dossier-meta-key">Solicitud</span>
-                <span class="dossier-meta-value relative">
-                    <button type="button" class="ref-chip"
-                            onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
-                            title="Copiar nº expediente">
-                        <i data-lucide="hash" class="w-3 h-3"></i>
-                        {{ request.externalId }}
-                        <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+{# ── Hero: la carpeta del expediente ── #}
+{% set hasTab = request.externalId or (request.complaint and request.complaint.externalId) %}
+<header class="hcarta {{ not hasTab ? 'hcarta--sin-tab' }} rise rise-2 mb-6">
+    {% if hasTab %}
+        <span class="hcarta-tab" x-data="{ showAltRefs: false }">
+            {% if request.externalId %}
+                <button type="button" class="hcarta-ref"
+                        onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                        title="Copiar nº expediente">
+                    <i data-lucide="hash" class="w-3 h-3"></i>
+                    {{ request.externalId }}
+                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                </button>
+                {% if request.alternativeReferences|length > 0 %}
+                    <button type="button"
+                            @click="showAltRefs = !showAltRefs"
+                            class="text-slate-400 hover:text-slate-600 transition-colors"
+                            title="Ver referencias alternativas">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="showAltRefs && 'rotate-180'"></i>
                     </button>
-                    {% if request.alternativeReferences|length > 0 %}
-                        <button type="button"
-                                @click="showAltRefs = !showAltRefs"
-                                class="text-slate-400 hover:text-slate-600 transition-colors"
-                                title="Ver referencias alternativas">
-                            <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform" :class="showAltRefs && 'rotate-180'"></i>
-                        </button>
-                        <div x-show="showAltRefs"
-                             x-transition
-                             @click.away="showAltRefs = false"
-                             class="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20 min-w-[220px]"
-                             style="display: none;">
-                            <p class="px-3 py-1.5 text-xs text-slate-400 font-medium">Referencias alternativas</p>
-                            {% for ref in request.alternativeReferences %}
-                                <button type="button"
-                                        class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-mono"
-                                        onclick="navigator.clipboard.writeText('{{ ref|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
-                                        title="Copiar referencia">
-                                    <i data-lucide="hash" class="w-3.5 h-3.5 text-slate-400"></i>
-                                    <span class="text-xs">{{ ref }}</span>
-                                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden ml-auto"></i>
-                                </button>
-                            {% endfor %}
-                        </div>
+                    <div x-show="showAltRefs"
+                         x-transition
+                         @click.away="showAltRefs = false"
+                         class="hcarta-altrefs"
+                         style="display: none;">
+                        <p class="px-3 py-1.5 text-xs text-slate-400 font-medium" style="font-family:'DM Sans',sans-serif;">Referencias alternativas</p>
+                        {% for ref in request.alternativeReferences %}
+                            <button type="button"
+                                    class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-mono"
+                                    onclick="navigator.clipboard.writeText('{{ ref|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                                    title="Copiar referencia">
+                                <i data-lucide="hash" class="w-3.5 h-3.5 text-slate-400"></i>
+                                <span class="text-xs">{{ ref }}</span>
+                                <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden ml-auto"></i>
+                            </button>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endif %}
+            {% if request.externalId and request.complaint and request.complaint.externalId %}
+                <span class="hcarta-tab-sep">·</span>
+            {% endif %}
+            {% if request.complaint and request.complaint.externalId %}
+                <button type="button" class="hcarta-ref hcarta-ref--recl"
+                        onclick="navigator.clipboard.writeText('{{ request.complaint.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                        title="Copiar nº expediente reclamación">
+                    <i data-lucide="scale" class="w-3 h-3"></i>
+                    Recl: {{ request.complaint.externalId }}
+                    <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                </button>
+            {% endif %}
+        </span>
+    {% endif %}
+    <div class="hcarta-cuerpo">
+        <h1 class="hcarta-titulo">{{ request.title }}</h1>
+
+        {% if is_granted('ROLE_ADMIN') and request.user != app.user %}
+            <div class="exp-viendo-como is-admin">
+                <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i>
+                Vista admin · <strong>{{ request.user ? request.user.fullName : 'Borrador anónimo' }}</strong>
+                {% if request.user %}<span class="opacity-60">· {{ request.user.email }}</span>{% endif %}
+            </div>
+        {% elseif request.user != app.user %}
+            <div class="exp-viendo-como is-org">
+                <i data-lucide="building-2" class="w-3.5 h-3.5"></i>
+                Compartida por <strong>{{ request.user ? request.user.fullName : 'Borrador anónimo' }}</strong>
+            </div>
+        {% endif %}
+
+        <div class="exp-meta">
+            <div class="exp-meta-celda">
+                <span class="exp-meta-clave">Administración</span>
+                {% set displayedAdmin = request.regDestination ? request.regDestination.displayLabel : request.publicBody.name %}
+                {% set adminTitle = request.regDestination
+                    ? request.regDestination.displayLabel ~ ' · ' ~ request.publicBody.name
+                    : request.publicBody.name %}
+                <span class="exp-meta-valor">
+                    <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400 flex-shrink-0"></i>
+                    <span class="trunca" title="{{ adminTitle }}">{{ displayedAdmin }}</span>
+                </span>
+            </div>
+            <div class="exp-meta-celda">
+                <span class="exp-meta-clave">Presentada</span>
+                <span class="exp-meta-valor es-mono">{{ request.sentAt|date('d/m/Y') }}</span>
+            </div>
+            <div class="exp-meta-celda">
+                <span class="exp-meta-clave">Estado</span>
+                <span class="exp-meta-valor">
+                    {% if request.hasActiveComplaint %}
+                        <span class="badge {{ complaintBadge[request.complaint.status]|default('badge-info') }}">{{ request.effectiveStatusLabel }}</span>
+                    {% else %}
+                        <span class="badge {{ statusBadge[request.status]|default('badge-secondary') }}">{{ request.statusLabel }}</span>
+                    {% endif %}
+                    {% if request.isDeadlineSuspended %}
+                        <span class="badge badge-warning">Plazo suspendido</span>
                     {% endif %}
                 </span>
             </div>
-        {% endif %}
-        {% if request.complaint and request.complaint.externalId %}
-            <div class="dossier-meta-cell">
-                <span class="dossier-meta-key">Reclamación</span>
-                <span class="dossier-meta-value">
-                    <button type="button" class="ref-chip is-complaint"
-                            onclick="navigator.clipboard.writeText('{{ request.complaint.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
-                            title="Copiar nº expediente reclamación">
-                        <i data-lucide="scale" class="w-3 h-3"></i>
-                        {{ request.complaint.externalId }}
-                        <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
-                    </button>
-                </span>
-            </div>
-        {% endif %}
+            {% if request.resolutionResult %}
+                <div class="exp-meta-celda">
+                    <span class="exp-meta-clave">Resolución</span>
+                    <span class="exp-meta-valor">
+                        <span class="badge {{ resultBadge[request.resolutionResult]|default('badge-secondary') }}">{{ request.resolutionResultLabel }}</span>
+                    </span>
+                </div>
+            {% endif %}
+            {% if request.complaint and request.complaint.complaintResult %}
+                <div class="exp-meta-celda">
+                    <span class="exp-meta-clave">Reclamación</span>
+                    <span class="exp-meta-valor">
+                        <span class="badge {{ resultBadge[request.complaint.complaintResult]|default('badge-secondary') }}">{{ request.complaint.complaintResultLabel }}</span>
+                    </span>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </header>
 
+{# ── Los pasos: qué toca hacer ahora ── #}
 <div class="rise rise-3">
     {{ component('RequestStatusBanner', {request: request}) }}
 </div>
 
-{# Trámite de audiencia activo: el reclamante tiene un plazo abierto para
-   presentar alegaciones. Se oculta al vencer; el histórico queda en el
-   timeline y en la zona Plazos del lateral. #}
+{# Trámite de audiencia activo: plazo abierto para presentar alegaciones.
+   Se oculta al vencer; el histórico queda en la cronología y en Plazos. #}
 {% if request.complaint and request.complaint.activeHearingProcess %}
     {% set hearing = request.complaint.activeHearingProcess %}
+    {% set hearingOrganism = request.applicableLaw.complaintOrganism
+        ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
+        : 'el organismo de transparencia' %}
     <div class="rise rise-3">
-        <aside class="dossier-notice is-amber mb-6">
-            <div class="dossier-notice-body">
-                <div class="dossier-notice-icon">
-                    <i data-lucide="megaphone" class="w-4 h-4"></i>
-                </div>
-                <div class="dossier-notice-content">
-                    <div class="dossier-notice-eyebrow">
-                        <span class="dot"></span>
-                        Trámite de audiencia
-                        <span class="meta">· {{ hearing.daysUntilEnd }} día{{ hearing.daysUntilEnd != 1 ? 's' : '' }} restante{{ hearing.daysUntilEnd != 1 ? 's' : '' }}</span>
-                    </div>
-                    <h3 class="dossier-notice-headline">
-                        Tienes hasta el {{ hearing.endDate|date('d/m/Y') }} para presentar alegaciones.
-                    </h3>
-                    <div class="dossier-notice-prose">
-                        <p>
-                            El organismo de transparencia ha abierto un trámite de audiencia de
-                            {{ hearing.hearingDays }} {{ hearing.hearingDaysTypeLabel }}
-                            (desde el {{ hearing.startDate|date('d/m/Y') }}) para que puedas alegar
-                            lo que estimes oportuno antes de que resuelva la reclamación.
-                        </p>
-                    </div>
-                    {% if request.complaint.status == 'reclaimed' or hearing.triggerDocument %}
-                        <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
-                            {% if request.complaint.status == 'reclaimed' %}
-                                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-accent btn-sm">
-                                    <i data-lucide="message-square-reply" class="w-3.5 h-3.5 mr-1.5"></i>
-                                    Redactar alegaciones
-                                </a>
-                            {% endif %}
-                            {% if hearing.triggerDocument %}
-                                <a href="{{ path('app_document_download', {id: hearing.triggerDocument.id}) }}" class="btn btn-ghost btn-sm" data-turbo="false">
-                                    <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i>
-                                    Ver notificación del trámite
-                                </a>
-                            {% endif %}
-                        </div>
-                    {% endif %}
-                </div>
+        <section class="paso3">
+            <div class="paso3-cab">
+                <span class="paso3-nombre">Trámite de audiencia</span>
+                <span class="paso3-filete"></span>
+                <span class="paso3-plazo">
+                    hasta el <b>{{ hearing.endDate|date('d/m/Y') }}</b>
+                    · <span class="{{ hearing.daysUntilEnd <= 5 ? 'rojo' }}">queda{{ hearing.daysUntilEnd != 1 ? 'n' : '' }} {{ hearing.daysUntilEnd }} día{{ hearing.daysUntilEnd != 1 ? 's' : '' }}</span>
+                </span>
             </div>
-            <div class="dossier-notice-footer">
-                <form method="post" action="{{ path('app_complaint_hearing_close', {id: request.id}) }}">
+            <p class="paso3-frase">Responde a lo alegado antes de que {{ hearingOrganism }} resuelva la reclamación.</p>
+            <p class="paso3-texto">
+                Se ha abierto un trámite de audiencia de {{ hearing.hearingDays }} {{ hearing.hearingDaysTypeLabel }}
+                (desde el {{ hearing.startDate|date('d/m/Y') }}) para que puedas alegar lo que estimes oportuno
+                antes de que se resuelva la reclamación.
+            </p>
+            <div class="paso3-acciones">
+                {% if request.complaint.status == 'reclaimed' %}
+                    <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-accent btn-sm">
+                        <i data-lucide="message-square-reply" class="w-3.5 h-3.5 mr-1.5"></i>
+                        Redactar alegaciones
+                    </a>
+                {% endif %}
+                {% if hearing.triggerDocument %}
+                    <a href="{{ path('app_document_download', {id: hearing.triggerDocument.id}) }}" class="btn btn-secondary btn-sm" data-turbo="false">
+                        <i data-lucide="file-text" class="w-3.5 h-3.5 mr-1.5"></i>
+                        Ver notificación
+                    </a>
+                {% endif %}
+                <form method="post" action="{{ path('app_complaint_hearing_close', {id: request.id}) }}" class="ficha-accion-form">
                     <input type="hidden" name="_token" value="{{ csrf_token('close-hearing-' ~ request.complaint.id) }}">
                     <button type="submit" class="btn btn-ghost btn-sm">
                         <i data-lucide="check-circle" class="w-4 h-4 mr-1.5"></i>
@@ -1279,7 +894,7 @@
                     </button>
                 </form>
             </div>
-        </aside>
+        </section>
     </div>
 {% endif %}
 
@@ -1291,40 +906,33 @@
     {% if problemTasks|length > 0 %}
         {% set hasUncertain = agentTasks|filter(t => t.status == 'uncertain')|length > 0 %}
         <div class="rise rise-3" x-data="{ tasksModal: false }">
-            <aside class="dossier-notice is-amber mb-6">
-                <div class="dossier-notice-body">
-                    <div class="dossier-notice-icon">
-                        <i data-lucide="{{ hasUncertain ? 'alert-triangle' : 'rotate-ccw' }}" class="w-4 h-4"></i>
-                    </div>
-                    <div class="dossier-notice-content">
-                        <div class="dossier-notice-eyebrow">
-                            <span class="dot"></span>
-                            {{ hasUncertain ? 'Envío sin confirmar' : 'Intentos de envío con errores' }}
-                            <span class="meta">· {{ problemTasks|length }} intento{{ problemTasks|length != 1 ? 's' : '' }}</span>
-                        </div>
-                        <h3 class="dossier-notice-headline">
-                            {% if hasUncertain %}
-                                Un envío anterior quedó sin confirmar: puede que la solicitud ya esté presentada en el portal.
-                            {% else %}
-                                Hubo {{ problemTasks|length }} intento{{ problemTasks|length != 1 ? 's' : '' }} de envío con errores.
-                            {% endif %}
-                        </h3>
-                        <div class="dossier-notice-prose">
-                            {% if hasUncertain %}
-                                <p>Antes de volver a enviarla, comprueba en la sede electrónica del organismo si la solicitud ya consta presentada — así evitas presentarla por duplicado.</p>
-                            {% else %}
-                                <p>Puedes revisar qué falló en cada intento y volver a enviar la solicitud.</p>
-                            {% endif %}
-                        </div>
-                        <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
-                            <button type="button" @click="tasksModal = true" class="btn btn-ghost btn-sm">
-                                <i data-lucide="list" class="w-3.5 h-3.5 mr-1.5"></i>
-                                Ver detalle de los intentos
-                            </button>
-                        </div>
-                    </div>
+            <section class="paso3">
+                <div class="paso3-cab">
+                    <span class="paso3-nombre">{{ hasUncertain ? 'Envío sin confirmar' : 'Intentos de envío con errores' }}</span>
+                    <span class="paso3-filete"></span>
+                    <span class="paso3-plazo">{{ problemTasks|length }} intento{{ problemTasks|length != 1 ? 's' : '' }}</span>
                 </div>
-            </aside>
+                <p class="paso3-frase">
+                    {% if hasUncertain %}
+                        Un envío anterior quedó sin confirmar: puede que la solicitud ya esté presentada en el portal.
+                    {% else %}
+                        Hubo {{ problemTasks|length }} intento{{ problemTasks|length != 1 ? 's' : '' }} de envío con errores.
+                    {% endif %}
+                </p>
+                <p class="paso3-texto">
+                    {% if hasUncertain %}
+                        Antes de volver a enviarla, comprueba en la sede electrónica del organismo si la solicitud ya consta presentada — así evitas presentarla por duplicado.
+                    {% else %}
+                        Puedes revisar qué falló en cada intento y volver a enviar la solicitud.
+                    {% endif %}
+                </p>
+                <div class="paso3-acciones">
+                    <button type="button" @click="tasksModal = true" class="btn btn-secondary btn-sm">
+                        <i data-lucide="list" class="w-3.5 h-3.5 mr-1.5"></i>
+                        Ver detalle de los intentos
+                    </button>
+                </div>
+            </section>
 
             {# Modal — listado de intentos de envío del agente. x-teleport lo
                saca al <body>: si no, el transform del contenedor .rise atrapa
@@ -1376,493 +984,474 @@
     {% endif %}
 {% endif %}
 
-{# Section counter — Roman numerals adapt to which sections are visible. #}
-{% set romans = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'] %}
-{% set s = 0 %}
+{# Organism name helper #}
+{% set organismName = request.applicableLaw.complaintOrganism
+    ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
+    : 'organismo competente' %}
+
+{# Collect all summary blocks and sort by document date #}
+{% set summaryBlocks = [] %}
+{% for doc in request.documents %}
+    {% set hasContent = (doc.aiMetadata.summary is defined and doc.aiMetadata.summary) or (doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints) %}
+    {% if doc.type.value == 'response' and hasContent %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% elseif doc.type.value == 'complaint' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% elseif doc.type.value == 'alegaciones' and doc.aiMetadata.alegationPoints is defined and doc.aiMetadata.alegationPoints %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% elseif doc.type.value == 'alegation_response' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% elseif doc.type.value == 'complaint_resolution' and hasContent %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% endif %}
+{% endfor %}
+
+{% set summaryBlocks = summaryBlocks|sort((a, b) => (a.documentDate ?? a.createdAt) <=> (b.documentDate ?? b.createdAt)) %}
+
+{# Dedupe: when the AI has extracted identical body text from two
+   documents (same summary + keypoints), only keep the first chronological
+   occurrence. Avoids visually-noisy "two reclamaciones with the same
+   content" cases when there's a duplicate scan/upload of the same piece. #}
+{% set seenBodies = [] %}
+{% set dedupedBlocks = [] %}
+{% for doc in summaryBlocks %}
+    {% set bodyParts = [doc.aiMetadata.summary|default('')|trim] %}
+    {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+        {% for point in doc.aiMetadata.keyPoints %}
+            {% set bodyParts = bodyParts|merge([point|trim]) %}
+        {% endfor %}
+    {% endif %}
+    {% set bodyKey = bodyParts|join('|') %}
+    {% if bodyKey == '|' or bodyKey == '' or bodyKey not in seenBodies %}
+        {% if bodyKey != '' and bodyKey != '|' %}
+            {% set seenBodies = seenBodies|merge([bodyKey]) %}
+        {% endif %}
+        {% set dedupedBlocks = dedupedBlocks|merge([doc]) %}
+    {% endif %}
+{% endfor %}
+{% set summaryBlocks = dedupedBlocks %}
+
+{% set complaintCount = 0 %}
+{% set pendingHearingPiece = request.complaint
+    and request.complaint.activeHearingProcess
+    and request.complaint.status == 'reclaimed' %}
+{% set piezaCount = summaryBlocks|length + 1 + (pendingHearingPiece ? 1 : 0) %}
 
 <div class="grid lg:grid-cols-3 gap-8">
-    <div class="lg:col-span-2 space-y-10 rise rise-4">
-        {# Chapter — Información #}
-        {% set s = s + 1 %}
+    <div class="lg:col-span-2 space-y-8 rise rise-4">
+        {# ── Actuaciones: el expediente en orden cronológico ── #}
         <section>
-            <div class="chapter-label">
-                <span class="chapter-num">§ {{ romans[s] }}</span>
-                <span class="chapter-name">Información de la solicitud</span>
-                <span class="chapter-rule"></span>
+            <div class="exp-seccion">
+                <span class="exp-seccion-nombre">Actuaciones</span>
+                <span class="exp-seccion-filete"></span>
+                <span class="exp-seccion-nota">{{ piezaCount }} pieza{{ piezaCount != 1 ? 's' : '' }} en el expediente</span>
             </div>
-            <div class="dash-section">
-                <div class="card-body" style="padding: 1.75rem 1.75rem 1.5rem;">
-                    <div class="dossier-description">
-                        <div class="prose prose-sm prose-slate max-w-none">{{ request.description|markdown_to_html }}</div>
-                    </div>
 
-                    <div class="dossier-deflist">
-                        <div>
-                            <p class="dossier-defterm">Ley aplicable</p>
-                            <p class="dossier-defvalue">{{ request.applicableLaw.name }}</p>
-                        </div>
-                        {% set meses = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'] %}
-                        <div>
-                            <p class="dossier-defterm">Fecha de envío</p>
-                            <p class="dossier-defvalue">{{ request.sentAt|date('j') }} de {{ meses[request.sentAt|date('n')] }} de {{ request.sentAt|date('Y') }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        {# Organism name helper #}
-        {% set organismName = request.applicableLaw.complaintOrganism
-            ? (request.applicableLaw.complaintOrganism.shortName ?? request.applicableLaw.complaintOrganism.name)
-            : 'organismo competente' %}
-
-        {# Collect all summary blocks and sort by document date #}
-        {% set summaryBlocks = [] %}
-        {% for doc in request.documents %}
-            {% set hasContent = (doc.aiMetadata.summary is defined and doc.aiMetadata.summary) or (doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints) %}
-            {% if doc.type.value == 'response' and hasContent %}
-                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
-            {% elseif doc.type.value == 'complaint' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
-                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
-            {% elseif doc.type.value == 'alegaciones' and doc.aiMetadata.alegationPoints is defined and doc.aiMetadata.alegationPoints %}
-                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
-            {% elseif doc.type.value == 'alegation_response' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
-                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
-            {% elseif doc.type.value == 'complaint_resolution' and hasContent %}
-                {% set summaryBlocks = summaryBlocks|merge([doc]) %}
-            {% endif %}
-        {% endfor %}
-
-        {% set summaryBlocks = summaryBlocks|sort((a, b) => (a.documentDate ?? a.createdAt) <=> (b.documentDate ?? b.createdAt)) %}
-
-        {# Dedupe: when the AI has extracted identical body text from two
-           documents (same summary + keypoints), only keep the first chronological
-           occurrence. Avoids visually-noisy "two reclamaciones with the same
-           content" cases when there's a duplicate scan/upload of the same piece. #}
-        {% set seenBodies = [] %}
-        {% set dedupedBlocks = [] %}
-        {% for doc in summaryBlocks %}
-            {% set bodyParts = [doc.aiMetadata.summary|default('')|trim] %}
-            {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
-                {% for point in doc.aiMetadata.keyPoints %}
-                    {% set bodyParts = bodyParts|merge([point|trim]) %}
-                {% endfor %}
-            {% endif %}
-            {% set bodyKey = bodyParts|join('|') %}
-            {% if bodyKey == '|' or bodyKey == '' or bodyKey not in seenBodies %}
-                {% if bodyKey != '' and bodyKey != '|' %}
-                    {% set seenBodies = seenBodies|merge([bodyKey]) %}
-                {% endif %}
-                {% set dedupedBlocks = dedupedBlocks|merge([doc]) %}
-            {% endif %}
-        {% endfor %}
-        {% set summaryBlocks = dedupedBlocks %}
-
-        {% set complaintCount = 0 %}
-
-        {% if summaryBlocks|length > 0 %}
-            {% set s = s + 1 %}
-            <section class="space-y-5">
-                <div class="chapter-label">
-                    <span class="chapter-num">§ {{ romans[s] }}</span>
-                    <span class="chapter-name">Actuaciones</span>
-                    <span class="chapter-rule"></span>
-                    <span class="chapter-aside">{{ summaryBlocks|length }} pieza{{ summaryBlocks|length != 1 ? 's' : '' }} en el expediente</span>
-                </div>
-        {% endif %}
-
-        {% for doc in summaryBlocks %}
-            {% set docDate = doc.documentDate ?? doc.createdAt %}
-
-            {% if doc.type.value == 'response' %}
-                {% set responseStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
-                <div class="alert-banner {% if responseStatus == 'concedida' %}alert-banner-emerald{% elseif responseStatus == 'denegada' %}alert-banner-amber{% else %}alert-banner-blue{% endif %}">
-                    <div class="alert-banner-stripe"></div>
-                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                        <div class="alert-banner-icon {% if responseStatus == 'concedida' %}bg-emerald-100 text-emerald-600{% elseif responseStatus == 'denegada' %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-600{% endif %}">
-                            <i data-lucide="file-check" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">Respuesta de la administración</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5 pt-3">
-                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
-                            <p class="text-sm text-slate-500 mb-4">Puntos clave de la respuesta:</p>
-                            <ol class="space-y-3">
-                                {% for point in doc.aiMetadata.keyPoints %}
-                                    <li class="flex items-start gap-3">
-                                        <span class="flex-shrink-0 w-6 h-6 rounded-full {% if responseStatus == 'concedida' %}bg-emerald-100 text-emerald-700{% elseif responseStatus == 'denegada' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-700{% endif %} text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                        <span class="text-slate-700">{{ point }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ol>
-                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
-                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
-                        {% endif %}
-                        {% if doc.aiMetadata.denialReason is defined and doc.aiMetadata.denialReason %}
-                            <div class="mt-3 p-3 bg-red-50 rounded-lg">
-                                <p class="text-sm font-medium text-red-800">Motivo de denegación:</p>
-                                <p class="text-sm text-red-700 mt-1">{{ doc.aiMetadata.denialReason }}</p>
-                            </div>
-                        {% endif %}
-                        <div class="mt-3 pt-3 border-t border-slate-100">
-                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                {{ doc.originalFilename }}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-            {% elseif doc.type.value == 'complaint' %}
-                {% set complaintCount = complaintCount + 1 %}
-                {% set complaintFiled = request.complaint is not null and request.complaint.filedAt is not null %}
-                {% set editRoute = (doc.aiMetadata.origin|default('ai')) == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
-                {% if complaintFiled %}
-                    {# Reclamación ya presentada: el borrador deja de ser la pieza activa, se muestra como referencia secundaria. #}
-                    <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 flex items-center gap-3">
-                        <i data-lucide="pen-line" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
-                        <div class="flex-1 min-w-0">
-                            <p class="text-sm font-medium text-slate-600 truncate">
-                                {% if complaintCount == 1 %}
-                                    Borrador de la reclamación
+            <div class="space-y-4">
+                {# Actuación inicial: la solicitud #}
+                <article class="exp-hoja">
+                    <div class="pieza-cab">
+                        <span class="panel-icono panel-icono--curso"><i data-lucide="send"></i></span>
+                        <div class="min-w-0 flex-1">
+                            <h2 class="pieza-titulo">La solicitud</h2>
+                            <p class="pieza-fecha">
+                                {% if request.status == 'pending' %}
+                                    {{ request.createdAt|date('d/m/Y') }} · pendiente de envío
                                 {% else %}
-                                    Borrador de la ampliación
+                                    {{ request.sentAt|date('d/m/Y') }}{% if request.externalId %} · {{ request.externalId }}{% endif %}
                                 {% endif %}
-                                <span class="ml-1 text-xs text-slate-400 font-normal">· {{ docDate|date('d/m/Y') }}</span>
                             </p>
                         </div>
-                        <a href="{{ path('app_complaint_pdf', {id: request.id}) }}"
-                           class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
-                           title="Descargar PDF del borrador">
-                            <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
-                            PDF
-                        </a>
-                        <a href="{{ path(editRoute, {id: request.id}) }}"
-                           class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
-                           title="Ver el borrador">
-                            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-                            Ver
-                        </a>
-                    </div>
-                {% else %}
-                <div class="alert-banner alert-banner-amber">
-                    <div class="alert-banner-stripe"></div>
-                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                        <div class="alert-banner-icon bg-amber-100 text-amber-600">
-                            <i data-lucide="scale" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">
-                                {% if complaintCount == 1 %}
-                                    Reclamación ante el {{ organismName }}
-                                {% else %}
-                                    Ampliación de la reclamación ante el {{ organismName }}
-                                {% endif %}
-                            </h2>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5 pt-3">
-                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
-                            <p class="text-sm text-slate-500 mb-4">Argumentos principales de la reclamación:</p>
-                            <ol class="space-y-3">
-                                {% for point in doc.aiMetadata.keyPoints %}
-                                    <li class="flex items-start gap-3">
-                                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                        <span class="text-slate-700">{{ point }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ol>
-                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
-                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                        {% if request.status == 'pending' %}
+                            <span class="badge badge-secondary">Pendiente de envío</span>
+                        {% else %}
+                            <span class="badge status-sent">Presentada</span>
                         {% endif %}
-                        {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
-                            <div class="mt-3">
-                                <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
-                                <ul class="space-y-2">
-                                    {% for res in doc.aiMetadata.citedResolutions %}
-                                        <li class="text-sm text-slate-600 flex items-start gap-2">
-                                            <i data-lucide="bookmark" class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5"></i>
-                                            <span>
-                                                <strong>{{ res.reference }}</strong>
-                                                {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
-                                                {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
-                                            </span>
-                                        </li>
-                                    {% endfor %}
-                                </ul>
+                    </div>
+                    <div class="pieza-cuerpo">
+                        <div class="exp-cita">
+                            <div class="prose prose-sm prose-slate max-w-none">{{ request.description|markdown_to_html }}</div>
+                        </div>
+                    </div>
+                </article>
+
+                {% for doc in summaryBlocks %}
+                    {% set docDate = doc.documentDate ?? doc.createdAt %}
+
+                    {% if doc.type.value == 'response' %}
+                        {% set responseStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
+                        {% set responseTone = responseStatus == 'concedida' ? 'exito' : (responseStatus == 'denegada' ? 'fallo' : 'curso') %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--{{ responseTone }}">
+                                    <i data-lucide="{{ responseStatus == 'concedida' ? 'file-check' : (responseStatus == 'denegada' ? 'file-x-2' : 'file-text') }}"></i>
+                                </span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">Respuesta de la administración</h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
+                                </div>
+                                {% if responseStatus == 'concedida' %}
+                                    <span class="badge badge-success">Concedida</span>
+                                {% elseif responseStatus == 'denegada' %}
+                                    <span class="badge badge-danger">Denegada</span>
+                                {% endif %}
                             </div>
-                        {% endif %}
-                        {# Use the body-level-aware getter so AGE requests get the state CTBG form, not the autonomic one. #}
-                        {% set complaintFormUrl = request.applicableLaw.complaintOrganism ? request.applicableLaw.complaintOrganism.complaintFormUrlFor(request) : null %}
-                        {# Always-true guard: the outer branch already implies notFiledYet — kept for clarity of the action-button block. #}
-                        {% if true %}
-                            <div class="mt-4 pt-4 border-t border-amber-200/60 flex flex-wrap items-center gap-2"
-                                 x-data="{
-                                    openAgentModal: false,
-                                    agentMode: 'supervised',
-                                    async presentNow() {
-                                        const store = this.$store.agentPresent;
-                                        if (store.busy) return;
-                                        this.openAgentModal = false;
-                                        store.open('reclamación');
-                                        try {
-                                            const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ mode: this.agentMode }),
-                                            });
-                                            const data = await res.json();
-                                            if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
-                                            store.track([{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }], { entityLabel: 'reclamación' });
-                                        } catch (e) { store.fail('Error de red.'); }
-                                    }
-                                 }">
-
-                                {% if complaintFormUrl %}
-                                    <button type="button"
-                                            class="btn btn-accent btn-sm"
-                                            @click="openAgentModal = true">
-                                        <i data-lucide="bot" class="w-4 h-4 mr-1.5"></i>
-                                        Presentar con el agente
-                                    </button>
-                                    <button type="button"
-                                            class="btn btn-secondary btn-sm"
-                                            onclick="window.open({{ complaintFormUrl|json_encode|raw }}, '_blank', 'noopener,noreferrer'); document.getElementById('complaint-pdf-download-{{ doc.id }}').click();">
-                                        <i data-lucide="upload-cloud" class="w-4 h-4 mr-1.5"></i>
-                                        Iniciar manual
-                                    </button>
-                                    <a id="complaint-pdf-download-{{ doc.id }}"
-                                       href="{{ path('app_complaint_pdf', {id: request.id}) }}"
-                                       class="hidden"
-                                       download></a>
+                            <div class="pieza-cuerpo">
+                                {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                                    <p class="pieza-intro">Puntos clave de la respuesta:</p>
+                                    <ol class="exp-puntos exp-puntos--{{ responseTone }}">
+                                        {% for point in doc.aiMetadata.keyPoints %}
+                                            <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
+                                        {% endfor %}
+                                    </ol>
+                                {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                                    <p class="text-sm text-slate-600">{{ doc.aiMetadata.summary }}</p>
                                 {% endif %}
-                                <a href="{{ path('app_complaint_pdf', {id: request.id}) }}" class="btn btn-secondary btn-sm">
-                                    <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
-                                    Descargar PDF
+                                {% if doc.aiMetadata.denialReason is defined and doc.aiMetadata.denialReason %}
+                                    <div class="pieza-nota-roja">
+                                        <b>Motivo de denegación</b>
+                                        <span>{{ doc.aiMetadata.denialReason }}</span>
+                                    </div>
+                                {% endif %}
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
                                 </a>
-                                <a href="{{ path('app_complaint_word', {id: request.id}) }}" class="btn btn-secondary btn-sm">
-                                    <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
-                                    Descargar Word
+                            </div>
+                        </article>
+
+                    {% elseif doc.type.value == 'complaint' %}
+                        {% set complaintCount = complaintCount + 1 %}
+                        {% set complaintFiled = request.complaint is not null and request.complaint.filedAt is not null %}
+                        {% set editRoute = (doc.aiMetadata.origin|default('ai')) == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
+                        {% if complaintFiled %}
+                            {# Reclamación ya presentada: el borrador deja de ser la pieza activa, se muestra como referencia secundaria. #}
+                            <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 flex items-center gap-3">
+                                <i data-lucide="pen-line" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-slate-600 truncate">
+                                        {% if complaintCount == 1 %}
+                                            Borrador de la reclamación
+                                        {% else %}
+                                            Borrador de la ampliación
+                                        {% endif %}
+                                        <span class="ml-1 text-xs text-slate-400 font-normal">· {{ docDate|date('d/m/Y') }}</span>
+                                    </p>
+                                </div>
+                                <a href="{{ path('app_complaint_pdf', {id: request.id}) }}"
+                                   class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+                                   title="Descargar PDF del borrador">
+                                    <i data-lucide="file-down" class="w-3.5 h-3.5"></i>
+                                    PDF
                                 </a>
-                                <a href="{{ path(editRoute, {id: request.id}) }}" class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
-                                    <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
-                                    Editar
+                                <a href="{{ path(editRoute, {id: request.id}) }}"
+                                   class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1"
+                                   title="Ver el borrador">
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                    Ver
                                 </a>
-                                {# Modo modal — Alpine controlled #}
-                                <div x-show="openAgentModal" x-cloak
-                                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-                                     @keydown.escape.window="openAgentModal = false">
-                                    <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="openAgentModal = false">
-                                        <h3 class="font-semibold text-slate-800 mb-2">Presentar con el agente</h3>
-                                        <p class="text-sm text-slate-600 mb-4">Elige cómo quieres que el agente proceda en la sede del Consejo:</p>
+                            </div>
+                        {% else %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--aviso"><i data-lucide="scale"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">
+                                        {% if complaintCount == 1 %}
+                                            Reclamación ante el {{ organismName }}
+                                        {% else %}
+                                            Ampliación de la reclamación ante el {{ organismName }}
+                                        {% endif %}
+                                    </h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
+                                </div>
+                                <span class="badge badge-warning">Borrador</span>
+                            </div>
+                            <div class="pieza-cuerpo">
+                                {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                                    <p class="pieza-intro">Argumentos principales de la reclamación:</p>
+                                    <ol class="exp-puntos exp-puntos--ambar">
+                                        {% for point in doc.aiMetadata.keyPoints %}
+                                            <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
+                                        {% endfor %}
+                                    </ol>
+                                {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                                    <p class="text-sm text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                                {% endif %}
+                                {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
+                                    <div class="mt-3">
+                                        <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
+                                        <ul class="space-y-2">
+                                            {% for res in doc.aiMetadata.citedResolutions %}
+                                                <li class="text-sm text-slate-600 flex items-start gap-2">
+                                                    <i data-lucide="bookmark" class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5"></i>
+                                                    <span>
+                                                        <strong>{{ res.reference }}</strong>
+                                                        {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
+                                                        {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
+                                                    </span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                                {# Use the body-level-aware getter so AGE requests get the state CTBG form, not the autonomic one. #}
+                                {% set complaintFormUrl = request.applicableLaw.complaintOrganism ? request.applicableLaw.complaintOrganism.complaintFormUrlFor(request) : null %}
+                                <div class="pieza-acciones"
+                                     x-data="{
+                                        openAgentModal: false,
+                                        agentMode: 'supervised',
+                                        async presentNow() {
+                                            const store = this.$store.agentPresent;
+                                            if (store.busy) return;
+                                            this.openAgentModal = false;
+                                            store.open('reclamación');
+                                            try {
+                                                const res = await fetch('{{ path('app_complaint_present_via_agent', {id: request.id}) }}', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ mode: this.agentMode }),
+                                                });
+                                                const data = await res.json();
+                                                if (!res.ok) { store.fail(data.error || 'No se pudo encolar la tarea.'); return; }
+                                                store.track([{ id: data.taskId, statusUrl: data.statusUrl, schemeUrl: data.schemeUrl }], { entityLabel: 'reclamación' });
+                                            } catch (e) { store.fail('Error de red.'); }
+                                        }
+                                     }">
 
-                                        <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-2 cursor-pointer hover:border-primary-400">
-                                            <input type="radio" name="agent-mode" value="supervised" x-model="agentMode" class="mt-1">
-                                            <span>
-                                                <span class="block font-medium text-slate-800">Supervisado</span>
-                                                <span class="block text-xs text-slate-500">El agente rellena el formulario; tú revisas y pulsas «Enviar».</span>
-                                            </span>
-                                        </label>
+                                    {% if complaintFormUrl %}
+                                        <button type="button"
+                                                class="btn btn-accent btn-sm"
+                                                @click="openAgentModal = true">
+                                            <i data-lucide="bot" class="w-4 h-4 mr-1.5"></i>
+                                            Presentar con el agente
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-secondary btn-sm"
+                                                onclick="window.open({{ complaintFormUrl|json_encode|raw }}, '_blank', 'noopener,noreferrer'); document.getElementById('complaint-pdf-download-{{ doc.id }}').click();">
+                                            <i data-lucide="upload-cloud" class="w-4 h-4 mr-1.5"></i>
+                                            Iniciar manual
+                                        </button>
+                                        <a id="complaint-pdf-download-{{ doc.id }}"
+                                           href="{{ path('app_complaint_pdf', {id: request.id}) }}"
+                                           class="hidden"
+                                           download></a>
+                                    {% endif %}
+                                    <a href="{{ path('app_complaint_pdf', {id: request.id}) }}" class="btn btn-secondary btn-sm">
+                                        <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
+                                        PDF
+                                    </a>
+                                    <a href="{{ path('app_complaint_word', {id: request.id}) }}" class="btn btn-secondary btn-sm">
+                                        <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
+                                        Word
+                                    </a>
+                                    <a href="{{ path(editRoute, {id: request.id}) }}" class="text-xs text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+                                        <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
+                                        Editar
+                                    </a>
+                                    {# Modo modal — Alpine controlled. x-teleport al <body>: los
+                                       ancestros animados (.rise, fill both) son containing block
+                                       de position:fixed y atraparían el overlay. #}
+                                    <template x-teleport="body">
+                                    <div x-show="openAgentModal" x-cloak
+                                         class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+                                         style="display: none;"
+                                         @keydown.escape.window="openAgentModal = false">
+                                        <div class="bg-white rounded-xl shadow-xl max-w-md w-full p-6" @click.outside="openAgentModal = false">
+                                            <h3 class="font-semibold text-slate-800 mb-2">Presentar con el agente</h3>
+                                            <p class="text-sm text-slate-600 mb-4">Elige cómo quieres que el agente proceda en la sede del Consejo:</p>
 
-                                        <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-4 cursor-pointer hover:border-primary-400">
-                                            <input type="radio" name="agent-mode" value="auto" x-model="agentMode" class="mt-1">
-                                            <span>
-                                                <span class="block font-medium text-slate-800">Automático</span>
-                                                <span class="block text-xs text-slate-500">El agente envía la reclamación por ti, sin intervención adicional.</span>
-                                            </span>
-                                        </label>
+                                            <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-2 cursor-pointer hover:border-primary-400">
+                                                <input type="radio" name="agent-mode" value="supervised" x-model="agentMode" class="mt-1">
+                                                <span>
+                                                    <span class="block font-medium text-slate-800">Supervisado</span>
+                                                    <span class="block text-xs text-slate-500">El agente rellena el formulario; tú revisas y pulsas «Enviar».</span>
+                                                </span>
+                                            </label>
 
-                                        <div class="flex justify-end gap-2">
-                                            <button type="button" class="btn btn-ghost btn-sm" @click="openAgentModal = false">Cancelar</button>
-                                            <button type="button" class="btn btn-accent btn-sm"
-                                                    @click="presentNow()">
-                                                Lanzar agente
-                                            </button>
+                                            <label class="flex items-start gap-3 p-3 rounded-lg border border-slate-200 mb-4 cursor-pointer hover:border-primary-400">
+                                                <input type="radio" name="agent-mode" value="auto" x-model="agentMode" class="mt-1">
+                                                <span>
+                                                    <span class="block font-medium text-slate-800">Automático</span>
+                                                    <span class="block text-xs text-slate-500">El agente envía la reclamación por ti, sin intervención adicional.</span>
+                                                </span>
+                                            </label>
+
+                                            <div class="flex justify-end gap-2">
+                                                <button type="button" class="btn btn-ghost btn-sm" @click="openAgentModal = false">Cancelar</button>
+                                                <button type="button" class="btn btn-accent btn-sm"
+                                                        @click="presentNow()">
+                                                    Lanzar agente
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
+                                    </template>
+                                </div>
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
+                                </a>
+                            </div>
+                        </article>
+                        {% endif %}
+
+                    {% elseif doc.type.value == 'alegaciones' %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--fallo"><i data-lucide="shield-alert"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">Alegaciones de la administración</h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
                                 </div>
                             </div>
-                        {% endif %}
-                        <div class="mt-3 pt-3 border-t border-slate-100">
-                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                {{ doc.originalFilename }}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
-
-            {% elseif doc.type.value == 'alegaciones' %}
-                <div class="alert-banner" style="border-color: #fca5a5">
-                    <div class="alert-banner-stripe" style="background: #ef4444"></div>
-                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                        <div class="alert-banner-icon bg-red-100 text-red-600">
-                            <i data-lucide="shield-alert" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">Alegaciones de la administración</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5 pt-3">
-                        <p class="text-sm text-slate-500 mb-4">Argumentos principales presentados por la Administración en su defensa:</p>
-                        <ol class="space-y-3">
-                            {% for point in doc.aiMetadata.alegationPoints %}
-                                <li class="flex items-start gap-3">
-                                    <span class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                    <span class="text-slate-700">{{ point }}</span>
-                                </li>
-                            {% endfor %}
-                        </ol>
-                        <div class="mt-3 pt-3 border-t border-slate-100">
-                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                {{ doc.originalFilename }}
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-            {% elseif doc.type.value == 'alegation_response' %}
-                <div class="alert-banner alert-banner-blue">
-                    <div class="alert-banner-stripe"></div>
-                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                        <div class="alert-banner-icon bg-blue-100 text-blue-600">
-                            <i data-lucide="reply" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">Respuesta a las alegaciones</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5 pt-3">
-                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
-                            <p class="text-sm text-slate-500 mb-4">Contraargumentos principales:</p>
-                            <ol class="space-y-3">
-                                {% for point in doc.aiMetadata.keyPoints %}
-                                    <li class="flex items-start gap-3">
-                                        <span class="flex-shrink-0 w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                        <span class="text-slate-700">{{ point }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ol>
-                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
-                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
-                        {% endif %}
-                        {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
-                            <div class="mt-3">
-                                <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
-                                <ul class="space-y-2">
-                                    {% for res in doc.aiMetadata.citedResolutions %}
-                                        <li class="text-sm text-slate-600 flex items-start gap-2">
-                                            <i data-lucide="bookmark" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
-                                            <span>
-                                                <strong>{{ res.reference }}</strong>
-                                                {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
-                                                {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
-                                            </span>
-                                        </li>
+                            <div class="pieza-cuerpo">
+                                <p class="pieza-intro">Argumentos principales presentados por la Administración en su defensa:</p>
+                                <ol class="exp-puntos exp-puntos--fallo">
+                                    {% for point in doc.aiMetadata.alegationPoints %}
+                                        <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
                                     {% endfor %}
-                                </ul>
+                                </ol>
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
+                                </a>
                             </div>
-                        {% endif %}
-                        <div class="mt-3 pt-3 border-t border-slate-100">
-                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                {{ doc.originalFilename }}
-                            </a>
-                        </div>
-                    </div>
-                </div>
+                        </article>
 
-            {% elseif doc.type.value == 'complaint_resolution' %}
-                {% set resolutionStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
-                <div class="alert-banner {% if resolutionStatus == 'concedida' %}alert-banner-emerald{% elseif resolutionStatus == 'denegada' %}alert-banner-amber{% else %}alert-banner-blue{% endif %}">
-                    <div class="alert-banner-stripe"></div>
-                    <div class="px-5 pt-4 pb-1 flex items-center gap-3">
-                        <div class="alert-banner-icon {% if resolutionStatus == 'concedida' %}bg-emerald-100 text-emerald-600{% elseif resolutionStatus == 'denegada' %}bg-red-100 text-red-600{% else %}bg-slate-100 text-slate-600{% endif %}">
-                            <i data-lucide="landmark" class="w-5 h-5"></i>
-                        </div>
-                        <div>
-                            <h2 class="font-semibold text-slate-800">Resolución del {{ organismName }}</h2>
-                            <p class="text-xs text-slate-400 mt-0.5">{{ docDate|date('d/m/Y') }}</p>
-                        </div>
-                    </div>
-                    <div class="px-5 pb-5 pt-3">
-                        {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
-                            <p class="text-sm text-slate-500 mb-4">Fundamentos principales de la resolución:</p>
-                            <ol class="space-y-3">
-                                {% for point in doc.aiMetadata.keyPoints %}
-                                    <li class="flex items-start gap-3">
-                                        <span class="flex-shrink-0 w-6 h-6 rounded-full {% if resolutionStatus == 'concedida' %}bg-emerald-100 text-emerald-700{% elseif resolutionStatus == 'denegada' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-700{% endif %} text-xs font-bold flex items-center justify-center mt-0.5">{{ loop.index }}</span>
-                                        <span class="text-slate-700">{{ point }}</span>
-                                    </li>
-                                {% endfor %}
-                            </ol>
-                        {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
-                            <p class="text-slate-600">{{ doc.aiMetadata.summary }}</p>
-                        {% endif %}
-                        <div class="mt-3 pt-3 border-t border-slate-100">
-                            <a href="{{ path('app_document_download', {id: doc.id}) }}" class="text-xs text-slate-400 hover:text-primary-600 transition-colors flex items-center gap-1">
-                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
-                                {{ doc.originalFilename }}
+                    {% elseif doc.type.value == 'alegation_response' %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--curso"><i data-lucide="reply"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">Respuesta a las alegaciones</h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
+                                </div>
+                            </div>
+                            <div class="pieza-cuerpo">
+                                {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                                    <p class="pieza-intro">Contraargumentos principales:</p>
+                                    <ol class="exp-puntos exp-puntos--curso">
+                                        {% for point in doc.aiMetadata.keyPoints %}
+                                            <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
+                                        {% endfor %}
+                                    </ol>
+                                {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                                    <p class="text-sm text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                                {% endif %}
+                                {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
+                                    <div class="mt-3">
+                                        <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
+                                        <ul class="space-y-2">
+                                            {% for res in doc.aiMetadata.citedResolutions %}
+                                                <li class="text-sm text-slate-600 flex items-start gap-2">
+                                                    <i data-lucide="bookmark" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
+                                                    <span>
+                                                        <strong>{{ res.reference }}</strong>
+                                                        {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
+                                                        {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
+                                                    </span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
+                                </a>
+                            </div>
+                        </article>
+
+                    {% elseif doc.type.value == 'complaint_resolution' %}
+                        {% set resolutionStatus = doc.aiMetadata.status is defined ? doc.aiMetadata.status : null %}
+                        {% set resolutionTone = resolutionStatus == 'concedida' ? 'exito' : (resolutionStatus == 'denegada' ? 'fallo' : 'curso') %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--{{ resolutionTone }}"><i data-lucide="landmark"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">Resolución del {{ organismName }}</h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
+                                </div>
+                                {% if resolutionStatus == 'concedida' %}
+                                    <span class="badge badge-success">Estimada</span>
+                                {% elseif resolutionStatus == 'denegada' %}
+                                    <span class="badge badge-danger">Desestimada</span>
+                                {% endif %}
+                            </div>
+                            <div class="pieza-cuerpo">
+                                {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                                    <p class="pieza-intro">Fundamentos principales de la resolución:</p>
+                                    <ol class="exp-puntos exp-puntos--{{ resolutionTone }}">
+                                        {% for point in doc.aiMetadata.keyPoints %}
+                                            <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
+                                        {% endfor %}
+                                    </ol>
+                                {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                                    <p class="text-sm text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                                {% endif %}
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
+                                </a>
+                            </div>
+                        </article>
+                    {% endif %}
+                {% endfor %}
+
+                {# Pieza pendiente: tus alegaciones al trámite de audiencia #}
+                {% if pendingHearingPiece %}
+                    {% set hearing = request.complaint.activeHearingProcess %}
+                    <article class="exp-hoja pieza--pendiente">
+                        <div class="pieza-cab" style="padding-bottom: .85rem;">
+                            <span class="panel-icono panel-icono--aviso"><i data-lucide="message-square-reply"></i></span>
+                            <div class="min-w-0 flex-1">
+                                <h2 class="pieza-titulo">Tus alegaciones al trámite de audiencia</h2>
+                                <p class="pieza-fecha">pendiente — hasta el {{ hearing.endDate|date('d/m/Y') }}</p>
+                            </div>
+                            <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-accent btn-sm">
+                                <i data-lucide="pen-line" class="w-3.5 h-3.5 mr-1.5"></i>
+                                Redactar
                             </a>
                         </div>
-                    </div>
-                </div>
-            {% endif %}
-        {% endfor %}
+                    </article>
+                {% endif %}
+            </div>
+        </section>
         {% include '_partials/_agent_present_modal.html.twig' %}
-        {% if summaryBlocks|length > 0 %}
-            </section>
-        {% endif %}
 
-        {# Chapter — Documentos #}
+        {# ── Documentos ── #}
         {% set pendingDocs = 0 %}
         {% for doc in request.documents %}
             {% if not doc.processed %}{% set pendingDocs = pendingDocs + 1 %}{% endif %}
         {% endfor %}
-        {% set s = s + 1 %}
         <section>
-            <div class="chapter-label">
-                <span class="chapter-num">§ {{ romans[s] }}</span>
-                <span class="chapter-name">Documentos</span>
-                <span class="chapter-rule"></span>
-                <span class="chapter-aside">
+            <div class="exp-seccion">
+                <span class="exp-seccion-nombre">Documentos</span>
+                <span class="exp-seccion-filete"></span>
+                <span class="exp-seccion-nota">
                     {% if pendingDocs > 0 %}
-                        <span class="pending-dot" aria-hidden="true"></span>
+                        <span class="pendiente-dot" aria-hidden="true"></span>
                         {{ pendingDocs }} procesando ·
                     {% endif %}
                     {{ request.documents|length }} adjunto{{ request.documents|length != 1 ? 's' : '' }}
                 </span>
             </div>
-            <div class="doc-card"
+            <div class="exp-hoja"
                  data-controller="file-uploader"
                  data-file-uploader-url-value="{{ path('app_document_upload') }}"
                  data-file-uploader-access-request-id-value="{{ request.id }}"
                  data-file-uploader-documents-fragment-url-value="{{ path('app_solicitudes_documents_fragment', {id: request.id}) }}">
-                <div class="doc-card-body">
+                <div class="exp-hoja-cuerpo">
                 <div data-file-uploader-target="status"></div>
 
-                {# Dropzone — flush inline bar, no nested card #}
-                <label class="docs-dropzone"
+                {# Dropzone #}
+                <label class="exp-drop"
                        data-file-uploader-target="dropzone"
                        data-action="dragover->file-uploader#dragOver dragleave->file-uploader#dragLeave drop->file-uploader#drop click->file-uploader#clickToUpload">
-                    <span class="docs-dropzone-icon">
-                        <i data-lucide="cloud-upload" class="w-4 h-4"></i>
-                    </span>
-                    <div class="docs-dropzone-text">
-                        <p class="docs-dropzone-headline">Arrastra archivos aquí o haz clic para añadir</p>
-                        <p class="docs-dropzone-sub">PDF, Word, imágenes o ZIP · máximo 50&nbsp;MB</p>
-                    </div>
-                    <span class="docs-dropzone-cta">
-                        <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
-                        Seleccionar
+                    <i data-lucide="cloud-upload" class="w-4 h-4 flex-shrink-0"></i>
+                    <span>Arrastra archivos aquí o haz clic para añadir
+                        <span class="sub">PDF, Word, imágenes o ZIP · máximo 50&nbsp;MB</span>
                     </span>
                     <input type="file" class="hidden" multiple
                            accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.zip"
@@ -1878,9 +1467,9 @@
                 <div data-file-uploader-target="preview" class="mt-3 space-y-2"></div>
 
                 {# Footer actions — discreet text-links #}
-                <div class="docs-footer">
+                <div class="exp-doc-pie">
                     {% if request.documents|length > 0 %}
-                        <a href="{{ path('app_document_download_all', {id: request.id}) }}" class="docs-footer-link">
+                        <a href="{{ path('app_document_download_all', {id: request.id}) }}" class="exp-doc-pie-enlace">
                             <i data-lucide="archive" class="w-3.5 h-3.5"></i>
                             Descargar todo (.zip)
                         </a>
@@ -1888,7 +1477,7 @@
                         <span></span>
                     {% endif %}
                     <button type="button"
-                            class="docs-footer-link"
+                            class="exp-doc-pie-enlace"
                             onclick="document.getElementById('importOrphanModal').classList.remove('hidden')">
                         <i data-lucide="link" class="w-3.5 h-3.5"></i>
                         Importar documento sin asignar
@@ -1897,36 +1486,56 @@
                 </div>
             </div>
         </section>
-
-        {# Chapter — Cronología #}
-        {% set s = s + 1 %}
-        <section>
-            <div class="chapter-label">
-                <span class="chapter-num">§ {{ romans[s] }}</span>
-                <span class="chapter-name">Cronología</span>
-                <span class="chapter-rule"></span>
-                <span class="chapter-aside">Historial completo del expediente</span>
-            </div>
-            {{ component('RequestTimeline', {request: request}) }}
-        </section>
     </div>
 
-    <div class="lg:col-span-1 rise rise-5">
-        <aside class="dossier-aside">
+    {# ── Lateral: la ficha registral y, debajo, la cronología ── #}
+    <div class="lg:col-span-1 rise rise-5 space-y-5">
+        <aside class="exp-hoja">
+            <div class="ficha-bloque ficha-bloque--primero">
+                <p class="ficha-rotulo">Ficha</p>
+                <div class="ficha-fila">
+                    <span class="ficha-clave">Nº solicitud</span>
+                    {% if request.externalId %}
+                        <button type="button" class="ficha-valor hcarta-ref" style="text-align: right;"
+                                onclick="navigator.clipboard.writeText('{{ request.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                                title="Copiar nº expediente">
+                            {{ request.externalId }}
+                            <i data-lucide="copy" class="w-3 h-3 opacity-50"></i>
+                            <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                        </button>
+                    {% else %}
+                        <span class="ficha-valor">—</span>
+                    {% endif %}
+                </div>
+                {% if request.complaint and request.complaint.externalId %}
+                    <div class="ficha-fila">
+                        <span class="ficha-clave">Nº reclamación</span>
+                        <button type="button" class="ficha-valor hcarta-ref hcarta-ref--recl" style="text-align: right;"
+                                onclick="navigator.clipboard.writeText('{{ request.complaint.externalId|e('js') }}'); this.querySelector('.copy-ok').classList.remove('hidden'); setTimeout(() => this.querySelector('.copy-ok').classList.add('hidden'), 1500)"
+                                title="Copiar nº expediente reclamación">
+                            {{ request.complaint.externalId }}
+                            <i data-lucide="copy" class="w-3 h-3 opacity-50"></i>
+                            <i data-lucide="check" class="w-3 h-3 text-emerald-500 copy-ok hidden"></i>
+                        </button>
+                    </div>
+                {% endif %}
+                <div class="ficha-fila">
+                    <span class="ficha-clave">Ley aplicable</span>
+                    <span class="ficha-valor es-ui" title="{{ request.applicableLaw.name }}">{{ request.applicableLaw.name|u.truncate(28, '…') }}</span>
+                </div>
+            </div>
+
             {{ component('RequestStatusSidebar', {request: request}) }}
             {{ component('RequestListsSidebar', {request: request}) }}
 
             {% if app.user.virtualEmail %}
-                <div class="aside-block" data-controller="clipboard">
-                    <div class="aside-heading">
-                        <span class="aside-heading-name">Email virtual</span>
-                        <span class="aside-heading-rule"></span>
-                    </div>
-                    <p class="aside-note" style="margin-top: 0; margin-bottom: .35rem;">
+                <div class="ficha-bloque" data-controller="clipboard">
+                    <p class="ficha-rotulo">Email virtual</p>
+                    <p class="ficha-nota" style="margin: 0 0 .35rem;">
                         Reenvía aquí los correos de esta administración.
                     </p>
                     <button type="button"
-                            class="aside-mail"
+                            class="ficha-mail"
                             data-action="click->clipboard#copy"
                             data-clipboard-target="button"
                             title="Copiar email virtual">
@@ -1936,11 +1545,7 @@
                 </div>
             {% endif %}
 
-            <div class="aside-block">
-                <div class="aside-heading">
-                    <span class="aside-heading-name">Acciones</span>
-                    <span class="aside-heading-rule"></span>
-                </div>
+            <div class="ficha-bloque">
                 {# Mirror of ComplaintGenerator::canGenerateComplaint() — keep in sync.
                    Also surfaced for total grants so the citizen can claim that the
                    information was never actually delivered despite the nominal "yes". #}
@@ -1950,7 +1555,7 @@
                     or (request.isDeadlinePassed and request.status not in ['granted', 'granted_completed'])
                 ) %}
                 {% if canReclaim %}
-                    <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="aside-link">
+                    <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="ficha-enlace">
                         <i data-lucide="gavel" class="w-3.5 h-3.5"></i>
                         {% if request.complaintDraftDocument %}
                             Continuar reclamación
@@ -1959,20 +1564,27 @@
                         {% endif %}
                     </a>
                 {% endif %}
-                <a href="#" class="aside-link">
+                <a href="#" class="ficha-enlace">
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
                     Exportar historial
                 </a>
                 <form action="{{ path('app_solicitudes_delete', {id: request.id}) }}"
                       method="post"
-                      class="aside-action-form"
+                      class="ficha-accion-form"
                       onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta solicitud? Esta acción no se puede deshacer.');">
                     <input type="hidden" name="_token" value="{{ csrf_token('delete-request-' ~ request.id) }}">
-                    <button type="submit" class="aside-link is-danger">
+                    <button type="submit" class="ficha-enlace peligro">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                         Eliminar solicitud
                     </button>
                 </form>
+            </div>
+        </aside>
+
+        <aside class="exp-hoja">
+            <div class="ficha-bloque ficha-bloque--primero">
+                <p class="ficha-rotulo">Cronología</p>
+                {{ component('RequestTimeline', {request: request}) }}
             </div>
         </aside>
     </div>
@@ -2216,4 +1828,43 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 </script>
+
+{# ── Chat de consulta libre: FAB flotante + diálogo maximizable ─────────────
+   Alpine sólo gobierna la carcasa (visibilidad/tamaño); dentro vive el
+   controlador Stimulus `assistant-chat` (sólo streaming). Estados disjuntos. #}
+<div class="consult-fab-shell" x-data="{ open: false, maximized: false }" @keydown.escape.window="open = false">
+    <button type="button" class="consult-fab" @click="open = true" x-show="!open" x-cloak
+            title="Consulta libre y redacción de escritos" aria-label="Abrir chat de consulta">
+        <i data-lucide="sparkles" class="w-6 h-6"></i>
+    </button>
+
+    <div class="consult-dialog-backdrop" :class="{ 'is-max': maximized }" x-show="open" x-cloak @click.self="open = false">
+        <div class="consult-dialog" :class="{ 'is-max': maximized }">
+            <header class="consult-dialog-head">
+                <div class="consult-dialog-title">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Consulta y redacción</span>
+                </div>
+                <div class="consult-dialog-actions">
+                    <button type="button" class="consult-dialog-btn" @click="maximized = !maximized"
+                            :title="maximized ? 'Restaurar' : 'Maximizar'" aria-label="Maximizar o restaurar">
+                        <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    </button>
+                    <button type="button" class="consult-dialog-btn" @click="open = false" title="Cerrar" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </header>
+            <div class="consult-dialog-body">
+                {% include 'asistente/_chat_column.html.twig' with {
+                    flow: 'consult',
+                    endpointUrl: path('app_assistant_chat_consult', {id: request.id}),
+                    request: request,
+                    chatHistory: consultChatHistory|default([]),
+                } %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

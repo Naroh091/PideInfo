@@ -15,6 +15,7 @@ use App\Observability\Tracer;
 use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
 use App\Service\AI\CriteriaRetriever;
+use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
@@ -37,6 +38,7 @@ final class ComplaintGenerator
         private readonly Tracer $tracer,
         private readonly PromptStore $promptStore,
         private readonly DocumentEmbeddingsRetriever $documentEmbeddingsRetriever,
+        private readonly DoctrinePriorityResolver $doctrinePriority,
     ) {
     }
 
@@ -51,18 +53,22 @@ final class ComplaintGenerator
     private function retrieveCriteriaAndResolutions(AccessRequest $accessRequest, int $criteriaTopK = 5, int $resolutionsTopK = 3): array
     {
         $vectors = $this->documentEmbeddingsRetriever->loadVectorsForRequest($accessRequest);
+        $priorityOrganismIds = $this->doctrinePriority->priorityOrganismIdsFor($accessRequest);
+
+        // Built up front: the vector path also needs it, as the text for the BM25
+        // arm of the hybrid retrieval (the chunk vectors carry no lexical query).
+        $contextQuery = $this->buildContextQuery($accessRequest);
 
         if ($vectors !== []) {
             return [
-                $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK),
-                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK),
+                $this->criteriaRetriever->retrieveByVectors($vectors, $criteriaTopK, $priorityOrganismIds),
+                $this->resolutionRetriever->retrieveSimilarCasesByVectors($vectors, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds, lexicalQuery: $contextQuery),
             ];
         }
 
-        $contextQuery = $this->buildContextQuery($accessRequest);
         return [
-            $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK),
-            $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK),
+            $this->criteriaRetriever->retrieve($contextQuery, $criteriaTopK, $priorityOrganismIds),
+            $this->resolutionRetriever->retrieveSimilarCases($contextQuery, $resolutionsTopK, ['favorable', 'partial'], $priorityOrganismIds),
         ];
     }
 
@@ -287,6 +293,10 @@ final class ComplaintGenerator
      */
     public function saveComplaint(AccessRequest $accessRequest, ComplaintDraft $draft, array $extraMetadata = []): Document
     {
+        if ($accessRequest->getUser() === null) {
+            throw new \LogicException('Anonymous drafts cannot persist complaint documents; claim the request first.');
+        }
+
         // Reuse the existing HTML draft if the user is editing one. Each save
         // used to create a new Document, leaving stale rows behind that
         // confused both the reopen-editor lookup and the docs list.
@@ -973,6 +983,10 @@ GRANTED_PENDING;
 
     public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft): Document
     {
+        if ($accessRequest->getUser() === null) {
+            throw new \LogicException('Anonymous drafts cannot persist alegation-response documents; claim the request first.');
+        }
+
         $filename = sprintf(
             'respuesta_alegaciones_%s_%s.txt',
             $accessRequest->getId()->toRfc4122(),

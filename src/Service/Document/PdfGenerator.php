@@ -2,7 +2,6 @@
 
 namespace App\Service\Document;
 
-use App\DTO\ComplaintDraft;
 use App\Entity\AccessRequest;
 use Dompdf\Dompdf;
 use Dompdf\Options;
@@ -18,11 +17,15 @@ final class PdfGenerator
     ) {
     }
 
-    public function generateComplaintPdf(AccessRequest $accessRequest, ComplaintDraft $draft): string
+    /**
+     * @param list<array{num: int, label: string, url: ?string}> $footnotes
+     */
+    public function generateComplaintPdf(AccessRequest $accessRequest, string $contentHtml, array $footnotes = []): string
     {
         $html = $this->twig->render('complaint/_pdf.html.twig', [
             'accessRequest' => $accessRequest,
-            'draft' => $draft,
+            'content_html' => $contentHtml,
+            'footnotes' => $footnotes,
         ]);
 
         return $this->renderPdf($html);

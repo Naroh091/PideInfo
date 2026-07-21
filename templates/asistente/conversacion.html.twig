@@ -1,19 +1,40 @@
-{% extends 'layouts/app.html.twig' %}
+{% extends (anonymous ?? false) ? 'layouts/public_page.html.twig' : 'layouts/app.html.twig' %}
 
 {# Página de conversación unificada para redactar solicitudes y
    reclamaciones/alegaciones: el chat con el asistente ES la página, y el
-   borrador vive dentro como hoja de papel editable (paper-sheet). Sustituye
-   al editor clásico (canvas + widget flotante); durante la migración se
-   activa con ?ui=chat desde AccessRequestController::draft y
-   ComplaintRedactController::index.
+   borrador vive dentro como hoja de papel editable (paper-sheet). Es la ÚNICA
+   plantilla de redacción: la renderizan AccessRequestController::draft (auten-
+   ticado) y AnonymousDraftController::draft (`anonymous: true`, /redactar); el
+   editor clásico (canvas + widget flotante) fue retirado.
 
    Contrato de variables:
      flow == 'request'  → request, siblings, batchId, chatHistory
      flow == 'complaint'→ request, mode, currentDraft, currentBodyHtml,
-                          chatHistory, availableDocuments, alegacionesDoc,
-                          existingDrafts #}
+                          chatHistory, alegacionesDoc, existingDrafts
+     anonymous (bool, opcional) → borrador sin dueño del flujo público
+                          /redactar: layout público, endpoints espejo de
+                          AnonymousDraftController, sin guardar/presentar,
+                          CTA de registro. #}
 
+{% set anonymous = anonymous|default(false) %}
 {% set isRequest = flow == 'request' %}
+
+{# Endpoints que consumen la hoja de papel y el informe: los autenticados por
+   defecto, o los espejos públicos de AnonymousDraftController. Un valor null
+   oculta la acción (paper-sheet no-opea con URL vacía). #}
+{% if isRequest %}
+    {% set autosaveUrl = anonymous ? path('app_public_redactar_autosave', {id: request.id}) : path('app_solicitudes_realizar_autosave', {id: request.id}) %}
+    {% set sheetPdfUrl = anonymous ? path('app_public_redactar_pdf', {id: request.id}) : path('app_solicitudes_realizar_pdf', {id: request.id}) %}
+    {% set similarUrl = anonymous ? path('app_public_redactar_similar', {id: request.id}) : path('app_solicitudes_realizar_similar', {id: request.id}) %}
+    {% set probabilityUrl = anonymous ? path('app_public_redactar_probability', {id: request.id}) : path('app_solicitudes_realizar_probability', {id: request.id}) %}
+    {% set sendUrl = anonymous ? path('app_public_redactar_send', {id: request.id}) : null %}
+{% else %}
+    {% set saveUrl = anonymous ? null : path('app_complaint_redactar_save', {id: request.id}) %}
+    {% set sheetPdfUrl = anonymous ? path('app_public_redactar_complaint_pdf', {id: request.id}) : path('app_complaint_download_pdf', {id: request.id}) %}
+    {% set presentUrl = anonymous ? null : path('app_complaint_present_via_agent', {id: request.id}) %}
+    {% set analyzeUrl = anonymous ? path('app_public_redactar_complaint_analyze', {id: request.id}) : path('app_complaint_analyze', {id: request.id}) %}
+    {% set sendUrl = anonymous ? path('app_public_redactar_complaint_send', {id: request.id}) : null %}
+{% endif %}
 {% if isRequest %}
     {% set batchId = batchId|default(null) %}
     {% set isMultiOrganism = (siblings|length) > 1 %}
@@ -34,17 +55,6 @@
 
 {% block title %}{{ pageTitle }}{% endblock %}
 
-{% block stylesheets %}
-    {{ parent() }}
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    {# Source Serif 4 para el cuerpo de la hoja — DM Serif Display es una
-       display face y fatiga en tamaños de cuerpo. #}
-    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
-    {% if not isRequest %}
-        <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.1.15/dist/trix.css">
-    {% endif %}
-{% endblock %}
 
 {% block content %}
 <div data-controller="assistant-chat"
@@ -55,11 +65,19 @@
          data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
      {% endif %}
      data-assistant-chat-flow-value="{{ flow }}"
-     data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}">
+     data-assistant-chat-anonymous-value="{{ anonymous ? 'true' : 'false' }}"
+     {% if anonymous %}data-assistant-chat-register-url-value="{{ path('app_register') }}"{% endif %}
+     data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}"
+     data-assistant-chat-created-at-value="{{ request.createdAt|date('c') }}"
+     data-assistant-chat-updated-at-value="{{ request.updatedAt|date('c') }}"
+     data-action="paper-sheet:saved->assistant-chat#onDraftSaved">
 
-    {% include '_partials/agent_required_banner.html.twig' %}
+    {% if not anonymous %}
+        {% include '_partials/agent_required_banner.html.twig' %}
+    {% endif %}
 
     {# ── Breadcrumb + cabecera ─────────────────────────────── #}
+    {% if not anonymous %}
     <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
         <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>
         <span class="text-slate-300">/</span>
@@ -73,6 +91,7 @@
             <span class="text-slate-800 font-medium">{{ isAlegation ? 'RESPUESTA A ALEGACIONES' : 'RECLAMACIÓN' }}</span>
         {% endif %}
     </nav>
+    {% endif %}
 
     <header class="draft-band">
         <div class="draft-band-row">
@@ -84,9 +103,13 @@
                 {% else %}
                     Reclama frente a
                 {% endif %}
-                <em>{{ request.publicBody.name|u.truncate(60, '…') }}</em>
+                <em>{{ request.publicBody.name }}</em>
             </h1>
-            {% if isRequest %}
+            {% if anonymous %}
+                <a href="{{ path('app_register') }}" class="ghost-link" title="Con una cuenta guardamos este borrador y te avisamos de los plazos">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Crea una cuenta para hacer seguimiento
+                </a>
+            {% elseif isRequest %}
                 <a href="{{ path('app_solicitudes_index') }}" class="ghost-link">
                     <i data-lucide="save" class="w-4 h-4"></i> Guardar y salir
                 </a>
@@ -101,7 +124,7 @@
     {% if isRequest and isMultiOrganism %}
         <nav class="draft-tabs" aria-label="Otros borradores del envío">
             {% for sib in siblings %}
-                <a href="{{ path('app_solicitudes_realizar_draft', {id: sib.id}) }}{{ newUi|default(false) ? '?ui=chat' : '' }}"
+                <a href="{{ path('app_solicitudes_realizar_draft', {id: sib.id}) }}"
                    class="draft-tab{% if sib.id == request.id %} is-current{% endif %}">
                     {{ sib.publicBody.name|u.truncate(40, '…') }}
                     {% if sib.title is empty and sib.description is empty %}
@@ -135,7 +158,7 @@
                 {% include 'asistente/_history.html.twig' %}
 
                 {% if hasDraft %}
-                    {% include 'asistente/_paper_sheet.html.twig' with {prefill: true} %}
+                    {% include 'asistente/_paper_sheet.html.twig' with {prefill: true, draftSources: request.getMetadataValue('cited_sources')} %}
                 {% endif %}
             </div>
 
@@ -149,7 +172,6 @@
     {% if not isRequest %}
         <input type="hidden" name="mode" value="{{ mode }}" data-assistant-chat-target="extra">
         <input type="hidden" name="currentBodyHtml" value="" data-assistant-chat-target="extra">
-        <input type="hidden" name="documentIds" value="" data-assistant-chat-target="extra">
     {% endif %}
 
     {# ── Plantillas que assistant-chat clona al vuelo ─────────── #}
@@ -161,9 +183,8 @@
     </template>
 </div>
 
-{% include '_partials/_agent_present_modal.html.twig' %}
-
-{% if not isRequest %}
-    <script type="text/javascript" src="https://unpkg.com/trix@2.1.15/dist/trix.umd.min.js"></script>
+{% if not anonymous %}
+    {% include '_partials/_agent_present_modal.html.twig' %}
 {% endif %}
+
 {% endblock %}

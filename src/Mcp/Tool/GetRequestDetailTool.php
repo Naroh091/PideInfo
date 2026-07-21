@@ -83,7 +83,7 @@ final class GetRequestDetailTool
 
     private function assertOwnership(AccessRequest $request, User $user): void
     {
-        if ($request->getUser()->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
+        if ($request->getUser()?->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
             return;
         }
 

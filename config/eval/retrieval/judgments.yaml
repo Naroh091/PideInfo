@@ -1,0 +1,3814 @@
+# Ground truth de evaluación de retrieval (judgments).
+# CANÓNICO: este fichero versionado es la fuente de verdad; Langfuse es solo espejo.
+# Generado/ampliado por app:retrieval:build-dataset — las ediciones manuales se
+# conservan (merge por id, gana lo existente). `relevant` son UUIDs del target.
+cases:
+  -
+    id: relations-34c735c77e
+    query: 'Acceso al coste total y detallado de programas especiales de Nochebuena, Campanadas y gala Feliz 2017'
+    source: relations
+    relevant:
+      - 019f5ae5-ae7c-74d2-b67d-b281745cbf9f
+      - 019f5ae5-ae7b-783a-9176-63d1f4b17b14
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0078/2017
+      graded: derived
+  -
+    id: relations-4cc7c0e104
+    query: 'Productividad de todos los funcionarios del Ministerio en el año 2015'
+    source: relations
+    relevant:
+      - 019f5ae5-ae5f-7c04-a458-64b4d659fcd9
+      - 019f5ae5-ae60-7890-b7cb-49c27dc378e7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0279/2016
+      graded: derived
+  -
+    id: relations-299f55eafb
+    query: 'Solicitud de copia de Nota Verbal remitida al Gobierno de Letonia sobre la anulación del Exequatur de un cónsul'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6c-7698-846f-47380ff0548a
+      - 019f5ae5-ae6b-7cd5-bda8-0c4fd639cfdc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0551/2016
+      graded: derived
+  -
+    id: relations-9abaf1fb60
+    query: 'Reclamación contra denegación de acceso a documentación extradicional remitida por Turquía al Ministerio de Justicia'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6c-7698-846f-47380ff0548a
+      - 019f5ae5-aea8-7a87-9feb-eede354f57c0
+      - 019f5ae5-aeaa-7901-b22d-fe84d06c272e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0521/2017
+      graded: derived
+  -
+    id: relations-d93db357fd
+    query: 'Acceso a la retribución anual bruta del personal directivo de la CRTVE en 2014 y 2015'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6a-775f-8fa0-1ff6537ca098
+      - 019f5ae5-ae69-78d4-85eb-242d450d55a8
+      - 019f5ae5-ae6b-72cd-bda8-0c4fd5c4e15f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0541/2016
+      graded: derived
+  -
+    id: relations-cc3575d041
+    query: 'Cuentas anuales e Informes de Auditorias de RTVE'
+    source: relations
+    relevant:
+      - 019f5ae5-ae59-761c-90a2-7b5a6c66994e
+      - 019f5ae5-ae5a-7045-bd74-996843f49d86
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0090/2016
+      graded: derived
+  -
+    id: relations-6a8ff2ca54
+    query: 'Acceso a información sobre contratos, gastos y personal de RTVE relativos a los Juegos Olímpicos de 2004, 2008, 2012 y 2016'
+    source: relations
+    relevant:
+      - 019f5ae5-ae71-7862-b502-6169e4e5f1fc
+      - 019f5ae5-ae72-7470-8002-720491b2d3e3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0535/2016
+      graded: derived
+  -
+    id: relations-bf0ac8cb00
+    query: 'Acceso a la información sobre campañas de publicidad institucional y presupuesto ejecutado del Ministerio de Defensa (2012-2015)'
+    source: relations
+    relevant:
+      - 019f5ae5-ae72-7f18-8002-720491cce1eb
+      - 019f5ae5-ae73-7bc4-8642-9cab8a85188f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0521/2016
+      graded: derived
+  -
+    id: relations-b8ef3d4d30
+    query: 'Gastos del programa de TVE "Campanadas de fin de año", por partidas'
+    source: relations
+    relevant:
+      - 019f5ae5-ae61-73b1-8644-85f03fefa8b7
+      - 019f5ae5-ae61-7e45-8644-85f040452cd9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0290/2016
+      graded: derived
+  -
+    id: relations-21886c3025
+    query: 'Datos sobre la demanda de determinados medicamentos'
+    source: relations
+    relevant:
+      - 019f5ae5-ae7d-7bcd-9372-9d6ed55f34c2
+      - 019f5ae5-ae7e-7608-8c98-e0ee4e703f6f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0058/2017
+      graded: derived
+  -
+    id: relations-3e2893ac1d
+    query: 'Permisos disfrutados por los internos del Centro Penitenciario de Sevilla'
+    source: relations
+    relevant:
+      - 019f5ae5-ae66-759f-bce6-6b0ac65a57b9
+      - 019f5ae5-ae67-70f2-bb54-89855c48e44c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0357/2016
+      graded: derived
+  -
+    id: relations-6a6bd899aa
+    query: 'Copia expediente actuaciones previas y resolución final'
+    source: relations
+    relevant:
+      - 019f5ae5-ae82-7c29-8ab7-7e3bf96ad642
+      - 019f5ae5-ae82-72b5-8ab7-7e3bf8b0da1e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0159/2017
+      graded: derived
+  -
+    id: relations-91f061c148
+    query: 'Copia de expediente sancionador abierto al Banco Popular Español'
+    source: relations
+    relevant:
+      - 019f5ae5-ae80-7133-801c-cd6ad263343a
+      - 019f5ae5-ae7f-7713-afd8-9ec61d40abaa
+      - 019f5ae5-ae80-79a7-801c-cd6ad2a8bf9c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0044/2017
+      graded: derived
+  -
+    id: relations-4077888380
+    query: 'Solicitud de información sobre la evolución de envases, dosis y costes del medicamento Truvada desde el año 2000'
+    source: relations
+    relevant:
+      - 019f5ae5-ae84-7629-83d3-9df10c155e7f
+      - 019f5ae5-ae85-7132-9853-3c1963f5ed22
+      - 019f5ae5-ae85-7ba2-9853-3c1964000e72
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0231/2017
+      graded: derived
+  -
+    id: relations-56bca0424b
+    query: 'Catálogo de puestos de Trabajo ocupados y vacantes en la AEAT de Valencia'
+    source: relations
+    relevant:
+      - 019f5ae5-ae87-71c4-818f-a95f95c8f76a
+      - 019f5ae5-ae86-7644-8e1e-82227d9d7167
+      - 019f5ae5-ae87-7b6c-818f-a95f9639514a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0246/2017
+      graded: derived
+  -
+    id: relations-c4533ee692
+    query: 'Acceso a las Actas del Consejo de Administración y a un Informe de la Abogacía del Estado'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6d-7030-9d56-f5e606fd46ee
+      - 019f5ae5-ae6d-78f0-9d56-f5e6078a3b0d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0505/2016
+      graded: derived
+  -
+    id: relations-0910ad4e5e
+    query: 'Solicitud de listado de campañas y presupuesto ejecutado del Ministerio de Sanidad, Servicios Sociales e Igualdad (2012-2015) y resultado favorable'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6e-71ae-9f00-02fe59b9e425
+      - 019f5ae5-ae6e-7bfa-9f00-02fe5a90e778
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0515/2016
+      graded: derived
+  -
+    id: relations-c23e04dc01
+    query: 'Acceso al expediente administrativo del concurso público para la adjudicación de licencias de televisión'
+    source: relations
+    relevant:
+      - 019f5ae5-ae8b-72a9-ae07-25a1389ac443
+      - 019f5ae5-ae8b-7da1-ae07-25a139483dd8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0262/2017
+      graded: derived
+  -
+    id: relations-78eae8b7ed
+    query: 'Solicitud de datos detallados sobre la inversión y planes de medios en publicidad institucional del Ministerio de Asuntos Exteriores y de Cooperación (2012-2015)'
+    source: relations
+    relevant:
+      - 019f5ae5-ae70-717f-9fb6-6cb38429077e
+      - 019f5ae5-ae70-7d37-9fb6-6cb3849cf837
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0517/2016
+      graded: derived
+  -
+    id: relations-4d6c3b6463
+    query: 'Reclamación sobre el acceso a un listado de correspondencia enviada y recibida en el Centro Penitenciario Madrid VI y sus números de registro'
+    source: relations
+    relevant:
+      - 019f5ae5-ae8f-7dba-8133-3299749db72e
+      - 019f5ae5-ae8e-7f3c-aa9d-658bc342cc33
+      - 019f5ae5-ae90-7a29-8f04-b834875da309
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0333/2017
+      graded: derived
+  -
+    id: relations-78a5ca7cbd
+    query: 'Acceso a planes de medios y presupuestos de publicidad institucional del Ministerio de Fomento (2012-2015)'
+    source: relations
+    relevant:
+      - 019f5ae5-ae74-77d9-853f-f7b598759abe
+      - 019f5ae5-ae75-7590-aa5e-e301799685cb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0522/2016
+      graded: derived
+  -
+    id: relations-4199934b32
+    query: 'Solicitud de acceso a documentación sobre la resolución de Banco Popular y estimación parcial de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-ae91-7816-902d-e676804a9dc0
+      - 019f5ae5-ae92-7788-b97a-2aa4a4c44da0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0375/2017
+      graded: derived
+  -
+    id: relations-65dc9e2cb2
+    query: 'Copia de resoluciones sancionadoras al Banco Popular'
+    source: relations
+    relevant:
+      - 019f5ae5-ae94-731a-baba-3bc32e4c198c
+      - 019f5ae5-ae93-7712-9181-2cd25e758c5a
+      - 019f5ae5-ae94-7dba-baba-3bc32f06916c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0298/2017
+      graded: derived
+  -
+    id: relations-d85ae39573
+    query: 'Acceso a actas y documentos de las reuniones del Consejo del EMBL'
+    source: relations
+    relevant:
+      - 019f5ae5-ae79-7844-8141-0a1f108b6ff5
+      - 019f5ae5-ae7a-73ca-9a4a-d7f01630e5db
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0547/2016
+      graded: derived
+  -
+    id: relations-09f3c694e1
+    query: 'Reclamación sobre el acceso a la información de retribuciones y contratos del personal directivo no sujeto a convenio de ADIF y ADIF-AV'
+    source: relations
+    relevant:
+      - 019f5ae5-ae9f-729e-9b2c-bc6c412bcf04
+      - 019f5ae5-ae9f-7e2a-9b2c-bc6c4164825a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0475/2017
+      graded: derived
+  -
+    id: relations-bd9117b006
+    query: 'Acceso a datos de profesores universitarios con sexenios de investigación reconocidos por la ANECA'
+    source: relations
+    relevant:
+      - 019f5ae5-aeae-7bb9-9331-cffffd252693
+      - 019f5ae5-aeb0-71c8-92b8-b33bfe3c03ac
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0031/2018
+      graded: derived
+  -
+    id: relations-4f32828f95
+    query: 'Acceso a información sobre profesores universitarios con sexenios reconocidos'
+    source: relations
+    relevant:
+      - 019f5ae5-aeae-7bb9-9331-cffffd252693
+      - 019f5ae5-aeb0-71c8-92b8-b33bfe3c03ac
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0035/2018
+      graded: derived
+  -
+    id: relations-f74fe60e75
+    query: 'Acceso al Registro de Inspecciones de Puentes de Ferrocarril'
+    source: relations
+    relevant:
+      - 019f5ae5-aeab-77d6-a5c3-bd69a7aced3d
+      - 019f5ae5-aeac-7604-a106-354ed9fe80b5
+      - 019f5ae5-aead-73c4-9cb0-abbd11243c07
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0105/2018
+      graded: derived
+  -
+    id: relations-0a6ee903e5
+    query: 'Acceso a información sobre incidentes y análisis del producto sanitario Ala Octa'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb2-7081-bd5c-8de16b06a831
+      - 019f5ae5-aeb1-73f7-a198-87cca09de726
+      - 019f5ae5-aeb2-7ad5-bd5c-8de16b1d8731
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0046/2018
+      graded: derived
+  -
+    id: relations-11195c25ff
+    query: 'Resolución denegando ejercicio de actividad privada a ex embajador en Rusia'
+    source: relations
+    relevant:
+      - 019f5ae5-ae88-76f9-927d-c7555a2b6c8d
+      - 019f5ae5-ae89-7408-97e2-93858d186764
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0286/2017
+      graded: derived
+  -
+    id: relations-e4b797be33
+    query: 'Solicitud de información sobre la autorización y publicidad del medicamento homeopático 2LC1 de Labo Life'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb4-72d2-945a-60704aacb674
+      - 019f5ae5-aeb5-72ca-b014-f44d509e8830
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0194/2018
+      graded: derived
+  -
+    id: relations-123549be20
+    query: 'Acceso a expediente de licitación de desplazamientos de personal'
+    source: relations
+    relevant:
+      - 019f5ae5-ae89-7eb0-97e2-93858d77702c
+      - 019f5ae5-ae8a-7962-b945-4f6c08ef11b0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0309/2017
+      graded: derived
+  -
+    id: relations-2bda250f71
+    query: 'Acceso a información sobre incidentes adversos notificados por profesionales sanitarios a la AEMPS'
+    source: relations
+    relevant:
+      - 019f5ae5-aebc-70bb-9c7f-8112a160a3c6
+      - 019f5ae5-aebf-710e-8047-70b63de04d8c
+      - 019f5ae5-aebb-74c8-80c5-d8b1f2fc900d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0397/2018
+      graded: derived
+  -
+    id: relations-259fb3c0e5
+    query: 'Acceso a informes de la Secretaría de Estado de Seguridad sobre la colaboración de las policías administrativas y portuarias'
+    source: relations
+    relevant:
+      - 019f5ae5-aec3-7ac5-9c82-5e2b404e97c1
+      - 019f5ae5-aec4-794c-ab09-cbc813e249ac
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0382/2018
+      graded: derived
+  -
+    id: relations-a4c7f42e32
+    query: 'Acceso a argumentaciones y costes de juicios del Gobierno contra resoluciones del Consejo de Transparencia'
+    source: relations
+    relevant:
+      - 019f5ae5-ae97-7cc0-9c64-e747fcdc4c0c
+      - 019f5ae5-ae98-7a50-bc98-8dc7c36cc882
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0410/2017
+      graded: derived
+  -
+    id: relations-de794322c4
+    query: 'Acceso a información sobre expediente de responsabilidad patrimonial del Tribunal de Cuentas relativo a las obras del puerto de Punta Langosteira'
+    source: relations
+    relevant:
+      - 019f5ae5-aecb-75e0-b55d-4e27ff4407ed
+      - 019f5ae5-aecd-7119-a403-51db9c70963d
+      - 019f5ae5-aecc-735f-b8e8-2fa143ef1c09
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0464/2018
+      graded: derived
+  -
+    id: relations-979e318feb
+    query: 'Solicitud de información sobre la autorización del producto Calflusar y resultado de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb5-7e66-b014-f44d50eb501a
+      - 019f5ae5-ae9f-7e2a-9b2c-bc6c4164825a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0193/2018
+      graded: derived
+  -
+    id: relations-7a985849c6
+    query: 'Resolución de reclamación por acceso a información de la Agencia EFE'
+    source: relations
+    relevant:
+      - 019f5ae5-aea4-75e7-9267-30932ce1740a
+      - 019f5ae5-aea5-7c43-afc7-d865b85e4b2c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0476/2017
+      graded: derived
+  -
+    id: relations-738012c4e2
+    query: 'Acceso a actuaciones inspectoras de la Inspección de Trabajo y Seguridad Social de Cádiz y resultado de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-aed6-70d1-9fb9-8e940128a1d7
+      - 019f5ae5-aed6-7c19-9fb9-8e94018eb13f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0563/2018
+      graded: derived
+  -
+    id: relations-cc685e2cd0
+    query: 'Acceso al expediente sancionador contra José Borrell Fontelles por la CNMV y estimación por omisión del trámite de audiencia'
+    source: relations
+    relevant:
+      - 019f5ae5-aedf-7576-a3c2-6b4184893cda
+      - 019f5ae5-aee0-73e6-b41f-cda214d20720
+      - 019f5ae5-aee1-70e3-876e-36c5f2a63787
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0062/2019
+      graded: derived
+  -
+    id: relations-ea79869f29
+    query: 'Solicitud de comunicaciones con la Santa Sede sobre la exhumación de Franco'
+    source: relations
+    relevant:
+      - 019f5ae5-aee3-7ee5-af29-fe81c0fe71a9
+      - 019f5ae5-aee4-79d8-ae4c-922f3109d2d1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0222/2019
+      graded: derived
+  -
+    id: relations-2ec3a4ca39
+    query: 'Resolución de Reclamación sobre acceso a actas y órdenes del día del Consejo de Administración de la Autoridad Portuaria de Gijón (1996-2017)'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb7-7366-b317-2dce49606d6f
+      - 019f5ae5-aeb7-7e52-b317-2dce499f3e99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0033/2018
+      graded: derived
+  -
+    id: relations-8915e5961f
+    query: 'Solicitud de listado de indemnizaciones por incumplimientos contractuales en el servicio de notificaciones en la provincia de Barcelona entre 2016 y 2019'
+    source: relations
+    relevant:
+      - 019f5ae5-af05-7a7c-be3d-63fe49c88f3c
+      - 019f5ae5-af06-7764-9b45-e96a0c703b20
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0642/2019
+      graded: derived
+  -
+    id: relations-2b1e8c8e6d
+    query: 'Acceso a expediente de licitación de desplazamientos de personal de Renfe Operadora'
+    source: relations
+    relevant:
+      - 019f5ae5-aee9-7e1f-93db-21e48f1fc8f7
+      - 019f5ae5-aeea-7962-bf39-023d2e87ccad
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0122/2019
+      graded: derived
+  -
+    id: relations-c9ab2952aa
+    query: 'Acceso al listado de altos cargos que incumplieron sus obligaciones de declaración de bienes e intereses'
+    source: relations
+    relevant:
+      - 019f5ae5-aebc-7b67-9c7f-8112a1bf2ac9
+      - 019f5ae5-aebd-7a9b-a48b-b808446ad128
+      - 019f5ae5-aebe-7694-a9e0-6164bee10084
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0399/2018
+      graded: derived
+  -
+    id: relations-0f47a85a4a
+    query: 'Acceso a información sobre solicitudes de indulto presentadas por Cofradías y Hermandades por motivo de Semana Santa (2017-2019)'
+    source: relations
+    relevant:
+      - 019f5ae5-aeef-7ed4-931f-142e4584da73
+      - 019f5ae5-aef0-7980-a7e9-974d4b97c70f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0410/2019
+      graded: derived
+  -
+    id: relations-14ae022465
+    query: 'Acceso a convenios de colaboración con el NCPA de Pekín y la Silk Road International League of Theatres'
+    source: relations
+    relevant:
+      - 019f5ae5-aef2-7a97-9ea2-ba8766f7bf4f
+      - 019f5ae5-aef3-76ee-bc1d-e214057c91dc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0303/2019
+      graded: derived
+  -
+    id: relations-ea589af0f2
+    query: 'Solicitud de informes de la Abogacía del Estado y expedientes de elaboración normativa sobre autopistas de peaje'
+    source: relations
+    relevant:
+      - 019f5ae5-aef9-77b1-9344-5b381b5f358b
+      - 019f5ae5-aefa-73b6-ae12-7f5998d170e1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0571/2019
+      graded: derived
+  -
+    id: relations-a165695b1e
+    query: 'Solicitud de acceso a datos AIS y grabaciones de comunicaciones del buque Maersk Elba tras accidente en puerto de Valencia'
+    source: relations
+    relevant:
+      - 019f5ae5-aefb-78ff-83fd-ff32f0d64233
+      - 019f5ae5-aefc-755a-acba-ab77f83a4f23
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0558/2019
+      graded: derived
+  -
+    id: relations-d9dbb9268e
+    query: 'Acceso a especificaciones técnicas, pruebas y código fuente de la aplicación telemática del bono social'
+    source: relations
+    relevant:
+      - 019f5ae5-aedb-7f5c-89d2-57a48f1d5e45
+      - 019f5ae5-aedd-73b5-95b0-07bdaf0c84f5
+      - 019f5ae5-aedc-79cd-b569-ca6926df35af
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0701/2018
+      graded: derived
+  -
+    id: relations-c2aeabe335
+    query: 'Solicitud de estadísticas de criminalidad en el municipio de Madrid desglosadas por distritos y barrios'
+    source: relations
+    relevant:
+      - 019f5ae5-af04-7640-9ffa-f62b69b10306
+      - 019f5ae5-af05-7138-be3d-63fe494b4857
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0618/2019
+      graded: derived
+  -
+    id: relations-9c58b4ba29
+    query: 'Acceso a información sobre medios de transporte oficiales utilizados por el Presidente del Gobierno en desplazamientos privados'
+    source: relations
+    relevant:
+      - 019f5ae5-aefe-7092-8a83-6d1713d38598
+      - 019f5ae5-aefe-7b1a-8a83-6d17142e4bea
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0520/2019
+      graded: derived
+  -
+    id: relations-8828599cc2
+    query: 'Solicitud de actas de la Comisión Interministerial de Fijación de Precios de los Medicamentos y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af0b-7115-94be-13744385248d
+      - 019f5ae5-af0a-7505-9d18-dc202db65af5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0793/2019
+      graded: derived
+  -
+    id: relations-6184146dec
+    query: 'Solicitud de copia del dictamen de la Inspección de Trabajo sobre accidente de obra de 2006 y resultado estimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-af0d-73f7-8afc-ee5f828c84d7
+      - 019f5ae5-af0d-7f07-8afc-ee5f830b475e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0854/2019
+      graded: derived
+  -
+    id: relations-b214ccc99a
+    query: 'Acceso a actas y acuerdos de los consejos de administración de la Autoridad Portuaria de A Coruña (2015-2018)'
+    source: relations
+    relevant:
+      - 019f5ae5-aec8-7f19-b84d-da7d3086d3cd
+      - 019f5ae5-aec9-7c32-8922-faf731c517d4
+      - 019f5ae5-aeca-7890-8453-a7f023e1eeab
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0501/2018
+      graded: derived
+  -
+    id: relations-fd0fafb63b
+    query: 'Acceso a información sobre la construcción del pantalán de Repsol y obras en Punta Langosteira'
+    source: relations
+    relevant:
+      - 019f5ae5-af14-75f8-b366-104cb14ec426
+      - 019f5ae5-af13-713d-9ba1-8f63cc4602dc
+      - 019f5ae5-af15-78ad-a988-715ac96fa337
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0878/2019
+      graded: derived
+  -
+    id: relations-5ef9fb9442
+    query: 'Acceso a información sobre la construcción del pantalán de Repsol en Punta Langosteira y permisos de la UTE Langosteria'
+    source: relations
+    relevant:
+      - 019f5ae5-af14-75f8-b366-104cb14ec426
+      - 019f5ae5-af13-713d-9ba1-8f63cc4602dc
+      - 019f5ae5-af15-78ad-a988-715ac96fa337
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0053/2020
+      graded: derived
+  -
+    id: relations-9afc04ab62
+    query: 'Acceso a órdenes del día y actas del Consejo de Administración de la Autoridad Portuaria de Baleares y certificaciones de acuerdos'
+    source: relations
+    relevant:
+      - 019f5ae5-aed3-7881-8915-07bb5c3dbda1
+      - 019f5ae5-aed4-78ca-a366-9421d96037ba
+      - 019f5ae5-aed5-74fd-aff9-8f43494e6459
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0541/2018
+      graded: derived
+  -
+    id: relations-a7fd30476c
+    query: 'Acceso a la licitación y contrato de transporte de personal en Barcelona adjudicado a Logirail SME'
+    source: relations
+    relevant:
+      - 019f5ae5-aeda-78ff-94fc-475f8627a03d
+      - 019f5ae5-aedb-7480-89d2-57a48eccc7b1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0709/2018
+      graded: derived
+  -
+    id: relations-c94f55d42b
+    query: 'Solicitud de información sobre publicación de libro por el Centro de Investigaciones Sociológicas y resultado de inadmisión'
+    source: relations
+    relevant:
+      - 019f5ae5-af24-7473-8108-db73dcac480e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0058/2020
+      graded: derived
+  -
+    id: relations-aecd784828
+    query: 'Acceso a información sobre cuantías y perceptores de productividades y gratificaciones extraordinarias del Ministerio de Justicia en 2019'
+    source: relations
+    relevant:
+      - 019f5ae5-af2b-7501-8a66-53772a1ae422
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0454/2020
+      graded: derived
+  -
+    id: relations-903db8b708
+    query: 'Acceso a información sobre cuantías y criterios de reparto de productividades y gratificaciones extraordinarias del Ministerio de Ciencia e Innovación'
+    source: relations
+    relevant:
+      - 019f5ae5-af2e-754d-bf09-11ad68795302
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0457/2020
+      graded: derived
+  -
+    id: relations-56840311cf
+    query: 'Acceso a la correspondencia entre el Gobierno y la Santa Sede sobre la exhumación de Francisco Franco'
+    source: relations
+    relevant:
+      - 019f5ae5-aee5-73f0-97e8-026d5db07b16
+      - 019f5ae5-aee5-7e30-97e8-026d5e6bf95c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0194/2019
+      graded: derived
+  -
+    id: relations-27396c8929
+    query: 'Acceso al expediente sancionador contra Banco Popular Español, S.A.'
+    source: relations
+    relevant:
+      - 019f5ae5-aee7-724c-ac41-f1416f15f4b8
+      - 019f5ae5-aee7-7d24-ac41-f1416fbeb485
+      - 019f5ae5-aee8-77dd-b2d6-35f8e646c996
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0174/2019
+      graded: derived
+  -
+    id: relations-27d9ee860d
+    query: 'Reclamación de acceso a informes sobre Equipos de Protección Individual (EPI) y mascarillas realizados por el INSST durante la pandemia de COVID-19 con estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af34-79aa-a555-1eb8185fae02
+      - 019f5ae5-af33-7712-b129-196d546b8f81
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0758/2020
+      graded: derived
+  -
+    id: relations-d25f41b253
+    query: 'Solicitud de informes sobre Equipos de Protección Individual (EPI) y mascarillas durante la pandemia de COVID-19 con resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af34-79aa-a555-1eb8185fae02
+      - 019f5ae5-af33-7712-b129-196d546b8f81
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0759/2020
+      graded: derived
+  -
+    id: relations-10fc153c6d
+    query: 'Solicitud de copia del expediente del Proyecto de Inversiones del Grupo Minero San Finx'
+    source: relations
+    relevant:
+      - 019f5ae5-af3e-7480-ba95-b814f8e2f172
+      - 019f5ae5-af3e-7dec-ba95-b814f921be4d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0377/2021
+      graded: derived
+  -
+    id: relations-5ed965590d
+    query: 'Acceso al desglose del gasto farmacéutico hospitalario y oncológico del año 2018'
+    source: relations
+    relevant:
+      - 019f5ae5-aeec-705b-bb41-e6acd3c9fb56
+      - 019f5ae5-aeec-7acb-bb41-e6acd49bb7ed
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0262/2019
+      graded: derived
+  -
+    id: relations-695911658c
+    query: 'Solicitud de actas de infracción y expedientes de la Inspección de Trabajo de Girona'
+    source: relations
+    relevant:
+      - 019f5ae5-aeed-7e96-9679-7db364492f36
+      - 019f5ae5-aeee-78a0-9cda-c03a369e33d1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0252/2019
+      graded: derived
+  -
+    id: relations-cad189ace7
+    query: 'Solicitud de relación nominativa de perceptores de productividades y gratificaciones extraordinarias del Ministerio de Justicia'
+    source: relations
+    relevant:
+      - 019f5ae5-af43-7992-a254-a62b08664775
+      - 019f5ae5-af42-7bbf-b932-4f5e07eaf2cb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0605/2021
+      graded: derived
+  -
+    id: relations-94956c5878
+    query: 'Solicitud de acceso al texto completo de la resolución sancionadora y propuesta del ICAC contra PriceWaterhouseCoopers Auditores S.L. y socio auditor'
+    source: relations
+    relevant:
+      - 019f5ae5-af46-7026-8bb1-51cdfda154d4
+      - 019f5ae5-af46-7f16-8bb1-51cdfdd40643
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0378/2021
+      graded: derived
+  -
+    id: relations-772010578c
+    query: 'Solicitud de detalle de Autorizaciones de Uso Terapéutico (AUT) de sustancias y métodos prohibidos en el deporte y resultado favorable a su entrega anonimizada'
+    source: relations
+    relevant:
+      - 019f5ae5-af47-7bfd-908b-194dbb32dc11
+      - 019f5ae5-af48-7890-86e2-bd72b8fe3b9d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0836/2021
+      graded: derived
+  -
+    id: relations-9c25ca78ab
+    query: 'Reclamación por denegación de acceso al acta del Título de Procurador de los Tribunales'
+    source: relations
+    relevant:
+      - 019f5ae5-aef1-7420-8215-438a46c4ee7f
+      - 019f5ae5-aef2-70cb-9ea2-ba8766d4e005
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0430/2018
+      graded: derived
+  -
+    id: relations-feab0ffc96
+    query: 'Acceso a convenios y acuerdos de reventa y donación de vacunas contra el coronavirus'
+    source: relations
+    relevant:
+      - 019f5ae5-af4e-7475-b656-b5e8c50bebf4
+      - 019f5ae5-af4f-7076-abd0-49d280a1ccca
+      - 019f5ae5-af4f-7afe-abd0-49d28150e8b9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0832/2021
+      graded: derived
+  -
+    id: relations-bd2c1714dc
+    query: 'Acceso a la resolución sobre condiciones de financiación y precio del tratamiento Luxturna'
+    source: relations
+    relevant:
+      - 019f5ae5-af51-7f4e-b3b7-ae5e7c1d2f66
+      - 019f5ae5-af50-76aa-aff4-9a02b172db75
+      - 019f5ae5-af51-7386-b3b7-ae5e7b4aeeb6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/1076/2021
+      graded: derived
+  -
+    id: relations-09ce00c884
+    query: 'Solicitud de información sobre compatibilidad y actividad docente de un funcionario público y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af55-7add-b903-73075e831c13
+      - 019f5ae5-af54-7ec8-bc26-3694556249c3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0132/2022
+      graded: derived
+  -
+    id: relations-d7ce17013c
+    query: 'Solicitud de relación de empresas sancionadas por fraude o irregularidades en ERTE y resultado de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af59-7c30-ab3a-e053eb3a5cf2
+      - 019f5ae5-af58-7b2c-8ce1-94b989afb50e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/1020/2021
+      graded: derived
+  -
+    id: relations-bdc8c4c198
+    query: 'Acceso a la información sobre retribuciones del personal directivo y altos cargos de AENA (2016-2021) y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af5b-76be-b32c-21c025e3cb59
+      - 019f5ae5-af5a-7994-9ffa-602fcfc4cde2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0139/2022
+      graded: derived
+  -
+    id: relations-b59e4e4463
+    query: 'Acceso a los salarios de la alta dirección de Navantia, S.A. S.M.E. y resultado estimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-af5d-7736-8a3a-60fbd9f2781f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0903/2021
+      graded: derived
+  -
+    id: relations-c64c09d192
+    query: 'Solicitud de listado nominativo y cuantías de la productividad coyuntural de diciembre de 2021 en Instituciones Penitenciarias y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af5f-7389-8df7-3e4ec221aca1
+      - 019f5ae5-af5e-7513-b8a4-c231f4536c9e
+      - 019f5ae5-af60-706c-a4e1-28bbfbf30fed
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0082/2022
+      graded: derived
+  -
+    id: relations-8b13d3729e
+    query: 'Solicitud de acceso al expediente de rescate de la aerolínea Plus Ultra y resolución de estimación parcial por el CTBG'
+    source: relations
+    relevant:
+      - 019f5ae5-af6e-7675-8dca-c01371f86cc9
+      - 019f5ae5-af63-7164-83ef-90b2ad331afa
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0155/2022
+      graded: derived
+  -
+    id: relations-b0fa119cdc
+    query: 'Solicitud de informe de la Dirección General de Ordenación Profesional y resultado de archivo por desistimiento'
+    source: relations
+    relevant:
+      - 019f5ae5-af64-706b-a263-72642a5c84a4
+      - 019f5ae5-af64-7d63-a263-72642ac392f7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0060/2022
+      graded: derived
+  -
+    id: relations-0a4af5d8ff
+    query: 'Acceso a actuaciones de inspección de trabajo e identidad del funcionario actuante'
+    source: relations
+    relevant:
+      - 019f5ae5-af67-7dd5-a2a5-ed879358e854
+      - 019f5ae5-af68-7ab4-8c8e-4a370385cc22
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0141/2022
+      graded: derived
+  -
+    id: relations-1eb82f9dd4
+    query: 'Solicitud de desglose de gastos de ayuda a Marruecos y archivo de la reclamación por desistimiento del interesado'
+    source: relations
+    relevant:
+      - 019f5ae5-af69-75ee-9a62-18059e67b246
+      - 019f5ae5-af6a-7036-8045-010445809a76
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0213/2022
+      graded: derived
+  -
+    id: relations-c66c9e9d99
+    query: 'Reclamación por acceso a información sobre actuaciones contra abusos a menores y fondos para la Comunidad Valenciana estimada por motivos formales'
+    source: relations
+    relevant:
+      - 019f5ae5-af6b-740a-9f9e-fd804aeb2e13
+      - 019f5ae5-af6b-7dee-9f9e-fd804b0237f9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0321/2022
+      graded: derived
+  -
+    id: relations-94ca677c6d
+    query: 'Solicitud de acceso al expediente de ayuda del FONREC concedida al Grupo Universo Pachá y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af71-75b7-9538-2d00a8708e28
+      - 019f5ae5-af70-77da-ac72-4e160fff111c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0395/2022
+      graded: derived
+  -
+    id: relations-bafe81f592
+    query: 'Solicitud de acceso a la resolución que fija el precio y condiciones de financiación del fármaco Zolgensma y reclamación por silencio administrativo'
+    source: relations
+    relevant:
+      - 019f5ae5-af73-73a7-ae8b-3c8c7300225c
+      - 019f5ae5-af72-747b-be1c-77fc3bd0c7b4
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0527/2022
+      graded: derived
+  -
+    id: relations-eb103d10ae
+    query: 'Solicitud de legislación aplicable al régimen de viajeros y sus franquicias'
+    source: relations
+    relevant:
+      - 019f5ae5-af74-7d44-9a7c-19f66533e7f4
+      - 019f5ae5-af74-70f8-9a7c-19f665234f6c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0473/2022
+      graded: derived
+  -
+    id: relations-7f7ed58e7a
+    query: 'Reclamación por certificado de silencio respecto a solicitud de información sobre acuerdo de equiparación salarial'
+    source: relations
+    relevant:
+      - 019f5ae5-af78-7b7f-81ba-d3ff9a210c41
+      - 019f5ae5-af78-7003-81ba-d3ff99c0f53f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0006/2023
+      graded: derived
+  -
+    id: relations-0b74af12aa
+    query: 'Solicitud de cantidades de productos fitosanitarios comercializados en España en 2020 desagregados por sustancias activas'
+    source: relations
+    relevant:
+      - 019f5ae5-af7b-73ff-9508-9a0d10f025f2
+      - 019f5ae5-af7c-70ca-b677-cfda193f6439
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0008/2023
+      graded: derived
+  -
+    id: relations-c97682d97d
+    query: 'Solicitud de precio de financiación e impacto presupuestario del medicamento Remdesivir y estimación de la reclamación por el CTBG'
+    source: relations
+    relevant:
+      - 019f5ae5-af7c-7cee-b677-cfda19b1ac5a
+      - 019f5ae5-af84-76e9-a0fb-f56c674d3061
+      - 019f5ae5-af7d-7aee-9761-ee0d8b05db13
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0052/2023
+      graded: derived
+  -
+    id: relations-5c37e11f68
+    query: 'Solicitud de información sobre personal fuera de convenio y convocatorias de empleo público desde 1992'
+    source: relations
+    relevant:
+      - 019f5ae5-af80-7254-a41f-6c336fdf384c
+      - 019f5ae5-af7f-7654-ae00-298b1fb8ebfd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0046/2023
+      graded: derived
+  -
+    id: relations-4797e5f06a
+    query: 'Reclamación de acceso a la resolución y acuerdos de ayuda financiera concedida a Air Europa con resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af80-7d44-a41f-6c336fe746cf
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0125/2023
+      graded: derived
+  -
+    id: relations-15bbb69c96
+    query: 'Reclamación de acceso a la información sobre costes y contratos de vacunas contra la COVID-19 con resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af82-7714-a9b8-a45229cdef1f
+      - 019f5ae5-af81-794a-b760-c8d83f759cd9
+      - 019f5ae5-af86-7301-ad23-4ace2004393b
+      - 019f5ae5-af83-72b5-8acf-a1a439898d22
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0055/2023
+      graded: derived
+  -
+    id: relations-9feaf95966
+    query: 'Solicitud de nombramientos, ceses y retribuciones del personal eventual de 2018 y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af07-7357-b19c-2a3e3deefff6
+      - 019f5ae5-af07-7f4f-b19c-2a3e3e87fdaa
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0510/2019
+      graded: derived
+  -
+    id: relations-8fe910f868
+    query: 'Solicitud de acceso a actas de inspección y expedientes sancionadores de CMMedia y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af08-7b12-a7ca-f362186497b1
+      - 019f5ae5-af09-78a0-8bca-42d102112fdd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0707/2019
+      graded: derived
+  -
+    id: relations-d2d8ac1cc6
+    query: 'Acceso a expedientes de expropiación forzosa para autopistas de peaje AP-36 y AP-41'
+    source: relations
+    relevant:
+      - 019f5ae5-af0b-7c41-94be-1374444d46f4
+      - 019f5ae5-af0c-786d-b05a-d0e5aacc4b29
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0780/2019
+      graded: derived
+  -
+    id: relations-de186c8092
+    query: 'Acceso a las disposiciones generales de la Abogacía General del Estado para la interposición de recursos contra resoluciones judiciales'
+    source: relations
+    relevant:
+      - 019f5ae5-af11-7997-bb5f-a2207b5286d1
+      - 019f5ae5-af12-75e2-bf25-e9c38daccbfd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0076/2020
+      graded: derived
+  -
+    id: relations-f5b9398467
+    query: 'Solicitud de retribuciones, titulaciones y funciones del personal fuera de convenio de la Autoridad Portuaria de Sta. Cruz de Tenerife'
+    source: relations
+    relevant:
+      - 019f5ae5-af19-7f23-b2cb-125f31f61f56
+      - 019f5ae5-af1a-7dff-8aa2-22ea9a2b4b2e
+      - 019f5ae5-af1b-7aac-894a-1eb7c9058b91
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0230/2020
+      graded: derived
+  -
+    id: relations-81bc022da9
+    query: 'Acceso a actas y documentos de licitaciones en materia de seguridad y limpieza del Organismo Estatal Inspección de Trabajo y Seguridad Social'
+    source: relations
+    relevant:
+      - 019f5ae5-af1f-7b47-9f46-0dbe9d0fa997
+      - 019f5ae5-af20-7618-b522-7bfbb57f3425
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0900/2019
+      graded: derived
+  -
+    id: relations-e6bca5231a
+    query: 'Acceso a expedientes y documentación de contratos de servicios de vigilancia, seguridad y control de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019f5ae5-af20-7f9c-b522-7bfbb5fc0375
+      - 019f5ae5-af21-7b61-8f69-bd1579876fc8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0111/2020
+      graded: derived
+  -
+    id: relations-ee1f9605ca
+    query: 'Acceso a datos identificativos y laborales de los delineantes del CSIC en la Comunidad de Madrid'
+    source: relations
+    relevant:
+      - 019f5ae5-af22-7e71-aad1-8a7fec64f176
+      - 019f5ae5-af23-7a03-8064-695180f3593c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0088/2020
+      graded: derived
+  -
+    id: relations-1ecaf1c848
+    query: 'Solicitud de copia de expedientes de Renta 2018 y resultado de inadmisión'
+    source: relations
+    relevant:
+      - 019f5ae5-af24-7db7-8108-db73dcdec934
+      - 019f5ae5-af25-7789-bf95-2422ad070199
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0030/2020
+      graded: derived
+  -
+    id: relations-fde5510ed0
+    query: 'Solicitud de datos de sustancias activas de productos fitosanitarios y desestimación por aplicación de normativa ambiental'
+    source: relations
+    relevant:
+      - 019f5ae5-af26-7c1d-98f5-2d91cda7c3b5
+      - 019f5ae5-af27-76bc-ba83-fa386105cd6f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0406/2020
+      graded: derived
+  -
+    id: relations-1d79c157a3
+    query: 'Solicitud de criterios particulares y generales de reconocimiento de prestaciones por desempleo y acceso a manuales y directrices del SEPE'
+    source: relations
+    relevant:
+      - 019f5ae5-af28-716f-8ef1-cb030eb9962e
+      - 019f5ae5-af28-7d13-8ef1-cb030fb12fd2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0059/2020
+      graded: derived
+  -
+    id: relations-b44a2cbafe
+    query: 'Acceso a la licitación completa y contrato de Renfe Viajeros adjudicado a Interserve'
+    source: relations
+    relevant:
+      - 019f5ae5-af29-7823-9e3b-b97e737567db
+      - 019f5ae5-af2a-77b7-8b5e-d43f3a1d90ab
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0537/2020
+      graded: derived
+  -
+    id: relations-5e448fe3dc
+    query: 'Acceso a información sobre cuantías de productividad y gratificaciones extraordinarias de empleados públicos del Ministerio de Hacienda'
+    source: relations
+    relevant:
+      - 019f5ae5-af2f-709a-bdfe-efdc72897d24
+      - 019f5ae5-af2f-7c2e-bdfe-efdc729c3223
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0451/2020
+      graded: derived
+  -
+    id: relations-c6b5b0df61
+    query: 'Acceso a denuncias presentadas por sindicatos ante la Inspección de Trabajo sobre cesión ilegal de trabajadores'
+    source: relations
+    relevant:
+      - 019f5ae5-af36-7401-aee7-2b216c94ecc1
+      - 019f5ae5-af36-7f0d-aee7-2b216cf03391
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0140/2021
+      graded: derived
+  -
+    id: relations-a9ef7aa66a
+    query: 'Acceso a información sobre retribuciones variables, objetivos y perceptores del personal directivo fuera de convenio de la Autoridad Portuaria de Marín y Ría de Pontevedra'
+    source: relations
+    relevant:
+      - 019f5ae5-af38-7391-8a0c-9e1771290a15
+      - 019f5ae5-af38-7dcd-8a0c-9e1771b19703
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0292/2021
+      graded: derived
+  -
+    id: relations-2a39f9b2e4
+    query: 'Solicitud de criterios y cuantías nominales de complementos de productividad y gratificaciones extraordinarias en el Ministerio de Justicia'
+    source: relations
+    relevant:
+      - 019f5ae5-af39-7798-b5da-ac688508c253
+      - 019f5ae5-af3a-7351-95c9-f81f2e074af3
+      - 019f5ae5-af3a-7d35-95c9-f81f2e089214
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0263/2021
+      graded: derived
+  -
+    id: relations-79170029ad
+    query: 'Solicitud de datos de consumo y coste del medicamento Truvada y estimación de la reclamación por el CTBG'
+    source: relations
+    relevant:
+      - 019f5ae5-af40-70de-8549-570cc897ebb2
+      - 019f5ae5-af40-7f82-8549-570cc9080740
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0336/2021
+      graded: derived
+  -
+    id: relations-491949c08c
+    query: 'Reclamación contra la concesión de acceso parcial a los pliegos de concesiones administrativas de terminales de contenedores del Puerto de Valencia'
+    source: relations
+    relevant:
+      - 019f5ae5-af44-7592-af20-784ea5641221
+      - 019f5ae5-af45-72f8-a3df-429a755cc65b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0656/2021
+      graded: derived
+  -
+    id: relations-0825e06c56
+    query: 'Acceso a información sobre la deuda actual y reestructuraciones de Cuba y Venezuela con España'
+    source: relations
+    relevant:
+      - 019f5ae5-af4a-71a4-90bc-b257cfbe5029
+      - 019f5ae5-af4a-7e30-90bc-b257d0a8ac2c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0785/2021
+      graded: derived
+  -
+    id: relations-03826b7faf
+    query: 'Solicitud de información sobre vuelos cancelados y retrasados en Madrid y Barcelona y resultado desestimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-af53-7683-93d5-4cfbd2e3c115
+      - 019f5ae5-af54-7338-bc26-369454cc3f67
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0929/2021
+      graded: derived
+  -
+    id: relations-a82b60ff06
+    query: 'Acceso a cuestionarios e informes de autoevaluación de España en el marco de la Convención de las Naciones Unidas contra la Corrupción'
+    source: relations
+    relevant:
+      - 019f5ae5-af57-73ce-b4cb-c05c2d458119
+      - 019f5ae5-af58-702c-8ce1-94b989a53d32
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0054/2022
+      graded: derived
+  -
+    id: relations-6e0cb7fafb
+    query: 'Solicitud de ingresos por explotación de aparcamientos en la red de aeropuertos de AENA (2019-2021) desglosados por centro y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af5c-7240-8bb1-f7de4d75f497
+      - 019f5ae5-af5c-7cc0-8bb1-f7de4e071ef7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0145/2022
+      graded: derived
+  -
+    id: relations-e75fa53c21
+    query: 'Inadmisión por extemporaneidad de reclamación sobre premios invendidos de Lotería Nacional'
+    source: relations
+    relevant:
+      - 019f5ae5-af61-79cb-bdaf-ae481a1e4b24
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0053/2022
+      graded: derived
+  -
+    id: relations-73fb278169
+    query: 'Solicitud de información sobre subvenciones para el realojo de familias en la Cañada Real Galiana y estimación formal de la reclamación por falta de respuesta en plazo'
+    source: relations
+    relevant:
+      - 019f5ae5-af62-75bc-ac40-1485e32e31a7
+      - 019f5ae5-af63-7164-83ef-90b2ad331afa
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0114/2022
+      graded: derived
+  -
+    id: relations-2d34d23526
+    query: 'Solicitud de acceso a facturas de compra de vehículos privados y desestimación por inexistencia de la información en poder de la AEAT'
+    source: relations
+    relevant:
+      - 019f5ae5-af65-78c2-b7f4-a4ff8663d785
+      - 019f5ae5-af66-7656-9901-edb0f0585a1d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0290/2022
+      graded: derived
+  -
+    id: relations-c3b13c6be7
+    query: 'Reclamación por falta de concreción en la información sobre desviaciones del servicio prestado por PWC GmbH y desestimación del Consejo de Transparencia'
+    source: relations
+    relevant:
+      - 019f5ae5-af6c-772c-b8e5-a6f88267e20c
+      - 019f5ae5-af6d-71df-bffd-fa43d06ecc27
+      - 019f5ae5-af6d-7c77-bffd-fa43d14bae99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0299/2022
+      graded: derived
+  -
+    id: relations-49291f04f1
+    query: 'Acceso a actuaciones de denuncia tributaria e identidad de funcionario actuante'
+    source: relations
+    relevant:
+      - 019f5ae5-af76-7554-8c94-fed7af6ba154
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0471/2022
+      graded: derived
+  -
+    id: relations-5a98725f16
+    query: 'Acceso a la resolución que fija el precio y condiciones de financiación del medicamento Yescarta en el SNS'
+    source: relations
+    relevant:
+      - 019f5ae5-af79-7805-979d-a422f65a21a7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0533/2022
+      graded: derived
+  -
+    id: relations-d02f72b873
+    query: 'Acceso a las actas de las reuniones de la junta de gobierno de la Obra Pía de los Establecimientos españoles en Italia'
+    source: relations
+    relevant:
+      - 019f5ae5-aed9-7e64-85d0-4d3ef42778c1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0649/2018
+      graded: derived
+  -
+    id: relations-680b05ba87
+    query: 'Acceso a información sobre puestos de trabajo y forma de provisión en el Centro Penitenciario de Valencia'
+    source: relations
+    relevant:
+      - 019f5ae5-aef4-7bd9-b18a-d8afb6689edd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0307/2019
+      graded: derived
+  -
+    id: relations-4063250cf2
+    query: 'Solicitud de actas de la Junta General y la Asamblea de la Comunidad de Regantes Canal de Florida de Liébana'
+    source: relations
+    relevant:
+      - 019f5ae5-af1d-7422-a9a8-e133e33f64b9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0865/2019
+      graded: derived
+  -
+    id: relations-d0c69f608b
+    query: 'Reclamación por acceso a la información sobre el expediente de un proceso selectivo y composición del tribunal calificador del Consorcio de la Zona Franca de Vigo'
+    source: relations
+    relevant:
+      - 019f5ae5-af3b-7716-af0e-03f982aa697b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0103/2021
+      graded: derived
+  -
+    id: relations-88084b104c
+    query: "Acceso al contrato del programa 'A partir de hoy' (Días de Verano) suscrito con Catorce Comunicaciones S.L."
+    source: relations
+    relevant:
+      - 019f5ae5-af02-7212-a7e0-c1aa6768beb4
+      - 019f5ae5-af02-7e12-a7e0-c1aa67b57262
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0607/2019
+      graded: derived
+  -
+    id: relations-c5abf97db0
+    query: 'Acceso a nombres, cargos y retribuciones del personal eventual del Ministerio de Hacienda durante 2018'
+    source: relations
+    relevant:
+      - 019f5ae5-aeff-7e89-9f37-a7b808a2502d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0486/2019
+      graded: derived
+  -
+    id: relations-c98e0a7e15
+    query: 'Reclamación por acceso a documentos de nombramiento y toma de posesión de cargos de la Confederación Hidrográfica del Segura con resultado estimatorio por motivos formales'
+    source: relations
+    relevant:
+      - 019f5ae5-af7a-76c6-83e7-59ac41eb1edd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0160/2023
+      graded: derived
+  -
+    id: relations-2cd4880810
+    query: 'Solicitud de revisión de examen y copia de examen corregido a la CRTVE'
+    source: relations
+    relevant:
+      - 019f5ae5-af83-7c49-8acf-a1a439aa20c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0539/2022
+      graded: derived
+  -
+    id: relations-4fd2f04105
+    query: 'Pliego de condiciones de licitación para el suministro de 15 trenes de Alta Velocidad'
+    source: relations
+    relevant:
+      - 019f5ae5-ae53-7980-88ba-96860969c115
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0168/2016
+      graded: derived
+  -
+    id: relations-effc55948d
+    query: 'Número de incidentes en cada Centro penitenciario (2005-2015) Fallecimientos de internos que dan derecho a indemnización para sus familiares'
+    source: relations
+    relevant:
+      - 019f5ae5-ae5e-7eb2-8733-065761341a0b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0193/2016
+      graded: derived
+  -
+    id: relations-90fa933061
+    query: 'Solicitud de información sobre los gastos de participación de España en el festival de Eurovisión 2016 y resultado favorable'
+    source: relations
+    relevant:
+      - 019f5ae5-ae68-7a9c-b85f-db25b780302d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0536/2016
+      graded: derived
+  -
+    id: relations-3c92cbe410
+    query: 'Acceso al listado de campañas y presupuesto ejecutado del Ministerio del Interior (2012-2015) desglosado por medios'
+    source: relations
+    relevant:
+      - 019f5ae5-ae6f-75a0-9f8c-a2c93a6616cc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0516/2016
+      graded: derived
+  -
+    id: relations-a14de97dca
+    query: 'Solicitud de desglose de campañas publicitarias y presupuestos del Ministerio de Industria (2012-2015)'
+    source: relations
+    relevant:
+      - 019f5ae5-ae76-71f1-933c-58fabd430402
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0557/2016
+      graded: derived
+  -
+    id: relations-fd42848032
+    query: 'Acceso al informe del IDAE sobre la metodología de instalaciones tipo de la Orden IET/1045/2014'
+    source: relations
+    relevant:
+      - 019f5ae5-ae76-7ec9-933c-58fabd5b20d2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0514/2016
+      graded: derived
+  -
+    id: relations-50f1d51177
+    query: 'Solicitud de listado de campañas y presupuesto ejecutado del Ministerio de Educación, Cultura y Deporte (2012-2015) desglosado por medios'
+    source: relations
+    relevant:
+      - 019f5ae5-ae77-7a1c-94f1-2f67b1b8a35e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0518/2016
+      graded: derived
+  -
+    id: relations-54d6853508
+    query: 'Acceso a información sobre el plan de medios y presupuesto ejecutado en campañas de publicidad institucional del Ministerio de la Presidencia (2012-2015)'
+    source: relations
+    relevant:
+      - 019f5ae5-ae78-7a0b-8643-67d6ddb3f35a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0556/2016
+      graded: derived
+  -
+    id: relations-ce45080fc0
+    query: 'Solicitud de copias auténticas de documentación de expediente disciplinario y resultado de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-ae7a-7d82-9a4a-d7f0166aeb9f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0032/2017
+      graded: derived
+  -
+    id: relations-980152f981
+    query: 'Acceso a listado de modificados y costes adicionales de obras adjudicadas por el Ministerio de Fomento'
+    source: relations
+    relevant:
+      - 019f5ae5-ae7d-7135-9372-9d6ed46999c1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0035/2017
+      graded: derived
+  -
+    id: relations-5fc89884b4
+    query: 'Ficha técnica, prospecto, informes y ensayos clínicos de determinados medicamentos'
+    source: relations
+    relevant:
+      - 019f5ae5-ae83-753a-a10a-2e5fe514f41e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0149/2017
+      graded: derived
+  -
+    id: relations-1f3e765852
+    query: 'Acceso al expediente sancionador S/0472113 sobre suministro de tiras reactivas'
+    source: relations
+    relevant:
+      - 019f5ae5-ae8c-7726-9b43-7b01d4776ee1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0255/2017
+      graded: derived
+  -
+    id: relations-9bbaf2f46c
+    query: 'Documento incompleto'
+    source: relations
+    relevant:
+      - 019f5ae5-ae8d-722c-920f-467e61753a01
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0267/2017
+      graded: derived
+  -
+    id: relations-f26956622e
+    query: 'Acuerdos sobre el Cupo Vasco'
+    source: relations
+    relevant:
+      - 019f5ae5-ae8e-7250-aa9d-658bc3307f47
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0296/2017
+      graded: derived
+  -
+    id: relations-4b8941e698
+    query: 'Reclamación sobre el acceso a información relativa a la ejecución del contrato de servicios para la recepción y tramitación de solicitudes de visado'
+    source: relations
+    relevant:
+      - 019f5ae5-ae95-77e7-b0f3-0b0c5eccd872
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0337/2017
+      graded: derived
+  -
+    id: relations-1ef5387376
+    query: 'Solicitud de expediente y causas de falta de resolución sobre concesión de establecimiento en Playa de la Almadraba de Alicante'
+    source: relations
+    relevant:
+      - 019f5ae5-ae96-7499-875c-d6c8878f6b4c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0369/2017
+      graded: derived
+  -
+    id: relations-c708d4245e
+    query: 'Acceso al proyecto de desclasificación de documentos elaborado por la Secretaría de Estado de Defensa a finales de 2011'
+    source: relations
+    relevant:
+      - 019f5ae5-ae97-70c8-9c64-e747fcd2c46a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0360/2017
+      graded: derived
+  -
+    id: relations-5b7bacf5be
+    query: 'Solicitud de información económico-financiera de la Agencia EFE por la Sección Sindical de CCOO y estimación parcial de la reclamación por silencio administrativo'
+    source: relations
+    relevant:
+      - 019f5ae5-ae99-755e-bdcd-4d577622b52d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0403/2017
+      graded: derived
+  -
+    id: relations-5542fdad78
+    query: 'Reclamación de acceso a información sobre la evolución económica y de plantilla del ERE de la Agencia EFE'
+    source: relations
+    relevant:
+      - 019f5ae5-ae9a-728c-8cd2-dc6c8999cc2e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0404/2017
+      graded: derived
+  -
+    id: relations-4f7fdde0f6
+    query: 'Solicitud de acceso a información sobre retribuciones complementarias de empleados del Ministerio de Sanidad y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-ae9a-7df4-8cd2-dc6c8a2b7d8e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0437/2017
+      graded: derived
+  -
+    id: relations-4fdf48135e
+    query: 'Solicitud de relación nominal y criterios de concesión de medallas al mérito penitenciario'
+    source: relations
+    relevant:
+      - 019f5ae5-ae9e-77b8-b2f3-9bc44a1c6fd9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0465/2017
+      graded: derived
+  -
+    id: relations-0f41a97689
+    query: 'Acceso al inventario de bienes muebles y artísticos del Parador Hostal de San Marcos de León'
+    source: relations
+    relevant:
+      - 019f5ae5-aea2-7b10-b361-bed06025e8f7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0493/2017
+      graded: derived
+  -
+    id: relations-29d57a2919
+    query: 'Acceso a información sobre puestos y cuantías de retribuciones complementarias de productividad funcional y estructural del Cuerpo Nacional de Policía'
+    source: relations
+    relevant:
+      - 019f5ae5-aea3-7817-92d3-3766340cc99e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0460/2017
+      graded: derived
+  -
+    id: relations-1f1d2e5ae4
+    query: 'Acceso y publicación de informes jurídicos de la Asesoría Jurídica de la Guardia Civil'
+    source: relations
+    relevant:
+      - 019f5ae5-aea7-701b-9db1-02f8d5575a9a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0542/2017
+      graded: derived
+  -
+    id: relations-363e578970
+    query: 'Resolución de reclamación por acceso a contratos y costes del programa de TVE ¿Cómo lo ves?'
+    source: relations
+    relevant:
+      - 019f5ae5-aea7-7b63-9db1-02f8d5da8a00
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0022/2018
+      graded: derived
+  -
+    id: relations-249a703dac
+    query: 'Solicitud de audio actas y Plan de Viabilidad a la Sociedad Mercantil Valladolid Alta Velocidad 2003'
+    source: relations
+    relevant:
+      - 019f5ae5-aeae-7041-9331-cffffcfbda98
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0508/2017
+      graded: derived
+  -
+    id: relations-227ec66003
+    query: 'Reclamación de acceso al Plan de Empresa 2018 y acta del Consejo de Administración de la Autoridad Portuaria de Vigo'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb3-7610-9202-19786387f6fd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0181/2018
+      graded: derived
+  -
+    id: relations-559871ca70
+    query: 'Solicitud de preguntas y plantillas correctoras de exámenes teóricos de conducir clase B'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb9-7119-84da-ed5ffa649f19
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0302/2018
+      graded: derived
+  -
+    id: relations-e7c67603fa
+    query: 'Acceso a tarifas, listados y gastos de colaboradores de RTVE en 2017'
+    source: relations
+    relevant:
+      - 019f5ae5-aeb9-7b99-84da-ed5ffa998d7a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0198/2018
+      graded: derived
+  -
+    id: relations-8f91521b49
+    query: 'Resolución de reclamación contra la CRTVE por denegación de acceso a información sobre costes, contratos e ingresos del programa MasterChef'
+    source: relations
+    relevant:
+      - 019f5ae5-aec1-73ca-bea0-d0c5d3bbd0cf
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0337/2018
+      graded: derived
+  -
+    id: relations-d9146e78fe
+    query: 'Acceso a la información sobre retribuciones y contratos del personal directivo no sujeto a convenio colectivo de RENFE'
+    source: relations
+    relevant:
+      - 019f5ae5-aec2-7451-ac70-30db22eb9d3c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0361/2018
+      graded: derived
+  -
+    id: relations-ad71f5ef5d
+    query: 'RPT, relación nominal del personal y masa salarial 2015-2016'
+    source: relations
+    relevant:
+      - 019f5ae5-aec3-7131-9c82-5e2b3f68010a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0028/2017
+      graded: derived
+  -
+    id: relations-27a903ee45
+    query: 'Acceso a los órdenes del día y actas del Consejo de Administración de la Autoridad Portuaria de Barcelona (2017-2018)'
+    source: relations
+    relevant:
+      - 019f5ae5-aec6-7954-a383-915010ecbf60
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0385/2018
+      graded: derived
+  -
+    id: relations-3356944669
+    query: 'Reclamación contra el Banco de España por falta de respuesta a queja sobre prácticas bancarias'
+    source: relations
+    relevant:
+      - 019f5ae5-aec7-7621-afcd-a1f63502da6c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0484/2017
+      graded: derived
+  -
+    id: relations-59a13b72cd
+    query: 'Resolución de reclamación por acceso a instrucciones de productividad, actas y resultados de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019f5ae5-aec8-71bd-b84d-da7d2fa14aaa
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0463/2018
+      graded: derived
+  -
+    id: relations-1f228b5b05
+    query: 'Acceso a enunciados y plantillas de resultados de procesos selectivos del Cuerpo Jurídico y Sanidad Militar'
+    source: relations
+    relevant:
+      - 019f5ae5-aecd-7e31-a403-51db9cda6625
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0530/2018
+      graded: derived
+  -
+    id: relations-9ee8eca1a3
+    query: 'Acceso a auditorías de procedimiento del Ministerio de Fomento de 2017'
+    source: relations
+    relevant:
+      - 019f5ae5-aece-79d0-a534-24470a4abc6f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0550/2018
+      graded: derived
+  -
+    id: relations-93ff961a3a
+    query: 'Acceso a convocatorias, órdenes del día y actas del Consejo de Administración de RTVE desde 2014'
+    source: relations
+    relevant:
+      - 019f5ae5-aed2-712a-ad02-0098b21e99f9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0482/2018
+      graded: derived
+  -
+    id: relations-f38548acd0
+    query: 'Acceso a expedientes e informes de inspección del Servicio Ejecutivo de la Comisión de Prevención del Blanqueo de Capitales sobre Banco de Madrid'
+    source: relations
+    relevant:
+      - 019f5ae5-aed7-7751-b774-5f74030ce993
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0557/2018
+      graded: derived
+  -
+    id: relations-2fe9659530
+    query: 'Solicitud de listado de inmuebles de Correos en Cataluña y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-aed8-7544-863e-2855e58ab63b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0708/2018
+      graded: derived
+  -
+    id: relations-266b66a75e
+    query: 'Acceso al acta y documentación de la reunión de la Comisión Social de Seguimiento de las obras de soterramiento del ferrocarril en Murcia'
+    source: relations
+    relevant:
+      - 019f5ae5-aed9-72cc-85d0-4d3ef3e14fb0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0757/2018
+      graded: derived
+  -
+    id: relations-3c7531f21f
+    query: 'Solicitud de publicación de resoluciones del Tribunal Económico-Administrativo de Murcia'
+    source: relations
+    relevant:
+      - 019f5ae5-aedd-7d05-95b0-07bdafcda0af
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0753/2018
+      graded: derived
+  -
+    id: relations-e8d3c3396b
+    query: 'Solicitud de acceso a contratos entre RTVE y Video Mercury Films y denegación por protección de datos e intereses comerciales'
+    source: relations
+    relevant:
+      - 019f5ae5-aede-7886-8add-3620ba548797
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0520/2018
+      graded: derived
+  -
+    id: relations-45f26e0d65
+    query: 'Solicitud de copia del Plan de Empresa 2018 de la Autoridad Portuaria de Marín y Ría de Pontevedra y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-aee1-7ce3-876e-36c5f306e044
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0741/2018
+      graded: derived
+  -
+    id: relations-4a383c5a7d
+    query: 'Acceso al texto completo de la resolución sancionadora del ICAC contra PwC y su informe propuesta'
+    source: relations
+    relevant:
+      - 019f5ae5-aee2-773f-9c43-587b1125eb21
+      - 019f5ae5-aeeb-73dd-a6ae-9b7c67007b10
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0166/2019
+      graded: derived
+  -
+    id: relations-6e8258fe76
+    query: 'Solicitud de precio, condiciones de financiación y motivación de la aprobación del fármaco Kymriah'
+    source: relations
+    relevant:
+      - 019f5ae5-aee3-7441-af29-fe81c0835a8f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0079/2019
+      graded: derived
+  -
+    id: relations-b0c33ce4e8
+    query: 'Acceso a exámenes y actas de calificación de opositores del Cuerpo de Gestión de la Administración Civil del Estado'
+    source: relations
+    relevant:
+      - 019f5ae5-aee6-77f5-9bc2-d581c8f98874
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0119/2019
+      graded: derived
+  -
+    id: relations-97151c753c
+    query: 'Solicitud de actas de reuniones del Consejo de Administración de la Autoridad Portuaria de Valencia relacionadas con el Consorcio Valencia 2007'
+    source: relations
+    relevant:
+      - 019f5ae5-aee9-7267-93db-21e48f051d48
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0164/2019
+      graded: derived
+  -
+    id: relations-141d7c3d79
+    query: 'Solicitud de información sobre competencias y normativa relativa a la expedición de certificados según el Reglamento UE 1215/2012'
+    source: relations
+    relevant:
+      - 019f5ae5-aeed-74d2-9679-7db36358a40d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0326/2019
+      graded: derived
+  -
+    id: relations-2920916d74
+    query: 'Acceso a información sobre sexenios de investigación de profesores universitarios'
+    source: relations
+    relevant:
+      - 019f5ae5-aeef-7224-931f-142e44e13416
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0334/2019
+      graded: derived
+  -
+    id: relations-ff33eaaffc
+    query: 'Solicitud de contrato de publicación del libro del Presidente del Gobierno y resultado desestimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-aef4-71a1-b18a-d8afb64b1262
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0233/2019
+      graded: derived
+  -
+    id: relations-c953b46826
+    query: 'Acceso a informes policiales y médicos sobre fallecimientos en los Centros de Internamiento de Extranjeros de Zona Franca y Aluche'
+    source: relations
+    relevant:
+      - 019f5ae5-aef5-77ea-ad8a-74ea1881f4a0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0308/2019
+      graded: derived
+  -
+    id: relations-cefcb02246
+    query: 'Acceso a información sobre concesiones de terminales de automóviles del Puerto de Barcelona y resultado desestimado'
+    source: relations
+    relevant:
+      - 019f5ae5-aef6-7563-8137-552a19bcf9a0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0421/2019
+      graded: derived
+  -
+    id: relations-ffe844b36f
+    query: 'Acceso a información sobre bienes inmatriculados a favor de la Iglesia Católica desde 1998 y requerimientos al Colegio de Registradores'
+    source: relations
+    relevant:
+      - 019f5ae5-aef7-7289-bea9-eac9849f4a63
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0440/2019
+      graded: derived
+  -
+    id: relations-b3f27d6468
+    query: 'Acceso al listado de bienes inmatriculados por la Iglesia Católica'
+    source: relations
+    relevant:
+      - 019f5ae5-aef7-7f01-bea9-eac98517c3a5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0498/2019
+      graded: derived
+  -
+    id: relations-abacca41be
+    query: 'Solicitud de información sobre calendario vacunal, datos epidemiológicos, seguridad de vacunas y costes de adquisición'
+    source: relations
+    relevant:
+      - 019f5ae5-aef8-7b43-ac75-542de2860a1f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0473/2019
+      graded: derived
+  -
+    id: relations-55dd2b9fc8
+    query: 'Acceso al convenio de representación y defensa de España en procedimientos arbitrales internacionales y sus costes'
+    source: relations
+    relevant:
+      - 019f5ae5-aefa-7e32-ae12-7f5998e6e831
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0569/2019
+      graded: derived
+  -
+    id: relations-b5bde41a05
+    query: 'Acceso a la identidad y retribuciones del personal eventual de Presidencia del Gobierno en 2016'
+    source: relations
+    relevant:
+      - 019f5ae5-af00-78cd-8341-d74085280183
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0509/2019
+      graded: derived
+  -
+    id: relations-fca25aebed
+    query: 'Acceso a información sobre las competencias del Ministerio en materia civil y mercantil y base legal de expedición de certificados'
+    source: relations
+    relevant:
+      - 019f5ae5-aefd-7067-b546-0332bcb97192
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0491/2019
+      graded: derived
+  -
+    id: relations-368df1741d
+    query: 'Solicitud de información sobre las competencias del Ministerio en materia civil y mercantil y base normativa de títulos ejecutivos'
+    source: relations
+    relevant:
+      - 019f5ae5-aefd-7067-b546-0332bcb97192
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0517/2019
+      graded: derived
+  -
+    id: relations-bffe2a58e3
+    query: 'Acceso a la información detallada de la deuda viva del Ayuntamiento de Reinosa'
+    source: relations
+    relevant:
+      - 019f5ae5-aeff-7545-9f37-a7b8084d05c2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0574/2019
+      graded: derived
+  -
+    id: relations-e9657cf56c
+    query: 'Acceso a actas de los tres últimos procesos electorales del Consejo General de Enfermería de España'
+    source: relations
+    relevant:
+      - 019f5ae5-af01-746b-8c6d-6628cd9ecb40
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0644/2019
+      graded: derived
+  -
+    id: relations-e1615769ca
+    query: 'Acceso a información sobre caché de presentador y costes de producción de programas de TVE'
+    source: relations
+    relevant:
+      - 019f5ae5-af03-7a20-aa4a-ed38978e4e25
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0601/2019
+      graded: derived
+  -
+    id: relations-2cfef46167
+    query: 'Solicitud de acceso a información pública y revisión de silencio administrativo positivo'
+    source: relations
+    relevant:
+      - 019f5ae5-af0e-7a19-b481-71990bb52ed9
+      - 019f5ae5-af22-7621-aad1-8a7fec1849c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0885/2019
+      graded: derived
+  -
+    id: relations-96d6209f9f
+    query: 'Acceso a información sobre la financiación y estudios económicos del fármaco Vareniclina'
+    source: relations
+    relevant:
+      - 019f5ae5-af0f-7556-bf46-291762508e77
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0888/2019
+      graded: derived
+  -
+    id: relations-d709518fef
+    query: 'Solicitud de informes de inspección, dictámenes de la Abogacía del Estado y estudio de impacto ambiental sobre las obras del puerto de Punta Langosteira'
+    source: relations
+    relevant:
+      - 019f5ae5-af10-7151-983d-ddf9a1107573
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0923/2019
+      graded: derived
+  -
+    id: relations-67add45909
+    query: 'Solicitud de datos de volumen, sistema de contratación y precio de medicamentos de los grupos ATC B02BB, B02BD y B02BX06'
+    source: relations
+    relevant:
+      - 019f5ae5-af10-7ded-983d-ddf9a121154b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0047/2020
+      graded: derived
+  -
+    id: relations-b2eb5e35b3
+    query: 'Acceso a información sobre cuentas anuales, planes de actuación y patronato de la Fundación Antama'
+    source: relations
+    relevant:
+      - 019f5ae5-af16-7b14-8bd1-4efc4133cd46
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0919/2019
+      graded: derived
+  -
+    id: relations-3817b11442
+    query: 'Acceso a documentación y cuentas anuales de la Fundación Salud y Naturaleza'
+    source: relations
+    relevant:
+      - 019f5ae5-af17-7770-96ee-963c83f15914
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0044/2020
+      graded: derived
+  -
+    id: relations-a69cdbe987
+    query: 'Solicitud de información sobre la Fundación Toro de Lidia y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af18-743d-8455-280b6d310d50
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0920/2019
+      graded: derived
+  -
+    id: relations-24538ac775
+    query: 'Acceso a las retribuciones de los cargos directivos de la FNMT-RCM año 2018'
+    source: relations
+    relevant:
+      - 019f5ae5-af19-71e3-b2cb-125f31a4c06e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0881/2019
+      graded: derived
+  -
+    id: relations-4d8129e0a7
+    query: 'Solicitud de documentación sobre la Fundación Alternativas y resultado de estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af1c-7698-aef7-1de1d51f3b7b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0918/2019
+      graded: derived
+  -
+    id: relations-cc463f738d
+    query: 'Acceso a expedientes y documentación de licitaciones de servicios de seguridad y vigilancia de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019f5ae5-af1e-71b2-a0ba-c3404a7138b8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0110/2020
+      graded: derived
+  -
+    id: relations-bfbe0f8cfb
+    query: 'Acceso a expedientes y documentación de contratos de limpieza, seguridad y vigilancia de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019f5ae5-af1e-7f16-a0ba-c3404b634137
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0112/2020
+      graded: derived
+  -
+    id: relations-bd5229ad1d
+    query: 'Acceso a expedientes sancionadores contra empresas pesqueras y comunicaciones a la UE'
+    source: relations
+    relevant:
+      - 019f5ae5-af26-707d-98f5-2d91ccd16d56
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0445/2020
+      graded: derived
+  -
+    id: relations-09c250b5b4
+    query: 'Solicitud de acceso a documentos de registro relativos a expediente disciplinario docente'
+    source: relations
+    relevant:
+      - 019f5ae5-af2c-7211-8a28-da58c74de054
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0498/2020
+      graded: derived
+  -
+    id: relations-5716dd7a22
+    query: 'Solicitud de actas de la reunión del Consejo de Seguridad Nacional del 4 de marzo de 2020 y resultado estimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-af30-7771-95a4-6619a6e2108e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0684/2020
+      graded: derived
+  -
+    id: relations-c6216b942f
+    query: 'Acceso a la información sobre retribuciones del personal directivo de la CRTVE en 2016 y 2017'
+    source: relations
+    relevant:
+      - 019f5ae5-af31-7140-9329-d5ea762798c9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0362/2018
+      graded: derived
+  -
+    id: relations-2c1aec8910
+    query: 'Acceso a la información sobre retribuciones del personal directivo de la CRTVE desde 2016'
+    source: relations
+    relevant:
+      - 019f5ae5-af31-7e88-9329-d5ea7723b180
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0652/2020
+      graded: derived
+  -
+    id: relations-e03dd61cc8
+    query: 'Reclamación sobre el acceso a la información de las retribuciones del personal directivo de RTVE'
+    source: relations
+    relevant:
+      - 019f5ae5-af32-7b03-812b-228d27fe961a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0657/2020
+      graded: derived
+  -
+    id: relations-5baa8f1c09
+    query: 'Solicitud de acceso al Plan Director de la Red Ferroviaria de Galicia y estimación de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af35-79a7-a2ff-4d9148972365
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0704/2020
+      graded: derived
+  -
+    id: relations-4441b74395
+    query: 'Solicitud de acceso al informe de la Abogacía del Estado sobre la liquidación de obras de modernización de regadíos y resultado estimatorio'
+    source: relations
+    relevant:
+      - 019f5ae5-af37-78ed-9b87-67c7782757e3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0200/2021
+      graded: derived
+  -
+    id: relations-f804e1892b
+    query: 'Acceso por denunciante a informe de actuaciones previas'
+    source: relations
+    relevant:
+      - 019f5ae5-af3c-7173-97f1-7e1416f50e3d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0078/2021
+      graded: derived
+  -
+    id: relations-5c6b199349
+    query: 'Acceso a información remitida por entidades bancarias al Banco de España sobre prevención de blanqueo de capitales'
+    source: relations
+    relevant:
+      - 019f5ae5-af3c-7c9b-97f1-7e141708da0f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0382/2021
+      graded: derived
+  -
+    id: relations-a89c69091e
+    query: 'Acceso a informe de viabilidad ferroviaria, actas de comisión de seguimiento e informe de Intervención Regional de la Autoridad Portuaria de A Coruña'
+    source: relations
+    relevant:
+      - 019f5ae5-af3d-7933-ae31-dc89384f3064
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0326/2021
+      graded: derived
+  -
+    id: relations-c58eb087f8
+    query: 'Solicitud de número de interrupciones voluntarias del embarazo por centro sanitario y desestimación por protección de datos'
+    source: relations
+    relevant:
+      - 019f5ae5-af3f-76c1-952e-4cc8aa0e8465
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0312/2021
+      graded: derived
+  -
+    id: relations-563fe509ed
+    query: 'Solicitud de copia de informe sobre contratos de informática del IMSERSO y estimación del derecho de acceso'
+    source: relations
+    relevant:
+      - 019f5ae5-af41-7d43-bc91-04e3f8fab344
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0610/2021
+      graded: derived
+  -
+    id: relations-282d30e780
+    query: 'Solicitud de detalle de controles antidopaje realizados por la AEPSD y estimación parcial de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af49-740c-9c71-2b5b103e8d87
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0845/2021
+      graded: derived
+  -
+    id: relations-8e76a057b7
+    query: 'Reclamación de acceso a expedientes sancionadores de empresas pesqueras y comunicaciones a la UE con estimación parcial'
+    source: relations
+    relevant:
+      - 019f5ae5-af4b-79f6-8c66-85e6f9276d9b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0683/2021
+      graded: derived
+  -
+    id: relations-fb9f06bcd0
+    query: 'Acceso a datos de muestreos analíticos del Proyecto Mercurio en el vertedero de Son Reus'
+    source: relations
+    relevant:
+      - 019f5ae5-af4c-78c7-9d45-8a4bdd4c2c7c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0711/2021
+      graded: derived
+  -
+    id: relations-a3d6d72cd7
+    query: 'Solicitud de recursos económicos del Consejo Estatal de Participación de la Infancia y la Adolescencia y pensiones para amas de casa'
+    source: relations
+    relevant:
+      - 019f5ae5-af4d-76e9-9067-84348ef626f0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0962/2021
+      graded: derived
+  -
+    id: relations-4e76b1bf81
+    query: 'Solicitud de acceso a información sobre concesión de terminal privada de mercancías y proyecto de obras del Muelle 11 en el Puerto de Alicante'
+    source: relations
+    relevant:
+      - 019f5ae5-af56-76b0-8dcb-b1939911832b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0957/2021
+      graded: derived
+  -
+    id: relations-4124dacb7b
+    query: 'Solicitud de criterios y listado de perceptores de productividad coyuntural en el Centro Penitenciario de Badajoz'
+    source: relations
+    relevant:
+      - 019f5ae5-af60-7bf4-a4e1-28bbfc571946
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0119/2022
+      graded: derived
+  -
+    id: relations-b48bc7443c
+    query: 'Solicitud de acceso al convenio con Secuoya Studios para la serie documental sobre la Presidencia del Gobierno y estimación formal de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af67-7205-a2a5-ed8792b6737d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0347/2022
+      graded: derived
+  -
+    id: relations-d0f77bf2ba
+    query: 'Solicitud de convenios y subvenciones de la RFEV y CEAR Príncipe Felipe con estimación formal de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af6a-796a-8045-0104458dc61b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0122/2022
+      graded: derived
+  -
+    id: relations-e97f6dae4b
+    query: 'Solicitud de acceso a la información sobre propiedades de la SAREB en Cataluña y estimación parcial de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af6f-7da4-8b99-58092dbdd74a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0307/2022
+      graded: derived
+  -
+    id: relations-5037fd9db2
+    query: 'Acceso a exámenes de oposiciones de las categorías de Técnico y Mando Intermedio y Cuadro de ADIF'
+    source: relations
+    relevant:
+      - 019f5ae5-af75-792c-a2f2-0229f49c4e75
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0464/2022
+      graded: derived
+  -
+    id: relations-3d50657b24
+    query: 'Solicitud de delimitación de entidades inmobiliarias de ADIF y estimación de la reclamación por el CTBG'
+    source: relations
+    relevant:
+      - 019f5ae5-af77-7209-a9e0-e71544f20760
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0465/2022
+      graded: derived
+  -
+    id: relations-86fea2e4e7
+    query: 'Solicitud de acceso al memorando de entendimiento entre el Ministerio de Industria y ArcelorMittal y estimación parcial de la reclamación'
+    source: relations
+    relevant:
+      - 019f5ae5-af7e-793f-ae00-7e8aef3db183
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      resolution: R/0088/2023
+      graded: derived

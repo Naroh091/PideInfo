@@ -209,6 +209,27 @@ class AccessRequestComplaint
         return $this;
     }
 
+    /**
+     * Semantic color of the complaint route — THE place to pick these.
+     * «Reclamada» es ámbar: el vocabulario de reclamación de la app (badge
+     * warning, `Recl:` en listados) siempre lo ha sido; estimada/desestimada
+     * siguen la tabla semántica (emerald/rojo).
+     */
+    public static function statusColor(string $status): string
+    {
+        return match ($status) {
+            self::STATUS_RECLAIMED => '#d97706',
+            self::STATUS_GRANTED => '#059669',
+            self::STATUS_DENIED => '#e11d48',
+            default => '#94a3b8',
+        };
+    }
+
+    public function getStatusColor(): string
+    {
+        return self::statusColor($this->status);
+    }
+
     public function getStatusLabel(): string
     {
         return match ($this->status) {

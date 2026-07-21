@@ -338,7 +338,7 @@ class AgentWebhookProcessor
         if ($isNewRef) {
             $this->logger->info('complaint.externalId.promoted', [
                 'complaintId' => (string) $complaint->getId(),
-                'userId' => (string) $complaint->getAccessRequest()->getUser()->getId(),
+                'userId' => (string) $complaint->getAccessRequest()->getUser()?->getId(),
                 'from' => $oldExternalId,
                 'to' => $newExternalId,
             ]);
@@ -621,7 +621,7 @@ class AgentWebhookProcessor
             } catch (\InvalidArgumentException) {
                 $candidate = null;
             }
-            if ($candidate && $candidate->getUser()->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
+            if ($candidate && $candidate->getUser()?->getId()->toRfc4122() === $user->getId()->toRfc4122()) {
                 $accessRequest = $candidate;
             }
         }

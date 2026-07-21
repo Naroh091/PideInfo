@@ -7,21 +7,23 @@ import { Controller } from '@hotwired/stimulus';
  *
  *   - shape=portal   → textareas asunto + descripción (autosave debounced).
  *   - shape=reg      → textareas asunto + EXPONE + SOLICITA (autosave).
- *   - shape=complaint→ Trix (HTML estructurado); guardado explícito fuera
- *                      (la barra de acciones llama a getHtml()).
+ *   - shape=complaint→ un textarea de cuerpo (reclamación/alegaciones/consulta);
+ *                      guardado explícito fuera. El usuario edita TEXTO PLANO
+ *                      igual que la solicitud; el HTML solo se sintetiza en
+ *                      `getHtml()` para los endpoints de guardado/PDF/presentar.
  *
  * Comportamiento común:
  *   - Evento `paper-sheet:settled` (600 ms sin cambios) para que la tarjeta
  *     RAG refresque resoluciones similares y probabilidad.
  *   - Método público `replaceContent(payload)` con animación de máquina de
- *     escribir (textareas) o loadHTML (Trix). Escape salta al final.
+ *     escribir en los textareas. Escape salta al final.
  *   - Indicador de estado en el pie de la hoja.
  *
- * Targets: title, body, expone, solicita, editor, htmlInput, status
+ * Targets: title, body, expone, solicita, htmlInput (prefill), status
  * Values:  shape, autosaveUrl
  */
 export default class extends Controller {
-    static targets = ['title', 'body', 'expone', 'solicita', 'editor', 'htmlInput', 'status'];
+    static targets = ['title', 'body', 'expone', 'solicita', 'editor', 'htmlInput', 'status', 'sources', 'sourcesPills', 'docTypeSelect'];
     static values = {
         shape: { type: String, default: 'portal' },
         autosaveUrl: { type: String, default: '' },
@@ -31,6 +33,8 @@ export default class extends Controller {
         presentUrl: { type: String, default: '' },
         mode: { type: String, default: '' },
         draftId: { type: String, default: '' },
+        // flow=consult: "Guardar en el expediente" endpoint.
+        saveDossierUrl: { type: String, default: '' },
     };
 
     connect() {
@@ -41,13 +45,11 @@ export default class extends Controller {
         this._tickTimer = null;
         this._typing = false;
         this._typingAbort = null;
-        this._trixReady = false;
 
         this._onInput = this._onInput.bind(this);
         this._onKeyDown = this._onKeyDown.bind(this);
         this._onTitleInput = this._onTitleInput.bind(this);
         this._onBodyInput = this._onBodyInput.bind(this);
-        this._onTrixChange = this._onTrixChange.bind(this);
 
         if (this.hasTitleTarget) {
             this.titleTarget.addEventListener('input', this._onInput);
@@ -60,8 +62,11 @@ export default class extends Controller {
             el.addEventListener('input', this._onBodyInput);
             requestAnimationFrame(() => this._growBody(el));
         }
-        if (this._isComplaint() && this.hasEditorTarget) {
-            this._mountTrix();
+        // Reclamación/consulta reabierta: el borrador guardado es HTML; se muestra
+        // como texto plano para editar (el HTML se re-sintetiza al guardar/PDF).
+        if (this._isHtmlDoc() && this.hasHtmlInputTarget && this.hasBodyTarget && this.htmlInputTarget.value) {
+            this.bodyTarget.value = this._htmlToPlain(this.htmlInputTarget.value);
+            requestAnimationFrame(() => this._growBody(this.bodyTarget));
         }
         document.addEventListener('keydown', this._onKeyDown);
 
@@ -77,9 +82,6 @@ export default class extends Controller {
             el.removeEventListener('input', this._onInput);
             el.removeEventListener('input', this._onBodyInput);
         }
-        if (this.hasEditorTarget) {
-            this.editorTarget.removeEventListener('trix-change', this._onTrixChange);
-        }
         document.removeEventListener('keydown', this._onKeyDown);
         if (this._saveTimer) clearTimeout(this._saveTimer);
         if (this._settleTimer) clearTimeout(this._settleTimer);
@@ -87,50 +89,34 @@ export default class extends Controller {
         if (this._typingAbort) this._typingAbort();
     }
 
-    _isComplaint() {
+    /**
+     * shape=complaint marca los flujos cuyo documento se GUARDA como HTML
+     * (reclamación/alegaciones/consulta), pero el editor es un textarea de texto
+     * plano igual que la solicitud: el HTML se sintetiza en `getHtml()` solo al
+     * guardar/exportar. No hay editor enriquecido (Trix retirado).
+     */
+    _isHtmlDoc() {
         return this.shapeValue === 'complaint';
     }
 
-    /* ── Trix (shape=complaint) ─────────────────────────────────────────── */
-
-    _mountTrix() {
-        const el = this.editorTarget;
-        const ready = () => {
-            this._trixReady = true;
-            this.dispatch('ready', { detail: { shape: this.shapeValue } });
-            this._renderStatus();
-        };
-        el.addEventListener('trix-change', this._onTrixChange);
-        if (el.editor) ready();
-        else el.addEventListener('trix-initialize', ready, { once: true });
-    }
-
-    _onTrixChange() {
-        if (this._typing) return;
-        this._markDirty();
-        if (this._settleTimer) clearTimeout(this._settleTimer);
-        this._settleTimer = setTimeout(() => {
-            this.dispatch('settled', { detail: this._currentPayload() });
-        }, 600);
-    }
-
-    /** Public: current draft HTML (complaint shape). */
+    /**
+     * Public: current draft as HTML. El usuario edita texto plano en el textarea;
+     * aquí lo envolvemos en párrafos para los endpoints (guardar/PDF/presentar)
+     * que esperan HTML, sin cambiar el backend.
+     */
     getHtml() {
+        if (this.hasBodyTarget) return this._plainToHtml(this.bodyTarget.value);
         if (this.hasHtmlInputTarget) return this.htmlInputTarget.value || '';
         return '';
     }
 
     /** Public: plain-text length of the draft, for counters. */
     charCount() {
-        if (this._isComplaint()) {
-            const editor = this.hasEditorTarget ? this.editorTarget.editor : null;
-            return editor ? (editor.getDocument().toString() || '').trim().length : 0;
-        }
         return this._bodyTargets().reduce((acc, el) => acc + el.value.length, 0);
     }
 
     isReady() {
-        return this._isComplaint() ? this._trixReady : true;
+        return true;
     }
 
     /* ── Textareas (shape=portal|reg) ───────────────────────────────────── */
@@ -171,6 +157,7 @@ export default class extends Controller {
     }
 
     _onInput() {
+        if (this._frozen) return;   // instantánea de solo lectura: no autosave/settle
         if (this._typing) return; // suppress autosave/settle while we're typing programmatically
 
         this._markDirty();
@@ -187,7 +174,7 @@ export default class extends Controller {
     }
 
     _hasAutosave() {
-        return !this._isComplaint() && this.autosaveUrlValue !== '';
+        return !this._isHtmlDoc() && this.autosaveUrlValue !== '';
     }
 
     _markDirty() {
@@ -205,6 +192,74 @@ export default class extends Controller {
         }
     }
 
+    _reduceMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    /**
+     * Public — freeze this sheet into a read-only snapshot. The chat controller
+     * calls it on the previous latest sheet right before appending a new one, so
+     * each generation/rewrite becomes its own document in the stream and older
+     * versions can't be edited, autosaved or submitted.
+     */
+    freeze() {
+        if (this._frozen) return;
+        this._frozen = true;
+        if (this._saveTimer) clearTimeout(this._saveTimer);
+        if (this._settleTimer) clearTimeout(this._settleTimer);
+
+        const fields = [];
+        if (this.hasTitleTarget) fields.push(this.titleTarget);
+        fields.push(...this._bodyTargets());
+        fields.forEach((el) => { el.readOnly = true; el.setAttribute('tabindex', '-1'); });
+
+        this.element.classList.add('is-frozen');
+    }
+
+    /**
+     * Render the «Fuentes citadas» pills inside this sheet. `sources` are the
+     * server-resolved citations ({type, reference, label, url}); resolution →
+     * ficha interna (sin glifo externo), criterio/sentencia → documento externo.
+     *
+     * @param {Array<{type?: string, reference?: string, label?: string, url?: string|null}>} sources
+     */
+    _renderSources(sources) {
+        if (!this.hasSourcesTarget || !this.hasSourcesPillsTarget) return;
+
+        const list = Array.isArray(sources)
+            ? sources.filter((s) => s && (s.label || s.reference))
+            : [];
+
+        if (list.length === 0) {
+            this.sourcesPillsTarget.innerHTML = '';
+            this.sourcesTarget.hidden = true;
+            return;
+        }
+
+        const icons = { resolution: 'scale', criterion: 'book-open', judgment: 'gavel' };
+        this.sourcesPillsTarget.innerHTML = list.map((s) => {
+            const label = this._escapeHtml(s.label || s.reference || '');
+            const icon = icons[s.type] || 'file-text';
+            const internal = s.type === 'resolution';
+            if (s.url) {
+                const cls = internal ? 'draft-source draft-source--interna' : 'draft-source';
+                // Todas las fuentes abren en nueva pestaña (no perder el borrador).
+                const ext = internal ? '' : ' <i data-lucide="external-link" class="draft-source-ext"></i>';
+                return `<a href="${this._escapeHtml(s.url)}" class="${cls}" target="_blank" rel="noopener noreferrer"><i data-lucide="${icon}"></i> ${label}${ext}</a>`;
+            }
+            return `<span class="draft-source"><i data-lucide="${icon}"></i> ${label}</span>`;
+        }).join('');
+
+        this.sourcesTarget.hidden = false;
+        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    }
+
+    _escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+        }[c]));
+    }
+
     /* ── Escritura programática (el asistente entrega un borrador) ─────── */
 
     /**
@@ -214,13 +269,13 @@ export default class extends Controller {
      *
      * @param {{title?: string, bodyHtml?: string, expone?: string, solicita?: string}} payload
      */
-    async replaceContent({ title = '', bodyHtml = '', expone = '', solicita = '' } = {}) {
-        if (this._isComplaint()) {
-            this._replaceTrix(bodyHtml);
-            return;
-        }
-
-        const plainBody = this._htmlToPlain(bodyHtml).slice(0, 3000);
+    async replaceContent({ title = '', bodyHtml = '', expone = '', solicita = '', sources = [] } = {}) {
+        // Todos los flujos editan TEXTO PLANO en textareas (estilo solicitud);
+        // el HTML de reclamación/consulta se sintetiza solo en el borde de
+        // guardado/PDF (getHtml → _plainToHtml). El cuerpo entrante se pasa a
+        // texto plano y se teclea en el textarea `body`.
+        const bodyCap = this._isHtmlDoc() ? 12000 : 3000;
+        const plainBody = this._htmlToPlain(bodyHtml).slice(0, bodyCap);
         const safeTitle = String(title || '').slice(0, 255);
         const safeExpone = this._htmlToPlain(expone).slice(0, 4000);
         const safeSolicita = this._htmlToPlain(solicita).slice(0, 4000);
@@ -244,11 +299,19 @@ export default class extends Controller {
         });
 
         let aborted = false;
+        let resolveTyping;
         const abortPromise = new Promise((resolve) => {
+            resolveTyping = resolve;
             this._typingAbort = () => { aborted = true; resolve(); };
         });
 
         try {
+            // La caja «se genera»: punto → línea → rectángulo, y luego se teclea.
+            this.element.classList.add('is-gen');
+            if (!this._reduceMotion()) {
+                await new Promise((resolve) => setTimeout(resolve, 820));
+            }
+
             // Title: visually quick (≈350 ms total) so the page feels alive.
             if (this.hasTitleTarget && safeTitle.length > 0) {
                 await this._typeInto(this.titleTarget, safeTitle, {
@@ -264,9 +327,12 @@ export default class extends Controller {
             // Body / expone / solicita: ~3 s total each.
             const typeBlock = async (el, text) => {
                 if (text.length === 0 || aborted) return;
-                const targetMs = 3000;
-                const intervalMs = 14;
-                const ticks = Math.max(1, Math.floor(targetMs / intervalMs));
+                // Cada tick reescribe TODO el value y hace crecer el textarea (un
+                // reflow); demasiados ticks en un borrador largo escalan
+                // cuadráticamente. Acotamos a ~50 ticks → ~1 s sea cual sea la
+                // longitud, sin el efecto "se atasca" que se veía en EXPONE largos.
+                const ticks = Math.min(50, Math.max(10, Math.ceil(text.length / 40)));
+                const intervalMs = 20;
                 const chunk = Math.max(1, Math.ceil(text.length / ticks));
                 await this._typeInto(el, text, {
                     chunk,
@@ -290,30 +356,16 @@ export default class extends Controller {
             });
         }
 
+        this._renderSources(sources);
+
         // One save at the end, plus one settled-event so the RAG card refreshes.
         if (this._hasAutosave()) await this._save();
         this.dispatch('settled', { detail: this._currentPayload() });
 
         // Resolve the abort promise if we finished naturally (so any awaiters unblock).
         // (No-op if already resolved by Esc.)
+        resolveTyping?.();
         await abortPromise.catch(() => {});
-    }
-
-    _replaceTrix(bodyHtml) {
-        const el = this.hasEditorTarget ? this.editorTarget : this.element.querySelector('trix-editor');
-        const editor = el?.editor || null;
-        if (!editor) {
-            console.warn('paper-sheet: trix-editor not ready, dropping replaceContent');
-            return;
-        }
-        const html = String(bodyHtml || '');
-        // loadHTML() handles selection/cursor and emits trix-change, so edit
-        // tracking sees this as a fresh edit and refreshes counters.
-        try {
-            editor.loadHTML(html);
-        } catch (err) {
-            console.error('paper-sheet: loadHTML failed', err);
-        }
     }
 
     /**
@@ -401,7 +453,7 @@ export default class extends Controller {
     }
 
     _currentPayload() {
-        if (this._isComplaint()) {
+        if (this._isHtmlDoc()) {
             return { bodyHtml: this.getHtml() };
         }
         const payload = {
@@ -423,9 +475,26 @@ export default class extends Controller {
 
     _htmlToPlain(html) {
         if (!html) return '';
+        const withBreaks = String(html)
+            .replace(/<\/(p|div|h[1-6]|li|tr)>/gi, '\n\n')
+            .replace(/<br\s*\/?>/gi, '\n');
         const tmp = document.createElement('div');
-        tmp.innerHTML = String(html).replace(/<\/p>/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n');
-        return (tmp.textContent || '').trim();
+        tmp.innerHTML = withBreaks;
+        return (tmp.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    /**
+     * Inverse of {@see _htmlToPlain}: wraps the plain-text the user edited into
+     * simple HTML (one <p> per blank-line-separated block, single newlines as
+     * <br>) so the save/PDF endpoints keep receiving HTML. The user never sees
+     * HTML — this is only the boundary format.
+     */
+    _plainToHtml(text) {
+        const t = String(text ?? '').trim();
+        if (t === '') return '';
+        return t.split(/\n{2,}/)
+            .map((block) => '<p>' + this._escapeHtml(block.trim()).replace(/\n/g, '<br>') + '</p>')
+            .join('');
     }
 
     /** Public: forces an immediate save and resolves when persisted. */
@@ -448,7 +517,7 @@ export default class extends Controller {
      */
     async downloadPdf(event) {
         event?.preventDefault();
-        if (this._isComplaint()) {
+        if (this._isHtmlDoc()) {
             await this._downloadComplaintPdf(event?.currentTarget);
             return;
         }
@@ -456,6 +525,59 @@ export default class extends Controller {
         const url = link?.dataset?.paperSheetPdfUrlParam || link?.getAttribute('href');
         if (!url) return;
         await this.flush();
+        window.location.href = url;
+    }
+
+    /**
+     * «Enviar» (flujo anónimo): navega a la página de envío. En la solicitud
+     * primero vuelca el autosave pendiente; en la reclamación (shape
+     * complaint, sin autosave) hace POST del HTML del editor al mirror de
+     * autoguardado para que la página de envío pueda generar el PDF por GET.
+     */
+    async goToSend(event) {
+        event?.preventDefault();
+        const el = event?.currentTarget;
+        const url = el?.dataset?.paperSheetSendUrlParam || el?.getAttribute('href');
+        if (!url) return;
+
+        // If the assistant chat is mid-turn, flushing/storing now would pin a
+        // truncated draft (see dispatchSubmit's identical guard).
+        const chatEl = document.querySelector('[data-controller~="assistant-chat"]');
+        const chatCtrl = chatEl
+            ? this.application?.getControllerForElementAndIdentifier(chatEl, 'assistant-chat')
+            : null;
+        if (chatCtrl && typeof chatCtrl.isBusy === 'function' && chatCtrl.isBusy()) {
+            window.alert('El asistente todavía está generando la respuesta. Espera a que termine y vuelve a pulsar "Enviar".');
+            return;
+        }
+
+        if (this._isHtmlDoc()) {
+            const html = this.getHtml();
+            if (!html.trim()) {
+                window.alert('Aún no hay borrador que enviar. Pídeselo al asistente en el chat.');
+                return;
+            }
+            const saveUrl = el?.dataset?.paperSheetSendSaveUrlParam;
+            if (saveUrl) {
+                try {
+                    const res = await fetch(saveUrl, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ html }),
+                    });
+                    if (!res.ok) {
+                        window.alert('No se pudo guardar el borrador antes de enviar. Inténtalo de nuevo.');
+                        return;
+                    }
+                } catch (e) {
+                    window.alert('Error de red al guardar el borrador.');
+                    return;
+                }
+            }
+        } else {
+            await this.flush();
+        }
         window.location.href = url;
     }
 
@@ -534,6 +656,66 @@ export default class extends Controller {
             URL.revokeObjectURL(url);
         } catch (e) {
             window.alert('Error de conexión.');
+        } finally {
+            if (button) button.disabled = false;
+        }
+    }
+
+    /**
+     * flow=consult: persist the current document into the expediente. Reads the
+     * doc-type from the footer select (the agent pre-selected it). The dedicated
+     * types (reclamación / respuesta a alegaciones) route server-side into their
+     * official draft and may ask to confirm before overwriting an existing one.
+     */
+    async saveToDossier(event) {
+        event?.preventDefault();
+        if (!this.saveDossierUrlValue || !this.isReady()) return;
+        const html = this.getHtml();
+        if (!html.trim()) { window.alert('No hay documento que guardar.'); return; }
+        const docType = this.hasDocTypeSelectTarget ? this.docTypeSelectTarget.value : 'other';
+        // Consult sheets have no title field; fall back to the agent's title
+        // stashed on the element by assistant-chat#_applyDraftToSheet.
+        const title = (this.hasTitleTarget ? this.titleTarget.value : '') || this.element.dataset.docTitle || '';
+        const button = event?.currentTarget;
+        if (button) button.disabled = true;
+        try {
+            const post = (overwrite) => fetch(this.saveDossierUrlValue, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ html, docType, title, overwrite }),
+            });
+            let res = await post(false);
+            let data = await res.json().catch(() => ({}));
+            if (res.ok && data.needsConfirm) {
+                if (!window.confirm(data.message || 'Ya existe un borrador de este tipo. ¿Quieres sustituirlo?')) return;
+                res = await post(true);
+                data = await res.json().catch(() => ({}));
+            }
+            if (!res.ok || !data.success) {
+                window.alert(data.error || 'No se pudo guardar el documento.');
+                return;
+            }
+            if (this.hasStatusTarget) {
+                this.statusTarget.textContent = 'Guardado en el expediente ✓';
+                this.statusTarget.classList.add('canvas-status-saved');
+            }
+            this.dispatch('doc-saved', { detail: { documentId: data.documentId } });
+            // Best-effort live refresh of the dossier's documents list (the
+            // container carries its own fragment URL in data-documents-url).
+            const list = document.getElementById('documents-list');
+            const fragUrl = list?.dataset?.documentsUrl;
+            if (list && fragUrl) {
+                try {
+                    const frag = await fetch(fragUrl, { credentials: 'same-origin' });
+                    if (frag.ok) {
+                        list.innerHTML = await frag.text();
+                        if (window.lucide) window.lucide.createIcons();
+                    }
+                } catch (_e) { /* refresh is best-effort */ }
+            }
+        } catch (e) {
+            window.alert('Error de red al guardar el documento.');
         } finally {
             if (button) button.disabled = false;
         }

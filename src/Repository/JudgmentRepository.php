@@ -25,6 +25,24 @@ class JudgmentRepository extends ServiceEntityRepository
     }
 
     /**
+     * Tolerant reference-only lookup for resolving a citation the assistant
+     * emitted: the model may echo the canonical referenceNumber ("TS/1547/2017")
+     * OR the ROJ / ECLI form it saw in the search_judgments output
+     * ("STS 1547/2017", "ECLI:ES:TS:2017:1547"). Tries each in turn.
+     */
+    public function findOneByReference(string $reference): ?Judgment
+    {
+        foreach (['referenceNumber', 'roj', 'ecli'] as $field) {
+            $hit = $this->findOneBy([$field => $reference]);
+            if ($hit !== null) {
+                return $hit;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param list<string> $ids
      *
      * @return array<string, Judgment> keyed by id, for rehydrating vector-store hits

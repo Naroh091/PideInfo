@@ -28,6 +28,15 @@ final class ChannelResolver
     public const BADGE_PORTAL = 'Portal Transparencia';
     public const BADGE_REG = 'REG';
 
+    /**
+     * Citizen-facing entry point of the Registro Electrónico General
+     * (Red SARA REC) — the manual-submission fallback when a body has no AGE
+     * Portal idAmb.
+     */
+    public const REG_PUBLIC_URL = 'https://rec.redsara.es/registro/action/are/acceso.do';
+
+    private const PORTAL_WIZARD_URL = 'https://transparencia.sede.gob.es/procedimiento/formulario?idProc=133628&idAmb=%d';
+
     public function resolveTaskType(PublicBody $body): string
     {
         return $body->getTransparencyPortalAmbId() !== null
@@ -40,6 +49,17 @@ final class ChannelResolver
         return $this->resolveTaskType($body) === AgentTask::TYPE_SUBMIT_REQUEST_PORTAL
             ? self::BADGE_PORTAL
             : self::BADGE_REG;
+    }
+
+    /**
+     * Direct URL to the AGE Portal de Transparencia request wizard for this
+     * body, or null when it has no idAmb (i.e. its channel is REG).
+     */
+    public function portalWizardUrl(PublicBody $body): ?string
+    {
+        $ambId = $body->getTransparencyPortalAmbId();
+
+        return $ambId === null ? null : sprintf(self::PORTAL_WIZARD_URL, $ambId);
     }
 
     /**

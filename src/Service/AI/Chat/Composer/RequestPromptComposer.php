@@ -14,9 +14,12 @@ use App\Service\Submission\ApplicableLawResolver;
 
 /**
  * Composes the system prompt for the access-request flow of the unified chat
- * assistant. Encodes the decision policy ({@see PromptDecisionPolicy}) and
- * the channel-specific draft shape (REG → expone/solicita; AGE/email →
- * single description body).
+ * assistant. The behavioural decision policy (`reply`/`generate`/`rewrite`)
+ * lives in the managed prompt `pideinfo-request-generate-request-chat` (tunable
+ * in Langfuse, `{{state}}` injected here); only the machine output contract —
+ * the JSON shape coupled to the parser — and the channel-specific draft shape
+ * (REG → expone/solicita; AGE/email → single description body) stay in PHP
+ * ({@see self::outputContract()}).
  */
 final class RequestPromptComposer
 {
@@ -37,6 +40,10 @@ final class RequestPromptComposer
         $law = $ar->getApplicableLaw();
         $deadline = $this->applicableLawResolver->deadlineLabel($law);
 
+        $hasDraft = $isReg
+            ? (trim((string) $ar->getExpone()) !== '' || trim((string) $ar->getSolicita()) !== '')
+            : trim((string) $ar->getDescription()) !== '';
+
         $scaffolding = $this->promptStore->compile('pideinfo-request-generate-request-chat', [
             'organism' => $ar->getPublicBody()->getName(),
             'applicable_law_name' => $law->getName(),
@@ -44,9 +51,14 @@ final class RequestPromptComposer
             'deadline' => $deadline,
             'channel_block' => $isReg ? $this->regChannelBlock($ar) : $this->portalChannelBlock($ar),
             'similar_resolutions' => $this->formatResolutions($similarResolutions),
+            // The decision policy (`reply`/`generate`/`rewrite`) now lives inside the
+            // managed prompt so it can be tuned in Langfuse without a redeploy; `state`
+            // is the only dynamic bit it needs. Only the machine output contract —
+            // coupled to the parser — stays in PHP (see outputContract()).
+            'state' => $hasDraft ? 'YA EXISTE un borrador en el canvas.' : 'El borrador aún NO existe.',
         ]);
 
-        $fullText = $this->decisionPolicy($isReg, $ar) . "\n\n" . $scaffolding->text;
+        $fullText = $scaffolding->text;
 
         // The literal text of the applicable law (and of the regime that governs the capacity
         // the user acts in — a concejal is not governed by the Ley 19/2013). Injected here in
@@ -58,10 +70,15 @@ final class RequestPromptComposer
             $fullText .= "\n\n" . $legalBlock;
         }
 
-        $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()->getWritingPreferences());
+        $prefsBlock = WritingPreferencesFormatter::format($ar->getUser()?->getWritingPreferences() ?? []);
         if ($prefsBlock !== '') {
             $fullText .= "\n\n" . $prefsBlock;
         }
+
+        // The output contract goes LAST: it is the machine-facing instruction the
+        // model must obey verbatim (JSON shape, field names, length caps), and the
+        // parser depends on it — keeping it out of Langfuse prevents a silent break.
+        $fullText .= "\n\n" . $this->outputContract($isReg);
 
         return new CompiledPrompt(
             text: $fullText,
@@ -70,43 +87,37 @@ final class RequestPromptComposer
         );
     }
 
-    private function decisionPolicy(bool $isReg, AccessRequest $ar): string
+    /**
+     * The machine output contract. Kept in PHP (not in the Langfuse-managed
+     * prompt) because it is coupled to the parser: {@see StreamingDecisionSplitter}
+     * and the draft normalization expect exactly this JSON shape and field names,
+     * so a stray edit in Langfuse would break parsing silently. The behavioural
+     * decision policy (`reply`/`generate`/`rewrite`), by contrast, lives in the
+     * managed prompt so it can be tuned without a redeploy.
+     */
+    private function outputContract(bool $isReg): string
     {
-        $hasDraft = $isReg
-            ? (trim((string) $ar->getExpone()) !== '' || trim((string) $ar->getSolicita()) !== '')
-            : trim((string) $ar->getDescription()) !== '';
-
+        $sourcesShape = '"sources": [{"type": "resolution"|"criterion"|"judgment", "reference": str, "label": str}]';
         $draftShape = $isReg
-            ? '"draft": {"title": str ≤80, "expone": str ≤4000, "solicita": str ≤4000}'
-            : '"draft": {"title": str ≤255, "body_text": str ≤3000}';
-
-        $state = $hasDraft ? 'YA EXISTE un borrador en el canvas.' : 'El borrador aún NO existe.';
+            ? '"draft": {"title": str ≤80, "expone": str ≤4000, "solicita": str ≤4000, ' . $sourcesShape . '}'
+            : '"draft": {"title": str ≤255, "body_text": str ≤3000, ' . $sourcesShape . '}';
 
         return <<<TXT
-## Política de decisión
-
-En cada turno decides UNA de tres acciones:
-
-1. `reply` — el usuario pregunta, falta contexto clave, o aún no se ha llegado a un consenso sobre qué información pedir.
-2. `generate` — el borrador está vacío y el contexto acumulado es suficiente para un primer redactado.
-3. `rewrite` — ya hay borrador y el usuario pide un cambio concreto (tono, longitud, párrafos, foco…).
-
-Estado actual: {$state}
-
 ## Formato de salida (OBLIGATORIO)
 
 Responde ÚNICAMENTE con un bloque JSON válido (sin code fences) con esta forma:
 
 {
-  "conversational_reply": "respuesta al usuario en español, natural, sin metalenguaje, tan breve como puedas ser útil",
+  "conversational_reply": "respuesta al usuario en español, natural y breve, en HTML directo (NO Markdown)",
   "action": "reply" | "generate" | "rewrite",
   {$draftShape}  // OMÍTELO si action == "reply"
 }
 
 Reglas:
-- `conversational_reply`: tu respuesta directa al usuario. NO menciones que vas a incluir JSON ni que sigues un protocolo.
+- `conversational_reply`: tu respuesta directa al usuario, en **HTML directo, NO Markdown** (nada de `**negrita**` ni `#` — el cliente NO renderiza Markdown y se verían los símbolos). Etiquetas permitidas: <p>, <strong>, <em>, <ul>, <ol>, <li>, <br>, <a>, <code>. NO menciones que vas a incluir JSON ni que sigues un protocolo.
 - Si action == "reply", NO incluyas la clave "draft".
 - Si action == "generate" o "rewrite", incluye "draft" COMPLETO con todos sus campos (no devuelvas parches).
+- `sources`: incluye SOLO las resoluciones, criterios (CI) o sentencias que hayas leído con las tools (search_resolutions / search_criteria / search_judgments) en ESTA conversación y que EFECTIVAMENTE cites en el texto, con su `reference` EXACTA tal como aparece en el resultado de la tool. Deja la lista vacía si no citas ninguna. NUNCA inventes referencias ni enlaces.
 - No uses comillas tipográficas; respeta los límites de longitud.
 - SOLO el JSON, sin texto fuera de él.
 TXT;

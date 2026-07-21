@@ -6,7 +6,8 @@
     {# Ojo: .chat-bubble-text es white-space:pre-wrap — el texto debe ir en
        una sola línea o los saltos de la plantilla se pintan literalmente. #}
     {% set docLabel = flow == 'request' ? 'tu solicitud de acceso a información pública' : (isAlegation ? 'tu respuesta a las alegaciones' : 'tu reclamación') %}
-    <div class="chat-bubble-text">{{ 'Hola 👋 Soy el asistente de redacción de PideInfo. Puedo redactar ' ~ docLabel ~ ' apoyándome en la ley aplicable y en resoluciones reales de los Consejos de Transparencia — o puedes escribirla tú y pedirme ayuda solo cuando la necesites.' }}
+    {% set anonNote = anonymous|default(false) ? ' No necesitas cuenta: al terminar podrás descargar el PDF.' : '' %}
+    <div class="chat-bubble-text">{{ 'Hola 👋 Soy el asistente de redacción de PideInfo. Puedo redactar ' ~ docLabel ~ ' apoyándome en la ley aplicable y en resoluciones reales de los Consejos de Transparencia — o puedes escribirla tú y pedirme ayuda solo cuando la necesites.' ~ anonNote }}
 
 <strong>¿Qué prefieres hacer?</strong></div>
     <div class="chat-intro-actions">

@@ -7,9 +7,11 @@
         </div>
     {% elseif turn.kind|default('') not in ['suggestions', 'system'] %}
         <div class="chat-turn chat-turn-assistant">
-            <div class="chat-bubble-text">
-                {% if turn.allowsHtml|default(false) %}{{ turn.content|default('')|raw }}{% else %}{{ turn.content|default('')|nl2br }}{% endif %}
-            </div>
+            {# `chat-md` iguala el render con el stream en vivo: white-space:normal
+               (evita que el indentado del template se vea como líneas en blanco)
+               + estilo de párrafos/listas. El contenido es HTML: se sanea en
+               servidor para renderizarlo seguro al recargar. #}
+            <div class="chat-bubble-text chat-md">{% if turn.allowsHtml|default(false) %}{{ turn.content|default('')|raw }}{% else %}{{ turn.content|default('')|sanitize_html }}{% endif %}</div>
         </div>
     {% endif %}
 {% endfor %}

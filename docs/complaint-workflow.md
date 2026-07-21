@@ -90,7 +90,9 @@ Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en 
 
 **Cambio de estado manual.** Independientemente del flujo del editor, el usuario puede cambiar el desplegable de estado de la reclamación en la página de detalle de la solicitud a "Reclamada". El sistema crea una entidad `AccessRequestComplaint`, fija un plazo de resolución de 3 meses y registra la transición en `StatusHistory`.
 
-**Vista unificada `/redactar`** (`templates/complaint/redactar.html.twig`, servida por `App\Controller\ComplaintRedactController`). Un único espacio de trabajo de lienzo + chat que gestiona tanto la redacción de la reclamación como la respuesta a alegaciones:
+**Redacción anónima (`/redactar`).** Un visitante sin cuenta puede redactar una reclamación con el mismo chat: elige el organismo real que le denegó (el centinela genérico no se admite en este flujo) y qué respondió la administración (`resolutionResult`), lo que crea un `AccessRequest` sin dueño con la incoherencia deliberada `pending + resolutionResult` — suficiente para que `canGenerateComplaint()` pase. Solo puede descargar el PDF; al registrarse/iniciar sesión, `AnonymousDraftClaimer` asigna el expediente y repara la incoherencia mapeando el resultado a su estado real vía `changeStatus()`. Véase `docs/anonymous-drafting.md`.
+
+**Vista unificada `/redactar`** (servida por `App\Controller\ComplaintRedactController`). El **selector de modo** (sin `?mode=`) lo pinta `templates/complaint/redactar.html.twig`; una vez elegido el modo, el espacio de trabajo es la plantilla única de redacción `templates/asistente/conversacion.html.twig` (chat + hoja de papel), la misma que solicitudes y que el flujo anónimo. El editor clásico de lienzo (`?ui=classic`) fue retirado. Gestiona tanto la reclamación como la respuesta a alegaciones:
 
 - **Selección de modo** — entrar en `/solicitudes/{id}/redactar` sin `?mode=` muestra dos CTAs ("Redactar reclamación" / "Responder a alegaciones"). El usuario elige explícitamente; se evita intencionadamente la autodetección a partir del estado de la solicitud para que el ciudadano sepa qué documento está produciendo.
 - **Modos** — `?mode=complaint` o `?mode=alegation_response`. Una vez elegido, la URL mantiene el modo durante el resto de la sesión.
@@ -119,7 +121,7 @@ Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en 
 Una vez la reclamación está guardada como `Document(type=Complaint)`, dos puntos de la UI ofrecen la presentación vía agente:
 
 - En el detalle de la solicitud (`templates/solicitudes/show.html.twig`) — "Presentar con el agente" + "Iniciar manual".
-- En el propio editor (`templates/complaint/redactar.html.twig`): tras pulsar **Guardar borrador** aparecen botones **Presentar (supervisado)** y **Presentar (auto)** sin necesidad de volver al expediente. El guardado pasa por `app_complaint_redactar_save`, que delega en `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()`.
+- En el propio espacio de trabajo (`templates/asistente/conversacion.html.twig`): tras pulsar **Guardar borrador** aparecen botones **Presentar (supervisado)** y **Presentar (auto)** sin necesidad de volver al expediente. El guardado pasa por `app_complaint_redactar_save`, que delega en `ComplaintGenerator::saveComplaint()` / `saveAlegationResponse()`.
 
 Flujo:
 
@@ -287,6 +289,12 @@ Cada `ApplicableLaw` se mapea a un `ComplaintOrganism` — el consejo de transpa
 | ... | (17 comunidades autónomas + ámbito estatal) |
 
 La entidad `ComplaintOrganism` guarda el nombre del organismo, el nombre corto, la web, la URL del formulario de reclamación, el email y la dirección.
+
+> **Priorización del retrieval.** Este mismo mapeo alimenta la priorización de doctrina del asistente
+> de IA: al redactar (solicitud, reclamación o respuesta a alegaciones), `search_resolutions` y
+> `search_criteria` **priorizan** las resoluciones y criterios emitidos por este organismo garante y por
+> el CTBG antes que los del resto de consejos. Es un boost suave por re-ranking (no un filtro duro):
+> ver «Priorización de doctrina por organismo garante» en [docs/architecture.md](architecture.md).
 
 ### Organismos extinguidos y sucesión
 

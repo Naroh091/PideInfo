@@ -47,7 +47,7 @@ final class GetComplaintDraftTool
         if (null === $request) {
             return null;
         }
-        if ($request->getUser()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+        if ($request->getUser()?->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
             throw new AccessDeniedException('Request does not belong to the authenticated user.');
         }
 

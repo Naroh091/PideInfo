@@ -13,7 +13,7 @@
         <article class="paper-sheet"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="{{ shape }}"
-                 data-paper-sheet-autosave-url-value="{{ path('app_solicitudes_realizar_autosave', {id: request.id}) }}">
+                 data-paper-sheet-autosave-url-value="{{ autosaveUrl|default(path('app_solicitudes_realizar_autosave', {id: request.id})) }}">
 
             <div class="draft-meta-row">
                 {% if isRegDraft %}
@@ -64,13 +64,28 @@
                           data-paper-sheet-target="body">{{ prefill ? request.description : '' }}</textarea>
             {% endif %}
 
+            <div class="draft-sources" data-paper-sheet-target="sources"{{ (prefill and draftSources|default([])|length) ? '' : ' hidden' }}>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills">
+                    {% if prefill %}{% for s in draftSources|default([]) %}
+                        {% set internal = (s.type|default('')) == 'resolution' %}
+                        {% set sicon = {'resolution': 'scale', 'criterion': 'book-open', 'judgment': 'gavel'}[s.type|default('')]|default('file-text') %}
+                        {% if s.url|default('') %}
+                            <a href="{{ s.url }}" class="draft-source{{ internal ? ' draft-source--interna' : '' }}" target="_blank" rel="noopener noreferrer"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}{% if not internal %} <i data-lucide="external-link" class="draft-source-ext"></i>{% endif %}</a>
+                        {% else %}
+                            <span class="draft-source"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}</span>
+                        {% endif %}
+                    {% endfor %}{% endif %}
+                </div>
+            </div>
             <footer class="paper-sheet-foot">
                 <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
                 <div class="draft-cta-group">
-                    <a href="{{ path('app_solicitudes_realizar_pdf', {id: request.id}) }}"
+                    {% set requestPdfUrl = sheetPdfUrl|default(path('app_solicitudes_realizar_pdf', {id: request.id})) %}
+                    <a href="{{ requestPdfUrl }}"
                        class="btn btn-secondary"
                        data-action="click->paper-sheet#downloadPdf"
-                       data-paper-sheet-pdf-url-param="{{ path('app_solicitudes_realizar_pdf', {id: request.id}) }}">
+                       data-paper-sheet-pdf-url-param="{{ requestPdfUrl }}">
                         <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
                     </a>
                     {% if batchId %}
@@ -89,19 +104,88 @@
                                 {% endif %}
                             </button>
                         </form>
+                    {% elseif sendUrl|default(null) %}
+                        <a href="{{ sendUrl }}" class="btn btn-primary"
+                           data-action="click->paper-sheet#goToSend"
+                           data-paper-sheet-send-url-param="{{ sendUrl }}">
+                            <i data-lucide="send" class="w-4 h-4 mr-2"></i> Enviar
+                        </a>
                     {% endif %}
                 </div>
             </footer>
         </article>
+    {% elseif flow == 'consult' %}
+        {# Consulta libre: documento HTML (Trix, shape=complaint) con footer propio
+           — selector de tipo (DocumentType::consultSavable), Descargar PDF y
+           Guardar en el expediente. Sin autosave ni "presentar". El id del input
+           se reescribe a uno único por hoja en assistant-chat#_createSheet. #}
+        <article class="paper-sheet paper-sheet--consult"
+                 data-controller="paper-sheet"
+                 data-paper-sheet-shape-value="complaint"
+                 data-paper-sheet-pdf-url-value="{{ path('app_consult_pdf', {id: request.id}) }}"
+                 data-paper-sheet-save-dossier-url-value="{{ path('app_consult_save', {id: request.id}) }}">
+
+            <div class="draft-meta-row">
+                <span class="meta-pill">{{ request.publicBody.getLevelLabel() }}</span>
+                {% if request.applicableLaw %}
+                    <span class="meta-pill meta-pill-law">{{ request.applicableLaw.shortCode ?? request.applicableLaw.name }}</span>
+                {% endif %}
+            </div>
+
+            {# Título del escrito + editor de texto plano (mismo formato que la
+               solicitud). El HTML se sintetiza solo al descargar/guardar
+               (getHtml → _plainToHtml). #}
+            <textarea class="draft-title-input"
+                      placeholder="Título del escrito…"
+                      maxlength="255"
+                      rows="1"
+                      data-paper-sheet-target="title"></textarea>
+            <textarea class="draft-body-input"
+                      data-paper-sheet-target="body"
+                      placeholder="El documento que generes aparecerá aquí. Puedes editarlo antes de descargarlo o guardarlo."></textarea>
+
+            <div class="draft-sources" data-paper-sheet-target="sources" hidden>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills"></div>
+            </div>
+
+            <footer class="paper-sheet-foot">
+                <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
+                <div class="draft-cta-group draft-cta-group--consult">
+                    <label class="consult-doctype">
+                        <span class="consult-doctype-label">Guardar como</span>
+                        <select data-paper-sheet-target="docTypeSelect" class="consult-doctype-select">
+                            <option value="complaint">Reclamación</option>
+                            <option value="alegation_response">Respuesta a alegaciones</option>
+                            <option value="subsanacion_response">Subsanación presentada</option>
+                            <option value="other" selected>Otro</option>
+                        </select>
+                    </label>
+                    <button type="button" class="btn btn-secondary" data-action="paper-sheet#downloadPdf">
+                        <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
+                    </button>
+                    <button type="button" class="btn btn-primary" data-action="paper-sheet#saveToDossier">
+                        <i data-lucide="folder-plus" class="w-4 h-4 mr-2"></i> Guardar en el expediente
+                    </button>
+                </div>
+            </footer>
+        </article>
     {% else %}
+        {# `is defined` y no `default()`: un saveUrl/presentUrl definido como
+           null significa "acción no disponible" (flujo anónimo) y default()
+           lo pisaría con la ruta autenticada. #}
+        {% set complaintSaveUrl = saveUrl is defined ? saveUrl : path('app_complaint_redactar_save', {id: request.id}) %}
+        {% set complaintPdfUrl = sheetPdfUrl|default(path('app_complaint_download_pdf', {id: request.id})) %}
+        {% set complaintPresentUrl = presentUrl is defined ? presentUrl : path('app_complaint_present_via_agent', {id: request.id}) %}
+        {% set complaintSendUrl = sendUrl|default(null) %}
         <article class="paper-sheet"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="complaint"
                  data-paper-sheet-mode-value="{{ mode }}"
                  data-paper-sheet-draft-id-value="{{ currentDraft ? currentDraft.id : '' }}"
-                 data-paper-sheet-save-url-value="{{ path('app_complaint_redactar_save', {id: request.id}) }}"
-                 data-paper-sheet-pdf-url-value="{{ path('app_complaint_download_pdf', {id: request.id}) }}"
-                 {% if not isAlegation %}data-paper-sheet-present-url-value="{{ path('app_complaint_present_via_agent', {id: request.id}) }}"{% endif %}>
+                 data-paper-sheet-save-url-value="{{ complaintSaveUrl ?? '' }}"
+                 data-paper-sheet-pdf-url-value="{{ complaintPdfUrl }}"
+                 {% if not isAlegation and complaintPresentUrl %}data-paper-sheet-present-url-value="{{ complaintPresentUrl }}"{% endif %}>
 
             <div class="draft-meta-row">
                 <span class="meta-pill meta-pill-portal">
@@ -113,27 +197,51 @@
                 {% endif %}
             </div>
 
-            <div class="draft-body">
-                <input id="redactar-html-input" type="hidden"
-                       data-paper-sheet-target="htmlInput"
-                       value="{{ prefill ? currentBodyHtml : '' }}">
-                <trix-editor input="redactar-html-input"
-                             data-paper-sheet-target="editor"
-                             placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o pídesela al asistente en el chat…{% else %}Escribe la reclamación, o pídesela al asistente en el chat…{% endif %}"></trix-editor>
-            </div>
+            {# Editor de texto plano (estilo solicitud). El borrador guardado es
+               HTML: se pasa por el hidden htmlInput y paper-sheet#connect lo
+               convierte a texto plano para editar; al guardar/exportar se
+               re-sintetiza el HTML (getHtml → _plainToHtml). #}
+            <input type="hidden" data-paper-sheet-target="htmlInput" value="{{ prefill ? currentBodyHtml : '' }}">
+            <textarea class="draft-body-input"
+                      data-paper-sheet-target="body"
+                      placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o pídesela al asistente en el chat…{% else %}Escribe la reclamación, o pídesela al asistente en el chat…{% endif %}"></textarea>
 
+            <div class="draft-sources" data-paper-sheet-target="sources"{{ (prefill and draftSources|default([])|length) ? '' : ' hidden' }}>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills">
+                    {% if prefill %}{% for s in draftSources|default([]) %}
+                        {% set internal = (s.type|default('')) == 'resolution' %}
+                        {% set sicon = {'resolution': 'scale', 'criterion': 'book-open', 'judgment': 'gavel'}[s.type|default('')]|default('file-text') %}
+                        {% if s.url|default('') %}
+                            <a href="{{ s.url }}" class="draft-source{{ internal ? ' draft-source--interna' : '' }}" target="_blank" rel="noopener noreferrer"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}{% if not internal %} <i data-lucide="external-link" class="draft-source-ext"></i>{% endif %}</a>
+                        {% else %}
+                            <span class="draft-source"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}</span>
+                        {% endif %}
+                    {% endfor %}{% endif %}
+                </div>
+            </div>
             <footer class="paper-sheet-foot">
                 <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
                 <div class="draft-cta-group">
-                    <button type="button" class="btn btn-secondary"
-                            data-action="paper-sheet#saveDraft">
-                        <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
-                    </button>
-                    <button type="button" class="btn btn-secondary"
+                    {% if complaintSaveUrl %}
+                        <button type="button" class="btn btn-secondary"
+                                data-action="paper-sheet#saveDraft">
+                            <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
+                        </button>
+                    {% endif %}
+                    <button type="button" class="btn {{ (complaintPresentUrl or complaintSendUrl) ? 'btn-secondary' : 'btn-primary' }}"
                             data-action="paper-sheet#downloadPdf">
                         <i data-lucide="file-down" class="w-4 h-4 mr-2"></i> Descargar PDF
                     </button>
-                    {% if not isAlegation %}
+                    {% if complaintSendUrl %}
+                        <button type="button" class="btn btn-primary"
+                                data-action="paper-sheet#goToSend"
+                                data-paper-sheet-send-url-param="{{ complaintSendUrl }}"
+                                data-paper-sheet-send-save-url-param="{{ path('app_public_redactar_complaint_autosave', {id: request.id}) }}">
+                            <i data-lucide="send" class="w-4 h-4 mr-2"></i> Enviar
+                        </button>
+                    {% endif %}
+                    {% if not isAlegation and complaintPresentUrl %}
                         <button type="button" class="btn btn-secondary"
                                 data-action="paper-sheet#presentViaAgent"
                                 data-paper-sheet-agent-mode-param="supervised"

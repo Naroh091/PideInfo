@@ -43,6 +43,7 @@ final readonly class WarmActivitySummaryHandler
                 || $user->getActivitySummaryFingerprint() !== null
             ) {
                 $user->setActivitySummaryHtml(null);
+                $user->setActivitySummaryItems(null);
                 $user->setActivitySummaryFingerprint(null);
                 $user->setActivitySummaryUpdatedAt(new \DateTimeImmutable());
                 $this->em->flush();
@@ -51,7 +52,7 @@ final readonly class WarmActivitySummaryHandler
             return;
         }
 
-        $fingerprint = $this->summarizer->fingerprint($notifications);
+        $fingerprint = $this->summarizer->fingerprint($user, $notifications);
 
         // Cache already matches the live state — nothing to do.
         if ($fingerprint === $user->getActivitySummaryFingerprint()) {
@@ -59,7 +60,7 @@ final readonly class WarmActivitySummaryHandler
         }
 
         try {
-            $html = $this->summarizer->summarize($user, $since);
+            $result = $this->summarizer->summarize($user, $since);
         } catch (\Throwable $e) {
             $this->logger->warning('WarmActivitySummaryHandler: summarize threw', [
                 'user' => (string) $user->getId(),
@@ -68,13 +69,14 @@ final readonly class WarmActivitySummaryHandler
             return;
         }
 
-        if ($html === null) {
+        if ($result === null) {
             // LLM error already logged inside the summarizer; leave the existing
             // cache untouched so the user keeps seeing the previous summary.
             return;
         }
 
-        $user->setActivitySummaryHtml($html);
+        $user->setActivitySummaryHtml($result->html);
+        $user->setActivitySummaryItems($result->items === [] ? null : $result->items);
         $user->setActivitySummaryFingerprint($fingerprint);
         $user->setActivitySummaryUpdatedAt(new \DateTimeImmutable());
         $this->em->flush();

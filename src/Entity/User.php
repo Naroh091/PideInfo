@@ -86,6 +86,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $activitySummaryHtml = null;
 
+    /**
+     * Structured companion of the summary: the LLM's typed items (estimaciones,
+     * plazos de alegaciones, silencios, inadmisiones, caducidades…) that the
+     * dashboard renders as the sumario strip and the «Necesita tu acción» card.
+     * Each item: {kind, severity, headline, title, detail, uuid?, action?} —
+     * shape validated/sanitized in ActivitySummarizer before persisting.
+     *
+     * @var list<array<string, string>>|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $activitySummaryItems = null;
+
     /** sha1 of the ordered notification UUIDs the cached summary was built from. */
     #[ORM\Column(length: 40, nullable: true)]
     private ?string $activitySummaryFingerprint = null;
@@ -372,6 +384,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getActivitySummaryHtml(): ?string
     {
         return $this->activitySummaryHtml;
+    }
+
+    /**
+     * @return list<array<string, string>>|null
+     */
+    public function getActivitySummaryItems(): ?array
+    {
+        return $this->activitySummaryItems;
+    }
+
+    /**
+     * @param list<array<string, string>>|null $activitySummaryItems
+     */
+    public function setActivitySummaryItems(?array $activitySummaryItems): static
+    {
+        $this->activitySummaryItems = $activitySummaryItems;
+
+        return $this;
     }
 
     public function setActivitySummaryHtml(?string $activitySummaryHtml): static

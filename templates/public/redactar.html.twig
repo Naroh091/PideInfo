@@ -1,0 +1,249 @@
+{% extends 'layouts/public_page.html.twig' %}
+
+{# Entrada pública de la redacción sin registro (/redactar): el visitante
+   elige qué quiere redactar (solicitud o reclamación), el organismo de
+   destino, y — en reclamaciones — qué le respondió la administración. El POST
+   de creación lo hace realizar_picker_controller.js contra
+   /redactar/crear, con flow / resolutionResult / turnstileToken viajando como
+   campos extra (#redactar-extra). #}
+
+{% block title %}Redacta tu solicitud de transparencia · PideInfo{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    {% include '_partials/organism_picker_styles.html.twig' %}
+{% endblock %}
+
+{% block content %}
+<div x-data="redactarPublico()" class="pb-24 sm:pb-40">
+
+    <header class="redactar-hero mb-6">
+        <div class="redactar-hero-fila">
+            <div class="redactar-hero-txt">
+                <p class="home-hero-eyebrow"><span>Artículo 17 · Ley 19/2013 — ejercer el derecho de acceso</span></p>
+                <h1 class="redactar-hero-cita">Vamos a <span class="rotulador rotulador--barrido">empezar</span></h1>
+                <p class="home-hero-sub">
+                    El asistente redacta contigo, apoyándose en la ley aplicable y en
+                    resoluciones reales de los Consejos de Transparencia.
+                </p>
+                <p class="home-hero-nota">
+                    <i data-lucide="check"></i>
+                    Sin registro — al terminar descargas el PDF. Crea una cuenta y guardamos el
+                    expediente y vigilamos sus plazos.
+                </p>
+            </div>
+            <a href="{{ path('app_register') }}" class="btn-editorial btn-editorial--secundario shrink-0">
+                <i data-lucide="user-plus"></i> Crear cuenta
+            </a>
+        </div>
+    </header>
+
+    {% if existingDrafts|length > 0 %}
+        <section class="redactar-panel p-5 mb-8">
+            <div class="redactar-borradores-cab">
+                <span class="redactar-borradores-icono"><i data-lucide="folder-clock"></i></span>
+                <div class="min-w-0">
+                    <h2 class="redactar-seccion-titulo">Tus borradores en curso</h2>
+                    <p class="redactar-borradores-sub">{{ existingDrafts|length }} de {{ maxDrafts }} · solo en este navegador</p>
+                </div>
+            </div>
+            <ul class="space-y-2">
+                {% for draft in existingDrafts %}
+                    <li>
+                        <a href="{{ draft.url }}" class="group flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:border-primary-300 hover:bg-primary-50/40 transition-colors">
+                            <i data-lucide="{{ draft.flow == 'complaint' ? 'gavel' : 'file-text' }}" class="w-4 h-4 text-slate-500 shrink-0"></i>
+                            <span class="min-w-0">
+                                <span class="block text-sm font-medium text-slate-900 truncate">{{ draft.title }}</span>
+                                <span class="block text-xs text-slate-500 truncate">{{ draft.flow == 'complaint' ? 'Reclamación' : 'Solicitud' }} · {{ draft.publicBody }}</span>
+                            </span>
+                            <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 ml-auto shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-500"></i>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+            <p class="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-100">
+                Estos borradores viven solo en este navegador.
+                <a href="{{ path('app_register') }}" class="text-primary-600 hover:text-primary-700 font-medium">Crea una cuenta</a>
+                para conservarlos.
+            </p>
+        </section>
+    {% endif %}
+
+    {# ── Paso 1: qué quieres redactar ─────────────────────────── #}
+    <section class="mb-8">
+        <div class="redactar-paso-cab">
+            <span class="redactar-paso-num">1</span>
+            <h2 class="redactar-seccion-titulo">¿Qué quieres redactar?</h2>
+        </div>
+        <div class="grid sm:grid-cols-2 gap-4">
+        <button type="button"
+                class="redactar-opcion"
+                :class="{ 'is-selected': flow === 'request' }"
+                @click="flow = 'request'">
+            <div class="flex items-center gap-2 mb-1">
+                <i data-lucide="file-text" class="w-5 h-5 text-primary-600"></i>
+                <span class="redactar-opcion-titulo redactar-mark">Una solicitud de información</span>
+            </div>
+            <p class="text-sm text-slate-600">
+                Quieres pedir información pública a una administración: contratos, gastos, informes, expedientes…
+            </p>
+        </button>
+        <button type="button"
+                class="redactar-opcion"
+                :class="{ 'is-selected': flow === 'complaint' }"
+                @click="flow = 'complaint'">
+            <div class="flex items-center gap-2 mb-1">
+                <i data-lucide="gavel" class="w-5 h-5 text-primary-600"></i>
+                <span class="redactar-opcion-titulo redactar-mark">Una reclamación</span>
+            </div>
+            <p class="text-sm text-slate-600">
+                Ya pediste información y te la denegaron, respondieron a medias o no contestaron. Reclama ante el Consejo de Transparencia.
+            </p>
+        </button>
+        </div>
+    </section>
+
+    {# ── Paso 2 (solo reclamación): qué pasó con tu solicitud ── #}
+    <section x-show="flow === 'complaint'" x-cloak class="redactar-panel p-5 mb-6">
+        <h2 class="text-sm font-semibold text-slate-900 mb-1" style="font-family:'DM Sans',sans-serif;">¿Qué respondió la administración?</h2>
+        <p class="text-xs text-slate-500 mb-3">Determina el enfoque de la reclamación. Podrás pegar la respuesta o adjuntar el PDF en el chat.</p>
+        <div class="grid sm:grid-cols-2 gap-2">
+            {% for value, label in {
+                'denied': 'Me la denegaron',
+                'silence': 'No contestaron (silencio administrativo)',
+                'partially_granted': 'Me dieron solo parte de lo pedido',
+                'inadmitted': 'La inadmitieron a trámite',
+            } %}
+                <label class="redactar-opcion redactar-opcion--sm"
+                       :class="{ 'is-selected': result === '{{ value }}' }">
+                    <input type="radio" name="resultChoice" value="{{ value }}" x-model="result" class="accent-sky-500">
+                    <span class="text-sm text-slate-800 redactar-mark">{{ label }}</span>
+                </label>
+            {% endfor %}
+        </div>
+        <p x-show="!result" x-cloak class="text-xs text-amber-700 mt-2">Elige una opción para poder continuar.</p>
+    </section>
+
+    {# ── Paso 2: a quién va dirigido ──────────────────────────────
+       Destino único. En vez del picker completo, dos botones: elegir un
+       destinatario (abre el buscador y, tras confirmarlo, «Continuar») o
+       seguir sin él. Reutiliza realizar_picker_controller.js (modal + submit);
+       el CSS de .redactar-destino oculta su panel vacío y el «Continuar» hasta
+       que hay un destino elegido. #}
+    <section :class="!flow || (flow === 'complaint' && !result) ? 'opacity-50 pointer-events-none' : ''">
+        <div class="redactar-paso-cab">
+            <span class="redactar-paso-num">2</span>
+            <h2 class="redactar-seccion-titulo"
+                x-text="flow === 'complaint' ? '¿A qué organismo reclamas?' : '¿A quién va dirigida?'"></h2>
+        </div>
+
+        <div class="redactar-destino"
+             data-controller="realizar-picker"
+             data-realizar-picker-destinations-url-value="{{ path('app_public_redactar_destinations_json') }}"
+             data-realizar-picker-destination-facets-url-value="{{ path('app_public_redactar_destinations_facets_json') }}"
+             data-realizar-picker-initiate-url-value="{{ path('app_public_redactar_create') }}"
+             data-realizar-picker-max-targets-value="1"
+             data-realizar-picker-extra-fields-selector-value="#redactar-extra input"
+             data-realizar-picker-draft-only-value="true">
+
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="button" class="btn-editorial btn-editorial--primario"
+                        data-realizar-picker-target="addButton"
+                        data-action="realizar-picker#openDestinationModal">
+                    <i data-lucide="search"></i> Elegir destinatario
+                </button>
+                <button x-show="flow === 'request'" x-cloak type="button"
+                        class="btn-editorial btn-editorial--secundario"
+                        @click="crearGenerico()" :disabled="genericBusy">
+                    <i data-lucide="pen-line"></i>
+                    <span x-text="genericBusy ? 'Preparando…' : 'Aún no lo tengo claro'"></span>
+                </button>
+            </div>
+
+            {# El controlador pinta aquí el destinatario elegido (o nada). #}
+            <div data-realizar-picker-target="preview"></div>
+
+            <button type="button"
+                    class="btn-editorial btn-editorial--primario redactar-continuar"
+                    data-realizar-picker-target="continueButton"
+                    data-action="realizar-picker#submit"
+                    disabled>
+                Continuar a la redacción
+                <i data-lucide="arrow-right"></i>
+            </button>
+
+            <p class="flex items-start gap-2 text-sm text-slate-600 mt-3">
+                <i data-lucide="info" class="w-4 h-4 text-slate-400 mt-0.5 shrink-0"></i>
+                <span>
+                    Si eliges el destinatario, después podemos <b>guiarte para presentarla</b>
+                    en su registro —aunque no te registres.
+                </span>
+            </p>
+        </div>
+    </section>
+
+    {# ── Anti-abuso ────────────────────────────────────────────── #}
+    <div id="redactar-extra">
+        <input type="hidden" name="flow" :value="flow">
+        <input type="hidden" name="resolutionResult" :value="flow === 'complaint' ? result : ''">
+        <input type="hidden" name="turnstileToken" id="turnstile-token" value="">
+    </div>
+
+    {% if turnstileSiteKey %}
+        <div class="mt-6 flex justify-center">
+            <div class="cf-turnstile"
+                 data-sitekey="{{ turnstileSiteKey }}"
+                 data-callback="pideinfoTurnstileToken"
+                 data-expired-callback="pideinfoTurnstileExpired"></div>
+        </div>
+    {% endif %}
+</div>
+
+{% if turnstileSiteKey %}
+    <script>
+        window.pideinfoTurnstileToken = function (token) {
+            document.getElementById('turnstile-token').value = token;
+        };
+        window.pideinfoTurnstileExpired = function () {
+            document.getElementById('turnstile-token').value = '';
+            if (window.turnstile) { window.turnstile.reset(); }
+        };
+    </script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
+
+<script>
+    function redactarPublico() {
+        return {
+            flow: '{{ flow }}',
+            result: '',
+            genericBusy: false,
+            async crearGenerico() {
+                this.genericBusy = true;
+                try {
+                    const res = await fetch('{{ path('app_public_redactar_create') }}', {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                        body: JSON.stringify({
+                            flow: 'request',
+                            generic: true,
+                            turnstileToken: document.getElementById('turnstile-token')?.value || '',
+                        }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok && data.firstDraftUrl) {
+                        window.location.href = data.firstDraftUrl;
+                        return;
+                    }
+                    alert(data.message || 'No se ha podido crear el borrador. Inténtalo de nuevo.');
+                } catch (e) {
+                    console.error(e);
+                    alert('No se ha podido crear el borrador. Inténtalo de nuevo.');
+                }
+                this.genericBusy = false;
+            },
+        };
+    }
+</script>
+{% endblock %}

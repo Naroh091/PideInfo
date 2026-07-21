@@ -412,272 +412,872 @@ body {
   color: #f59e0b;
 }
 
-/* ── Home page ── */
-.hero-section {
-  background: linear-gradient(160deg, #ffffff 0%, #f0f9ff 40%, #e0f2fe 100%);
-}
+/* ── Home pública — rediseño «El derecho, subrayado» ──
+   Papel/tinta + acción sky + marcador ámbar. Serif solo para títulos
+   (DM Serif Display); la hoja usa Source Serif 4 y las cifras/etiquetas
+   técnicas JetBrains Mono (la plantilla del home carga ambas fuentes). */
 
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 10% 80%, rgba(14, 165, 233, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 90% 20%, rgba(3, 105, 161, 0.04) 0%, transparent 50%);
-  pointer-events: none;
-}
-
-.home-step {
-  @apply flex gap-5 items-start p-4 rounded-xl transition-colors;
-}
-
-.home-step:hover {
-  @apply bg-slate-50;
-}
-
-.home-step-num {
-  @apply w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0 text-primary-600 font-bold;
-  font-family: 'DM Serif Display', serif;
-  font-size: 1.25rem;
-}
-
-.home-repo-section {
-  background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
-}
-
-.home-repo-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 80% 30%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
-    radial-gradient(circle at 20% 70%, rgba(3, 105, 161, 0.05) 0%, transparent 40%);
-  pointer-events: none;
-}
-
-.home-repo-preview {
-  @apply bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200 p-5;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
-}
-
-.home-repo-bar {
-  display: flex;
-  height: 8px;
-  border-radius: 99px;
-  overflow: hidden;
-  gap: 2px;
-}
-
-.home-repo-bar-seg {
-  border-radius: 99px;
-}
-
-.home-quote {
-  @apply relative pl-6 py-3 text-slate-700 italic max-w-3xl mx-auto;
-  border-left: 4px solid var(--color-primary-400);
-}
-
-/* ── Portals (privacy / agent) section ── */
-.home-portals-section {
-  background: linear-gradient(165deg, #ffffff 0%, #ecfdf5 55%, #f0f9ff 100%);
-}
-
-.home-portals-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 45%),
-    radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.05) 0%, transparent 45%);
-  pointer-events: none;
-}
-
-.home-portals-card {
-  @apply bg-white/85 backdrop-blur-sm rounded-2xl border border-emerald-100 p-5;
-  box-shadow: 0 18px 48px -16px rgba(16, 185, 129, 0.18), 0 6px 18px rgba(15, 23, 42, 0.04);
-}
-
-.home-portals-machine {
+/* Hero */
+.home-hero {
   position: relative;
+  padding: 2.75rem 0 4.5rem;
+  background:
+    radial-gradient(48rem 24rem at 85% -10%, rgba(14, 165, 233, .10), transparent 65%),
+    linear-gradient(168deg, #ffffff 0%, #ffffff 55%, #f0f9ff 100%);
+  overflow: hidden;
+}
+.home-hero-grid {
+  display: grid;
+  gap: 3rem;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .home-hero { padding: 3.5rem 0 5.5rem; }
+  .home-hero-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 4rem; }
 }
 
-.home-portals-machine-screen {
-  @apply rounded-xl border border-slate-200 bg-white p-3.5;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.08), 0 6px 18px -8px rgba(16, 185, 129, 0.18);
+.home-hero-eyebrow {
+  font: 500 .75rem/1.6 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+  max-width: 38rem;
+  margin: 0 0 1.5rem;
+}
+.home-hero-eyebrow::before {
+  content: '';
+  width: 2rem;
+  height: 1px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: .55em;
 }
 
-.home-portals-machine-base {
-  @apply mx-auto mt-1.5 h-1.5 rounded-b-xl bg-slate-200;
-  width: 60%;
+.home-hero-cita {
+  font: 400 clamp(2.25rem, 4.2vw, 3rem)/1.18 'DM Serif Display', Georgia, serif;
+  letter-spacing: -.01em;
+  color: #0f172a;
+  margin: 0;
 }
 
-.home-portals-flow {
+/* Rotación del hero en tándem con la hoja: el bloque eyebrow+titular+sub
+   funde al cambiar de caso (el JS quita la clase tras repintar). El
+   min-height en escritorio amortigua el salto de los CTA entre preguntas
+   de 2 y 3 líneas. */
+.home-hero-rota { transition: opacity .28s ease; }
+.home-hero-rota.is-cambiando { opacity: 0; }
+@media (min-width: 1024px) {
+  .home-hero-rota { min-height: 17.5rem; }
+}
+
+/* El rotulador: subrayado ámbar editorial, reutilizable en cabeceras y
+   momentos editoriales (una frase por vista). Highlight por background con
+   box-decoration-break en TODOS los anchos: las marcas largas de las
+   variantes del hero deben poder partir de línea — el antiguo rect
+   posicionado exigía white-space:nowrap y desbordaba la columna metiendo
+   el titular bajo la hoja. El barrido de carga es un floreo de hero y vive
+   en el modificador `--barrido` (animación de background-size, anclada a
+   la izquierda). */
+.rotulador {
+  color: inherit;
+  font-style: italic;
+  background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 62% / 100% 48% no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding: 0 .06em;
+}
+/* Barrido de carga: solo donde se pide explícitamente (hero de portada y de
+   /redactar). Un rotulador de cabecera corriente entra estático. */
+@media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
+  .rotulador--barrido {
+    animation: rotulador-barrido .7s cubic-bezier(.65, 0, .35, 1) .45s backwards;
+  }
+  @keyframes rotulador-barrido {
+    from { background-size: 0% 48%; }
+    to   { background-size: 100% 48%; }
+  }
+}
+
+.home-hero-claim {
+  font: 600 clamp(1.25rem, 2.2vw, 1.5rem)/1.35 'DM Sans', 'Inter', system-ui, sans-serif;
+  color: #0f172a;
+  margin: 2rem 0 .5rem;
+}
+.home-hero-sub {
+  font-size: 1.0625rem;
+  color: #475569;
+  max-width: 34rem;
+  margin: 0;
+}
+.home-hero-sub b { font-weight: 600; color: #0f172a; }
+.home-hero-nota {
+  margin: .875rem 0 0;
+  font: 400 .8125rem/1.4 'DM Sans', 'Inter', system-ui, sans-serif;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+}
+.home-hero-nota svg { width: .875rem; height: .875rem; color: #059669; flex-shrink: 0; }
+
+/* Botón editorial: CTA grande, redondeado (.75rem) y relleno de las
+   superficies de captación/editorial (portada, /redactar). No es el `.btn`
+   compacto de la app en forma de píldora: convive con él y se reserva para
+   momentos que venden, no para la gestión corriente. Reutilizable. */
+.btn-editorial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  font: 500 1rem/1 'DM Sans', 'Inter', system-ui, sans-serif;
+  padding: .875rem 1.75rem;
+  border-radius: .75rem;
+  border: 1px solid transparent;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color .15s, border-color .15s, color .15s, transform .15s, box-shadow .15s;
+}
+.btn-editorial svg { width: 1.125rem; height: 1.125rem; }
+.btn-editorial--primario {
+  background: var(--color-primary-600);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 8px 24px -12px rgba(2, 132, 199, .55);
+}
+.btn-editorial--primario:hover { background: var(--color-primary-700); color: #fff; transform: translateY(-1px); }
+.btn-editorial--secundario {
+  background: #fff;
+  color: #0f172a;
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+.btn-editorial--secundario:hover { border-color: #cbd5e1; background: #f8fafc; color: #0f172a; }
+/* Primario sobre banda tinta: anillo + glow sky */
+.btn-editorial--tinta { box-shadow: 0 0 0 1px rgba(56, 189, 248, .25), 0 12px 32px -12px rgba(14, 165, 233, .5); }
+
+/* La hoja que se escribe sola */
+.home-hoja-marco { position: relative; }
+.home-hoja {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: .5rem;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, .05),
+    0 20px 48px -20px rgba(15, 23, 42, .22);
+  padding: 1.75rem 1.875rem 1.5rem;
+  transform: rotate(.5deg);
+  font-family: 'Source Serif 4', Georgia, serif;
+  color: #1e293b;
+  min-height: 24rem;
+}
+@media (min-width: 1024px) { .home-hoja { transform: rotate(.75deg); } }
+.home-hoja-meta { display: flex; gap: .375rem; margin-bottom: 1.25rem; font-family: 'DM Sans', sans-serif; }
+.home-hoja-pill {
+  font: 500 .625rem/1 'DM Sans', sans-serif;
+  padding: .3125rem .5625rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  background: #f8fafc;
+}
+.home-hoja-pill--canal { color: var(--color-primary-700); background: var(--color-primary-50); border-color: var(--color-primary-200); }
+.home-hoja-titulo {
+  font: 400 .9375rem/1.3 'DM Serif Display', Georgia, serif;
+  text-align: center;
+  color: #0f172a;
+  margin: 0 0 1.25rem;
+}
+.home-hoja-linea { font-size: .8125rem; line-height: 1.65; margin: 0 0 .875rem; min-height: 1.2em; }
+.home-hoja-linea b { font-weight: 600; letter-spacing: .01em; }
+.home-hoja-caret {
+  display: inline-block;
+  width: 1px;
+  height: 1.05em;
+  background: #0f172a;
+  vertical-align: text-bottom;
+  margin-left: 1px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .home-hoja-caret { animation: home-caret-parpadeo 1.06s steps(1) infinite; }
+  @keyframes home-caret-parpadeo { 50% { opacity: 0; } }
+}
+.home-hoja-firma {
+  margin-top: 1.5rem;
+  padding-top: .875rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem 1rem;
+  justify-content: space-between;
+  align-items: center;
+  font: 400 .6875rem/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #94a3b8;
+}
+.home-hoja-sello {
+  position: absolute;
+  right: -.625rem;
+  bottom: -1rem;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: 500 .75rem/1.4 'DM Sans', sans-serif;
+  padding: .625rem .875rem;
+  border-radius: .75rem;
+  box-shadow: 0 12px 28px -12px rgba(15, 23, 42, .5);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  transform: rotate(-1deg);
+}
+.home-hoja-sello svg { width: .9375rem; height: .9375rem; color: var(--color-primary-300); flex-shrink: 0; }
+.home-hoja-sello b { color: #fff; font-weight: 600; }
+
+/* Banda tinta: el repositorio */
+.home-repo-oscuro {
+  background:
+    radial-gradient(44rem 22rem at 12% 0%, rgba(14, 165, 233, .1), transparent 60%),
+    #020617;
+  color: #cbd5e1;
+  padding: 4.5rem 0 3rem;
+  border-top: 1px solid #1e293b;
+}
+.home-repo-oscuro-grid { display: grid; gap: 2.5rem; align-items: center; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .home-repo-oscuro-grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 4rem; } }
+.home-repo-oscuro .home-seccion-titulo { color: #f8fafc; text-align: left; }
+.home-repo-oscuro .home-seccion-titulo .home-acento { background: linear-gradient(135deg, var(--color-primary-300), var(--color-primary-400)); -webkit-background-clip: text; background-clip: text; }
+.home-repo-oscuro-sub { color: #94a3b8; font-size: 1.0625rem; max-width: 32rem; margin: 0; }
+.home-repo-oscuro-sub b { font-weight: 600; color: #e2e8f0; }
+.home-repo-cta { margin-top: 1.875rem; display: flex; gap: .875rem; flex-wrap: wrap; }
+
+.home-franja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .875rem 2.5rem;
+  justify-content: center;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(148, 163, 184, .15);
+}
+.home-franja-dato { font: 400 .8125rem/1.3 'JetBrains Mono', 'SF Mono', Menlo, monospace; color: #94a3b8; }
+.home-franja-dato b {
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  margin-right: .3125rem;
+}
+
+/* Secciones papel */
+.home-seccion { padding: 5rem 0; }
+.home-seccion--alterna { background: #f8fafc; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
+.home-seccion-cabecera { max-width: 44rem; margin: 0 auto 3.25rem; text-align: center; }
+.home-seccion-titulo {
+  font: 400 clamp(1.75rem, 3.4vw, 2.5rem)/1.2 'DM Serif Display', Georgia, serif;
+  color: #0f172a;
+  margin: 0 0 .875rem;
+  text-wrap: balance;
+}
+.home-seccion-titulo .home-acento {
+  font-style: italic;
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-700));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.home-seccion-sub { color: #475569; font-size: 1.0625rem; margin: 0; }
+
+/* Obstáculos: cards a la izquierda, titular a la derecha */
+.home-obstaculos-grid { display: grid; gap: 2.5rem; grid-template-columns: minmax(0, 1fr); align-items: center; }
+@media (min-width: 1024px) {
+  .home-obstaculos-grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 4.5rem; }
+  .home-obstaculos-titular { order: 2; }
+  .home-obstaculos-cards { order: 1; }
+  .home-obstaculos-titular .home-seccion-titulo, .home-obstaculos-titular .home-seccion-sub { text-align: left; }
+}
+.home-obstaculos-titular .home-seccion-sub { max-width: 26rem; }
+.home-obstaculos-cards { display: grid; gap: 1rem; }
+.home-obstaculo {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.125rem 1.375rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 24px -18px rgba(15, 23, 42, .25);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+}
+.home-obstaculo:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 16px 32px -18px rgba(15, 23, 42, .3);
+}
+.home-obstaculo img { width: 4.5rem; height: 4.5rem; flex-shrink: 0; }
+.home-obstaculo h3 { font: 600 1rem/1.3 'DM Sans', sans-serif; color: #0f172a; margin: 0 0 .25rem; }
+.home-obstaculo p { font-size: .875rem; color: #475569; margin: 0; }
+
+/* Cómo funciona: cuatro features con contraste */
+.home-features { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 768px) { .home-features { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; } }
+.home-feature {
+  position: relative;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  padding: 1.75rem 1.875rem 1.5rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 14px 34px -24px rgba(15, 23, 42, .35);
+  transition: transform .2s, box-shadow .2s, border-color .2s;
+  display: flex;
+  flex-direction: column;
+}
+.home-feature:hover {
+  transform: translateY(-3px);
+  border-color: var(--color-primary-200);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 22px 44px -24px rgba(2, 132, 199, .4);
+}
+.home-feature-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: .875rem; }
+.home-feature-num {
+  font: 400 3rem/1 'DM Serif Display', Georgia, serif;
+  color: #0f172a;
+  /* el numeral lleva su propio rotulador: la firma, en pequeño */
+  background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 72% / 100% 42% no-repeat;
+  padding: 0 .375rem;
+}
+.home-feature-icono {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: .875rem;
+  background: var(--color-primary-50);
+  color: var(--color-primary-600);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  margin: 0.85rem 0 0.85rem 0;
 }
-
-.home-portals-flow-line {
-  flex: 1;
-  height: 1px;
-  background-image: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.4), transparent);
-}
-
-.home-portals-flow-pill {
-  @apply inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-medium;
-  background: rgba(16, 185, 129, 0.08);
-  color: #047857;
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  white-space: nowrap;
-}
-
-.home-portal-card {
-  @apply rounded-lg border border-slate-100 bg-white p-2.5 transition-all duration-200;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-
-.home-portal-card:hover {
-  @apply border-emerald-200;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px -6px rgba(16, 185, 129, 0.25);
-}
-
-.home-portal-icon {
-  @apply w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0;
-}
-
-.home-portal-icon--sky    { background: #e0f2fe; color: #0369a1; }
-.home-portal-icon--indigo { background: #e0e7ff; color: #4338ca; }
-.home-portal-icon--violet { background: #ede9fe; color: #6d28d9; }
-.home-portal-icon--amber  { background: #fef3c7; color: #b45309; }
-
-/* ── MCP section ── */
-.home-mcp-section {
-  background: linear-gradient(170deg, #ffffff 0%, #f8fafc 50%, #f0f9ff 100%);
-}
-
-.home-mcp-bg {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 15% 15%, rgba(14, 165, 233, 0.06) 0%, transparent 45%),
-    radial-gradient(circle at 85% 85%, rgba(99, 102, 241, 0.05) 0%, transparent 45%);
-  pointer-events: none;
-}
-
-.home-mcp-transcript {
-  @apply rounded-2xl overflow-hidden;
-  background: #0f172a;
-  box-shadow: 0 24px 60px -16px rgba(15, 23, 42, 0.45), 0 10px 24px -8px rgba(2, 132, 199, 0.18);
-  border: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-.home-mcp-transcript-head {
+.home-feature-icono svg { width: 1.25rem; height: 1.25rem; }
+.home-feature h3 { font: 400 1.375rem/1.25 'DM Serif Display', Georgia, serif; color: #0f172a; margin: 0 0 .5rem; }
+.home-feature p { font-size: .9375rem; color: #475569; margin: 0 0 1.25rem; }
+.home-feature p b { font-weight: 600; color: #0f172a; }
+.home-feature-prueba {
+  margin-top: auto;
+  padding-top: .875rem;
+  border-top: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.7rem 0.95rem;
-  background: rgba(15, 23, 42, 0.85);
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  gap: .5rem;
+  font: 500 .75rem/1.4 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
 }
+.home-feature-prueba svg { width: .875rem; height: .875rem; color: #059669; flex-shrink: 0; }
 
-.home-mcp-dot {
-  width: 0.6rem;
-  height: 0.6rem;
+/* Privacidad (emerald) */
+.home-privacidad { background: linear-gradient(170deg, #fff 0%, #ecfdf5 55%, #f0f9ff 100%); border-top: 1px solid #f1f5f9; }
+.home-privacidad-grid { display: grid; gap: 3rem; align-items: center; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .home-privacidad-grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 4rem; } }
+.home-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .375rem;
+  font: 500 .75rem/1 'DM Sans', sans-serif;
+  padding: .375rem .75rem;
   border-radius: 999px;
-  display: inline-block;
+  margin-bottom: 1.25rem;
 }
-.home-mcp-dot--red    { background: #ef4444; }
-.home-mcp-dot--amber  { background: #f59e0b; }
-.home-mcp-dot--green  { background: #22c55e; }
-
-.home-mcp-transcript-body {
-  padding: 1rem 1.05rem 1.15rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.home-mcp-msg {
-  border-radius: 0.75rem;
-  padding: 0.75rem 0.9rem;
-  position: relative;
-  font-size: 0.82rem;
-  line-height: 1.45;
-}
-
-.home-mcp-msg-label {
-  display: block;
-  font-size: 0.62rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  margin-bottom: 0.2rem;
-  opacity: 0.8;
-}
-
-.home-mcp-msg--user {
-  background: rgba(56, 189, 248, 0.1);
-  border: 1px solid rgba(56, 189, 248, 0.18);
-  color: #e0f2fe;
-}
-.home-mcp-msg--user .home-mcp-msg-label { color: #7dd3fc; }
-
-.home-mcp-msg--assistant {
-  background: rgba(148, 163, 184, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  color: #e2e8f0;
-}
-.home-mcp-msg--assistant .home-mcp-msg-label { color: #94a3b8; }
-
-.home-mcp-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  padding: 0.65rem 0.85rem;
-  background: rgba(15, 23, 42, 0.55);
-  border: 1px dashed rgba(148, 163, 184, 0.18);
-  border-radius: 0.6rem;
-}
-
-.home-mcp-tool {
+.home-badge svg { width: .875rem; height: .875rem; }
+.home-badge--emerald { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.home-badge--tinta { background: rgba(148, 163, 184, .12); border: 1px solid rgba(148, 163, 184, .25); color: var(--color-primary-200); }
+.home-privacidad .home-seccion-titulo { text-align: left; margin-left: 0; }
+.home-privacidad .home-seccion-sub { max-width: 32rem; }
+.home-perks { list-style: none; padding: 0; margin: 1.75rem 0 0; display: grid; gap: .875rem; max-width: 32rem; }
+.home-perk { display: flex; gap: .75rem; align-items: flex-start; font-size: .9375rem; color: #475569; }
+.home-perk-icono {
+  flex-shrink: 0;
+  width: 1.625rem;
+  height: 1.625rem;
+  margin-top: .0625rem;
+  border-radius: .5rem;
+  background: #d1fae5;
+  color: #047857;
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  font-family: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
-  font-size: 0.7rem;
-  color: #cbd5e1;
-  flex-wrap: wrap;
+  justify-content: center;
 }
+.home-perk-icono svg { width: .875rem; height: .875rem; }
 
-.home-mcp-tool-arrow {
-  color: #38bdf8;
-  font-weight: 700;
+.home-maquina {
+  background: rgba(255, 255, 255, .88);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(226, 232, 240, .9);
+  border-radius: 1.25rem;
+  padding: 1.375rem;
+  box-shadow: 0 18px 44px -18px rgba(5, 150, 105, .25);
 }
-
-.home-mcp-tool code {
-  color: #fbbf24;
-  background: transparent;
+.home-maquina-pantalla {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: .875rem;
+  padding: 1rem 1.125rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
 }
-
-.home-mcp-tool-arg {
-  color: #94a3b8;
-  font-style: italic;
+.home-maquina-cab { display: flex; align-items: center; gap: .75rem; }
+.home-maquina-logo {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: .625rem;
+  background: linear-gradient(135deg, #34d399, #059669);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(5, 150, 105, .4);
 }
-
-.home-mcp-tool-ok {
+.home-maquina-logo svg { width: 1rem; height: 1rem; }
+.home-maquina-cab-txt p { margin: 0; }
+.home-maquina-cab-txt .mini { font: 500 .6875rem/1.3 'DM Sans', sans-serif; color: #64748b; }
+.home-maquina-cab-txt .nombre { font: 600 .875rem/1.3 'DM Sans', sans-serif; color: #0f172a; }
+.home-maquina-local {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
+  gap: .3125rem;
+  font: 500 .625rem/1 'DM Sans', sans-serif;
+  padding: .25rem .5rem;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
-  font-family: 'DM Sans', sans-serif;
-  font-style: normal;
-  font-size: 0.65rem;
-  white-space: nowrap;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
 }
+.home-maquina-punto { width: .375rem; height: .375rem; border-radius: 999px; background: #10b981; }
+@media (prefers-reduced-motion: no-preference) {
+  .home-maquina-punto { animation: home-pulso 2s ease-in-out infinite; }
+  @keyframes home-pulso { 50% { opacity: .4; } }
+}
+.home-maquina-cmd {
+  margin-top: .75rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font: 400 .6875rem/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
+}
+.home-maquina-cmd svg { width: .75rem; height: .75rem; }
+.home-maquina-base { height: .375rem; width: 55%; margin: 0 auto; background: #e2e8f0; border-radius: 0 0 .5rem .5rem; }
+.home-flujo { display: flex; align-items: center; gap: .625rem; margin: .875rem 0; }
+.home-flujo-linea { flex: 1; height: 1px; background: repeating-linear-gradient(90deg, #6ee7b7 0 6px, transparent 6px 12px); }
+.home-flujo-pill {
+  font: 500 .625rem/1 'DM Sans', sans-serif;
+  padding: .3125rem .625rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+}
+.home-portales { display: grid; grid-template-columns: repeat(2, 1fr); gap: .625rem; }
+.home-portal {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: .75rem;
+  padding: .75rem .875rem;
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.home-portal:hover { transform: translateY(-2px); border-color: #6ee7b7; box-shadow: 0 8px 18px -10px rgba(5, 150, 105, .35); }
+.home-portal-icono {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: .5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.home-portal-icono svg { width: .875rem; height: .875rem; }
+.home-portal-icono--sky { background: #e0f2fe; color: #0284c7; }
+.home-portal-icono--indigo { background: #e0e7ff; color: #4f46e5; }
+.home-portal-icono--violet { background: #ede9fe; color: #7c3aed; }
+.home-portal-icono--amber { background: #fef3c7; color: #b45309; }
+.home-portal p { margin: 0; }
+.home-portal .nombre { font: 600 .75rem/1.3 'DM Sans', sans-serif; color: #0f172a; }
+.home-portal .codigo { font: 400 .625rem/1.3 'JetBrains Mono', 'SF Mono', Menlo, monospace; color: #94a3b8; }
+
+/* MCP en tinta */
+.home-mcp {
+  background:
+    radial-gradient(40rem 22rem at 15% 0%, rgba(14, 165, 233, .12), transparent 60%),
+    radial-gradient(36rem 20rem at 90% 100%, rgba(99, 102, 241, .1), transparent 60%),
+    #020617;
+  color: #cbd5e1;
+  padding: 5.5rem 0;
+}
+.home-mcp-grid { display: grid; gap: 3rem; align-items: center; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .home-mcp-grid { grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 4rem; } }
+.home-mcp .home-seccion-titulo { color: #f8fafc; text-align: left; }
+.home-mcp .home-seccion-titulo .home-acento { background: linear-gradient(135deg, var(--color-primary-300), var(--color-primary-400)); -webkit-background-clip: text; background-clip: text; }
+.home-mcp-sub { color: #94a3b8; font-size: 1.0625rem; max-width: 32rem; margin: 0; }
+.home-mcp-sub strong, .home-mcp-sub em { color: #cbd5e1; }
+.home-mcp-clientes { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-top: 1.5rem; }
+.home-mcp-clientes-label { font: 500 .75rem/1 'DM Sans', sans-serif; color: #64748b; margin-right: .25rem; }
+.home-chip {
+  font: 500 .75rem/1 'DM Sans', sans-serif;
+  padding: .375rem .625rem;
+  border-radius: .5rem;
+  background: rgba(148, 163, 184, .08);
+  border: 1px solid rgba(148, 163, 184, .2);
+  color: #cbd5e1;
+}
+.home-mcp-cta { margin-top: 1.875rem; }
+
+.home-terminal {
+  background: #0f172a;
+  border: 1px solid rgba(148, 163, 184, .25);
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7), 0 0 0 1px rgba(14, 165, 233, .08);
+  overflow: hidden;
+}
+.home-terminal-cab {
+  display: flex;
+  align-items: center;
+  gap: .375rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid rgba(148, 163, 184, .15);
+}
+.home-terminal-punto { width: .625rem; height: .625rem; border-radius: 999px; }
+.home-terminal-punto--rojo { background: #f87171; }
+.home-terminal-punto--ambar { background: #fbbf24; }
+.home-terminal-punto--verde { background: #34d399; }
+.home-terminal-cab span:last-child { margin-left: .5rem; font: 500 .625rem/1 'DM Sans', sans-serif; color: #64748b; }
+.home-terminal-cuerpo { padding: 1.125rem 1.25rem 1.375rem; display: grid; gap: .875rem; }
+.home-msg { border-radius: .75rem; padding: .75rem .875rem; font-size: .8125rem; line-height: 1.55; }
+.home-msg p { margin: 0; }
+.home-msg-label { display: block; font: 600 .625rem/1 'DM Sans', sans-serif; margin-bottom: .375rem; }
+.home-msg--user { background: rgba(14, 165, 233, .12); border: 1px solid rgba(14, 165, 233, .25); color: #e0f2fe; }
+.home-msg--user .home-msg-label { color: var(--color-primary-300); }
+.home-msg--assistant { background: rgba(148, 163, 184, .08); border: 1px solid rgba(148, 163, 184, .15); color: #cbd5e1; }
+.home-msg--assistant .home-msg-label { color: #94a3b8; }
+.home-tools {
+  border: 1px dashed rgba(148, 163, 184, .3);
+  border-radius: .75rem;
+  padding: .625rem .75rem;
+  display: grid;
+  gap: .5rem;
+}
+.home-tool {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  font: 400 .6875rem/1.4 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #94a3b8;
+}
+.home-tool-flecha { color: var(--color-primary-400); }
+.home-tool code { color: #fbbf24; }
+.home-tool-arg { font-style: italic; color: #64748b; }
+.home-tool-ok {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  color: #34d399;
+}
+.home-tool-ok svg { width: .75rem; height: .75rem; }
+
+/* Tarjeta de preview del repositorio (sobre tinta) */
+.home-repo-preview {
+  background: rgba(255, 255, 255, .85);
+  backdrop-filter: blur(6px);
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  padding: 1.375rem;
+  box-shadow: 0 18px 44px -20px rgba(2, 132, 199, .3);
+}
+.home-repo-barra { display: flex; height: .625rem; border-radius: 999px; overflow: hidden; margin-bottom: .625rem; }
+.home-repo-seg--fav { background: #10b981; }
+.home-repo-seg--parcial { background: var(--color-primary-400); }
+.home-repo-seg--desfav { background: #cbd5e1; }
+.home-repo-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .375rem 1.125rem;
+  font: 400 .6875rem/1.5 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
+  margin-bottom: 1.125rem;
+}
+.home-repo-leyenda i { font-style: normal; display: inline-block; width: .5rem; height: .5rem; border-radius: 2px; margin-right: .3125rem; }
+.home-repo-fila {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .625rem .25rem;
+  border-top: 1px solid #f1f5f9;
+  font-size: .8125rem;
+  color: #475569;
+}
+.home-repo-fila .ref { font: 500 .6875rem/1.4 'JetBrains Mono', 'SF Mono', Menlo, monospace; color: #64748b; flex-shrink: 0; }
+.home-repo-fila .titulo-fila { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-pildora { font: 500 .625rem/1 'DM Sans', sans-serif; padding: .25rem .5rem; border-radius: 999px; border: 1px solid; margin-left: auto; flex-shrink: 0; }
+.home-pildora--estimada { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.home-pildora--parcial { background: var(--color-primary-50); border-color: var(--color-primary-200); color: var(--color-primary-700); }
+.home-pildora--desestimada { background: #f8fafc; border-color: #e2e8f0; color: #64748b; }
+
+/* Cierre */
+.home-cierre { padding: 4rem 0; }
+.home-cierre p {
+  max-width: 38rem;
+  margin: 0 auto;
+  text-align: center;
+  font-style: italic;
+  color: #64748b;
+  font-size: .9375rem;
+}
+
+/* Reveals discretos al hacer scroll */
+@media (prefers-reduced-motion: no-preference) {
+  .home-revela { opacity: 0; transform: translateY(14px); transition: opacity .55s ease, transform .55s ease; }
+  .home-revela.visible { opacity: 1; transform: none; }
+}
+
+/* ── /redactar: el espíritu editorial de la home, vestido para trabajar ──
+   Reutiliza el vocabulario de la portada (home-hero-eyebrow, .rotulador,
+   home-hero-sub, .btn-editorial) para que el salto desde «Redactar mi primera
+   solicitud» sea continuo. Solo añade lo propio de esta pantalla: el panel
+   de apertura y las superficies de selección, cuyo estado activo se marca
+   con el rotulador ámbar en vez del borde sky del sistema. */
+.redactar-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  padding: 2.25rem 1.75rem 2rem;
+  background:
+    radial-gradient(38rem 20rem at 88% -25%, rgba(14, 165, 233, .10), transparent 65%),
+    linear-gradient(168deg, #ffffff 0%, #ffffff 52%, var(--color-primary-50) 100%);
+}
+@media (min-width: 768px) { .redactar-hero { padding: 2.75rem 2.5rem 2.5rem; } }
+.redactar-hero-fila {
+  display: flex; flex-wrap: wrap;
+  align-items: flex-start; justify-content: space-between;
+  gap: 1.25rem;
+}
+.redactar-hero-txt { min-width: 0; max-width: 42rem; }
+/* Titular serif, un punto por debajo del de la portada: aquí se trabaja. */
+.redactar-hero-cita {
+  font: 400 clamp(2rem, 3.6vw, 2.75rem)/1.16 'DM Serif Display', Georgia, serif;
+  letter-spacing: -.01em;
+  color: #0f172a;
+  margin: 0 0 1.15rem;
+}
+
+/* Superficies de selección: las dos grandes (solicitud/reclamación) y las
+   cuatro de «¿qué respondió?». Reposo neutro, hover que se eleva, y estado
+   activo con el rotulador ámbar — la firma que las liga a la portada. */
+.redactar-opcion {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.redactar-opcion:hover {
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 16px 32px -20px rgba(15, 23, 42, .30);
+}
+.redactar-opcion:focus-within, .redactar-opcion:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+.redactar-opcion.is-selected {
+  border-color: var(--color-accent-300);
+  background: var(--color-accent-50);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 14px 30px -20px rgba(217, 119, 6, .35);
+}
+/* Variante compacta para las opciones de radio. */
+.redactar-opcion--sm {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .75rem 1rem;
+  border-radius: .75rem;
+}
+.redactar-opcion-titulo {
+  font: 600 1rem/1.3 'DM Sans', 'Inter', system-ui, sans-serif;
+  color: #0f172a;
+}
+/* El rotulador aparece bajo el texto elegido: no ocupa sitio en reposo
+   (padding constante), solo se pinta cuando la superficie está activa. */
+.redactar-mark {
+  padding: 0 .12em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.redactar-opcion.is-selected .redactar-mark {
+  background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 62% / 100% 44% no-repeat;
+}
+
+/* Paneles de contenido, en la misma familia de sombra suave del rediseño. */
+.redactar-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 14px 34px -26px rgba(15, 23, 42, .30);
+}
+
+/* Cabecera de paso: token numerado (secuencia real 1→2) + título de sección.
+   El propio token da el aire vertical hacia los controles de debajo. */
+.redactar-paso-cab {
+  display: flex;
+  align-items: center;
+  gap: .625rem;
+  margin-bottom: 1.25rem;
+}
+.redactar-paso-num {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: .625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 .9375rem/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+  border: 1px solid var(--color-primary-200);
+}
+.redactar-seccion-titulo {
+  font: 600 1.0625rem/1.3 'DM Sans', 'Inter', system-ui, sans-serif;
+  color: #0f172a;
+  margin: 0;
+}
+
+/* Borradores guardados en el navegador: no es un paso numerado, sino un aviso
+   previo; token neutro para distinguirlo de la secuencia. */
+.redactar-borradores-cab {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.redactar-borradores-icono {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: .625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  background: #f1f5f9;
+}
+.redactar-borradores-icono svg { width: 1.125rem; height: 1.125rem; }
+.redactar-borradores-sub {
+  font: 400 .8125rem/1.4 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
+  margin: .1875rem 0 0;
+}
+
+/* Selector de destino simplificado: en /redactar solo hay UN destino, así que
+   el picker compartido se reduce a dos botones (elegir / da igual). El panel
+   vacío del controlador se oculta y «Continuar» solo aparece al elegir uno. */
+.redactar-destino .preview-empty { display: none; }
+.redactar-destino .preview-multi { margin-top: 1rem; }
+.redactar-continuar { margin-top: 1rem; }
+.redactar-continuar:disabled { display: none; }
+
+/* ── Pie público (tinta) ──────────────────────────────────────────────
+   Cierra la página de papel→tinta, en la misma familia que las bandas
+   oscuras de la portada (repositorio, MCP): slate-950 con un halo sky,
+   etiquetas mono y chips para el directorio de consejos. */
+.site-footer {
+  margin-top: auto;
+  color: #94a3b8;
+  border-top: 1px solid #1e293b;
+  background:
+    radial-gradient(38rem 20rem at 12% 0%, rgba(14, 165, 233, .10), transparent 62%),
+    #020617;
+}
+.site-footer-inner { padding: 3.5rem 0 2rem; }
+.site-footer-grid {
+  display: grid;
+  gap: 2.5rem 2rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 640px) { .site-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .site-footer-grid { grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 3rem; } }
+
+/* Columna de marca */
+.site-footer-brand-name {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font: 700 1.125rem/1 'DM Sans', 'Inter', system-ui, sans-serif;
+  color: var(--color-primary-400);
+  text-decoration: none;
+}
+.site-footer-brand-name svg { width: 1.25rem; height: 1.25rem; }
+.site-footer-tagline {
+  margin: .875rem 0 0;
+  max-width: 22rem;
+  font-size: .875rem;
+  line-height: 1.55;
+  color: #94a3b8;
+}
+.site-footer-tagline .marca-mini { color: #e2e8f0; font-style: italic; }
+
+/* Etiqueta de columna (mono, tono frase — sin tracking ancho) */
+.site-footer-label {
+  margin: 0 0 .875rem;
+  font: 500 .6875rem/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  color: #64748b;
+}
+
+/* Enlaces de columna */
+.site-footer-links { list-style: none; margin: 0; padding: 0; display: grid; gap: .625rem; }
+.site-footer-link {
+  display: inline-flex; align-items: center; gap: .5rem;
+  font-size: .875rem;
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color .15s;
+}
+.site-footer-link:hover { color: #fff; }
+.site-footer-link svg { width: .9375rem; height: .9375rem; color: #64748b; flex-shrink: 0; transition: color .15s; }
+.site-footer-link:hover svg { color: var(--color-primary-400); }
+
+/* Chips de siglas (consejos / portales) */
+.site-footer-chips { display: flex; flex-wrap: wrap; gap: .375rem; }
+.site-footer-chip {
+  font: 500 .6875rem/1 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  padding: .3125rem .5rem;
+  border-radius: .4375rem;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, .08);
+  border: 1px solid rgba(148, 163, 184, .18);
+  text-decoration: none;
+  transition: color .15s, border-color .15s, background-color .15s;
+}
+.site-footer-chip:hover {
+  color: #fff;
+  border-color: rgba(56, 189, 248, .5);
+  background: rgba(14, 165, 233, .14);
+}
+
+/* Barra inferior */
+.site-footer-bar {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(148, 163, 184, .12);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.5rem;
+}
+.site-footer-copy { font: 400 .75rem/1.4 'JetBrains Mono', 'SF Mono', Menlo, monospace; color: #64748b; }
+.site-footer-bar-links { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+.site-footer-bar-links a { font-size: .8125rem; color: #94a3b8; text-decoration: none; transition: color .15s; }
+.site-footer-bar-links a:hover { color: var(--color-primary-400); }
 
 /* ── Animations ── */
 @keyframes fade-slide-up {
@@ -1762,6 +2362,7 @@ body {
   min-width: 0;
   max-width: 100%;
   padding-left: .6rem;
+  margin-bottom: 1rem;
   border-left: 2px solid rgb(241 245 249);
 }
 
@@ -1951,10 +2552,9 @@ body {
 }
 
 /* ── Conversación del asistente ────────────────────────────────────────────
-   Vocabulario compartido por la redacción de solicitudes y de reclamaciones
-   (antes duplicado inline en templates/solicitudes/realizar/draft.html.twig
-   y templates/complaint/redactar.html.twig). Tinta y reglas en escala slate;
-   la acción es siempre primary. */
+   Vocabulario de la ÚNICA plantilla de redacción (asistente/conversacion.html.twig),
+   compartida por solicitudes y reclamaciones, autenticado y anónimo. Tinta y
+   reglas en escala slate; la acción es siempre primary. */
 
 /* Cabecera del borrador */
 .draft-band { margin: 0 0 1.25rem; }
@@ -1979,7 +2579,18 @@ body {
   font-size: clamp(1.6rem, 3vw, 2.1rem);
   margin: .25rem 0;
 }
-.draft-band-title em { font-style: italic; color: var(--color-primary-600); }
+/* El nombre del organismo va resaltado con el rotulador ámbar, como el
+   subrayado del hero de /redactar. Marcador por fondo con
+   box-decoration-break — la misma técnica que hoy usa .rotulador —, que
+   envuelve nombres largos en varias líneas sin cortarlos ni desbordar. */
+.draft-band-title em {
+  color: #0f172a;
+  font-style: italic;
+  background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 66% / 100% 42% no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding: 0 .08em;
+}
 .draft-status {
   font-family: 'Inter', sans-serif;
   font-size: .72rem; letter-spacing: .03em; color: rgb(148 163 184);
@@ -1989,6 +2600,7 @@ body {
 .draft-status.is-saved { color: rgb(5 150 105); }
 .draft-status.is-edited { color: var(--color-primary-700); }
 .draft-status.is-streaming { color: var(--color-accent-700); }
+
 
 /* Pestañas entre borradores hermanos */
 .draft-tabs { display: flex; gap: .35rem; flex-wrap: wrap; margin: 0 0 1.25rem; }
@@ -2039,6 +2651,23 @@ body {
 }
 .panel-label::after { content: ""; flex: 1; height: 1px; background: rgb(226 232 240); }
 
+/* Sidebar del informe al estilo B (acotado a .brief para no tocar otras
+   páginas que usan .panel): tarjetas más redondeadas con sombra suave y
+   etiquetas en mono (identificadores técnicos). */
+.brief .panel {
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+.brief .panel-label {
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  font-size: .68rem; font-weight: 500; letter-spacing: .02em;
+}
+.brief .panel-label svg { color: var(--color-primary-600); }
+/* El % en mono, más contenido (como B: cifras técnicas en JetBrains Mono). */
+.brief .verdict { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; }
+.brief .verdict-num { font-size: 2.8rem; letter-spacing: -.02em; }
+.brief .verdict-frac { font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; }
+
 /* Lienzo del borrador */
 .draft-card {
   position: relative;
@@ -2053,12 +2682,11 @@ body {
   margin-bottom: 1.25rem;
 }
 .meta-pill {
-  font-family: 'Inter', sans-serif;
-  font-size: .68rem; letter-spacing: .04em; font-weight: 600;
-  padding: .15rem .5rem; border-radius: 999px;
-  background: rgb(248 250 252); color: rgb(51 65 85);
+  font-family: 'DM Sans', sans-serif;
+  font-size: .66rem; letter-spacing: 0; font-weight: 500;
+  padding: .28rem .55rem; border-radius: 999px;
+  background: rgb(248 250 252); color: rgb(71 85 105);
   border: 1px solid rgb(226 232 240);
-  text-transform: uppercase;
 }
 .meta-pill-portal {
   background: var(--color-primary-50); color: var(--color-primary-700);
@@ -2445,8 +3073,8 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 .pedagogy-card {
   background: var(--color-primary-50);
   border: 1px solid var(--color-primary-100);
-  border-radius: 6px;
-  padding: .7rem .85rem;
+  border-radius: .9rem;
+  padding: .8rem .95rem;
   font-family: 'DM Sans', sans-serif;
   font-size: .8rem; color: rgb(15 23 42); line-height: 1.5;
 }
@@ -2588,14 +3216,16 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 }
 .chat-turn-user {
   align-self: flex-end;
-  background: var(--color-primary-600);
-  color: #ffffff;
+  background: var(--color-primary-50);
+  color: #0c4a6e;
+  border: 1px solid var(--color-primary-200);
 }
 .chat-turn-assistant {
   align-self: flex-start;
   background: #ffffff;
   color: rgb(15 23 42);
   border: 1px solid rgb(226 232 240);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
 }
 .chat-turn-error {
   align-self: flex-start;
@@ -2612,6 +3242,18 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   background: rgb(241 245 249);
   border-radius: 999px;
 }
+/* Etiqueta «Asistente / Tú» sobre cada burbuja (como la maqueta B). Se pinta
+   con pseudo-elementos, sin tocar el marcado; los eventos del hilo y los
+   bubbles de sistema no la llevan. */
+.chat-turn-assistant, .chat-turn-user { position: relative; margin-top: .95rem; }
+.chat-turn-assistant::before, .chat-turn-user::before {
+  position: absolute; top: -.98rem;
+  font-family: 'DM Sans', sans-serif; font-size: .62rem; font-weight: 600; letter-spacing: .01em;
+  pointer-events: none;
+}
+.chat-turn-assistant::before { content: "Asistente"; left: .15rem; color: var(--color-primary-700); }
+.chat-turn-user::before { content: "Tú"; right: .15rem; color: rgb(100 116 139); }
+
 .chat-bubble-text { white-space: pre-wrap; word-break: break-word; }
 .chat-bubble-attachments {
   margin-top: .25rem;
@@ -2688,7 +3330,9 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 .composer-quick.is-primary:hover { background: var(--color-primary-700); }
 
 .chatbot-input-row {
-  display: flex; gap: .35rem; align-items: stretch;
+  /* align-items: flex-end → los botones (📎 y enviar) mantienen su alto fijo
+     anclados abajo; el textarea crece hacia arriba sin estirarlos. */
+  display: flex; gap: .35rem; align-items: flex-end;
   padding: .65rem .75rem .85rem;
   background: #ffffff;
   border-top: 1px solid rgb(226 232 240);
@@ -2717,6 +3361,7 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   font-family: 'Inter', sans-serif;
 }
 .composer-send {
+  flex: 0 0 auto; height: 2.4rem;
   display: inline-flex; align-items: center; justify-content: center; gap: .3rem;
   padding: 0 .75rem;
   font-family: 'Inter', sans-serif;
@@ -2734,6 +3379,7 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   align-self: center; margin-right: .15rem;
 }
 .composer-attach {
+  flex: 0 0 auto; height: 2.4rem;
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0 .55rem; cursor: pointer;
   color: rgb(100 116 139);
@@ -2749,10 +3395,10 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 .composer-chips:empty { padding: 0; }
 .composer-chip {
   display: inline-flex; align-items: center; gap: .25rem;
-  padding: .15rem .4rem;
-  font-family: 'Inter', sans-serif; font-size: .68rem;
-  color: rgb(51 65 85);
-  background: rgb(241 245 249);
+  padding: .2rem .45rem;
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace; font-size: .68rem;
+  color: rgb(71 85 105);
+  background: rgb(248 250 252);
   border: 1px solid rgb(226 232 240);
   border-radius: 999px;
 }
@@ -2855,11 +3501,31 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   min-height: calc(100vh - 12rem);
 }
 .conv-history {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: .65rem;
   padding-bottom: 1.25rem;
+  padding-left: 1.6rem;   /* hueco para el hilo de trámite */
   flex: 1;
+}
+/* Hilo de trámite: línea vertical que recorre la conversación (Opción B). */
+.conv-history::before {
+  content: "";
+  position: absolute; left: .667rem; top: .5rem; bottom: 1.75rem;
+  width: 2px; background: rgb(241 245 249); border-radius: 2px;
+}
+/* Hitos reales (Borrador creado / Guardado hace X) como nodos sobre el hilo. */
+.chat-event { align-self: flex-start; position: relative; margin: .15rem 0; }
+.chat-event::before {
+  content: "";
+  position: absolute; left: -1.2rem; top: .1rem;
+  width: .66rem; height: .66rem; border-radius: 50%;
+  background: #ffffff; border: 2px solid rgb(203 213 225); box-sizing: border-box;
+}
+.chat-event-text {
+  font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  font-size: .68rem; color: rgb(100 116 139); letter-spacing: .01em;
 }
 /* El composer pegajoso flota sobre el final de la columna: deja hueco al
    hacer scrollIntoView del último turno. */
@@ -2873,11 +3539,27 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   padding: .85rem 1.15rem;
 }
 .conv-col .composer-input { font-size: .95rem; }
-/* Botones dentro de la conversación: más presencia que el .btn base. */
+/* Botones dentro de la conversación: más presencia que el .btn base, y con
+   el radio rectangular-redondeado de la maqueta B (no la píldora del .btn). */
 .conv-history .btn,
 .paper-sheet-foot .btn {
   font-size: .9rem;
   padding: .5rem 1.1rem;
+  border-radius: .6rem;
+}
+/* CTA del pie de la hoja al estilo B: el primario («Enviar al organismo» /
+   «Presentar») es RELLENO sky (acción fuerte); el resto queda secundario.
+   Acotado al pie: no cambia la convención outline de .btn-primary del resto. */
+.paper-sheet-foot .btn-primary {
+  background: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 8px 20px -10px rgba(2, 132, 199, .5);
+}
+.paper-sheet-foot .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+  color: #ffffff;
 }
 
 /* La hoja ocupa el ancho completo de la columna, fuera del ritmo de burbujas. */
@@ -2902,6 +3584,67 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 .paper-sheet .draft-meta-row { margin-bottom: 1rem; }
 .paper-sheet trix-editor,
 .paper-sheet .draft-body { min-height: 14rem; }
+
+/* Animación «la caja se genera»: punto → línea → rectángulo, y luego el
+   typewriter rellena. La activa paper_sheet_controller con .is-gen. */
+@keyframes paper-box-draw {
+  0%   { transform: scaleX(.03) scaleY(.05); opacity: 0; }
+  12%  { opacity: 1; }
+  46%  { transform: scaleX(1) scaleY(.05); }   /* línea recta */
+  100% { transform: scaleX(1) scaleY(1); }      /* rectángulo */
+}
+@keyframes paper-content-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+.paper-sheet.is-gen {
+  animation: paper-box-draw .8s cubic-bezier(.55, 0, .2, 1);
+  transform-origin: center;
+  will-change: transform;
+}
+.paper-sheet.is-gen > * { opacity: 0; animation: paper-content-in .45s ease .78s forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .paper-sheet.is-gen, .paper-sheet.is-gen > * { animation: none; opacity: 1; transform: none; }
+}
+
+/* Instantánea de solo lectura (versión anterior): sin acciones, atenuada. */
+.paper-sheet.is-frozen { opacity: .92; }
+.paper-sheet.is-frozen .draft-cta-group { display: none; }
+.paper-sheet.is-frozen .draft-title-input,
+.paper-sheet.is-frozen .draft-body-input { background: #f8fafc; color: rgb(71 85 105); cursor: default; }
+
+/* «Fuentes citadas» dentro de la hoja, bajo el separador. Resolución → ficha
+   interna de PideInfo (tinte sky); criterio/sentencia → documento externo (↗).
+   El enlace lo resuelve el servidor (CitationLinkResolver). */
+.draft-sources {
+  margin-top: 1rem; padding-top: .85rem;
+  border-top: 1px solid rgb(241 245 249);
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.draft-sources-label {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-family: 'Inter', sans-serif; font-size: .68rem; font-weight: 500;
+  letter-spacing: .02em; color: rgb(100 116 139);
+}
+.draft-sources-label svg { width: .85rem; height: .85rem; color: rgb(100 116 139); }
+.draft-sources-pills { display: flex; flex-wrap: wrap; gap: .4rem; }
+.draft-source {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-family: 'DM Sans', sans-serif; font-size: .74rem; font-weight: 500;
+  padding: .32rem .55rem; border-radius: 999px;
+  text-decoration: none; color: rgb(71 85 105);
+  background: #ffffff; border: 1px solid rgb(226 232 240);
+  transition: border-color .15s, background-color .15s, color .15s;
+}
+.draft-source:hover { border-color: rgb(203 213 225); background: rgb(248 250 252); color: rgb(15 23 42); }
+.draft-source > svg { width: .85rem; height: .85rem; color: rgb(100 116 139); }
+.draft-source .draft-source-ext { width: .72rem; height: .72rem; color: rgb(148 163 184); }
+.draft-source--interna {
+  color: var(--color-primary-700);
+  background: var(--color-primary-50); border-color: var(--color-primary-200);
+}
+.draft-source--interna:hover { color: var(--color-primary-700); background: #e0f2fe; border-color: var(--color-primary-300); }
+.draft-source--interna > svg { color: var(--color-primary-600); }
 .paper-sheet-foot {
   display: flex;
   justify-content: space-between;
@@ -2935,12 +3678,26 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   background: linear-gradient(180deg, rgba(248, 250, 252, 0) 0%, rgba(248, 250, 252, .92) 35%);
 }
 .conv-composer-card {
+  position: relative;
   background: #ffffff;
   border: 1px solid rgb(203 213 225);
   border-radius: .9rem;
   box-shadow: 0 10px 32px -14px rgba(15, 23, 42, .22);
   overflow: hidden;
 }
+/* Zona de arrastrar-soltar archivos */
+.composer-dropzone {
+  position: absolute; inset: .35rem;
+  display: none; align-items: center; justify-content: center; gap: .5rem;
+  border: 2px dashed var(--color-primary-400);
+  border-radius: .65rem;
+  background: rgba(14, 165, 233, .07);
+  color: var(--color-primary-700);
+  font-family: 'DM Sans', sans-serif; font-size: .85rem; font-weight: 600;
+  z-index: 6; pointer-events: none;
+}
+.conv-composer-card.is-dragover .composer-dropzone { display: flex; }
+.composer-dropzone svg { color: var(--color-primary-600); }
 .conv-composer-card .chatbot-input-row { border-top: none; }
 .conv-composer-card .composer-input {
   border: none;
@@ -2964,3 +3721,279 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   flex-wrap: wrap;
 }
 
+
+/* ── Chat de consulta libre: FAB flotante + diálogo maximizable ──────────────
+   Alpine gobierna la carcasa (visibilidad/tamaño); dentro va el componente de
+   chat (`assistant-chat`) en modo hoja, sin la sidebar de informe. */
+.consult-fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 60;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 25px -5px rgba(2, 132, 199, .5), 0 4px 10px -6px rgba(15, 23, 42, .3);
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease;
+}
+.consult-fab:hover { background: #0369a1; transform: translateY(-2px); }
+
+.consult-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  padding: 1.25rem;
+  pointer-events: none;   /* modo pequeño: el fondo no bloquea la página */
+}
+.consult-dialog-backdrop.is-max {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, .45);
+  justify-content: center;
+  align-items: center;
+  padding: 2.5rem;
+}
+
+.consult-dialog {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 2rem));
+  height: min(620px, calc(100vh - 7rem));
+  background: #fff;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 1rem;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, .35);
+  overflow: hidden;
+}
+.consult-dialog.is-max { width: min(1080px, 94vw); height: min(90vh, 920px); }
+
+.consult-dialog-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .7rem 1rem;
+  border-bottom: 1px solid rgb(241 245 249);
+  background: #f8fafc;
+}
+.consult-dialog-title {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: .9rem;
+  color: #0f172a;
+}
+.consult-dialog-title svg { color: #0284c7; }
+.consult-dialog-actions { display: inline-flex; gap: .25rem; }
+.consult-dialog-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: .5rem;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+.consult-dialog-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+.consult-dialog-body { flex: 1; min-height: 0; display: flex; }
+.consult-dialog-body > [data-controller~="assistant-chat"] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* La columna embebida llena el diálogo; el historial es el contenedor de scroll
+   (para que assistant-chat._scrollRoot() apunte ahí, no a window) y el composer
+   queda anclado como footer no-sticky. */
+.conv-col--embedded { flex: 1; min-height: 0; padding: 0 1rem; }
+.conv-col--embedded .conv-history {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding-top: 1rem;
+  padding-left: .5rem;   /* la consulta no lleva hilo de trámite */
+}
+.conv-col--embedded .conv-history::before { display: none; }
+.conv-col--embedded .conv-composer { position: static; flex-shrink: 0; background: #fff; }
+
+/* Footer de la hoja de consulta: selector de tipo (izq.) + acciones (der.). */
+.draft-cta-group--consult { flex-wrap: wrap; align-items: center; gap: .5rem; }
+.consult-doctype {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: .78rem;
+  color: #475569;
+  margin-right: auto;
+}
+.consult-doctype-select {
+  font-family: 'DM Sans', sans-serif;
+  font-size: .8rem;
+  padding: .3rem .5rem;
+  border: 1px solid rgb(203 213 225);
+  border-radius: .5rem;
+  background: #fff;
+  color: #0f172a;
+}
+
+@media (max-width: 640px) {
+  .consult-dialog { width: calc(100vw - 1.5rem); height: calc(100vh - 6rem); }
+  .consult-dialog.is-max { width: 100vw; height: 100vh; border-radius: 0; }
+  .consult-dialog-backdrop { padding: .75rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Panel (/panel) — rediseño «Titulares» (maqueta design/redesign/panel-c.html)
+   Cabecera editorial: saludo serif + franja de contadores + filete +
+   resumen del LLM (lede con rotulador + sumario con trazos semánticos).
+   El cuerpo sigue siendo gestión (tarjetas, .dash-*, side-cards).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Eyebrow de fecha: mono con filete, como el hero editorial público */
+.panel-eyebrow {
+  display: flex;
+  gap: .625rem;
+  font: 400 .6875rem/1.5 'JetBrains Mono', 'SF Mono', monospace;
+  color: #64748b;
+  margin: 0 0 .75rem;
+}
+.panel-eyebrow::before {
+  content: '';
+  width: 2rem;
+  height: 1px;
+  background: #cbd5e1;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.panel-saludo {
+  font: 400 clamp(1.85rem, 4vw, 2.6rem)/1.05 'DM Serif Display', Georgia, serif;
+  letter-spacing: -.015em;
+  color: #0f172a;
+  margin: 0;
+}
+.panel-saludo em {
+  font-style: italic;
+  color: #0284c7;
+}
+
+/* Contadores: una línea discreta bajo el saludo — cifra mono pequeña +
+   etiqueta, separadas por filetes. Datos, no tarjetitas. */
+.panel-franja {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .375rem 0;
+  margin-top: .875rem;
+}
+.panel-dato {
+  display: flex;
+  align-items: baseline;
+  gap: .35rem;
+  white-space: nowrap;
+}
+.panel-dato + .panel-dato {
+  margin-left: 1rem;
+  padding-left: 1rem;
+  border-left: 1px solid #cbd5e1;
+}
+.panel-dato b {
+  font: 500 .9375rem/1 'JetBrains Mono', 'SF Mono', monospace;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
+}
+.panel-dato span {
+  font: 400 .8125rem/1.3 'DM Sans', sans-serif;
+  color: #64748b;
+}
+.panel-dato--exito b { color: #059669; }
+
+/* Filete separador entre la cabecera y el resumen */
+.panel-sep {
+  border: 0;
+  height: 1px;
+  background: #cbd5e1;
+  opacity: .6;
+  margin: 1.25rem 0;
+}
+
+/* El lede del resumen: la voz del LLM en la serif de la hoja. El <i>
+   (énfasis suave que el prompt permite) se pinta como rotulador ámbar —
+   si el modelo no lo usa, simplemente no hay marca. */
+.panel-lede {
+  font: 400 1.0625rem/1.65 'Source Serif 4', Georgia, serif;
+  color: #1e293b;
+  max-width: 52rem;
+  margin: 0;
+}
+.panel-lede b {
+  font-weight: 600;
+  color: #0f172a;
+}
+.panel-lede i {
+  font-style: italic;
+  background: linear-gradient(var(--color-accent-200), var(--color-accent-200)) left 62% / 100% 48% no-repeat;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding: 0 .06em;
+}
+.panel-actualizado {
+  font: 400 .6875rem/1.5 'JetBrains Mono', 'SF Mono', monospace;
+  color: #94a3b8;
+  margin: .5rem 0 0;
+}
+
+/* Iconos de severidad en «Necesita tu acción» */
+.panel-icono {
+  width: 2.125rem;
+  height: 2.125rem;
+  border-radius: .625rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.panel-icono svg { width: 1.05rem; height: 1.05rem; }
+.panel-icono--exito  { background: #ecfdf5; color: #059669; }
+.panel-icono--aviso  { background: #fffbeb; color: #d97706; }
+.panel-icono--fallo  { background: #fef2f2; color: #dc2626; }
+.panel-icono--curso  { background: #f0f9ff; color: #0284c7; }
+.panel-icono--neutro { background: #f8fafc; color: #64748b; }
+
+/* CTA del hero del panel: primario RELLENO a escala de la maqueta
+   (design/redesign/panel-c.html) — como el pie de la hoja en conversación,
+   acotado aquí: no cambia la convención outline de .btn-primary del resto. */
+.panel-cta.btn-primary {
+  background: var(--color-primary-600);
+  border-color: var(--color-primary-600);
+  color: #ffffff;
+  font-size: .9rem;
+  padding: .55rem 1.2rem;
+  border-radius: .65rem;
+  box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 8px 20px -10px rgba(2, 132, 199, .5);
+}
+.panel-cta.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 10px 24px -10px rgba(2, 132, 199, .55);
+}
+.panel-dato--aviso b { color: #b45309; }

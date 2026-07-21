@@ -50,6 +50,25 @@ final class FallbackResolutionSearchTest extends TestCase
         self::assertTrue($result->degraded);
     }
 
+    public function testRankIdsFallsBackToPostgresWhenElasticFails(): void
+    {
+        $this->elastic->method('rankIds')->willThrowException(new NoNodeAvailableException());
+        // The Doctrine implementation deliberately answers [] (no relevance
+        // scoring → junk ranks would pollute the RRF fusion): the hybrid
+        // retrieval degrades to dense-only.
+        $this->doctrine->expects(self::once())->method('rankIds')->willReturn([]);
+
+        self::assertSame([], $this->search()->rankIds('contratos menores', ['favorable'], 20));
+    }
+
+    public function testRankIdsUsesElasticWhenHealthy(): void
+    {
+        $this->elastic->expects(self::once())->method('rankIds')->willReturn(['id-1', 'id-2']);
+        $this->doctrine->expects(self::never())->method('rankIds');
+
+        self::assertSame(['id-1', 'id-2'], $this->search()->rankIds('contratos', [], 20));
+    }
+
     public function testMissingIndexFallsBackToPostgres(): void
     {
         $this->elastic->method('search')->willThrowException(

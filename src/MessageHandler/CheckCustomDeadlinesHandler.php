@@ -57,6 +57,9 @@ final class CheckCustomDeadlinesHandler
         try {
             $accessRequest = $deadline->getAccessRequest();
             $user = $accessRequest->getUser();
+            if ($user === null) {
+                return; // anonymous draft: nobody to notify
+            }
 
             $subjectPrefix = $isDayBefore ? 'Recordatorio (mañana): ' : 'Recordatorio (hoy): ';
 

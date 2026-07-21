@@ -32,3 +32,30 @@ framework:
             policy: sliding_window
             limit: 120
             interval: '1 minute'
+
+        # Redacción pública sin registro (/redactar). Keyed by client IP.
+        anonymous_draft_create:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
+        anonymous_chat_turn:
+            policy: sliding_window
+            limit: 15
+            interval: '10 minutes'
+
+        # Moderation strikes per IP: once this many anonymous turns are blocked by
+        # the moderation guard, the IP is cut from creating drafts and chatting.
+        anonymous_moderation_strikes:
+            policy: sliding_window
+            limit: 3
+            interval: '1 hour'
+
+        # Global circuit breaker for anonymous generation: total turns/day across
+        # ALL IPs, so distributed abuse can't outrun the per-IP limits. Not keyed
+        # by IP (consumed with a constant 'global' key); cache_pool is the Redis
+        # pool so the counter is shared across every worker process.
+        anonymous_generation_global:
+            policy: sliding_window
+            limit: '%env(int:ANON_GEN_DAILY_BUDGET)%'
+            interval: '1 day'
+            cache_pool: cache.app

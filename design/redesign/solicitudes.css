@@ -1,0 +1,264 @@
+/* ─────────────────────────────────────────────────────────────
+   PideInfo — maquetas de /solicitudes (listado de expedientes)
+   Tres opciones (solicitudes-a/b/c.html) sobre la base común del
+   panel: cabecera editorial + cuerpo de gestión, fondo cielo.
+   Requiere home.css y panel.css (pn-*).
+
+   A «El registro»  — libro de registro: índice subrayado + asientos
+   B «El archivador» — rail de carpetas/listas + fichas con lomo
+   C «La bandeja»   — secciones por lo que toca hacer
+   ───────────────────────────────────────────────────────────── */
+
+/* ── Cabecera común ──────────────────────────────────────────── */
+.sol-cab { padding: 2rem 0 0; }
+.sol-cab-fila {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1.25rem; flex-wrap: wrap;
+}
+.sol-titulo {
+    font: 400 clamp(1.75rem, 3.4vw, 2.4rem)/1.1 var(--f-display);
+    letter-spacing: -.015em;
+    color: var(--tinta);
+    margin: 0;
+}
+.sol-sub { font: 400 .875rem/1.5 var(--f-ui); color: var(--texto-3); margin: .35rem 0 0; }
+.sol-sub a { color: var(--accion); text-decoration: none; font-weight: 500; }
+.sol-sub a:hover { text-decoration: underline; }
+
+/* CTA rellena, como el panel */
+.sol-cta {
+    display: inline-flex; align-items: center; gap: .45rem;
+    font: 500 .9rem/1.15 var(--f-ui);
+    padding: .55rem 1.2rem;
+    border-radius: .65rem;
+    background: var(--accion);
+    border: 1px solid var(--accion);
+    color: #fff;
+    text-decoration: none;
+    box-shadow: 0 1px 2px rgba(2, 132, 199, .3), 0 8px 20px -10px rgba(2, 132, 199, .5);
+    transition: background .15s, box-shadow .15s;
+}
+.sol-cta:hover { background: var(--accion-oscura); border-color: var(--accion-oscura); color: #fff; }
+.sol-cta svg { width: 1rem; height: 1rem; }
+
+/* ── Buscador compacto ───────────────────────────────────────── */
+.sol-buscador {
+    display: flex; align-items: center; gap: .6rem;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .65rem;
+    padding: 0 .9rem;
+    height: 2.6rem;
+    flex: 1; min-width: 14rem;
+    transition: border-color .15s, box-shadow .15s;
+}
+.sol-buscador:focus-within { border-color: var(--accion-viva); box-shadow: 0 0 0 3px rgba(14, 165, 233, .15); }
+.sol-buscador svg { width: 1rem; height: 1rem; color: var(--texto-3); flex-shrink: 0; }
+.sol-buscador input {
+    border: 0; outline: none; flex: 1; min-width: 0;
+    font: 400 .875rem/1 var(--f-ui); color: var(--tinta);
+    background: transparent;
+}
+.sol-buscador input::placeholder { color: #94a3b8; }
+.sol-buscador kbd {
+    font: 600 .62rem/1 var(--f-mono); color: #94a3b8;
+    background: var(--papel-suave); border: 1px solid var(--borde);
+    padding: .15rem .35rem; border-radius: .3rem;
+}
+
+/* Botón de listas (bookmark) */
+.sol-listas {
+    display: inline-flex; align-items: center; gap: .45rem;
+    font: 500 .8125rem/1 var(--f-ui);
+    color: var(--texto-2);
+    background: #fff; border: 1px solid var(--borde);
+    border-radius: .65rem;
+    height: 2.6rem; padding: 0 .9rem;
+    cursor: pointer; white-space: nowrap;
+}
+.sol-listas:hover { border-color: #cbd5e1; color: var(--tinta); }
+.sol-listas svg { width: .9rem; height: .9rem; }
+.sol-listas .punto { width: .5rem; height: .5rem; border-radius: 999px; }
+
+/* Fila del asiento/dato en mono */
+.sol-mono { font: 500 .7rem/1.5 var(--f-mono); color: var(--texto-3); font-variant-numeric: tabular-nums; }
+
+/* Días restantes con semáforo */
+.sol-dias { font: 500 .72rem/1.4 var(--f-ui); }
+.sol-dias--ok    { color: var(--texto-3); }
+.sol-dias--aviso { color: #b45309; }
+.sol-dias--rojo  { color: #b91c1c; }
+.sol-dias--exito { color: #047857; }
+
+/* ═══ A · «El registro» ═══════════════════════════════════════
+   Índice de estados como línea tipográfica con trazo de subrayador
+   en el activo; asientos de registro en tabla de filetes. */
+.regA-indice {
+    display: flex; flex-wrap: wrap; gap: 0 1.5rem;
+    margin-top: 1.5rem;
+    border-bottom: 1px solid #cbd5e1;
+}
+.regA-tab {
+    position: relative;
+    display: inline-flex; align-items: baseline; gap: .4rem;
+    padding: .5rem 0 .65rem;
+    text-decoration: none;
+    font: 500 .85rem/1 var(--f-ui);
+    color: var(--texto-2);
+}
+.regA-tab b { font: 600 .8rem/1 var(--f-mono); color: var(--texto-3); font-variant-numeric: tabular-nums; }
+.regA-tab:hover { color: var(--tinta); }
+.regA-tab.is-active { color: var(--tinta); font-weight: 600; }
+/* el trazo de rotulador bajo la pestaña activa */
+.regA-tab.is-active::after {
+    content: '';
+    position: absolute; left: -2%; right: -2%; bottom: -2px;
+    height: .32rem;
+    background: var(--marcador);
+    border-radius: .12rem .3rem .25rem .15rem;
+    transform: rotate(-.5deg);
+}
+.regA-tab.is-zero { opacity: .45; }
+.regA-tab .dot { width: .45rem; height: .45rem; border-radius: 999px; align-self: center; }
+
+/* v2 (mix A+B): el libro de registro sobre su hoja — la tabla de
+   filetes vive dentro de una carta blanca con sombra suave. */
+.regA-carta {
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 14px 40px -30px rgba(15, 23, 42, .25);
+}
+.regA-tabla { width: 100%; border-collapse: collapse; }
+.regA-tabla th {
+    text-align: left;
+    font: 600 .72rem/1.4 var(--f-ui);
+    color: var(--texto-3);
+    padding: .8rem .75rem;
+    background: var(--papel-suave);
+    border-bottom: 1px solid var(--borde);
+}
+.regA-tabla th:first-child, .regA-tabla td:first-child { padding-left: 1.25rem; }
+.regA-tabla th:last-child, .regA-tabla td:last-child { padding-right: 1.25rem; }
+.regA-tabla td {
+    padding: .8rem .75rem;
+    border-bottom: 1px solid var(--borde-suave);
+    vertical-align: top;
+}
+.regA-tabla tbody tr:last-child td { border-bottom: 0; }
+.regA-fila { cursor: pointer; transition: background .12s; }
+.regA-fila:hover { background: var(--papel-suave); }
+.regA-asiento { white-space: nowrap; }
+.regA-asiento b { display: block; font: 600 .72rem/1.5 var(--f-mono); color: var(--tinta); }
+.regA-asiento span { font: 400 .68rem/1.5 var(--f-mono); color: #94a3b8; }
+.regA-titulo { font: 500 .875rem/1.4 var(--f-ui); color: var(--tinta); margin: 0; }
+.regA-org { font: 400 .75rem/1.5 var(--f-ui); color: var(--texto-3); margin: .1rem 0 0; }
+.regA-org .recl { color: #b45309; }
+
+/* ═══ B · «El archivador» ═════════════════════════════════════
+   Rail izquierdo de listas + estados; fichas con lomo semántico. */
+.regB-grid { display: grid; gap: 1.5rem; align-items: start; margin-top: 1.5rem; }
+@media (min-width: 1024px) { .regB-grid { grid-template-columns: 15rem minmax(0, 1fr); } }
+.regB-rail { display: flex; flex-direction: column; gap: 1.25rem; position: sticky; top: 4.5rem; }
+.regB-bloque {
+    background: #fff; border: 1px solid var(--borde); border-radius: .875rem;
+    padding: .5rem;
+}
+.regB-bloque-titulo {
+    font: 600 .72rem/1.4 var(--f-ui); color: var(--texto-3);
+    padding: .5rem .625rem .25rem;
+}
+.regB-item {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .45rem .625rem;
+    border-radius: .55rem;
+    font: 500 .8125rem/1.2 var(--f-ui);
+    color: var(--texto-2);
+    text-decoration: none;
+}
+.regB-item:hover { background: var(--papel-suave); color: var(--tinta); }
+.regB-item.is-active { background: var(--accion-tinte); color: var(--accion-oscura); }
+.regB-item .dot { width: .5rem; height: .5rem; border-radius: 999px; flex-shrink: 0; }
+.regB-item b { margin-left: auto; font: 500 .7rem/1 var(--f-mono); color: #94a3b8; font-variant-numeric: tabular-nums; }
+.regB-item.is-active b { color: var(--accion); }
+
+/* Fichas con lomo */
+.regB-fichas { display: flex; flex-direction: column; gap: .625rem; }
+.regB-ficha {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: .875rem; align-items: center;
+    background: #fff;
+    border: 1px solid var(--borde);
+    border-radius: .75rem;
+    padding: .8rem 1rem .8rem 1.25rem;
+    text-decoration: none;
+    overflow: hidden;
+    transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+.regB-ficha:hover { border-color: #bae6fd; box-shadow: 0 10px 24px -16px rgba(2, 132, 199, .35); transform: translateY(-1px); }
+.regB-ficha::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; border-radius: 4px 0 0 4px;
+}
+.lomo--exito::before  { background: #10b981; }
+.lomo--aviso::before  { background: #f59e0b; }
+.lomo--fallo::before  { background: #f87171; }
+.lomo--curso::before  { background: #38bdf8; }
+.lomo--neutro::before { background: #cbd5e1; }
+.lomo--recl::before   { background: #d97706; }
+.regB-ficha-titulo { font: 500 .875rem/1.35 var(--f-ui); color: var(--tinta); margin: 0; }
+.regB-ficha-sub { font: 400 .75rem/1.5 var(--f-ui); color: var(--texto-3); margin: .15rem 0 0; display: flex; flex-wrap: wrap; gap: .2rem .75rem; }
+.regB-ficha-sub .sol-mono { font-size: .68rem; }
+.regB-plazo { text-align: right; white-space: nowrap; }
+.regB-plazo b { display: block; font: 500 .72rem/1.5 var(--f-mono); color: var(--texto-2); font-variant-numeric: tabular-nums; }
+
+/* ═══ C · «La bandeja» ════════════════════════════════════════
+   Secciones por urgencia; filas sobrias dentro de cada tarjeta. */
+.regC-seccion {
+    background: #fff; border: 1px solid var(--borde); border-radius: 1rem;
+    padding: 1.25rem; margin-top: 1.25rem;
+}
+.regC-cab {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: .75rem; margin-bottom: .375rem;
+}
+.regC-cab h2 {
+    display: flex; align-items: center; gap: .5rem;
+    font: 600 .9375rem/1.3 var(--f-ui); color: var(--tinta); margin: 0;
+}
+.regC-cab h2 svg { width: 1rem; height: 1rem; color: var(--accion); }
+.regC-fila {
+    display: flex; align-items: flex-start; gap: .75rem;
+    padding: .7rem 0;
+    border-top: 1px solid var(--borde-suave);
+    text-decoration: none;
+}
+.regC-fila:first-of-type { border-top: 0; }
+.regC-fila .cuerpo { min-width: 0; flex: 1; }
+.regC-fila .titulo { font: 500 .875rem/1.4 var(--f-ui); color: var(--tinta); margin: 0; }
+.regC-fila:hover .titulo { color: var(--accion-oscura); }
+.regC-fila .sub { font: 400 .75rem/1.5 var(--f-ui); color: var(--texto-3); margin: .1rem 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.regC-fila .plazo { text-align: right; white-space: nowrap; }
+
+/* Paginación común */
+.sol-pag {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; margin-top: 1.25rem;
+    font: 400 .78rem/1.5 var(--f-ui); color: var(--texto-3);
+}
+.sol-pag-nav { display: flex; gap: .25rem; }
+.sol-pag-nav a, .sol-pag-nav span {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 1.9rem; height: 1.9rem; padding: 0 .4rem;
+    border-radius: .45rem;
+    font: 500 .78rem/1 var(--f-ui);
+    color: var(--texto-2); text-decoration: none;
+}
+.sol-pag-nav a:hover { background: #fff; color: var(--tinta); }
+.sol-pag-nav .is-current { background: var(--accion); color: #fff; }
+
+/* Variante de aviso para la franja de contadores (vencimientos) */
+.pn-dato--aviso b { color: #b45309 !important; }

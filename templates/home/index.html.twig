@@ -1,231 +1,346 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}PideInfo - Gestiona tu derecho de acceso a la información pública{% endblock %}
+{% block title %}PideInfo — Ejerce tu derecho de acceso a la información pública{% endblock %}
 
 {% block og %}
-    <meta property="og:title" content="PideInfo - Gestiona tu derecho de acceso a la información pública">
-    <meta property="og:description" content="PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde.">
+    <meta property="og:title" content="PideInfo — Ejerce tu derecho de acceso a la información pública">
+    <meta property="og:description" content="De la solicitud a la reclamación: redacta con resoluciones reales, presenta en más de 31.000 registros oficiales, vigila los plazos y reclama con fundamento jurídico.">
     <meta property="og:image" content="{{ url('og_image_home') }}">
     <meta property="og:url" content="{{ url('app_home') }}">
     <meta property="og:site_name" content="PideInfo">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="PideInfo - Gestiona tu derecho de acceso a la información pública">
-    <meta name="twitter:description" content="PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde.">
+    <meta name="twitter:title" content="PideInfo — Ejerce tu derecho de acceso a la información pública">
+    <meta name="twitter:description" content="De la solicitud a la reclamación: redacta con resoluciones reales, presenta en más de 31.000 registros oficiales, vigila los plazos y reclama con fundamento jurídico.">
     <meta name="twitter:image" content="{{ url('og_image_home') }}">
 {% endblock %}
 
-{% block body_class %}min-h-screen flex flex-col{% endblock %}
+
+{% block body_class %}bg-white min-h-screen flex flex-col{% endblock %}
 
 {% block body %}
 {% include '_partials/public_nav.html.twig' with { active_page: 'home' } %}
 
-{# Hero #}
-<section class="hero-section py-16 sm:py-24 relative overflow-hidden">
-    <div class="hero-bg"></div>
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div class="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-            <div class="flex-1 text-center lg:text-left">
-                <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium mb-6">
-                    <i data-lucide="sparkles" class="w-4 h-4"></i>
-                    Beta abierta — registro gratuito
+{# ── Hero: preguntas ciudadanas en rotación ────────────────
+   Catálogo ÚNICO caso ↔ pregunta: cada caso lleva la solicitud que la hoja
+   teclea Y la pregunta que muestra el titular (hero.pre + hero.mark en
+   .rotulador + hero.post, entre guillemets de la plantilla). El servidor
+   pinta uno al azar (?caso=<n> lo fuerza, para QA de diseño) y el script de
+   la hoja rota el resto en tándem: titular y solicitud cuentan siempre lo
+   mismo. El test A/B del hero se retiró (decisión de producto, 2026-07-20);
+   la infra GrowthBook sigue disponible para otros experimentos. #}
+{% set exponeEstatal = 'Que, al amparo del artículo 17 de la Ley 19/2013, de 9 de diciembre, de transparencia, acceso a la información pública y buen gobierno,' %}
+{% set casos = [
+    { canal: 'Portal Transparencia', ley: 'Ley 19/2013', leyLarga: null, aa: 'Ministerio de Transportes y Movilidad Sostenible',
+      asunto: 'Contratos de conservación de carreteras 2023–2024',
+      solicita: 'La relación de contratos de conservación y explotación de carreteras adjudicados en 2023 y 2024, con importe, adjudicatario y criterios de adjudicación.',
+      hero: { eyebrow: 'Contratación pública · Conservación de carreteras', pre: '¿Quién se lleva ', mark: 'los contratos de las carreteras', post: '?',
+              sub: 'Los contratos de conservación, sus importes y adjudicatarios son información pública. PideInfo te ayuda a pedirlos y a reclamar si no contestan.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 10/2019 · C. de Madrid', leyLarga: 'Ley 10/2019, de 10 de abril, de Transparencia de la Comunidad de Madrid', aa: 'Ayuntamiento de Madrid',
+      asunto: 'Coste del alumbrado navideño 2025',
+      solicita: 'El coste total del alumbrado navideño de 2025, desglosado por distrito y por contrato, incluyendo montaje, consumo eléctrico y desmontaje.',
+      hero: { eyebrow: 'Gasto municipal · Contratos de suministros', pre: '¿Cuánto costó ', mark: 'el alumbrado navideño', post: ' de tu ciudad?',
+              sub: 'Cada contrato del alumbrado es información pública. PideInfo te ayuda a redactar la solicitud y a reclamar si el Ayuntamiento calla.' } },
+    { canal: 'Portal Transparencia', ley: 'Ley 19/2013', leyLarga: null, aa: 'Dirección General de Tráfico',
+      asunto: 'Los radares que más multan',
+      solicita: 'La relación de los diez radares fijos con mayor número de denuncias en 2025, con su ubicación exacta y el importe total recaudado por cada uno.',
+      hero: { eyebrow: 'Seguridad vial · Recaudación por sanciones', pre: '¿Qué radares ', mark: 'multan más', post: ' y cuánto recaudan?',
+              sub: 'Las estadísticas de denuncias por radar son información pública. PideInfo te ayuda a pedirlas y a reclamar si la DGT no responde.' } },
+    { canal: 'REG / RED SARA', ley: 'Llei 19/2014 · Catalunya', leyLarga: 'Llei 19/2014, de 29 de desembre, de transparència, accés a la informació pública i bon govern', aa: 'Generalitat de Catalunya — Departament de la Presidència',
+      asunto: 'Agendas de reuniones con grupos de interés',
+      solicita: 'Las agendas de reuniones de los altos cargos del Departament con grupos de interés durante 2025, con fecha, asistentes y asunto tratado.',
+      hero: { eyebrow: 'Altos cargos · Grupos de interés', pre: '¿Con quién ', mark: 'se reúnen', post: ' tus gobernantes?',
+              sub: 'Las agendas de reuniones con grupos de interés son públicas. PideInfo te ayuda a solicitarlas y a reclamar si no las entregan.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 3/2015 · Castilla y León', leyLarga: 'Ley 3/2015, de 4 de marzo, de Transparencia y Participación Ciudadana de Castilla y León', aa: 'Ayuntamiento de Ponferrada',
+      asunto: 'Cachés de las orquestas de las fiestas',
+      solicita: 'El coste de las orquestas y grupos musicales contratados para las fiestas patronales de 2019 a 2025, con el caché de cada actuación.',
+      hero: { eyebrow: 'Gasto municipal · Contratos de festejos', pre: '¿Cuánto se ha gastado el Ayuntamiento en ', mark: 'la orquesta de las fiestas', post: ' de verano?',
+              sub: 'Es dinero público y, por tanto, información que puedes pedir. PideInfo te ayuda a redactar la solicitud y a reclamar si el Ayuntamiento no responde.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 1/2014 · Andalucía', leyLarga: 'Ley 1/2014, de 24 de junio, de Transparencia Pública de Andalucía', aa: 'Servicio Andaluz de Salud',
+      asunto: 'Listas de espera quirúrgicas por hospital',
+      solicita: 'Las listas de espera quirúrgicas a 31 de diciembre de 2025, desglosadas por hospital, especialidad y tiempo medio de espera.',
+      hero: { eyebrow: 'Sanidad pública · Listas de espera', pre: '¿Cuál es ', mark: 'la lista de espera real', post: ' de tu hospital?',
+              sub: 'Los datos de espera quirúrgica, por hospital y especialidad, son información pública. PideInfo te ayuda a pedirlos y a reclamar si no llegan.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 19/2013', leyLarga: null, aa: 'Renfe Viajeros, S.M.E., S.A.',
+      asunto: 'Puntualidad real de Cercanías',
+      solicita: 'La puntualidad media por línea de Cercanías en 2025, los criterios para computar un tren como puntual y el importe total devuelto por retrasos.',
+      hero: { eyebrow: 'Transporte público · Calidad del servicio', pre: '¿Llega ', mark: 'de verdad puntual', post: ' tu Cercanías?',
+              sub: 'La puntualidad por línea y las devoluciones por retraso son información pública. PideInfo te ayuda a pedirlas y a reclamar si Renfe no contesta.' } },
+    { canal: 'Portal Transparencia', ley: 'Ley 19/2013', leyLarga: null, aa: 'Ministerio de la Presidencia, Justicia y Relaciones con las Cortes',
+      asunto: 'Viajes oficiales del presidente del Gobierno',
+      solicita: 'La relación de viajes oficiales del presidente del Gobierno en 2024 y 2025, con destino, motivo, medio de transporte y coste por desplazamiento.',
+      hero: { eyebrow: 'Presidencia del Gobierno · Gastos de representación', pre: '¿Cuánto cuestan ', mark: 'los viajes oficiales', post: ' del presidente?',
+              sub: 'El destino, el motivo y el coste de cada viaje oficial son información pública. PideInfo te ayuda a pedirlos y a reclamar si no responden.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 8/2015 · Aragón', leyLarga: 'Ley 8/2015, de 25 de marzo, de Transparencia de la Actividad Pública y Participación Ciudadana de Aragón', aa: 'Ayuntamiento de Zaragoza',
+      asunto: 'Lo que cuestan las Fiestas del Pilar',
+      solicita: 'El coste total de las Fiestas del Pilar de 2025, desglosado por conciertos, seguridad, limpieza y fuegos artificiales, y los ingresos por patrocinios.',
+      hero: { eyebrow: 'Gasto municipal · Fiestas populares', pre: '¿Cuánto cuestan ', mark: 'las fiestas', post: ' de tu ciudad?',
+              sub: 'El coste de conciertos, seguridad o fuegos artificiales es información pública. PideInfo te ayuda a pedirlo y a reclamar si el Ayuntamiento no contesta.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 1/2014 · Andalucía', leyLarga: 'Ley 1/2014, de 24 de junio, de Transparencia Pública de Andalucía', aa: 'Ayuntamiento de Sevilla',
+      asunto: 'Frecuencias de limpieza viaria por barrio',
+      solicita: 'El plan de limpieza viaria vigente, con las frecuencias de barrido y baldeo por barrio y los medios materiales y humanos asignados a cada distrito.',
+      hero: { eyebrow: 'Servicios municipales · Planes de limpieza', pre: '¿Por qué ', mark: 'mi calle se limpia menos', post: ' que las del centro?',
+              sub: 'Los planes y las frecuencias de limpieza son públicos. PideInfo te ayuda a pedirlos y a reclamar si tu Ayuntamiento no te los facilita.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 3/2015 · Castilla y León', leyLarga: 'Ley 3/2015, de 4 de marzo, de Transparencia y Participación Ciudadana de Castilla y León', aa: 'Gerencia Regional de Salud de Castilla y León (Sacyl)',
+      asunto: 'Cobertura de bajas en los centros de salud',
+      solicita: 'El número de ausencias de personal facultativo en los centros de salud en 2025 y el porcentaje cubierto con sustituciones, desglosado por centro y mes.',
+      hero: { eyebrow: 'Sanidad pública · Personal y sustituciones', pre: '¿Cómo se están cubriendo ', mark: 'las bajas en mi centro de salud', post: '?',
+              sub: 'La gestión de personal de tu centro es información pública. PideInfo te ayuda a redactar la solicitud y a reclamar si la Administración sanitaria guarda silencio.' } },
+    { canal: 'REG / RED SARA', ley: 'Llei 19/2014 · Catalunya', leyLarga: 'Llei 19/2014, de 29 de desembre, de transparència, accés a la informació pública i bon govern', aa: 'Ajuntament de Barcelona',
+      asunto: 'Inspecciones sanitarias en bares y restaurantes',
+      solicita: 'La relación de inspecciones higiénico-sanitarias realizadas a bares y restaurantes en 2025, con el resultado de cada una y las medidas adoptadas ante los incumplimientos.',
+      hero: { eyebrow: 'Salud pública · Inspecciones de establecimientos', pre: '¿Qué bares de mi ciudad ', mark: 'han suspendido la inspección sanitaria', post: '?',
+              sub: 'Los resultados de las inspecciones son información pública. PideInfo te ayuda a pedirlos y a reclamar si te los niegan.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 10/2019 · C. de Madrid', leyLarga: 'Ley 10/2019, de 10 de abril, de Transparencia de la Comunidad de Madrid', aa: 'Metro de Madrid, S.A.',
+      asunto: 'Quejas por el aire acondicionado averiado',
+      solicita: 'El número de quejas registradas en 2025 por averías de climatización en trenes y estaciones, desglosado por línea, y el tiempo medio de resolución de las incidencias.',
+      hero: { eyebrow: 'Transporte público · Reclamaciones de usuarios', pre: '¿Cuántas quejas ha recibido el metro por ', mark: 'el aire acondicionado averiado', post: '?',
+              sub: 'El registro de quejas de un servicio público puede pedirse. PideInfo te ayuda a redactar la solicitud y a reclamar si la empresa pública no contesta.' } },
+    { canal: 'Portal Transparencia', ley: 'Ley 19/2013', leyLarga: null, aa: 'Ministerio de la Presidencia, Justicia y Relaciones con las Cortes',
+      asunto: 'Personal eventual de Presidencia del Gobierno',
+      solicita: 'La relación de personal eventual adscrito a la Presidencia del Gobierno, con la denominación del puesto, sus funciones y la retribución anual de cada asesor.',
+      hero: { eyebrow: 'Altos cargos · Personal de confianza', pre: '¿Cuántos ', mark: 'asesores tiene el presidente', post: ' y cuánto cobran?',
+              sub: 'El personal eventual y sus retribuciones son información pública. PideInfo te ayuda a pedirla y a reclamar si no te responden.' } },
+    { canal: 'REG / RED SARA', ley: 'Ley 1/2014 · Andalucía', leyLarga: 'Ley 1/2014, de 24 de junio, de Transparencia Pública de Andalucía', aa: 'Ayuntamiento de Málaga',
+      asunto: 'Criterios de corrección de la oposición',
+      solicita: 'Los criterios de corrección aplicados en el proceso selectivo de auxiliares administrativos de 2025, las actas del tribunal calificador y la plantilla de respuestas del examen.',
+      hero: { eyebrow: 'Empleo público · Procesos selectivos', pre: '¿Con qué ', mark: 'criterios se corrigió el examen', post: ' de mi oposición?',
+              sub: 'Los criterios de corrección de un proceso selectivo son información pública. PideInfo te ayuda a solicitarlos y a reclamar si la Administración no los entrega.' } },
+] %}
+{% set forzado = app.request.query.getInt('caso', -1) %}
+{% set casoInicial = (forzado >= 0 and forzado < casos|length) ? forzado : random(casos|length - 1) %}
+{% set caso = casos[casoInicial] %}
+<header class="home-hero">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-hero-grid">
+            <div>
+                <div class="home-hero-rota" data-hero-rota>
+                    <p class="home-hero-eyebrow"><span data-hero-campo="eyebrow">{{ caso.hero.eyebrow }}</span></p>
+
+                    <h1 class="home-hero-cita">«<span data-hero-campo="pre">{{ caso.hero.pre }}</span><span class="rotulador rotulador--barrido" data-hero-campo="mark">{{ caso.hero.mark }}</span><span data-hero-campo="post">{{ caso.hero.post }}</span>»</h1>
+
+                    <p class="home-hero-sub" data-hero-campo="sub">{{ caso.hero.sub }}</p>
                 </div>
 
-                <h1 class="repo-title text-4xl sm:text-5xl lg:text-6xl text-slate-800" style="line-height: 1.1">
-                    Ejerce tu derecho de acceso
-                    <span class="repo-title-accent">a la información pública</span>
-                </h1>
-
-                <p class="mt-6 text-lg text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
-                    PideInfo te ayuda a gestionar tus solicitudes de acceso a información pública, controlar los plazos legales y reclamar cuando la Administración no responde o deniega tu derecho.
-                </p>
-
-                <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                    <a href="{{ path('app_register') }}" class="btn btn-primary px-8 py-3 text-base">
-                        <i data-lucide="user-plus" class="w-5 h-5 mr-2"></i>
-                        Crear mi cuenta gratis
+                <div class="mt-9 flex flex-wrap items-center gap-3.5">
+                    <a href="{{ path('app_public_redactar') }}" class="btn-editorial btn-editorial--primario">
+                        <i data-lucide="pen-line"></i>
+                        Redactar mi primera solicitud
                     </a>
-                    <a href="#como-funciona" class="btn btn-ghost px-8 py-3 text-base">
-                        <i data-lucide="arrow-down" class="w-5 h-5 mr-2"></i>
-                        Cómo funciona
+                    <a href="{{ path('app_register') }}" class="btn-editorial btn-editorial--secundario">
+                        <i data-lucide="user-plus"></i>
+                        Crear cuenta
+                    </a>
+                </div>
+                <p class="home-hero-nota"><i data-lucide="check"></i> Sin registro — al terminar descargas el PDF listo para presentar, o lo envías desde nuestra plataforma.</p>
+            </div>
+
+            {# SSR con el MISMO caso que el hero (sin JS: hoja y titular ya
+               coherentes); el script promociona este índice al frente del
+               barajado para teclearlo primero. #}
+            <div class="home-hoja-marco" aria-hidden="true" data-caso-inicial="{{ casoInicial }}">
+                <div class="home-hoja">
+                    <div class="home-hoja-meta">
+                        <span class="home-hoja-pill home-hoja-pill--canal" data-campo="canal">{{ caso.canal }}</span>
+                        <span class="home-hoja-pill" data-campo="ley">{{ caso.ley }}</span>
+                    </div>
+                    <p class="home-hoja-titulo">Solicitud de acceso a información pública</p>
+                    <p class="home-hoja-linea"><b>A/A:</b> <span data-campo="aa">{{ caso.aa }}</span></p>
+                    <p class="home-hoja-linea"><b>ASUNTO:</b> <span data-campo="asunto">{{ caso.asunto }}</span></p>
+                    <p class="home-hoja-linea"><b>EXPONE:</b> <span data-campo="expone">{{ caso.leyLarga ? ('Que, en ejercicio del derecho de acceso a la información pública reconocido por la ' ~ caso.leyLarga ~ ',') : exponeEstatal }}</span></p>
+                    <p class="home-hoja-linea"><b>SOLICITA:</b> <span data-campo="solicita">{{ caso.solicita }}</span><span class="home-hoja-caret"></span></p>
+                    <div class="home-hoja-firma">
+                        <span>borrador · aún sin presentar</span>
+                        <span>pideinfo.es</span>
+                    </div>
+                </div>
+                <div class="home-hoja-sello">
+                    <i data-lucide="library"></i>
+                    <span>Apoyada en <b>{{ globalStats.total|number_format(0, ',', '.') }} resoluciones</b> reales</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</header>
+
+{# ── Banda tinta: el repositorio que respalda cada argumento ── #}
+<section class="home-repo-oscuro">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-repo-oscuro-grid">
+            <div class="home-revela">
+                <h2 class="home-seccion-titulo">Si rechazan darte lo que pides, te ayudamos con <span class="home-acento">resoluciones y sentencias</span></h2>
+                <p class="home-repo-oscuro-sub">Unificamos las resoluciones de los {{ globalStats.organismCount }} consejos de transparencia — y las <b>sentencias judiciales</b> que las confirman o anulan — en un repositorio único y buscable. Es un <b>corpus único en España</b> con el que el asistente redacta, y es público: sin registro.</p>
+                <div class="home-repo-cta">
+                    <a href="{{ path('app_resoluciones_index') }}" class="btn-editorial btn-editorial--primario btn-editorial--tinta">
+                        <i data-lucide="library"></i>
+                        Explorar el repositorio
                     </a>
                 </div>
             </div>
-
-            <div class="lg:w-5/12 flex-shrink-0" style="animation: fade-slide-up 0.6s ease-out both; animation-delay: 0.2s">
-                <img src="{{ asset('images/hero.png') }}" alt="Ciudadano accediendo a información pública"
-                     class="w-full h-auto" loading="eager">
+            <div class="home-revela">
+                <div class="home-repo-preview" aria-hidden="true">
+                    <div class="home-repo-barra">
+                        <span class="home-repo-seg--fav" style="width:{{ globalStats.favorablePct }}%"></span>
+                        <span class="home-repo-seg--parcial" style="width:{{ globalStats.partialPct }}%"></span>
+                        <span class="home-repo-seg--desfav" style="width:{{ globalStats.unfavorablePct }}%"></span>
+                    </div>
+                    <div class="home-repo-leyenda">
+                        <span><i class="home-repo-seg--fav"></i>Estimadas {{ globalStats.favorablePct }}%</span>
+                        <span><i class="home-repo-seg--parcial"></i>Parciales {{ globalStats.partialPct }}%</span>
+                        <span><i class="home-repo-seg--desfav"></i>Desestimadas {{ globalStats.unfavorablePct }}%</span>
+                    </div>
+                    <div class="home-repo-fila">
+                        <span class="ref">R/0155/2021</span>
+                        <span class="titulo-fila">Contratos de emergencia — Ministerio de Hacienda</span>
+                        <span class="home-pildora home-pildora--estimada">Estimada</span>
+                    </div>
+                    <div class="home-repo-fila">
+                        <span class="ref">RT 0389/2024</span>
+                        <span class="titulo-fila">Retribuciones de altos cargos — Generalitat</span>
+                        <span class="home-pildora home-pildora--parcial">Parcial</span>
+                    </div>
+                    <div class="home-repo-fila">
+                        <span class="ref">CTBG 118/2025</span>
+                        <span class="titulo-fila">Agendas de reuniones — Ministerio del Interior</span>
+                        <span class="home-pildora home-pildora--desestimada">Desestimada</span>
+                    </div>
+                </div>
             </div>
+        </div>
+        <div class="home-franja">
+            <span class="home-franja-dato"><b>{{ globalStats.total|number_format(0, ',', '.') }}</b>resoluciones</span>
+            <span class="home-franja-dato"><b>{{ globalStats.judgmentCount|number_format(0, ',', '.') }}</b>sentencias judiciales</span>
+            <span class="home-franja-dato"><b>{{ globalStats.distinctPublicBodies|number_format(0, ',', '.') }}</b>administraciones reclamadas</span>
+            <span class="home-franja-dato"><b>{{ globalStats.successRate }}&nbsp;%</b>de reclamaciones estimadas</span>
         </div>
     </div>
 </section>
 
-{# Reivindicación #}
-<section class="py-20 bg-white border-y border-slate-200/50 relative">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-14">
-            <h2 class="repo-title text-3xl sm:text-4xl text-slate-800">El derecho de acceso en España:<br>una carrera de obstáculos</h2>
-        </div>
-
-        <div class="grid sm:grid-cols-3 gap-10 mb-14">
-            <div class="text-center group">
-                <div class="mb-5">
-                    <img src="{{ asset('images/2a_silencio.png') }}" alt="Silencio administrativo"
-                         class="w-36 h-36 mx-auto object-contain transition-transform duration-300 group-hover:scale-105" loading="lazy">
-                </div>
-                <h3 class="font-semibold text-slate-800 mb-2" style="font-family: 'DM Sans', sans-serif">Silencio administrativo</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">Muchas administraciones simplemente no responden, esperando que te canses. El silencio equivale a denegación, pero dificulta saber cuándo reclamar.</p>
+{# ── El problema: carrera de obstáculos ──────────────────── #}
+<section class="home-seccion">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-obstaculos-grid">
+            <div class="home-obstaculos-titular home-revela">
+                <h2 class="home-seccion-titulo">La ley te da el derecho.<br>La práctica te lo <span class="home-acento">complica</span>.</h2>
+                <p class="home-seccion-sub">Tres formas habituales de perder un expediente — y las tres se ganan reaccionando a tiempo y con fundamento.</p>
             </div>
-            <div class="text-center group">
-                <div class="mb-5">
-                    <img src="{{ asset('images/2b_denegado.png') }}" alt="Denegaciones injustificadas"
-                         class="w-36 h-36 mx-auto object-contain transition-transform duration-300 group-hover:scale-105" loading="lazy">
-                </div>
-                <h3 class="font-semibold text-slate-800 mb-2" style="font-family: 'DM Sans', sans-serif">Denegaciones injustificadas</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">La Ley 19/2013 reconoce límites, pero con frecuencia se aplican de forma extensiva para evitar la transparencia. Reclamar requiere argumentación jurídica sólida.</p>
-            </div>
-            <div class="text-center group">
-                <div class="mb-5">
-                    <img src="{{ asset('images/2c_plazos.png') }}" alt="Plazos y burocracia"
-                         class="w-36 h-36 mx-auto object-contain transition-transform duration-300 group-hover:scale-105" loading="lazy">
-                </div>
-                <h3 class="font-semibold text-slate-800 mb-2" style="font-family: 'DM Sans', sans-serif">Plazos y burocracia</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">Un mes para responder, 30 días para reclamar, 3 meses para resolver la reclamación. Perder un plazo es perder tu derecho.</p>
-            </div>
-        </div>
-
-        <blockquote class="home-quote">
-            <p class="text-lg leading-relaxed">
-                «Todas las personas tienen derecho a acceder a la información pública.»
-            </p>
-            <footer class="mt-3 text-sm text-slate-500 not-italic">
-                — Artículo 12, Ley 19/2013, de transparencia, acceso a la información pública y buen gobierno
-            </footer>
-        </blockquote>
-    </div>
-</section>
-
-{# Cómo funciona #}
-<section id="como-funciona" class="py-20">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="text-center mb-14">
-            <h2 class="repo-title text-3xl sm:text-4xl text-slate-800">PideInfo automatiza el trabajo pesado</h2>
-            <p class="mt-3 text-slate-500 text-lg">Para que tú te centres en pedir información, no en gestionar papeles</p>
-        </div>
-
-        <div class="flex flex-col lg:flex-row gap-12 items-center">
-            <div class="flex-1 space-y-6">
-                {% set steps = [
-                    { title: 'Registra tus solicitudes', desc: 'Crea solicitudes a mano o sube directamente los PDFs: el sistema los analiza con inteligencia artificial, extrae los datos y calcula los plazos automáticamente.' },
-                    { title: 'Recibe documentos automáticamente', desc: 'Configura tu correo para reenviar los emails de las administraciones a tu buzón virtual. Los adjuntos se clasifican y enlazan solos a la solicitud correcta.' },
-                    { title: 'Controla plazos y actúa a tiempo', desc: 'El sistema te avisa cuando se acercan plazos de respuesta, de reclamación o de cumplimiento. Nunca más pierdas tu derecho por dejar pasar una fecha.' },
-                    { title: 'Reclama con fundamento jurídico', desc: 'Cuando te deniegan o no responden, PideInfo genera reclamaciones con IA basándose en resoluciones favorables y criterios del Consejo de Transparencia.' },
+            <div class="home-obstaculos-cards">
+                {% set obstaculos = [
+                    { img: '2a_silencio.png', title: 'Silencio administrativo', desc: 'La Administración puede sencillamente no contestar. El silencio es desestimatorio — y si no reaccionas a tiempo, el expediente muere solo.' },
+                    { img: '2b_denegado.png', title: 'Denegaciones injustificadas', desc: 'Los límites de la ley se invocan de forma expansiva. La mayoría de denegaciones se caen cuando alguien las reclama con fundamento.' },
+                    { img: '2c_plazos.png', title: 'Plazos y burocracia', desc: 'Un mes de plazo, prórrogas, subsanaciones, alegaciones de terceros… cada trámite tiene su reloj, y todos corren en tu contra.' },
                 ] %}
-                {% for step in steps %}
-                <div class="home-step group">
-                    <div class="home-step-num">{{ loop.index }}</div>
-                    <div class="flex-1">
-                        <h3 class="font-semibold text-slate-800 text-lg" style="font-family: 'DM Sans', sans-serif">{{ step.title }}</h3>
-                        <p class="text-slate-500 mt-1 leading-relaxed">{{ step.desc }}</p>
+                {% for obstaculo in obstaculos %}
+                <div class="home-obstaculo home-revela">
+                    <img src="{{ asset('images/' ~ obstaculo.img) }}" alt="" loading="lazy">
+                    <div>
+                        <h3>{{ obstaculo.title }}</h3>
+                        <p>{{ obstaculo.desc }}</p>
                     </div>
                 </div>
                 {% endfor %}
             </div>
+        </div>
+    </div>
+</section>
 
-            <div class="lg:w-80 flex-shrink-0" style="animation: fade-slide-up 0.6s ease-out both; animation-delay: 0.1s">
-                <img src="{{ asset('images/3_como_funciona.png') }}" alt="Flujo de procesamiento de PideInfo"
-                     class="w-full h-auto" loading="lazy">
+{# ── Cómo funciona: el expediente completo ───────────────── #}
+<section class="home-seccion home-seccion--alterna" id="como-funciona">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-seccion-cabecera home-revela">
+            <h2 class="home-seccion-titulo">Tú pides. PideInfo hace <span class="home-acento">el resto</span>.</h2>
+            <p class="home-seccion-sub">Redacción, envío, seguimiento y reclamación: el expediente completo en un solo sitio.</p>
+        </div>
+        <div class="home-features">
+            <div class="home-feature home-revela">
+                <div class="home-feature-cab">
+                    <span class="home-feature-num">1</span>
+                    <span class="home-feature-icono"><i data-lucide="pen-line"></i></span>
+                </div>
+                <h3>Redacción con precedentes</h3>
+                <p>El asistente escribe contigo citando la <b>ley aplicable</b> y <b>resoluciones que ya ganaron</b> casos como el tuyo — nada de plantillas genéricas.</p>
+                <span class="home-feature-prueba"><i data-lucide="check"></i> {{ globalStats.total|number_format(0, ',', '.') }} resoluciones y {{ globalStats.judgmentCount|number_format(0, ',', '.') }} sentencias detrás de cada borrador</span>
+            </div>
+            <div class="home-feature home-revela">
+                <div class="home-feature-cab">
+                    <span class="home-feature-num">2</span>
+                    <span class="home-feature-icono"><i data-lucide="send"></i></span>
+                </div>
+                <h3>Envío sin sedes imposibles</h3>
+                <p>Presenta en el <b>Portal de Transparencia</b> o en <b>más de 31.000 registros oficiales</b> sin pelearte con formularios: PideInfo <b>rellena y presenta por ti</b>.</p>
+                <span class="home-feature-prueba"><i data-lucide="check"></i> Portal AGE + REG / RED SARA, con acuse en el expediente</span>
+            </div>
+            <div class="home-feature home-revela">
+                <div class="home-feature-cab">
+                    <span class="home-feature-num">3</span>
+                    <span class="home-feature-icono"><i data-lucide="alarm-clock"></i></span>
+                </div>
+                <h3>Ningún plazo se te escapa</h3>
+                <p>Cada solicitud lleva su reloj legal: <b>prórrogas, subsanaciones y silencio</b> detectados al día. Las respuestas <b>entran solas al expediente</b> y se clasifican automáticamente.</p>
+                <span class="home-feature-prueba"><i data-lucide="check"></i> Te avisamos antes de que venza — no después</span>
+            </div>
+            <div class="home-feature home-revela">
+                <div class="home-feature-cab">
+                    <span class="home-feature-num">4</span>
+                    <span class="home-feature-icono"><i data-lucide="gavel"></i></span>
+                </div>
+                <h3>Reclamar deja de dar pereza</h3>
+                <p>Si deniegan o callan, la reclamación al Consejo de Transparencia sale con <b>los argumentos que ya funcionaron</b> — lista para presentar desde aquí.</p>
+                <span class="home-feature-prueba"><i data-lucide="check"></i> Con análisis de probabilidad de éxito antes de presentar</span>
             </div>
         </div>
     </div>
 </section>
 
-{# Conectividad con portales — el certificado nunca sale del ordenador #}
-<section class="home-portals-section py-20 border-y border-slate-200/50 relative overflow-hidden">
-    <div class="home-portals-bg"></div>
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div class="flex flex-col lg:flex-row-reverse items-center gap-12 lg:gap-16">
-            <div class="flex-1 text-center lg:text-left">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium mb-5">
-                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-                    Privacidad por diseño
-                </span>
-                <h2 class="repo-title text-3xl sm:text-4xl text-slate-800">
-                    Tu certificado digital
-                    <span class="repo-title-accent">no sale de tu ordenador</span>
-                </h2>
-                <p class="mt-4 text-slate-600 leading-relaxed max-w-lg">
-                    Conectamos directamente con los portales del Estado para sincronizar tus expedientes y notificaciones. El certificado FNMT nunca se sube ni se delega: el agente local de PideInfo lo usa <em>en tu equipo</em> y nos envía sólo los datos que ya son tuyos.
-                </p>
-
-                <ul class="mt-6 space-y-2.5 max-w-lg mx-auto lg:mx-0">
+{# ── Privacidad del certificado ──────────────────────────── #}
+<section class="home-seccion home-privacidad">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-privacidad-grid">
+            <div class="home-revela">
+                <span class="home-badge home-badge--emerald"><i data-lucide="shield-check"></i> Privacidad por diseño</span>
+                <h2 class="home-seccion-titulo">Centraliza todos los procesos <span class="home-acento">de forma segura</span></h2>
+                <p class="home-seccion-sub"><strong>Olvídate de tener que registrarte y manejar decenas de sedes electrónicas.</strong> Pideinfo se conecta con los portales del Estado para sincronizar tus expedientes y notificaciones mediante certificado digital. Tu certificado nunca se sube ni se delega: el agente local de PideInfo lo usa <em>en tu equipo</em> y nos envía solo los datos que ya son tuyos.</p>
+                <ul class="home-perks">
                     {% set perks = [
                         { icon: 'lock-keyhole', text: 'Autenticación Cl@ve / FNMT realizada localmente, sin proxy.' },
-                        { icon: 'refresh-cw',    text: 'Sincronización periódica de expedientes, notificaciones y documentos.' },
-                        { icon: 'eye-off',       text: 'PideInfo nunca ve tu clave privada ni tu navegador autenticado.' },
+                        { icon: 'refresh-cw',   text: 'Sincronización periódica de expedientes, notificaciones y documentos.' },
+                        { icon: 'eye-off',      text: 'PideInfo nunca ve tu clave privada ni tu navegador autenticado.' },
                     ] %}
                     {% for perk in perks %}
-                    <li class="flex items-start gap-3 text-sm text-slate-600">
-                        <span class="flex-shrink-0 w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center mt-0.5">
-                            <i data-lucide="{{ perk.icon }}" class="w-3.5 h-3.5"></i>
-                        </span>
-                        <span>{{ perk.text }}</span>
-                    </li>
+                    <li class="home-perk"><span class="home-perk-icono"><i data-lucide="{{ perk.icon }}"></i></span> {{ perk.text }}</li>
                     {% endfor %}
                 </ul>
             </div>
-
-            <div class="lg:w-5/12 flex-shrink-0 w-full">
-                <div class="home-portals-card">
-                    {# Local machine + certificate #}
-                    <div class="home-portals-machine">
-                        <div class="home-portals-machine-screen">
-                            <div class="flex items-center gap-3">
-                                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white shadow-sm">
-                                    <i data-lucide="badge-check" class="w-4 h-4"></i>
-                                </div>
-                                <div class="min-w-0">
-                                    <p class="text-[11px] text-slate-500 font-medium">Tu equipo</p>
-                                    <p class="text-sm font-semibold text-slate-800 truncate">Certificado FNMT · seguro</p>
-                                </div>
-                                <span class="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-medium">
-                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                    Local
-                                </span>
+            <div class="home-revela">
+                <div class="home-maquina">
+                    <div class="home-maquina-pantalla">
+                        <div class="home-maquina-cab">
+                            <span class="home-maquina-logo"><i data-lucide="badge-check"></i></span>
+                            <div class="home-maquina-cab-txt">
+                                <p class="mini">Tu equipo</p>
+                                <p class="nombre">Certificado FNMT · seguro</p>
                             </div>
-                            <div class="mt-3 flex items-center gap-2 text-[11px] text-slate-500">
-                                <i data-lucide="terminal" class="w-3 h-3"></i>
-                                <code class="font-mono">pideinfo-agent · sync</code>
-                            </div>
+                            <span class="home-maquina-local"><span class="home-maquina-punto"></span> Local</span>
                         </div>
-                        <div class="home-portals-machine-base"></div>
+                        <div class="home-maquina-cmd"><i data-lucide="terminal"></i> <code>pideinfo-agent · sync</code></div>
                     </div>
-
-                    <div class="home-portals-flow">
-                        <span class="home-portals-flow-line"></span>
-                        <span class="home-portals-flow-pill">Sólo tus datos · cifrado</span>
-                        <span class="home-portals-flow-line"></span>
+                    <div class="home-maquina-base"></div>
+                    <div class="home-flujo">
+                        <span class="home-flujo-linea"></span>
+                        <span class="home-flujo-pill">Solo tus datos · cifrado</span>
+                        <span class="home-flujo-linea"></span>
                     </div>
-
-                    {# Portal grid #}
-                    <div class="grid grid-cols-2 gap-2.5">
+                    <div class="home-portales">
                         {% set portals = [
-                            { name: 'Portal de Transparencia', code: 'AGE',     icon: 'building-2',     hue: 'sky' },
-                            { name: 'CTBG sede electrónica',   code: 'CTBG',    icon: 'scale',          hue: 'indigo' },
-                            { name: 'DEHú',                    code: 'DEHú',    icon: 'mail-check',     hue: 'violet' },
-                            { name: 'Registro Electrónico',    code: 'REC',     icon: 'file-stack',     hue: 'amber' },
+                            { name: 'Portal de Transparencia', code: 'AGE',  icon: 'building-2', hue: 'sky' },
+                            { name: 'CTBG sede electrónica',   code: 'CTBG', icon: 'scale',      hue: 'indigo' },
+                            { name: 'DEHú',                    code: 'DEHú', icon: 'mail-check', hue: 'violet' },
+                            { name: 'Registro Electrónico',    code: 'REC',  icon: 'file-stack', hue: 'amber' },
                         ] %}
                         {% for portal in portals %}
-                        <div class="home-portal-card group">
-                            <div class="flex items-center gap-2.5">
-                                <span class="home-portal-icon home-portal-icon--{{ portal.hue }}">
-                                    <i data-lucide="{{ portal.icon }}" class="w-3.5 h-3.5"></i>
-                                </span>
-                                <div class="min-w-0">
-                                    <p class="text-xs font-semibold text-slate-800 truncate">{{ portal.name }}</p>
-                                    <p class="text-[10px] text-slate-400">{{ portal.code }}</p>
-                                </div>
-                            </div>
+                        <div class="home-portal">
+                            <span class="home-portal-icono home-portal-icono--{{ portal.hue }}"><i data-lucide="{{ portal.icon }}"></i></span>
+                            <div><p class="nombre">{{ portal.name }}</p><p class="codigo">{{ portal.code }}</p></div>
                         </div>
                         {% endfor %}
                     </div>
@@ -235,86 +350,47 @@
     </div>
 </section>
 
-{# MCP — IA conectada a tus solicitudes #}
-<section class="home-mcp-section py-20 relative overflow-hidden">
-    <div class="home-mcp-bg"></div>
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div class="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-            <div class="flex-1 text-center lg:text-left">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-primary-200 text-xs font-medium mb-5">
-                    <span class="w-1.5 h-1.5 rounded-full bg-primary-300"></span>
-                    Nuevo · servidor MCP
-                </span>
-                <h2 class="repo-title text-3xl sm:text-4xl text-slate-800">
-                    Tu asistente IA
-                    <span class="repo-title-accent">conoce tus solicitudes</span>
-                </h2>
-                <p class="mt-4 text-slate-600 leading-relaxed max-w-lg">
-                    PideInfo expone un servidor <strong>Model Context Protocol</strong> (MCP) para que Claude, ChatGPT, Cursor o cualquier asistente compatible pueda buscar, crear y gestionar tus solicitudes <em>en tu nombre</em> — con autorización OAuth y permisos revocables en cualquier momento.
-                </p>
-
-                <div class="mt-6 flex flex-wrap items-center gap-2">
-                    <span class="text-xs text-slate-500 font-medium mr-1">Compatibles:</span>
+{# ── MCP, en tinta ───────────────────────────────────────── #}
+<section class="home-mcp">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <div class="home-mcp-grid">
+            <div class="home-revela">
+                <span class="home-badge home-badge--tinta"><span class="home-maquina-punto" style="background:#7dd3fc"></span> Nuevo · servidor MCP</span>
+                <h2 class="home-seccion-titulo">Tu asistente IA <span class="home-acento">conoce tus solicitudes</span></h2>
+                <p class="home-mcp-sub">PideInfo expone un servidor <strong>Model Context Protocol</strong> para que Claude, ChatGPT, Cursor o cualquier asistente compatible pueda buscar, crear y gestionar tus solicitudes <em>en tu nombre</em> — con autorización OAuth y permisos revocables en cualquier momento.</p>
+                <div class="home-mcp-clientes">
+                    <span class="home-mcp-clientes-label">Compatibles:</span>
                     {% for client in ['Claude.ai', 'ChatGPT', 'Cursor', 'OpenClaw', 'Hermes', 'MCP Inspector'] %}
-                    <span class="inline-flex items-center px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-700 text-xs font-medium shadow-sm">{{ client }}</span>
+                    <span class="home-chip">{{ client }}</span>
                     {% endfor %}
                 </div>
-
-                <div class="mt-7 flex flex-wrap gap-3 justify-center lg:justify-start">
-                    {% if app.user %}
-                    <button type="button"
-                            @click="$dispatch('open-mcp-info-modal')"
-                            class="btn btn-primary px-6 py-3 text-base">
-                        <i data-lucide="cpu" class="w-5 h-5 mr-2"></i>
-                        Conectar mi asistente
-                    </button>
-                    {% else %}
-                    <a href="{{ path('app_register') }}" class="btn btn-primary px-6 py-3 text-base">
-                        <i data-lucide="cpu" class="w-5 h-5 mr-2"></i>
+                <div class="home-mcp-cta">
+                    <a href="{{ path('app_register') }}" class="btn-editorial btn-editorial--primario btn-editorial--tinta">
+                        <i data-lucide="cpu"></i>
                         Conectar mi asistente
                     </a>
-                    {% endif %}
                 </div>
             </div>
-
-            <div class="lg:w-5/12 flex-shrink-0 w-full">
-                <div class="home-mcp-transcript" aria-hidden="true">
-                    <div class="home-mcp-transcript-head">
-                        <span class="home-mcp-dot home-mcp-dot--red"></span>
-                        <span class="home-mcp-dot home-mcp-dot--amber"></span>
-                        <span class="home-mcp-dot home-mcp-dot--green"></span>
-                        <span class="ml-2 text-[10px] text-slate-400 font-medium">Sesión MCP</span>
+            <div class="home-revela">
+                <div class="home-terminal" aria-hidden="true">
+                    <div class="home-terminal-cab">
+                        <span class="home-terminal-punto home-terminal-punto--rojo"></span>
+                        <span class="home-terminal-punto home-terminal-punto--ambar"></span>
+                        <span class="home-terminal-punto home-terminal-punto--verde"></span>
+                        <span>Sesión MCP</span>
                     </div>
-
-                    <div class="home-mcp-transcript-body">
-                        <div class="home-mcp-msg home-mcp-msg--user">
-                            <span class="home-mcp-msg-label">Tú</span>
+                    <div class="home-terminal-cuerpo">
+                        <div class="home-msg home-msg--user">
+                            <span class="home-msg-label">Tú</span>
                             <p>¿Qué solicitudes tengo en plazo crítico esta semana?</p>
                         </div>
-
-                        <div class="home-mcp-tools">
-                            <div class="home-mcp-tool">
-                                <span class="home-mcp-tool-arrow">→</span>
-                                <code>list_upcoming_deadlines</code>
-                                <span class="home-mcp-tool-arg">daysAhead: 7</span>
-                                <span class="home-mcp-tool-ok"><i data-lucide="check" class="w-3 h-3"></i> 3 solicitudes</span>
-                            </div>
-                            <div class="home-mcp-tool">
-                                <span class="home-mcp-tool-arrow">→</span>
-                                <code>get_request_detail</code>
-                                <span class="home-mcp-tool-arg">uuid: 019d…7819</span>
-                                <span class="home-mcp-tool-ok"><i data-lucide="check" class="w-3 h-3"></i> Vence en 2 días</span>
-                            </div>
-                            <div class="home-mcp-tool">
-                                <span class="home-mcp-tool-arrow">→</span>
-                                <code>get_status_history</code>
-                                <span class="home-mcp-tool-arg">uuid: 019d…7819</span>
-                                <span class="home-mcp-tool-ok"><i data-lucide="check" class="w-3 h-3"></i> 4 cambios</span>
-                            </div>
+                        <div class="home-tools">
+                            <div class="home-tool"><span class="home-tool-flecha">→</span> <code>list_upcoming_deadlines</code> <span class="home-tool-arg">daysAhead: 7</span> <span class="home-tool-ok"><i data-lucide="check"></i> 3 solicitudes</span></div>
+                            <div class="home-tool"><span class="home-tool-flecha">→</span> <code>get_request_detail</code> <span class="home-tool-arg">uuid: 019d…7819</span> <span class="home-tool-ok"><i data-lucide="check"></i> Vence en 2 días</span></div>
+                            <div class="home-tool"><span class="home-tool-flecha">→</span> <code>get_status_history</code> <span class="home-tool-arg">uuid: 019d…7819</span> <span class="home-tool-ok"><i data-lucide="check"></i> 4 cambios</span></div>
                         </div>
-
-                        <div class="home-mcp-msg home-mcp-msg--assistant">
-                            <span class="home-mcp-msg-label">Asistente</span>
+                        <div class="home-msg home-msg--assistant">
+                            <span class="home-msg-label">Asistente</span>
                             <p>Tienes 3 solicitudes que vencen esta semana. La del Ministerio de Hacienda ya fue prorrogada un mes por el organismo el 8 de abril; las otras dos siguen en trámite ordinario.</p>
                         </div>
                     </div>
@@ -324,100 +400,146 @@
     </div>
 </section>
 
-{# Repositorio de resoluciones #}
-<section class="home-repo-section py-20 border-y border-slate-200/50 relative overflow-hidden">
-    <div class="home-repo-bg"></div>
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div class="flex flex-col lg:flex-row items-center gap-12">
-            <div class="flex-1 text-center lg:text-left">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/80 border border-primary-200 text-primary-700 text-xs font-medium mb-5">
-                    <i data-lucide="globe" class="w-3.5 h-3.5"></i>
-                    Acceso libre — sin registro
-                </span>
-                <h2 class="repo-title text-3xl sm:text-4xl text-slate-800">
-                    Repositorio <span class="repo-title-accent">unificado</span><br>
-                    de resoluciones de transparencia
-                </h2>
-                <p class="mt-4 text-slate-500 leading-relaxed max-w-lg">
-                    Más de {{ globalStats.total|number_format(0, ',', '.') }} resoluciones de {{ globalStats.organismCount }} consejos de transparencia españoles, indexadas, analizadas con IA y con búsqueda avanzada. Un recurso público para ciudadanos, investigadores y profesionales.
-                </p>
-                <div class="mt-4 flex flex-wrap gap-x-6 gap-y-2 justify-center lg:justify-start">
-                    <div class="flex items-center gap-2 text-sm">
-                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                        <span class="text-slate-600"><strong class="text-slate-800">{{ globalStats.successRate }}%</strong> tasa de estimación</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-sm">
-                        <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                        <span class="text-slate-600"><strong class="text-slate-800">{{ globalStats.meanDaysToResolve }}</strong> días de media</span>
-                    </div>
-                </div>
-                <div class="mt-7">
-                    <a href="{{ path('app_resoluciones_index') }}" class="btn btn-primary px-8 py-3 text-base">
-                        <i data-lucide="scale" class="w-5 h-5 mr-2"></i>
-                        Explorar resoluciones
-                    </a>
-                </div>
-            </div>
-            <div class="lg:w-5/12 flex-shrink-0">
-                <div class="home-repo-preview">
-                    <div class="home-repo-bar">
-                        <div class="home-repo-bar-seg" style="width: 55%; background: #34d399"></div>
-                        <div class="home-repo-bar-seg" style="width: 30%; background: #f87171"></div>
-                        <div class="home-repo-bar-seg" style="width: 15%; background: #cbd5e1"></div>
-                    </div>
-                    <div class="space-y-2.5 mt-5">
-                        {% for i in 1..4 %}
-                        <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100">
-                            <span class="w-1.5 h-8 rounded-full bg-{{ ['emerald', 'red', 'emerald', 'amber'][i-1] }}-{{ [400, 400, 400, 400][i-1] }} flex-shrink-0"></span>
-                            <div class="flex-1 min-w-0">
-                                <div class="h-2.5 bg-slate-200 rounded-full w-{{ ['3/4', '2/3', '4/5', '1/2'][i-1] }}"></div>
-                                <div class="h-2 bg-slate-100 rounded-full w-1/3 mt-1.5"></div>
-                            </div>
-                            <div class="h-2 bg-slate-100 rounded-full w-12"></div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-{# En desarrollo #}
-<section class="py-20">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid sm:grid-cols-2 gap-8">
-            <div class="dash-section p-8 text-center">
-                <img src="{{ asset('images/5a_notificaciones.png') }}" alt="Notificaciones automáticas"
-                     class="w-28 h-28 mx-auto mb-5 object-contain" loading="lazy">
-                <h3 class="font-semibold text-slate-800 mb-3" style="font-family: 'DM Sans', sans-serif">En lo que estamos trabajando</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">
-                    Gestión automática de <strong class="text-slate-700">comunicaciones y notificaciones electrónicas</strong> de las administraciones, para que las actualizaciones que te lleguen se carguen automáticamente — sin entrar, autenticarte y subir documentos a mano.
-                </p>
-            </div>
-
-            <div class="dash-section p-8 text-center">
-                <img src="{{ asset('images/5b_sostenibilidad.png') }}" alt="Modelo de sostenibilidad"
-                     class="w-28 h-28 mx-auto mb-5 object-contain" loading="lazy">
-                <h3 class="font-semibold text-slate-800 mb-3" style="font-family: 'DM Sans', sans-serif">Modelo de sostenibilidad</h3>
-                <p class="text-sm text-slate-500 leading-relaxed">
-                    Durante la beta el uso es <strong class="text-slate-700">completamente gratuito</strong>. Habrá un plan gratuito que cubrirá las necesidades de la mayoría. Quienes lo usen profesionalmente podrán acceder a un plan ajustado al coste real — sin márgenes artificiales.
-                </p>
-            </div>
-        </div>
-    </div>
-</section>
-
-{# Qué es #}
-<section class="py-12 pb-20">
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <p class="text-slate-500 leading-relaxed italic">
-            PideInfo es un proyecto personal nacido de la frustración de gestionar decenas de solicitudes de acceso a información pública a mano. Porque ejercer un derecho fundamental no debería requerir una hoja de cálculo y un calendario con alarmas.
-        </p>
+{# ── Cierre ──────────────────────────────────────────────── #}
+<section class="home-cierre">
+    <div class="max-w-6xl mx-auto px-5 sm:px-8">
+        <p>PideInfo nace para que ejercer el derecho de acceso a la información pública deje de ser cosa de especialistas. Gratuito durante la beta abierta.</p>
     </div>
 </section>
 
 {% include '_partials/public_footer.html.twig' %}
 
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+    // ── La hoja que se escribe sola, en tándem con el hero ───
+    // El catálogo caso↔pregunta viene del bloque Twig del hero (única
+    // fuente). Cada caso se teclea, respira y da paso al siguiente del
+    // barajado; al cambiar de caso, el titular funde a SU pregunta.
+    // Con reduced-motion: el caso del SSR, quieto y sin rotación.
+    (function () {
+        // Cada administración con su ley de transparencia (las mismas que
+        // resuelve ApplicableLawResolver): estatal 19/2013 para la AGE y sus
+        // entes; la autonómica correspondiente para CCAA y entidades locales.
+        const EXPONE_ESTATAL = {{ exponeEstatal|json_encode|raw }};
+        const expone = (ley) => `Que, en ejercicio del derecho de acceso a la información pública reconocido por la ${ley},`;
+
+        const CASOS = {{ casos|json_encode|raw }}.map(c => ({
+            ...c,
+            expone: c.leyLarga ? expone(c.leyLarga) : EXPONE_ESTATAL,
+        }));
+        const campos = {
+            canal: document.querySelector('[data-campo="canal"]'),
+            ley: document.querySelector('[data-campo="ley"]'),
+            aa: document.querySelector('[data-campo="aa"]'),
+            asunto: document.querySelector('[data-campo="asunto"]'),
+            expone: document.querySelector('[data-campo="expone"]'),
+            solicita: document.querySelector('[data-campo="solicita"]'),
+        };
+        if (!campos.aa) return;
+
+        // Barajado Fisher–Yates: cada visita ve un orden distinto.
+        const orden = CASOS.map((_, i) => i);
+        for (let i = orden.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [orden[i], orden[j]] = [orden[j], orden[i]];
+        }
+
+        // El caso que el servidor ya pintó (hero + hoja) abre la rotación:
+        // así el primer tecleo no cambia el titular que el visitante está
+        // leyendo. El resto sigue el barajado.
+        const inicial = parseInt(document.querySelector('.home-hoja-marco')?.dataset.casoInicial ?? '-1', 10);
+        if (inicial >= 0 && inicial < CASOS.length) {
+            orden.splice(orden.indexOf(inicial), 1);
+            orden.unshift(inicial);
+        }
+
+        // Rotación del hero en tándem: al pasar a un caso nuevo, el titular
+        // funde a SU pregunta y el rotulador vuelve a barrer.
+        const heroRota = document.querySelector('[data-hero-rota]');
+        const heroCampos = {};
+        heroRota?.querySelectorAll('[data-hero-campo]').forEach(el => { heroCampos[el.dataset.heroCampo] = el; });
+
+        function fundirHero(caso) {
+            if (!heroRota || !heroCampos.mark) return;
+            heroRota.classList.add('is-cambiando');
+            setTimeout(() => {
+                heroCampos.eyebrow.textContent = caso.hero.eyebrow;
+                heroCampos.pre.textContent = caso.hero.pre;
+                heroCampos.mark.textContent = caso.hero.mark;
+                heroCampos.post.textContent = caso.hero.post;
+                heroCampos.sub.textContent = caso.hero.sub;
+                heroCampos.mark.classList.remove('rotulador--barrido');
+                void heroCampos.mark.offsetWidth; // reinicia la animación del barrido
+                heroCampos.mark.classList.add('rotulador--barrido');
+                heroRota.classList.remove('is-cambiando');
+            }, 300); // en sintonía con la transición de .home-hero-rota
+        }
+
+        function pintar(caso) {
+            campos.canal.textContent = caso.canal;
+            campos.ley.textContent = caso.ley;
+            campos.aa.textContent = caso.aa;
+            campos.asunto.textContent = caso.asunto;
+            campos.expone.textContent = caso.expone;
+            campos.solicita.textContent = caso.solicita;
+        }
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            pintar(CASOS[orden[0]]); // el caso del SSR, quieto y sin rotar
+            return;
+        }
+
+        const caret = document.querySelector('.home-hoja-caret');
+        const SECUENCIA = ['aa', 'asunto', 'expone', 'solicita'];
+
+        function teclearCaso(idx) {
+            const caso = CASOS[orden[idx % orden.length]];
+            if (idx > 0) fundirHero(caso); // el 0 ya lo pintó el servidor
+            campos.canal.textContent = caso.canal;
+            campos.ley.textContent = caso.ley;
+            SECUENCIA.forEach(k => { campos[k].textContent = ''; });
+
+            function teclearCampo(c) {
+                if (c >= SECUENCIA.length) {
+                    setTimeout(() => teclearCaso(idx + 1), 4200); // respira antes del siguiente
+                    return;
+                }
+                const span = campos[SECUENCIA[c]];
+                const texto = caso[SECUENCIA[c]];
+                let pos = 0;
+                if (caret) span.after(caret); // el caret acompaña a la línea que se escribe
+
+                (function paso() {
+                    if (pos <= texto.length) {
+                        span.textContent = texto.slice(0, pos);
+                        pos++;
+                        setTimeout(paso, 14 + Math.random() * 22);
+                    } else {
+                        setTimeout(() => teclearCampo(c + 1), 300);
+                    }
+                })();
+            }
+            teclearCampo(0);
+        }
+
+        // Arranca tras el barrido del rotulador, para no competir con él.
+        SECUENCIA.forEach(k => { campos[k].textContent = ''; });
+        setTimeout(() => teclearCaso(0), 1300);
+    })();
+
+    // ── Reveals discretos ────────────────────────────────────
+    (function () {
+        const nodos = document.querySelectorAll('.home-revela');
+        if (!('IntersectionObserver' in window)) {
+            nodos.forEach(n => n.classList.add('visible'));
+            return;
+        }
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+            });
+        }, { threshold: 0.15 });
+        nodos.forEach(n => io.observe(n));
+    })();
+</script>
+
 {% endblock %}

@@ -11,6 +11,7 @@ use App\Service\AI\Llm\LlmClient;
 use App\Service\Complaint\ComplaintGenerator;
 use App\Service\Complaint\SuccessAnalyzer;
 use App\Service\Document\DocumentContentsCollector;
+use App\Service\Document\CitationFootnoteFormatter;
 use App\Service\Document\PdfGenerator;
 use App\Service\Document\WordGenerator;
 use League\Flysystem\FilesystemOperator;
@@ -31,6 +32,7 @@ class ComplaintController extends AbstractController
         private readonly ComplaintGenerator $complaintGenerator,
         private readonly SuccessAnalyzer $successAnalyzer,
         private readonly PdfGenerator $pdfGenerator,
+        private readonly CitationFootnoteFormatter $footnoteFormatter,
         private readonly WordGenerator $wordGenerator,
         private readonly FilesystemOperator $documentsStorage,
         private readonly DocumentContentsCollector $documentContentsCollector,
@@ -378,9 +380,13 @@ class ComplaintController extends AbstractController
             return new JsonResponse(['error' => 'No hay contenido.'], Response::HTTP_BAD_REQUEST);
         }
 
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $this->footnoteFormatter->formatHtml((string) $contentHtml, is_array($sources) ? $sources : []);
+
         $html = $this->renderView('complaint/_pdf_from_html.html.twig', [
             'accessRequest' => $accessRequest,
-            'html' => $contentHtml,
+            'content_html' => $formatted['html'],
+            'footnotes' => $formatted['notes'],
         ]);
 
         $pdfContent = $this->pdfGenerator->generateFromHtml($html);
@@ -409,17 +415,11 @@ class ComplaintController extends AbstractController
             return $this->redirectToRoute('app_complaint_assistant', ['id' => $accessRequest->getId()]);
         }
 
-        $metadata = $complaintDocument->getAiMetadata();
-        $draft = \App\DTO\ComplaintDraft::fromArray([
-            'content' => $this->getComplaintContent($complaintDocument),
-            'transparencyCouncil' => $metadata['transparencyCouncil'] ?? '',
-            'applicableLaw' => $metadata['applicableLaw'] ?? '',
-            'citedResolutions' => $metadata['citedResolutions'] ?? [],
-            'citedCriteria' => $metadata['citedCriteria'] ?? [],
-            'successAnalysis' => $metadata['successAnalysis'] ?? null,
-        ]);
+        $content = $this->getComplaintContent($complaintDocument);
+        $sources = $accessRequest->getMetadataValue('cited_sources');
+        $formatted = $this->footnoteFormatter->formatHtml((string) $content, is_array($sources) ? $sources : []);
 
-        $pdfContent = $this->pdfGenerator->generateComplaintPdf($accessRequest, $draft);
+        $pdfContent = $this->pdfGenerator->generateComplaintPdf($accessRequest, $formatted['html'], $formatted['notes']);
 
         $filename = sprintf(
             'reclamacion_%s_%s.pdf',

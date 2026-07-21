@@ -190,6 +190,7 @@ class AccessRequestRepository extends ServiceEntityRepository
         $qb = $this->createQueryBuilder('ar')
             ->where('ar.status = :pending')
             ->andWhere('ar.createdAt < :upper')
+            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
             ->setParameter('pending', AccessRequest::STATUS_PENDING)
             ->setParameter('upper', $upper)
             ->orderBy('ar.createdAt', 'ASC');
@@ -216,6 +217,7 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->andWhere('ar.deadlineAt < :tomorrow')
             ->andWhere('ar.status IN (:activeStatuses)')
             ->andWhere('ar.deadlineSuspendedAt IS NULL')
+            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
             ->setParameter('today', $today)
             ->setParameter('tomorrow', $tomorrow)
             ->setParameter('activeStatuses', [
@@ -314,6 +316,49 @@ class AccessRequestRepository extends ServiceEntityRepository
         $counts = [];
         foreach ($results as $row) {
             $counts[$row['status']] = (int) $row['count'];
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Status counts where a request with an ACTIVE complaint (filed, not
+     * archived) leaves its request-status bucket and lands in the complaint's
+     * bucket instead — the chart mirror of AccessRequest::getEffectiveStatusLabel().
+     * Keys: the AccessRequest::STATUS_* values for un-reclaimed requests plus
+     * the AccessRequestComplaint::STATUS_* values for reclaimed ones.
+     *
+     * @return array<string, int>
+     */
+    public function getEffectiveStatusCounts(User $user): array
+    {
+        $counts = [];
+
+        // Requests whose story is still their own status: no complaint, or an
+        // archived one.
+        $withoutComplaint = $this->createQueryBuilderForUser($user)
+            ->select('ar.status, COUNT(ar.id) as count')
+            ->leftJoin('ar.complaint', 'c')
+            ->andWhere('c.id IS NULL OR c.status = :archived')
+            ->setParameter('archived', AccessRequestComplaint::STATUS_ARCHIVED)
+            ->groupBy('ar.status')
+            ->getQuery()
+            ->getResult();
+        foreach ($withoutComplaint as $row) {
+            $counts[$row['status']] = (int) $row['count'];
+        }
+
+        // Requests on the complaint route, bucketed by the complaint's status.
+        $withComplaint = $this->createQueryBuilderForUser($user)
+            ->select('c.status AS cstatus, COUNT(ar.id) as count')
+            ->join('ar.complaint', 'c')
+            ->andWhere('c.status != :archived')
+            ->setParameter('archived', AccessRequestComplaint::STATUS_ARCHIVED)
+            ->groupBy('c.status')
+            ->getQuery()
+            ->getResult();
+        foreach ($withComplaint as $row) {
+            $counts[$row['cstatus']] = (int) $row['count'];
         }
 
         return $counts;

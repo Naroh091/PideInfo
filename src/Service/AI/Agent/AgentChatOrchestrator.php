@@ -42,7 +42,8 @@ use Symfony\Bundle\SecurityBundle\Security;
  *
  * Replaces AssistantChatStreamer (===DECISION=== marker) with clean JSON output.
  */
-final class AgentChatOrchestrator
+// Not final: the unified chat controller mocks this as its streaming seam in tests.
+class AgentChatOrchestrator
 {
     /**
      * Raised from 8 when the three legal-framework tools landed: a complaint with three
@@ -92,6 +93,22 @@ final class AgentChatOrchestrator
                     'body_text' => ['type' => 'string'],
                     'expone'    => ['type' => 'string'],
                     'solicita'  => ['type' => 'string'],
+                    'doc_type'  => [
+                        'type'        => ['string', 'null'],
+                        'description' => 'SOLO en el flujo de consulta libre: clasifica el documento generado en uno de: complaint (reclamación), alegation_response (respuesta a alegaciones), subsanacion_response (respuesta a subsanación), other (cualquier otro escrito). Omite/null en los demás flujos.',
+                    ],
+                    'sources'   => [
+                        'type'        => ['array', 'null'],
+                        'description' => 'Fuentes citadas en el borrador: SOLO las resoluciones, criterios interpretativos o sentencias que hayas leído con las tools (search_resolutions / search_criteria / search_judgments) en ESTA conversación y que EFECTIVAMENTE cites en el texto. Vacío/null si no citas ninguna. NUNCA inventes referencias.',
+                        'items'       => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'type'      => ['type' => 'string', 'enum' => ['resolution', 'criterion', 'judgment'], 'description' => 'resolution = resolución de un consejo de transparencia; criterion = criterio interpretativo (CI); judgment = sentencia judicial.'],
+                                'reference' => ['type' => 'string', 'description' => 'La referencia EXACTA tal como aparece en el resultado de la tool (p. ej. "R/0155/2021", "CI/004/2015", "TS/1547/2017"). No la reformatees.'],
+                                'label'     => ['type' => 'string', 'description' => 'Etiqueta legible corta para el usuario (p. ej. "Resolución R/0155/2021", "Criterio CI 4/2015", "STS 1547/2017").'],
+                            ],
+                        ],
+                    ],
                 ],
             ],
         ],
@@ -210,6 +227,15 @@ Devuelve las preferencias de redacción del usuario. Úsala al inicio de una ses
 ### save_user_preference
 Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de estilo para TODAS sus redacciones futuras). Ver "Aprender preferencias de redacción del usuario".
 
+TXT;
+
+    /**
+     * Descriptions of the web-egress tools (`web_search`/`visit_url`/`scrape_url`).
+     * Appended to {@see TOOLS_PREAMBLE} only for authenticated turns — anonymous
+     * drafters never receive these tools (see {@see EGRESS_TOOLS}), so telling the
+     * model about them would only invite calls it can't make.
+     */
+    private const EGRESS_TOOLS_PREAMBLE = <<<'TXT'
 ### web_search
 Busca en internet (Google, Bing, DuckDuckGo, Wikipedia, etc.) para obtener información que NO está en los documentos de la solicitud ni en el corpus de resoluciones. Devuelve el texto de la página de resultados Y una lista de URLs. Si necesitas el contenido completo de un resultado, pásalo a `visit_url`.
 
@@ -237,6 +263,13 @@ Extrae el contenido de una URL de forma rápida y estructurada usando Crawl4AI. 
 - Para leer páginas estáticas (BOE, portales de transparencia, webs de organismos) sin necesidad de interactuar.
 - Cuando necesites extraer el contenido de una URL de la forma más rápida posible.
 - Para lectura de páginas con JavaScript complejo o que requieren interacción (clics, formularios), usa `visit_url` en su lugar.
+
+TXT;
+
+    /**
+     * Closing protocol shared by every turn (with or without the egress tools).
+     */
+    private const TOOLS_PROTOCOL_PREAMBLE = <<<'TXT'
 
 ---
 
@@ -275,6 +308,14 @@ Reglas:
 **REGLA DURA:** el único mecanismo real para guardar una preferencia es llamar a `save_user_preference`. Si en `conversational_reply` le dices al usuario que la has guardado o que la recordarás, es OBLIGATORIO que hayas llamado a `save_user_preference` en este turno. NUNCA afirmes que recordarás algo sin haber llamado a la herramienta; y NUNCA inventes preferencias que el usuario no haya expresado.
 TXT;
 
+    /**
+     * Web-egress tools withheld from anonymous drafters: they let the model fetch
+     * an arbitrary URL, which is an SSRF/exfiltration surface with no accountable
+     * user behind it. The drafting flow doesn't need them (they belong to the
+     * registered research agent). Names match the `#[AsTool(name: …)]` declarations.
+     */
+    private const EGRESS_TOOLS = ['web_search', 'visit_url', 'scrape_url'];
+
     private readonly Toolbox $toolbox;
     /** @var list<array{type: string, function: array<string, mixed>}> */
     private readonly array $toolDefinitions;
@@ -295,9 +336,11 @@ TXT;
         private readonly ReadLawArticlesTool $readLawArticlesTool,
         private readonly SearchJudgmentsTool $searchJudgmentsTool,
         private readonly AgentProgress $agentProgress,
+        private readonly AgentDoctrineContext $doctrineContext,
         private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly LoggerInterface $logger,
+        private readonly \App\Service\AI\CitationLinkResolver $citationLinks,
     ) {
         $toolInstances = [
             $searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool,
@@ -358,7 +401,23 @@ TXT;
     private function doStream(AssistantChatRequest $req, ?string $userId): \Generator
     {
         $this->agentProgress->reset();
-        $messages = $this->buildMessages($req);
+
+        // Publish this turn's priority organisms (garante + CTBG) so the doctrine
+        // search tools can boost them. Set AFTER reset so it can't leak across turns.
+        $this->doctrineContext->reset();
+        $this->doctrineContext->setPriorityOrganismIds($req->priorityOrganismIds);
+
+        // Anonymous drafters (no authenticated user) run with a restricted toolset:
+        // the web-egress tools are withheld both from the model's tool list and from
+        // its preamble (see EGRESS_TOOLS / toolsPreamble).
+        $anonymous = $userId === null;
+        $toolDefinitions = $this->toolDefinitionsFor($anonymous);
+        $validToolNames = array_values(array_filter(array_map(
+            static fn (array $d): ?string => $d['function']['name'] ?? null,
+            $toolDefinitions,
+        )));
+
+        $messages = $this->buildMessages($req, $anonymous);
         $converter = new ToolResultConverter();
 
         // Link every generation to the Langfuse-managed system prompt it runs on
@@ -391,7 +450,7 @@ TXT;
 
             $inputSummary = json_encode([
                 'messages'    => count($messages),
-                'tools'       => count($this->toolDefinitions),
+                'tools'       => count($toolDefinitions),
                 'flow'        => $req->flow,
                 'entity'      => $req->entityId,
                 'tool_choice' => is_array($toolChoice) ? $toolChoice['function']['name'] : $toolChoice,
@@ -411,7 +470,7 @@ TXT;
                         'agent.flow'                              => $req->flow,
                         ...$promptAttrs,
                     ],
-                    fn: fn () => $this->customClient->chatWithTools($messages, $this->toolDefinitions, $toolChoice),
+                    fn: fn () => $this->customClient->chatWithTools($messages, $toolDefinitions, $toolChoice),
                     captureOutput: function (array $r, SpanInterface $span): void {
                         $span->setAttribute('agent.response_type', $r['type']);
                         $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r['promptTokens'] ?? 0);
@@ -462,9 +521,33 @@ TXT;
             foreach ($response['calls'] ?? [] as $callData) {
                 $toolName = $callData['name'];
 
+                // Modelos pequeños (p. ej. gemma) a veces "llaman" a una tool que no
+                // existe — típicamente una acción de decisión (generate/rewrite/reply).
+                // En vez de mostrar un error alarmante, lo reconducimos en silencio al
+                // objeto de decisión.
+                if (!in_array($toolName, $validToolNames, true)) {
+                    $messages[] = [
+                        'role'         => 'tool',
+                        'tool_call_id' => $callData['id'],
+                        'content'      => 'No existe ninguna herramienta llamada «' . $toolName . '». Para redactar, reescribir o responder NO se usa ninguna herramienta: responde DIRECTAMENTE con el objeto de decisión JSON (conversational_reply, action, draft).',
+                    ];
+                    continue;
+                }
+
                 // Point 2: always override requestId so the model can't manipulate it.
                 if ($toolName === 'read_request_documents' && $req->entityId !== '') {
                     $callData['arguments']['requestId'] = $req->entityId;
+                }
+
+                // Defense-in-depth: never execute an egress tool for an anonymous
+                // turn, even if the model hallucinates the name (it isn't offered).
+                if ($anonymous && in_array($toolName, self::EGRESS_TOOLS, true)) {
+                    $messages[] = [
+                        'role'         => 'tool',
+                        'tool_call_id' => $callData['id'],
+                        'content'      => 'Esta herramienta no está disponible en este modo. Redacta con la información disponible.',
+                    ];
+                    continue;
                 }
 
                 yield ['step', [
@@ -565,6 +648,38 @@ TXT;
             }
         }
 
+        // Nudge anti-re-plan: en el flujo complaint, si el modelo vuelve a proponer
+        // un plan cuando la FASE 1 ya NO era obligatoria (el plan anterior ya se
+        // mostró y el usuario espera el documento), lo reconducimos con un segundo
+        // intento que fuerza la generación. Rompe el bucle "plan → apruebo → otro
+        // plan" con modelos que no respetan bien la regla "genera tras aprobación".
+        if (
+            !$planRequired
+            && $req->flow === 'complaint'
+            && ($data['action'] ?? 'reply') === 'reply'
+            && is_array($data['plan'] ?? null) && count($data['plan']) > 0
+        ) {
+            yield ['step', ['message' => 'Redactando el borrador…', 'tool' => null]];
+            $messages[] = ['role' => 'assistant', 'content' => json_encode($data, JSON_UNESCAPED_UNICODE)];
+            $messages[] = ['role' => 'user', 'content' => 'El plan de argumentos ya está definido y aprobado. Ahora DEBES redactar el documento completo: responde con "action":"generate" y el objeto "draft" con el "body_html" del escrito entero. NO vuelvas a proponer un plan.'];
+            try {
+                $nudged = $this->customClient->chatRaw(
+                    messages: $messages,
+                    jsonSchema: self::DECISION_SCHEMA,
+                    schemaName: 'assistant_decision',
+                    maxRetries: 2,
+                    maxOutputTokens: 16384,
+                );
+                $retry = json_decode($nudged->content, true);
+                if (is_array($retry) && isset($retry['action'])) {
+                    $data = $retry;
+                }
+            } catch (\Throwable $e) {
+                // Si el nudge falla, nos quedamos con el plan (no rompemos el turno).
+                $this->logger->warning('AgentChatOrchestrator anti-replan nudge failed', ['error' => $e->getMessage()]);
+            }
+        }
+
         // Emit conversational reply in chunks (typing effect without true streaming).
         // mb_str_split (NOT str_split) so multibyte chars like «ó» are never split
         // across chunk boundaries — that produced mojibake («Administraci��n»).
@@ -588,6 +703,16 @@ TXT;
             return;
         }
 
+        // Fuentes citadas declaradas por el modelo. Resolvemos el enlace en
+        // SERVIDOR a partir de la referencia (ficha interna para resoluciones;
+        // documento original para criterios/sentencias) en vez de fiarnos de una
+        // URL inventada por el modelo. `sources` no es un campo de la hoja.
+        $sources = [];
+        if (is_array($draft) && isset($draft['sources']) && is_array($draft['sources'])) {
+            $sources = $this->citationLinks->resolve($draft['sources']);
+            unset($draft['sources']);
+        }
+
         // FASE 1 plan: structured list of administration arguments + how each will
         // be dismantled. Rendered by the client as cards. Only keep well-formed
         // entries so the UI never gets half-empty cards.
@@ -600,7 +725,7 @@ TXT;
             }
         }
 
-        yield ['decision', ['action' => $action, 'draft' => $draft, 'plan' => $plan]];
+        yield ['decision', ['action' => $action, 'draft' => $draft, 'plan' => $plan, 'sources' => $sources]];
 
         // Return the final generated document (the reclamación / solicitud /
         // alegaciones) so the root trace's output is the actual result; on
@@ -701,6 +826,7 @@ TXT;
         return match ($req->flow) {
             'complaint'  => 'Redacción de reclamación ante el consejo de transparencia.',
             'request'    => 'Redacción de solicitud de acceso a información pública.',
+            'consult'    => 'Consulta libre sobre el expediente y redacción del escrito que necesite el usuario.',
             default      => 'Asistencia en redacción de escritos de transparencia.',
         };
     }
@@ -711,9 +837,35 @@ TXT;
      *
      * @return list<array<string, mixed>>
      */
-    private function buildMessages(AssistantChatRequest $req): array
+    /** Assembles the tools preamble, including the egress-tool section only for authenticated turns. */
+    private function toolsPreamble(bool $anonymous): string
     {
-        $systemPrompt = $req->systemPrompt . self::TOOLS_PREAMBLE . self::LEARNING_PREAMBLE;
+        return $anonymous
+            ? self::TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE
+            : self::TOOLS_PREAMBLE . self::EGRESS_TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE;
+    }
+
+    /**
+     * Tool definitions offered to the model this turn. Anonymous drafters never
+     * see the web-egress tools (see {@see EGRESS_TOOLS}).
+     *
+     * @return list<array{type: string, function: array<string, mixed>}>
+     */
+    private function toolDefinitionsFor(bool $anonymous): array
+    {
+        if (!$anonymous) {
+            return $this->toolDefinitions;
+        }
+
+        return array_values(array_filter(
+            $this->toolDefinitions,
+            static fn (array $def): bool => !in_array($def['function']['name'] ?? '', self::EGRESS_TOOLS, true),
+        ));
+    }
+
+    private function buildMessages(AssistantChatRequest $req, bool $anonymous): array
+    {
+        $systemPrompt = $req->systemPrompt . $this->toolsPreamble($anonymous) . self::LEARNING_PREAMBLE;
 
         // Inject the entity ID so the model can pass it to read_request_documents.
         if ($req->entityId !== '') {

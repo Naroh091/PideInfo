@@ -30,8 +30,10 @@ final class GetUserPreferencesTool
     {
         $this->progress->step('Cargando preferencias de redacción del usuario…', 'get_user_preferences');
 
-        /** @var User $user */
         $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            return 'Usuario anónimo: sin preferencias de redacción guardadas.';
+        }
 
         $block = WritingPreferencesFormatter::format($user->getWritingPreferences());
 

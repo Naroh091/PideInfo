@@ -25,6 +25,15 @@ class CriterionRepository extends ServiceEntityRepository
     }
 
     /**
+     * Reference-only lookup (source unknown): used to resolve a citation the
+     * assistant emitted, where we only have the human reference string.
+     */
+    public function findOneByReference(string $referenceNumber): ?Criterion
+    {
+        return $this->findOneBy(['referenceNumber' => $referenceNumber]);
+    }
+
+    /**
      * Fetch criteria by id, returned as a map keyed by string id so callers can
      * enrich vector-store hits with the authoritative entity (full text,
      * summary, keypoints). Mirrors ResolutionRepository::findByIds().
@@ -39,6 +48,10 @@ class CriterionRepository extends ServiceEntityRepository
         }
 
         $rows = $this->createQueryBuilder('c')
+            // Eager-load the issuing organism: the RAG retriever reads it for the
+            // priority boost and the citation, so avoid the N+1.
+            ->leftJoin('c.complaintOrganism', 'co')
+            ->addSelect('co')
             ->where('c.id IN (:ids)')
             ->setParameter('ids', array_values(array_unique($ids)))
             ->getQuery()

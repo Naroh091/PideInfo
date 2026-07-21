@@ -11,6 +11,7 @@ use App\Service\AI\EmbeddingGenerator;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
 use App\Service\AI\ResolutionRetriever;
+use App\Util\HtmlToPlainText;
 use Symfony\AI\Platform\Vector\Vector;
 
 /**
@@ -126,6 +127,7 @@ final class RequestDraftGenerator
                 new Vector($embedding),
                 3,
                 self::RETRIEVAL_OUTCOMES,
+                lexicalQuery: $query,
             );
         } catch (\Throwable) {
             return $this->resolutionRetriever->retrieveSimilarCases(
@@ -136,8 +138,15 @@ final class RequestDraftGenerator
         }
     }
 
+    /**
+     * HTML/markdown-ish draft body → plain text WITH paragraph structure.
+     * Never a bare strip_tags: that glues `</p><p>` boundaries into an
+     * unreadable wall ("…12.100,00 EUR).Al amparo…") — the exact bug this
+     * replaced. HtmlToPlainText keeps blank lines between blocks, which the
+     * show page then renders back into paragraphs via markdown_to_html.
+     */
     private function plain(string $text): string
     {
-        return trim(strip_tags($text));
+        return HtmlToPlainText::convert($text);
     }
 }

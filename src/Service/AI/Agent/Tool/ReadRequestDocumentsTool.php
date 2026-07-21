@@ -68,8 +68,8 @@ final class ReadRequestDocumentsTool
     {
         $limit = max(1, min(15, $limit));
 
-        /** @var User $user */
         $user = $this->security->getUser();
+        $user = $user instanceof User ? $user : null;
 
         if (!Uuid::isValid($requestId)) {
             return 'El ID de solicitud proporcionado no es un UUID válido.';
@@ -81,7 +81,14 @@ final class ReadRequestDocumentsTool
             return 'No se ha encontrado la solicitud con ese ID.';
         }
 
-        if ($ar->getUser()->getId()->toRfc4122() !== $user->getId()->toRfc4122()) {
+        // Anonymous drafting (/redactar): an ownerless request read by an
+        // anonymous caller is legitimate — the controller already granted
+        // `view` via the session-scoped voter branch, and the orchestrator
+        // pins the requestId, so the model cannot reach other requests.
+        // Every other owner/caller combination requires an exact match.
+        $isAnonymousOnOwnerless = $ar->getUser() === null && $user === null;
+        if (!$isAnonymousOnOwnerless
+            && $ar->getUser()?->getId()->toRfc4122() !== $user?->getId()->toRfc4122()) {
             throw new AccessDeniedException('No tienes acceso a esta solicitud.');
         }
 
@@ -120,7 +127,7 @@ final class ReadRequestDocumentsTool
         }
         $cacheKey = 'agent_doc_extract_' . hash(
             'xxh128',
-            $user->getId()->toRfc4122() . '|' . $requestId . '|' . $limit . '|' . $fingerprint,
+            ($user?->getId()->toRfc4122() ?? 'anon') . '|' . $requestId . '|' . $limit . '|' . $fingerprint,
         );
 
         return $this->cache->get($cacheKey, function (ItemInterface $item) use ($docs, $draftingContext, $total, $truncated) {

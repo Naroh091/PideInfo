@@ -39,6 +39,13 @@ export default class extends Controller {
         canvasOutletSelector: { type: String, default: '' },
         hasDraft: { type: Boolean, default: false },
         flow: { type: String, default: 'request' },
+        // Flujo público /redactar: borrador sin dueño. Tras el primer borrador
+        // generado se añade una burbuja invitando a crear cuenta (registerUrl).
+        anonymous: { type: Boolean, default: false },
+        registerUrl: { type: String, default: '' },
+        // Hilo de trámite: marcas de tiempo reales del borrador (ISO 8601).
+        createdAt: { type: String, default: '' },
+        updatedAt: { type: String, default: '' },
     };
 
     connect() {
@@ -55,12 +62,72 @@ export default class extends Controller {
         } else {
             this._scrollToBottom();
         }
+        this._initTimeline();
     }
 
     disconnect() {
         if (this._abort) {
             try { this._abort.abort(); } catch {}
         }
+        if (this._timelineTimer) clearInterval(this._timelineTimer);
+    }
+
+    /* ── Hilo de trámite: hitos reales (Borrador creado / Guardado hace X) ── */
+    _initTimeline() {
+        if (!this._sheetMode() || !this.hasHistoryTarget) return;
+
+        if (this.createdAtValue) {
+            const created = this._makeEvent('Borrador creado', this.createdAtValue);
+            this.historyTarget.insertBefore(created, this.historyTarget.firstChild);
+        }
+        // Si ya había un borrador guardado al cargar, muestra el «Guardado hace X».
+        if (this.hasDraftValue && this.updatedAtValue && this.updatedAtValue !== this.createdAtValue) {
+            this._savedEvent = this._makeEvent('Guardado', this.updatedAtValue);
+            this.historyTarget.appendChild(this._savedEvent);
+        }
+        this._timelineTimer = setInterval(() => this._refreshTimestamps(), 30000);
+    }
+
+    _makeEvent(prefix, isoTs) {
+        const node = document.createElement('div');
+        node.className = 'chat-event';
+        const span = document.createElement('span');
+        span.className = 'chat-event-text';
+        span.dataset.prefix = prefix;
+        if (isoTs) span.dataset.ts = isoTs;
+        span.textContent = isoTs ? `${prefix} · ${this._relativeTime(isoTs)}` : prefix;
+        node.appendChild(span);
+        return node;
+    }
+
+    /** Save event bubbling up from the active paper sheet → update «Guardado hace X». */
+    onDraftSaved() {
+        const nowIso = new Date().toISOString();
+        if (!this._savedEvent) this._savedEvent = this._makeEvent('Guardado', nowIso);
+        const span = this._savedEvent.querySelector('.chat-event-text');
+        span.dataset.prefix = 'Guardado';
+        span.dataset.ts = nowIso;
+        span.textContent = `Guardado · ${this._relativeTime(nowIso)}`;
+        if (this.hasHistoryTarget) this.historyTarget.appendChild(this._savedEvent); // mantenlo al final
+    }
+
+    _refreshTimestamps() {
+        if (!this.hasHistoryTarget) return;
+        this.historyTarget.querySelectorAll('.chat-event-text[data-ts]').forEach((el) => {
+            if (el.dataset.ts) el.textContent = `${el.dataset.prefix} · ${this._relativeTime(el.dataset.ts)}`;
+        });
+    }
+
+    _relativeTime(iso) {
+        const then = new Date(iso).getTime();
+        if (Number.isNaN(then)) return '';
+        const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+        if (secs < 45) return 'ahora';
+        const mins = Math.round(secs / 60);
+        if (mins < 60) return `hace ${mins} min`;
+        const hours = Math.round(mins / 60);
+        if (hours < 24) return `hace ${hours} h`;
+        return `hace ${Math.round(hours / 24)} d`;
     }
 
     /** Conversation-page mode: drafts live inside the chat as paper sheets. */
@@ -188,8 +255,13 @@ export default class extends Controller {
 
     onAttach(event) {
         const input = event.currentTarget;
-        const files = Array.from(input?.files || []);
-        for (const file of files) {
+        this._addFiles(input?.files || []);
+        if (input) input.value = '';
+    }
+
+    /** Add files (from the picker OR a drag-drop) to the pending attachments. */
+    _addFiles(files) {
+        for (const file of Array.from(files || [])) {
             if (file.size > this._maxFileBytes) {
                 this._appendSystemBubble(`«${this._escape(file.name)}» supera el límite de 4 MB.`);
                 continue;
@@ -201,8 +273,29 @@ export default class extends Controller {
             }
             this.pendingAttachments.push(file);
         }
-        if (input) input.value = '';
         this._renderChips();
+    }
+
+    /* ── Arrastrar y soltar archivos sobre el composer ──────────────────── */
+    onDragOver(event) {
+        const types = event.dataTransfer ? Array.from(event.dataTransfer.types || []) : [];
+        if (!types.includes('Files')) return; // ignora arrastres de texto/selección
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        event.currentTarget.classList.add('is-dragover');
+    }
+
+    onDragLeave(event) {
+        // Solo al salir de la tarjeta, no al pasar sobre un hijo.
+        if (event.currentTarget.contains(event.relatedTarget)) return;
+        event.currentTarget.classList.remove('is-dragover');
+    }
+
+    onDrop(event) {
+        event.preventDefault();
+        event.currentTarget.classList.remove('is-dragover');
+        const files = event.dataTransfer ? Array.from(event.dataTransfer.files || []) : [];
+        if (files.length) this._addFiles(files);
     }
 
     removeAttachment(event) {
@@ -250,11 +343,19 @@ export default class extends Controller {
         this._renderChips();
 
         // Refresh the `extra` hidden inputs against fresh state. In sheet mode
-        // the chat owns the sheet, so it fills currentBodyHtml/documentIds
-        // itself; the event stays for host pages (Alpine app on the classic
-        // complaint editor) that refresh extras externally.
+        // the chat owns the sheet, so it fills currentBodyHtml itself; the
+        // event stays for host pages (Alpine app on the classic complaint
+        // editor) that refresh extras externally.
         this._refreshExtras();
         this.dispatch('before-send', { detail: { extras: this.hasExtraTarget ? this.extraTargets : [] } });
+
+        // Flush any pending manual edits so the agent drafts from the user's
+        // latest version, not a stale (debounced) one.
+        const latestSheet = this._sheetEl();
+        if (latestSheet) {
+            const sheetCtrl = await this._sheetController(latestSheet);
+            try { await sheetCtrl?.flush?.(); } catch (_e) { /* best-effort */ }
+        }
 
         const formData = new FormData();
         formData.append('message', message);
@@ -429,7 +530,7 @@ export default class extends Controller {
         }
     }
 
-    _applyDecision({ action, draft, previous, plan }, tokensEl) {
+    _applyDecision({ action, draft, previous, plan, sources }, tokensEl) {
         // FASE 1 plan: render each administration argument + dismantling strategy
         // as a card right under the reply.
         if (Array.isArray(plan) && plan.length) {
@@ -441,8 +542,13 @@ export default class extends Controller {
         }
 
         const payload = this.isRegValue
-            ? { title: draft.title, expone: draft.expone, solicita: draft.solicita }
-            : { title: draft.title, bodyHtml: draft.body_text || draft.body_html || '' };
+            ? { title: draft.title, expone: draft.expone, solicita: draft.solicita, sources }
+            : { title: draft.title, bodyHtml: draft.body_text || draft.body_html || '', sources };
+        // Consulta libre: el agente clasifica el documento; llevamos su tipo a la
+        // hoja para preseleccionar el <select> de "Guardar en el expediente".
+        if (this.flowValue === 'consult' && draft.doc_type) {
+            payload.docType = draft.doc_type;
+        }
 
         if (this._sheetMode()) {
             this._applyDraftToSheet(payload);
@@ -466,18 +572,41 @@ export default class extends Controller {
             button.dataset.diffModalCurrentValue = JSON.stringify(draft);
             bubble.appendChild(button);
         }
+
+        this._maybeSuggestRegister();
+    }
+
+    // Anónimos: una única invitación a crear cuenta, tras el primer borrador
+    // aplicado — el momento en que hay algo que merece conservarse.
+    _maybeSuggestRegister() {
+        if (!this.anonymousValue || !this.registerUrlValue || this._registerSuggested) return;
+        this._registerSuggested = true;
+        const bubble = this._appendSystemBubble(
+            'Este borrador vive solo en este navegador. Si creas una cuenta gratuita lo guardamos en tu panel, vigilamos los plazos y podrás presentarlo desde aquí.',
+        );
+        const link = document.createElement('a');
+        link.className = 'chat-bubble-diff-btn';
+        link.href = this.registerUrlValue;
+        link.textContent = 'Crear cuenta y conservarlo';
+        bubble.appendChild(link);
     }
 
     /* ── In-chat paper sheet (conversation page) ────────────────────────── */
 
     /**
-     * One live sheet, updated in place: N stacked sheets would desync from
-     * the single draft persisted server-side. The sheet stays where it first
-     * appeared (moving the node would remount Trix); the system bubble at the
-     * bottom tells the user the draft above was rewritten.
+     * Append model: every generation/rewrite lands as its OWN document in the
+     * stream, in chat order. We freeze the previous latest sheet into a
+     * read-only snapshot and append a fresh one, then run the typewriter (which
+     * draws the box first). Only the latest sheet is editable / autosaved /
+     * submittable; the single draft persisted server-side is always the latest.
      */
     async _applyDraftToSheet(payload) {
-        const sheetEl = this._ensureSheetEl();
+        const prev = this._sheetEl();
+        if (prev) {
+            const prevCtrl = await this._sheetController(prev);
+            prevCtrl?.freeze?.();
+        }
+        const sheetEl = this._createSheet();
         if (!sheetEl) return;
         const ctrl = await this._sheetController(sheetEl);
         if (!ctrl || typeof ctrl.replaceContent !== 'function') {
@@ -486,34 +615,51 @@ export default class extends Controller {
         }
         this._pinToElement(sheetEl);
         try { await ctrl.replaceContent(payload); } catch (e) { console.error(e); }
+        if (this.flowValue === 'consult' && payload.docType) {
+            // El título se teclea en el campo `title`; solo hay que preseleccionar
+            // el tipo sugerido por el agente en el desplegable de guardado.
+            const sel = sheetEl.querySelector('[data-paper-sheet-target~="docTypeSelect"]');
+            if (sel) sel.value = payload.docType;
+        }
         this.dispatch('draft-applied');
     }
 
+    /** The latest (editable) sheet in the stream, or null. */
     _sheetEl() {
         if (!this.hasHistoryTarget) return null;
-        return this.historyTarget.querySelector('[data-controller~="paper-sheet"]');
+        const sheets = this.historyTarget.querySelectorAll('[data-controller~="paper-sheet"]');
+        return sheets.length ? sheets[sheets.length - 1] : null;
     }
 
-    _ensureSheetEl() {
-        let el = this._sheetEl();
-        if (el) return el;
+    /** Clone the blank sheet template and append it as a new document node. */
+    _createSheet() {
         if (!this.hasSheetTemplateTarget || !this.hasHistoryTarget) return null;
         this.historyTarget.appendChild(this.sheetTemplateTarget.content.cloneNode(true));
         this._reIcons();
         return this._sheetEl();
     }
 
-    /** Waits (a few frames) for Stimulus to connect the sheet controller. */
+    /** Ensure at least one editable sheet exists (manual-drafting path). */
+    _ensureSheetEl() {
+        return this._sheetEl() || this._createSheet();
+    }
+
+    /**
+     * Waits for Stimulus to connect the sheet controller. Uses setTimeout (not
+     * requestAnimationFrame) so it still resolves when the tab is backgrounded:
+     * rAF is paused in hidden tabs, which would otherwise hang the whole draft
+     * render if the user switches away mid-generation.
+     */
     async _sheetController(el) {
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 60; i++) {
             const ctrl = this.application.getControllerForElementAndIdentifier(el, 'paper-sheet');
             if (ctrl) return ctrl;
-            await new Promise(requestAnimationFrame);
+            await new Promise((resolve) => setTimeout(resolve, 16));
         }
         return null;
     }
 
-    /** Sheet mode: fill currentBodyHtml/documentIds extras from the page. */
+    /** Sheet mode: fill the currentBodyHtml extra from the page. */
     _refreshExtras() {
         if (!this._sheetMode() || !this.hasExtraTarget) return;
         const bodyInput = this.extraTargets.find((el) => el.getAttribute('name') === 'currentBodyHtml');
@@ -521,11 +667,6 @@ export default class extends Controller {
             const sheetEl = this._sheetEl();
             const htmlInput = sheetEl?.querySelector('[data-paper-sheet-target~="htmlInput"]');
             bodyInput.value = htmlInput?.value ?? '';
-        }
-        const docsInput = this.extraTargets.find((el) => el.getAttribute('name') === 'documentIds');
-        if (docsInput) {
-            const checked = this.element.querySelectorAll('input[data-doc-pick]:checked');
-            docsInput.value = Array.from(checked).map((i) => i.value).join(',');
         }
     }
 
@@ -560,7 +701,9 @@ export default class extends Controller {
         if (this.hasHistoryTarget) {
             this.historyTarget.appendChild(node);
         }
-        this._scrollToBottom();
+        // Scroll al primer mensaje nuevo: llevamos el mensaje del usuario arriba
+        // del viewport y dejamos crecer la respuesta + el documento debajo.
+        this._pinToElement(node);
         return node;
     }
 

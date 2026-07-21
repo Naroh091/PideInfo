@@ -3,27 +3,18 @@
     <span class="font-medium text-slate-800">{{ row.title }}</span>
 
     {# Organism — prefer the picked REG destination unit when available,
-       falling back to the parent public body. Tooltip carries both. #}
+       falling back to the parent public body. Tooltip carries both. The
+       complaint expediente rides inline in amber mono (the app's complaint
+       vocabulary); the request's own nº lives in the «Asiento» column. #}
     {% set displayedAdmin = row.regDestination ? row.regDestination.displayLabel : row.publicBody.name %}
     {% set adminTitle = row.regDestination
         ? row.regDestination.displayLabel ~ ' · ' ~ row.publicBody.name
         : row.publicBody.name %}
-    <div class="flex items-center gap-1 mt-0.5 text-xs text-slate-500">
+    <div class="flex items-center gap-1 mt-0.5 text-xs text-slate-500 min-w-0">
         <i data-lucide="building-2" class="w-3 h-3 flex-shrink-0"></i>
         <span class="truncate" title="{{ adminTitle }}">{{ displayedAdmin }}</span>
+        {% if row.complaint and row.complaint.externalId %}
+            <span class="sol-mono flex-shrink-0" style="color: #b45309;">· Recl: {{ row.complaint.externalId }}</span>
+        {% endif %}
     </div>
-
-    {# IDs — one per line #}
-    {% if row.externalId %}
-        <div class="flex items-center gap-1 mt-0.5 text-xs text-primary-600">
-            <i data-lucide="hash" class="w-3 h-3 flex-shrink-0"></i>
-            <span>{{ row.externalId }}</span>
-        </div>
-    {% endif %}
-    {% if row.complaint and row.complaint.externalId %}
-        <div class="flex items-center gap-1 mt-0.5 text-xs text-amber-600">
-            <i data-lucide="scale" class="w-3 h-3 flex-shrink-0"></i>
-            <span>Recl: {{ row.complaint.externalId }}</span>
-        </div>
-    {% endif %}
 </div>

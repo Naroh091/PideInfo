@@ -1,47 +1,45 @@
 <div {{ attributes.defaults({'data-action': 'documents:processed@window->live#$render'}) }}>
+{# Los «pasos» del expediente: cada estado que pide acción del usuario se
+   presenta como una card paso3 (hoja blanca; rótulo del trámite en serif
+   itálica + filete + dato en mono a la derecha). El tono cambia la tinta
+   del rótulo, no la hoja. #}
+
 {# Pending portal notifications (agent reported, auto-accept is off) #}
 {% if request.hasPendingPortalNotifications %}
     {% set pending = request.pendingPortalNotifications %}
-    <aside class="dossier-notice is-amber mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="bell-ring" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Notificaciones por aceptar
-                    <span class="meta">· {{ pending|length }} pendiente{{ pending|length != 1 ? 's' : '' }}</span>
-                </div>
-                <h3 class="dossier-notice-headline">
-                    {{ pending|length }} notificación{{ pending|length != 1 ? 'es' : '' }} pendiente{{ pending|length != 1 ? 's' : '' }} de aceptar
-                </h3>
-                <div class="dossier-notice-prose">
-                    <p>Activa <strong>«Aceptar notificaciones electrónicas»</strong> en el agente, o accede manualmente al portal.</p>
-                </div>
-                <ul class="dossier-notice-list">
-                    {% for n in pending %}
-                        <li>
-                            <i data-lucide="{{ n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500"></i>
-                            <span class="flex-1 min-w-0">
-                                <strong>{{ n.tipo }}</strong>
-                                {% if n.concepto %} — {{ n.concepto }}{% endif %}
-                                <span class="text-slate-400 text-xs">({{ n.fechaEmision }})</span>
-                                {% if n.fechaCaducidad %}
-                                    <span class="text-red-600 font-medium text-xs">· caduca {{ n.fechaCaducidad }}</span>
-                                {% endif %}
-                            </span>
-                        </li>
-                    {% endfor %}
-                </ul>
-                {% if pending[0].reportedAt is defined %}
-                    <p class="text-xs text-slate-400 mt-3" style="font-family: 'JetBrains Mono', monospace;">
-                        Última actualización: {{ pending[0].reportedAt|date('d/m/Y H:i') }}
-                    </p>
-                {% endif %}
-            </div>
+    <section class="paso3">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Notificaciones por aceptar</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">{{ pending|length }} pendiente{{ pending|length != 1 ? 's' : '' }}</span>
         </div>
-    </aside>
+        <p class="paso3-frase">
+            Tienes {{ pending|length }} notificación{{ pending|length != 1 ? 'es' : '' }} electrónica{{ pending|length != 1 ? 's' : '' }} sin aceptar en el portal.
+        </p>
+        <div class="paso3-texto">
+            <p>Activa <strong>«Aceptar notificaciones electrónicas»</strong> en el agente, o accede manualmente al portal.</p>
+        </div>
+        <ul class="paso3-lista">
+            {% for n in pending %}
+                <li>
+                    <i data-lucide="{{ n.esComunicacion ? 'message-square' : 'file-text' }}" class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-amber-500"></i>
+                    <span class="flex-1 min-w-0">
+                        <strong>{{ n.tipo }}</strong>
+                        {% if n.concepto %} — {{ n.concepto }}{% endif %}
+                        <span class="text-slate-400 text-xs">({{ n.fechaEmision }})</span>
+                        {% if n.fechaCaducidad %}
+                            <span class="text-red-600 font-medium text-xs">· caduca {{ n.fechaCaducidad }}</span>
+                        {% endif %}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+        {% if pending[0].reportedAt is defined %}
+            <p class="text-xs text-slate-400 mt-3" style="font-family: 'JetBrains Mono', monospace;">
+                Última actualización: {{ pending[0].reportedAt|date('d/m/Y H:i') }}
+            </p>
+        {% endif %}
+    </section>
 {% endif %}
 
 {# Pending — request created but not yet sent. Offer to complete the dispatch
@@ -51,83 +49,68 @@
 {% if request.status == 'pending' %}
     {% set canRouteViaAgent = request.publicBody.transparencyPortalAmbId is not null
         or request.regDestination is not null %}
-    <aside class="dossier-notice is-sky mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="send" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Pendiente de envío
-                    <span class="meta">· la solicitud aún no se ha presentado</span>
-                </div>
-                <h3 class="dossier-notice-headline">
-                    {% if canRouteViaAgent %}
-                        Completa el envío para que la administración la reciba.
-                    {% else %}
-                        Marca esta solicitud como enviada cuando la presentes.
-                    {% endif %}
-                </h3>
-                <div class="dossier-notice-prose">
-                    {% if canRouteViaAgent %}
-                        {% if request.regDestination is not null %}
-                            <p>
-                                <strong>{{ request.regDestination.name }}</strong> acepta solicitudes vía Registro Electrónico Común (REG / RED SARA). PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
-                            </p>
-                        {% else %}
-                            <p>
-                                <strong>{{ request.publicBody.name }}</strong> acepta solicitudes a través del Portal de Transparencia. PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
-                            </p>
-                        {% endif %}
-                    {% else %}
-                        <p>
-                            Este organismo no soporta envío automático todavía. Cuando lo presentes por tu cuenta, edita la solicitud para actualizar el estado a "Enviada" e introduce el número de expediente si lo tienes.
-                        </p>
-                    {% endif %}
-                </div>
-                {% if canRouteViaAgent %}
-                    <div class="dossier-notice-actions" style="margin-top: 1rem; display: flex; gap: .55rem; flex-wrap: wrap;">
-                        <a href="{{ path('app_solicitudes_realizar_draft', {id: request.id}) }}"
-                           class="btn btn-primary btn-sm">
-                            <i data-lucide="send" class="w-3.5 h-3.5 mr-1.5"></i>
-                            Completar y enviar
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
+    <section class="paso3 paso3--cielo">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Pendiente de envío</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">aún no presentada</span>
         </div>
-    </aside>
+        <p class="paso3-frase">
+            {% if canRouteViaAgent %}
+                Completa el envío para que la administración la reciba.
+            {% else %}
+                Marca esta solicitud como enviada cuando la presentes.
+            {% endif %}
+        </p>
+        <div class="paso3-texto">
+            {% if canRouteViaAgent %}
+                {% if request.regDestination is not null %}
+                    <p>
+                        <strong>{{ request.regDestination.name }}</strong> acepta solicitudes vía Registro Electrónico Común (REG / RED SARA). PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
+                    </p>
+                {% else %}
+                    <p>
+                        <strong>{{ request.publicBody.name }}</strong> acepta solicitudes a través del Portal de Transparencia. PideInfo puede enviarla por ti con el agente local: revisa el borrador, ajusta lo que necesites y dale a "Enviar al organismo".
+                    </p>
+                {% endif %}
+            {% else %}
+                <p>
+                    Este organismo no soporta envío automático todavía. Cuando la presentes por tu cuenta, edita la solicitud para actualizar el estado a "Enviada" e introduce el número de expediente si lo tienes.
+                </p>
+            {% endif %}
+        </div>
+        {% if canRouteViaAgent %}
+            <div class="paso3-acciones">
+                <a href="{{ path('app_solicitudes_realizar_draft', {id: request.id}) }}"
+                   class="btn btn-primary btn-sm">
+                    <i data-lucide="send" class="w-3.5 h-3.5 mr-1.5"></i>
+                    Completar y enviar
+                </a>
+            </div>
+        {% endif %}
+    </section>
 {% endif %}
 
 {# Granted pending reception — with a secondary escape hatch if the grant
    never materialises (the resolution says yes but nothing arrives). #}
 {% if request.status == 'granted' %}
     {% set council = this.transparencyCouncilName %}
-    <aside class="dossier-notice is-emerald mb-6" data-granted-banner>
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="package" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Resolución favorable
-                    <span class="meta">· pendiente de recepción</span>
-                </div>
-                <h3 class="dossier-notice-headline">Solicitud concedida</h3>
-                <div class="dossier-notice-prose">
-                    <p>La administración ha concedido tu solicitud y está pendiente de que recibas la información.</p>
-                    {% if request.complaint is null %}
-                        <p>Si pasan los días y la información no llega, la concesión sobre el papel no te sirve de nada: puedes reclamar a {{ council }} para que ordene la entrega efectiva de lo ya reconocido.</p>
-                    {% endif %}
-                </div>
-            </div>
+    <section class="paso3 paso3--verde" data-granted-banner>
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Resolución favorable</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">pendiente de recepción</span>
+        </div>
+        <p class="paso3-frase">La administración ha concedido tu solicitud: falta que recibas la información.</p>
+        <div class="paso3-texto">
+            {% if request.complaint is null %}
+                <p>Si pasan los días y la información no llega, la concesión sobre el papel no te sirve de nada: puedes reclamar a {{ council }} para que ordene la entrega efectiva de lo ya reconocido.</p>
+            {% endif %}
         </div>
         {% if request.complaint is null %}
             {% set draftDocument = this.complaintDraftDocument %}
-            <div class="dossier-notice-footer">
-                <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-ghost btn-sm">
+            <div class="paso3-acciones">
+                <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-secondary btn-sm">
                     <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                     {% if draftDocument %}
                         Continuar reclamación a {{ council|u.truncate(40, '…') }}
@@ -137,33 +120,26 @@
                 </a>
             </div>
         {% endif %}
-    </aside>
+    </section>
 {% endif %}
 
 {# Redirection notice — only when the most recent timeline event is the redirection itself #}
 {% set lastHistory = request.statusHistory|first %}
 {% set redirectionIsLatest = lastHistory and 'trasladada' in (lastHistory.notes|default('')|lower) %}
 {% if request.wasRedirected and redirectionIsLatest %}
-    <aside class="dossier-notice is-sky mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Traslado de competencia
-                    <span class="meta">· art. 19.1 Ley 19/2013</span>
-                </div>
-                <div class="dossier-notice-prose">
-                    <p>
-                        Solicitud trasladada de <strong>{{ request.originalPublicBody.name }}</strong>
-                        a <strong>{{ request.publicBody.name }}</strong>{% if request.redirectedAt %} el {{ request.redirectedAt|date('d/m/Y') }}{% endif %}.
-                    </p>
-                </div>
-            </div>
+    <section class="paso3 paso3--cielo">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Traslado de competencia</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">art. 19.1 Ley 19/2013</span>
         </div>
-    </aside>
+        <div class="paso3-texto" style="margin-top: .5rem;">
+            <p>
+                Solicitud trasladada de <strong>{{ request.originalPublicBody.name }}</strong>
+                a <strong>{{ request.publicBody.name }}</strong>{% if request.redirectedAt %} el {{ request.redirectedAt|date('d/m/Y') }}{% endif %}.
+            </p>
+        </div>
+    </section>
 {% endif %}
 
 {# Deadline expired — silencio administrativo (skip if a complaint already exists) #}
@@ -174,56 +150,48 @@
     {% set acName = this.autonomousCommunityName %}
     {% set pendingReminder = this.pendingReminder %}
     {% set complaintFormUrl = this.complaintFormUrl %}
-    <aside class="dossier-notice {{ silencePositive ? 'is-emerald' : 'is-amber' }} mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="{{ silencePositive ? 'check-circle-2' : 'clock-alert' }}" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    {% if silencePositive %}
-                        Silencio positivo
-                        <span class="meta">· acceso automático</span>
-                    {% else %}
-                        Plazo vencido
-                        <span class="meta">· procede reclamación</span>
-                    {% endif %}
-                </div>
-                {% if silencePositive %}
-                    <h3 class="dossier-notice-headline">
-                        Ha vencido el plazo de respuesta.
-                        {% if acName %}En {{ acName }} esto te concede el acceso automáticamente.{% else %}Según la ley aplicable, esto te concede el acceso automáticamente.{% endif %}
-                    </h3>
-                    <div class="dossier-notice-prose">
-                        <p>
-                            Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano competente, por lo que puede ser razonable dar unos días de margen antes de dar por vencido el plazo.
-                        </p>
-                        <p>
-                            La recomendación es ponerte en contacto con la administración mediante <strong>instancia general</strong> recordando que, de acuerdo con la <em>{{ lawName }}</em>, el silencio administrativo en este caso es <strong>positivo</strong>, y solicitar que te informen del modo de acceder a la información. Si no hay respuesta, puedes reclamar ante {{ council }}.
-                        </p>
-                    </div>
-                {% else %}
-                    <h3 class="dossier-notice-headline">
-                        Ha vencido el plazo de respuesta. Ahora puedes reclamar a {{ council }}.
-                    </h3>
-                    <div class="dossier-notice-prose">
-                        <p>
-                            Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano que debe resolver, así que no es mala idea dar unos días de margen antes de presentar la reclamación.
-                        </p>
-                    </div>
-                {% endif %}
-
-                {% if pendingReminder %}
-                    <span class="dossier-notice-meta-pill">
-                        <i data-lucide="bell" class="w-3.5 h-3.5"></i>
-                        Recordatorio programado para el <strong>{{ pendingReminder.remindAt|date('d/m/Y') }}</strong>
-                    </span>
-                {% endif %}
-            </div>
+    <section class="paso3 {{ silencePositive ? 'paso3--verde' }}">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">{{ silencePositive ? 'Silencio positivo' : 'Plazo vencido' }}</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">
+                venció el <b>{{ request.deadlineAt|date('d/m/Y') }}</b>
+                {% if not silencePositive %} · <span class="rojo">procede reclamación</span>{% endif %}
+            </span>
         </div>
+        {% if silencePositive %}
+            <p class="paso3-frase">
+                Ha vencido el plazo de respuesta.
+                {% if acName %}En {{ acName }} esto te concede el acceso automáticamente.{% else %}Según la ley aplicable, esto te concede el acceso automáticamente.{% endif %}
+            </p>
+            <div class="paso3-texto">
+                <p>
+                    Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano competente, por lo que puede ser razonable dar unos días de margen antes de dar por vencido el plazo.
+                </p>
+                <p>
+                    La recomendación es ponerte en contacto con la administración mediante <strong>instancia general</strong> recordando que, de acuerdo con la <em>{{ lawName }}</em>, el silencio administrativo en este caso es <strong>positivo</strong>, y solicitar que te informen del modo de acceder a la información. Si no hay respuesta, puedes reclamar ante {{ council }}.
+                </p>
+            </div>
+        {% else %}
+            <p class="paso3-frase">
+                Ha vencido el plazo de respuesta. Ahora puedes reclamar a {{ council }}.
+            </p>
+            <div class="paso3-texto">
+                <p>
+                    Ten en cuenta que a veces la solicitud tarda unos días en llegar al órgano que debe resolver, así que no es mala idea dar unos días de margen antes de presentar la reclamación.
+                </p>
+            </div>
+        {% endif %}
+
+        {% if pendingReminder %}
+            <span class="paso3-pill">
+                <i data-lucide="bell" class="w-3.5 h-3.5"></i>
+                Recordatorio programado para el <strong>{{ pendingReminder.remindAt|date('d/m/Y') }}</strong>
+            </span>
+        {% endif %}
+
         {% set draftDocument = this.complaintDraftDocument %}
-        <div class="dossier-notice-footer">
+        <div class="paso3-acciones">
             <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-accent btn-sm">
                 <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                 {% if draftDocument %}
@@ -233,36 +201,29 @@
                 {% endif %}
             </a>
         </div>
-    </aside>
+    </section>
 {% endif %}
 
 {# Concesión parcial — la administración facilitó parte de lo solicitado.
    Invita a reclamar la parte no facilitada (skip if a complaint already exists). #}
 {% if request.resolutionResult == 'partially_granted' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
-    <aside class="dossier-notice is-amber mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="pie-chart" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Concesión parcial
-                    <span class="meta">· puedes reclamar lo no facilitado</span>
-                </div>
-                <h3 class="dossier-notice-headline">
-                    La administración ha facilitado sólo parte de la información. Puedes reclamar a {{ council }} por lo restante.
-                </h3>
-                <div class="dossier-notice-prose">
-                    <p>
-                        Si parte de lo que pediste no se ha entregado o se ha entregado de forma incompleta, tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que ordene su entrega. Conviene hacerlo dentro del plazo de un mes desde la notificación.
-                    </p>
-                </div>
-            </div>
+    <section class="paso3">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Concesión parcial</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">puedes reclamar lo no facilitado</span>
+        </div>
+        <p class="paso3-frase">
+            La administración ha facilitado sólo parte de la información. Puedes reclamar a {{ council }} por lo restante.
+        </p>
+        <div class="paso3-texto">
+            <p>
+                Si parte de lo que pediste no se ha entregado o se ha entregado de forma incompleta, tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que ordene su entrega. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+            </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
-        <div class="dossier-notice-footer" style="display: flex; gap: .55rem; flex-wrap: wrap; align-items: center;">
+        <div class="paso3-acciones">
             <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-accent btn-sm">
                 <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                 {% if draftDocument %}
@@ -290,35 +251,28 @@
                 </button>
             </form>
         </div>
-    </aside>
+    </section>
 {% endif %}
 
 {# Solicitud denegada — invita a reclamar (skip if a complaint already exists) #}
 {% if request.status == 'denied' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
-    <aside class="dossier-notice is-red mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="x-circle" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Solicitud denegada
-                    <span class="meta">· procede reclamación</span>
-                </div>
-                <h3 class="dossier-notice-headline">
-                    La administración ha denegado tu solicitud. Ahora puedes reclamar a {{ council }}.
-                </h3>
-                <div class="dossier-notice-prose">
-                    <p>
-                        Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación. Conviene hacerlo dentro del plazo de un mes desde la notificación.
-                    </p>
-                </div>
-            </div>
+    <section class="paso3 paso3--rojo">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Solicitud denegada</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo"><span class="rojo">procede reclamación</span></span>
+        </div>
+        <p class="paso3-frase">
+            La administración ha denegado tu solicitud. Ahora puedes reclamar a {{ council }}.
+        </p>
+        <div class="paso3-texto">
+            <p>
+                Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+            </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
-        <div class="dossier-notice-footer">
+        <div class="paso3-acciones">
             <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-danger btn-sm">
                 <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                 {% if draftDocument %}
@@ -328,7 +282,7 @@
                 {% endif %}
             </a>
         </div>
-    </aside>
+    </section>
 {% endif %}
 
 {# Solicitud inadmitida a trámite — las causas del art. 18 son tasadas y de
@@ -337,29 +291,22 @@
    aviso sobreviva a transiciones posteriores del expediente. #}
 {% if request.resolutionResult == 'inadmitted' and request.complaint is null %}
     {% set council = this.transparencyCouncilName %}
-    <aside class="dossier-notice is-red mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="ban" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Solicitud inadmitida
-                    <span class="meta">· procede reclamación</span>
-                </div>
-                <h3 class="dossier-notice-headline">
-                    La administración no ha admitido a trámite tu solicitud. Puedes reclamar a {{ council }}.
-                </h3>
-                <div class="dossier-notice-prose">
-                    <p>
-                        Las causas de inadmisión del artículo 18 de la Ley 19/2013 son tasadas y de interpretación restrictiva: que la administración inadmita tu solicitud no significa que tenga razón. Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la inadmisión. Conviene hacerlo dentro del plazo de un mes desde la notificación.
-                    </p>
-                </div>
-            </div>
+    <section class="paso3 paso3--rojo">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Solicitud inadmitida</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo"><span class="rojo">procede reclamación</span></span>
+        </div>
+        <p class="paso3-frase">
+            La administración no ha admitido a trámite tu solicitud. Puedes reclamar a {{ council }}.
+        </p>
+        <div class="paso3-texto">
+            <p>
+                Las causas de inadmisión del artículo 18 de la Ley 19/2013 son tasadas y de interpretación restrictiva: que la administración inadmita tu solicitud no significa que tenga razón. Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la inadmisión. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+            </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
-        <div class="dossier-notice-footer">
+        <div class="paso3-acciones">
             <a href="{{ path('app_complaint_start', {id: request.id}) }}" class="btn btn-danger btn-sm">
                 <i data-lucide="{{ draftDocument ? 'file-edit' : 'gavel' }}" class="w-4 h-4 mr-1.5"></i>
                 {% if draftDocument %}
@@ -369,33 +316,29 @@
                 {% endif %}
             </a>
         </div>
-    </aside>
+    </section>
 {% endif %}
 
 {# Third party allegations suspension #}
 {% if request.isDeadlineSuspended %}
-    <aside class="dossier-notice is-amber mb-6">
-        <div class="dossier-notice-body">
-            <div class="dossier-notice-icon">
-                <i data-lucide="pause-circle" class="w-4 h-4"></i>
-            </div>
-            <div class="dossier-notice-content">
-                <div class="dossier-notice-eyebrow">
-                    <span class="dot"></span>
-                    Plazo suspendido
-                    <span class="meta">· trámite de audiencia</span>
-                </div>
-                <h3 class="dossier-notice-headline">Plazo suspendido por afectación a terceros</h3>
-                <div class="dossier-notice-prose">
-                    <p>
-                        {% if request.thirdPartyAllegationsDeadlineAt %}
-                            Alegaciones hasta el <strong>{{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}</strong>.
-                        {% endif %}
-                        Quedan <strong>{{ request.suspendedDaysRemaining }} días hábiles</strong> cuando se reanude.
-                    </p>
-                </div>
-            </div>
+    <section class="paso3">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">Plazo suspendido</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">
+                {% if request.thirdPartyAllegationsDeadlineAt %}
+                    alegaciones hasta el <b>{{ request.thirdPartyAllegationsDeadlineAt|date('d/m/Y') }}</b>
+                {% else %}
+                    trámite de audiencia
+                {% endif %}
+            </span>
         </div>
-    </aside>
+        <p class="paso3-frase">Plazo suspendido por afectación a terceros.</p>
+        <div class="paso3-texto">
+            <p>
+                Quedan <strong>{{ request.suspendedDaysRemaining }} días hábiles</strong> cuando se reanude.
+            </p>
+        </div>
+    </section>
 {% endif %}
 </div>

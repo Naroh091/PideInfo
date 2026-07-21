@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ accessRequest.publicBody.name }}</title>
+    <style>
+        {% include 'pdf/_styles.css.twig' %}
+    </style>
+</head>
+<body>
+    {# Documento de consulta libre: papel neutro (puede ser cualquier escrito, no
+       solo una reclamación), con las notas al pie de las citas. #}
+    <div class="content">{{ content_html|raw }}</div>
+
+    {% include 'pdf/_footnotes.html.twig' %}
+
+    {% include 'pdf/_footer.html.twig' %}
+</body>
+</html>

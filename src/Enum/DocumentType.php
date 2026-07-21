@@ -65,6 +65,25 @@ enum DocumentType: string
         };
     }
 
+    /**
+     * The document kinds the free-consultation chat (`flow=consult`) may generate
+     * and save into the dossier. `Complaint`/`AlegationResponse` route into the
+     * dedicated pipelines on save (they become the official draft); the rest are
+     * saved as inert documents. Reused by the decision `doc_type` classification,
+     * the save dropdown and the save endpoint's validation.
+     *
+     * @return list<self>
+     */
+    public static function consultSavable(): array
+    {
+        return [
+            self::Complaint,
+            self::AlegationResponse,
+            self::SubsanacionResponse,
+            self::Other,
+        ];
+    }
+
     public function isComplaintRelated(): bool
     {
         return in_array($this, [

@@ -1,0 +1,5995 @@
+# Ground truth de evaluación de retrieval (resoluciones).
+# CANÓNICO: este fichero versionado es la fuente de verdad; Langfuse es solo espejo.
+# Generado/ampliado por app:retrieval:build-dataset — las ediciones manuales se
+# conservan (merge por id, gana lo existente). `relevant` son UUIDs de resolution.
+cases:
+  -
+    id: relations-5ae75ee04f
+    query: 'Publicidad institucional'
+    source: relations
+    relevant:
+      - 019ccb92-5f3b-7d0a-94ee-bbb3f2de3517
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/128/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-449db19275
+    query: 'Actuaciones previas y a la resolución de un expediente'
+    source: relations
+    relevant:
+      - 019ccb45-ad17-7899-9bb9-49699ceb0f19
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/18/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-e6613ef0f1
+    query: 'Expediente sancionador al Banco Popular'
+    source: relations
+    relevant:
+      - 019ccb2d-9307-7cbe-b407-254203afa147
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/164/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-787898c5b7
+    query: 'Información relativa al medicamento "Truvada"'
+    source: relations
+    relevant:
+      - 019ccb53-510b-75bf-9646-a693b98963a2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/58/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-b38f5740aa
+    query: 'Catálogo de puestos de trabajo en Valencia'
+    source: relations
+    relevant:
+      - 019ccb55-f799-76f4-8f01-9019332b54ae
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/82/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-af0ce62b21
+    query: 'Reconocimiento de sexenios de los profesores universitarios'
+    source: relations
+    relevant:
+      - 019ccb14-82b3-7da5-a7ff-468e15b84cf9
+      - 019ccb15-5e4b-7f08-a3aa-6fe9ea24f844
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/39/2019
+      resolutionOutcomes: [partial, favorable]
+      graded: derived
+  -
+    id: relations-3b35ea3252
+    query: 'Listado de correspondencia desde un Centro Penitenciario'
+    source: relations
+    relevant:
+      - 019ccb66-6836-7af5-812d-64a403a8c955
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/94/2018
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-65dc9e2cb2
+    query: 'Copia de resoluciones sancionadoras al Banco Popular'
+    source: relations
+    relevant:
+      - 019ccb5f-b68a-77d3-bac9-dc41f546f397
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/83/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0aa9a3f0e2
+    query: 'Registro de Inspecciones de Puentes de Ferrocarril'
+    source: relations
+    relevant:
+      - 019ccb39-52ef-7d7f-ac3e-9f9456bf8c25
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: AN/58/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-33c3c1da09
+    query: 'Incidentes asociados al fármaco ALA OCTA'
+    source: relations
+    relevant:
+      - 019ccb2e-0379-7e34-986d-ebef893f8b5e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/77/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-27fd383ad8
+    query: 'Autorización provisional de un medicamento'
+    source: relations
+    relevant:
+      - 019ccb4c-5a27-7a16-a95f-c11eb6db8a44
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/57/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-4835f0f777
+    query: 'Causas para no cumplir las resoluciones del Consejo y costes de los litigios'
+    source: relations
+    relevant:
+      - 019ccb77-e496-7927-89a6-01be1f269254
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/125/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-611ef5b46c
+    query: 'Corporación RTVE. Cuentas anuales e informe de auditoría de cuentas de la Corporación.'
+    source: relations
+    relevant:
+      - 019ccb36-4546-7542-b8f6-ec30afb3d562
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/26/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c036887461
+    query: 'Información sobre expediente de contratación'
+    source: relations
+    relevant:
+      - 019ccb61-aa33-79fe-9ded-bea2ed942e42
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/64/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-3530f390df
+    query: 'Ministerio de Fomento. Reparto de productividades y gratificaciones en 2015'
+    source: relations
+    relevant:
+      - 019ccb5c-5eb8-7904-b831-132e75eb60ac
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/93/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-e86444bc66
+    query: 'Corporación RTVE. Gastos totales de la gala especial fin de año 2015'
+    source: relations
+    relevant:
+      - 019ccb5e-4188-7333-928b-9bdd32a0d681
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/60/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-6f7b4363b5
+    query: 'Juegos Olímpicos'
+    source: relations
+    relevant:
+      - 019ccb97-5fcf-736a-b24a-c35a1dedec72
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/157/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-5d2efaa34e
+    query: 'Acta del Consejo de Administración'
+    source: relations
+    relevant:
+      - 019ccb8f-c50d-72f7-8143-c42b2bfb4a55
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/2/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-38ff06c01f
+    query: 'Ministerio de Sanidad, Servicios Sociales e Igualdad. Demanda de determinados medicamentos'
+    source: relations
+    relevant:
+      - 019ccb30-16d9-7ae7-a55d-cd98cc552d0d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/42/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-f8767d5e49
+    query: 'Relación de personal fuera de convenio y convocatorias de empleo público de dicho personal, desde 1992'
+    source: relations
+    relevant:
+      - 019d4b6a-9550-76da-8a30-e58d8a2d700d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/132/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-23e3aca863
+    query: 'Indultos solicitados por Cofradías/Hermandade'
+    source: relations
+    relevant:
+      - 019ccb77-fff0-7345-a04d-8c74eac6d3d5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/47/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-16f1513e91
+    query: 'Solicitudes de autorización de uso terapéutico de sustancias y métodos prohibidos en el deporte'
+    source: relations
+    relevant:
+      - 019ccbc8-c568-7dd1-9d13-c1c4d5e5f9a6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: AN/20/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-750e261850
+    query: 'Información económica MASTERCHEF'
+    source: relations
+    relevant:
+      - 019ccb67-a298-7314-aa44-d25b6fc59d0c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/54/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-35b27b482d
+    query: 'Información sobre la denegación para el ejercicio de la actividad privada a un ex embajador'
+    source: relations
+    relevant:
+      - 019ccb5d-92c5-7b4b-8238-84deb28e7ac4
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/190/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c8c22db7c2
+    query: 'Acceso a expediente administrativo de extradición'
+    source: relations
+    relevant:
+      - 019ccb93-a0e4-78e1-ac98-3ef790e58adc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/146/2018
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-394c89e642
+    query: 'Productividad y gratificaciones extraordinarias (2019)'
+    source: relations
+    relevant:
+      - 019ccb81-c9bd-7327-806c-08937d1f9c71
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/132/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-4abd480c44
+    query: 'Información económico-financiera, contractual y laboral de EFE'
+    source: relations
+    relevant:
+      - 019ccb87-b9e4-7e8c-bf25-60a9cb66f1b2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/5/2019
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-ac912c595a
+    query: 'Productividad coyuntural en la nómina de diciembre de 2021'
+    source: relations
+    relevant:
+      - 019d4b6a-a6c6-7ef5-85b1-304e97cbd747
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/88/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-55ffd7acad
+    query: 'Corporación RTVE. Coste especial Nochebuena y Campanadas 2016'
+    source: relations
+    relevant:
+      - 019ccb33-7e02-70ce-9dc8-d70d55bcd9b0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/28/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-e66da9763c
+    query: 'Distribución del complemento de productividad y de otros incentivos al rendimiento'
+    source: relations
+    relevant:
+      - 019ccb59-a5af-7a56-b24d-9dbe6aa92c07
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/107/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5ba34ddd8b
+    query: 'Expedientes de expropiación forzosa para autopista de peaje'
+    source: relations
+    relevant:
+      - 019ccbc1-caee-7411-96e2-9f923e876275
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/17/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-0ce017035e
+    query: 'Puestos de trabajo ocupados en Centro Penitenciario'
+    source: relations
+    relevant:
+      - 019ccb61-4622-7595-99bb-6c4009fbf3c1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/69/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-f1a75a27b8
+    query: 'Retribución bruta anual del personal directivo durante 2014 y 2015'
+    source: relations
+    relevant:
+      - 019ccb98-f22e-74bf-86d5-ea0fffe928f7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/28/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-9abe7ed366
+    query: 'Actas y convocatorias de la Autoridad Portuaria de Gijón'
+    source: relations
+    relevant:
+      - 019ccb14-e72e-76e7-8810-315c4f8326c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/42/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-05f3111340
+    query: 'Permisos de los internos en el centro penitenciario de Sevilla'
+    source: relations
+    relevant:
+      - 019ccb6b-eb47-75d1-98da-11fc0a3c3863
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/47/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5286942c77
+    query: 'Convenios y acuerdo de reventa y donación de vacunas'
+    source: relations
+    relevant:
+      - 019ccbc8-454f-78b6-9d82-c17ef33d7f4f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/58/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c912c4dc13
+    query: 'Coste económico de vacunas y contratos firmados con laboratorios farmacéuticos'
+    source: relations
+    relevant:
+      - 019d4b6a-95c9-7b2c-a112-96f052b0dfe2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/132/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-ddb6de02c3
+    query: 'Coste económico de vacunas contra la Covid-19 desde el 30 de junio de 2021'
+    source: relations
+    relevant:
+      - 019d4b6a-a95f-70d5-b770-09f4589c423d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: AN/60/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-c3e8ad2690
+    query: 'Expediente de liquidación y adjudicación del Banco Popular Español'
+    source: relations
+    relevant:
+      - 019ccb70-06d9-7924-a380-9c321f8b9922
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/78/2024
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-892fef2ce8
+    query: 'Aplicación telemática del bono social'
+    source: relations
+    relevant:
+      - 019ccbb5-256c-7a2f-906a-57c6c497521d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/143/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-d1350d87c6
+    query: 'Precio de financiación de medicamento J05AB16-Remdesivir-(Veklury®)'
+    source: relations
+    relevant:
+      - 019d4b6a-95c6-7d46-a889-0ef9b1d06d75
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/2/2024
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-b3378b645d
+    query: 'Certificado de silencio respecto a solicitud de documentación referida  a un  acuerdo de equiparación salarial'
+    source: relations
+    relevant:
+      - 019d4b6a-952c-7227-8bb1-681eb4bd33f9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/153/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-17ac901391
+    query: 'Órdenes del día y actas de las reuniones de la Comisión de Prevención de Blanqueo de Capitales'
+    source: relations
+    relevant:
+      - 019d4b6a-a8c6-767e-a821-5262685a8cf5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/151/2023
+      resolutionOutcomes: [desistimiento]
+      graded: derived
+  -
+    id: relations-d2a58a4211
+    query: 'Precio y condiciones de financiación del fármaco Zolgensma desarrollado por Novartis'
+    source: relations
+    relevant:
+      - 019d4b6a-ac7f-7815-bc57-1b24678cd03e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/110/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-58f7338787
+    query: 'Condiciones de financiación y precio del tratamiento Luxturna'
+    source: relations
+    relevant:
+      - 019ccbda-3805-7e97-ae79-b86eac102d18
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/117/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-74ab105475
+    query: 'Informe Convención de las Naciones Unidas contra la Corrupción'
+    source: relations
+    relevant:
+      - 019d4b6a-a626-7a6e-9b7f-d703e763d45a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/84/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-842143de78
+    query: 'Ayudas y acuerdos de Apoyo Financiero y de Gestión con AVORIS CORPORACIÓN EMPRESARIAL'
+    source: relations
+    relevant:
+      - 019d4b6a-a6b4-7a47-bee9-f494424be520
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/89/2023
+      resolutionOutcomes: [archivo]
+      graded: derived
+  -
+    id: relations-b45af549c2
+    query: 'Acceso por denunciante a actuaciones en expediente tributario e identificación del funcionario actuante'
+    source: relations
+    relevant:
+      - 019d4b6a-abb9-7675-bfdb-2d5bf7496bb6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/118/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-9dbd60fdee
+    query: 'Informes sobre Equipos de Protección Individual (EPI)'
+    source: relations
+    relevant:
+      - 019d4b6a-adf6-755f-8798-dd3212c9d566
+      - 019d4b6a-adf7-73b1-9ffb-2891365ebafe
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/176/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-3e4a5f4b23
+    query: 'Expediente solicitud y acuerdo de concesión de rescate de la AEROLÍNEA PLUS ULTRA'
+    source: relations
+    relevant:
+      - 019d4b6a-a81e-7c9a-a3a8-34022713d99f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/42/2024
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-2d9a8fc4ea
+    query: 'Retribución de personal directivo u otros altos cargos de AENA en el período 2016 a 2021'
+    source: relations
+    relevant:
+      - 019d4b6a-a78c-77d2-90a8-f9dc7d0424a6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/43/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c5721c9a82
+    query: "Resolución y propuesta en expediente sancionador contra \nPriceWaterhouseCoopers Auditores S.L. y su socio auditor"
+    source: relations
+    relevant:
+      - 019d4b6a-a070-768c-b493-b78b9b54028b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/18/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-66296b0d00
+    query: 'Subvenciones vuelos Canarias, años 2018-2021'
+    source: relations
+    relevant:
+      - 019d4b6a-a784-7a3c-988e-f54a7634d9ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/20/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-83dd0f4211
+    query: 'Productos fitosanitarios comercializados en España en el año 2020 (desagregados por sustancias activas)'
+    source: relations
+    relevant:
+      - 019d4b6a-952d-7f50-83b2-4162ed5f6bcf
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/176/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-3569ba0958
+    query: 'Deuda actual que tienen Cuba y Venezuela hacia España'
+    source: relations
+    relevant:
+      - 019ccbc2-8c3f-7239-b195-e527eb03766c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/56/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5a5bdc8d3d
+    query: 'Actas de infracción en materia de prevención de riesgos laborales'
+    source: relations
+    relevant:
+      - 019d4b6a-a95a-72a7-9c5c-018cf445428f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/74/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-26270fe8ce
+    query: 'Productividad y gratificaciones extraordinarias de enero a mayo de 2021'
+    source: relations
+    relevant:
+      - 019ccba6-08c8-75b9-995a-dc195ffc98e7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/184/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0d77038578
+    query: 'Vuelos operados y retrasados en los Aeropuertos Adolfo Suárez Madrid-Barajas y Josep Tarradellas Barcelona-El Prat'
+    source: relations
+    relevant:
+      - 019ccbd4-1376-7279-abd6-45779613d09b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/70/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-0939cd37ec
+    query: 'Ingresos obtenidos por AENA por la explotación de los aparcamientos de su red de aeropuertos de los años 2019, 2020 y 2021, desglosada por aeropuertos'
+    source: relations
+    relevant:
+      - 019d4b6a-a792-7e94-b0b2-817149be95ab
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/46/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-afc6526bd9
+    query: 'Pliegos de concesiones administrativas otorgadas a las tres terminales de contenedores del Puerto de Valencia'
+    source: relations
+    relevant:
+      - 019ccbad-e557-7307-aeab-67d7fd27711b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/32/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-caacd725cc
+    query: 'Acceso por denunciante a informe de actuaciones previas de inspección e identificación del funcionario actuante'
+    source: relations
+    relevant:
+      - 019d4b6a-a78e-7ef9-a7b8-140f8db089e0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/50/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-182e3770b5
+    query: 'Copia de expediente (proyecto de Inversiones del Grupo Minero San Finx)'
+    source: relations
+    relevant:
+      - 019ccb70-bb54-7439-af26-8f1cf40f2412
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/197/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5364af69be
+    query: 'Revisión de examen y copia de examen corregido'
+    source: relations
+    relevant:
+      - 019d4b6a-ac8b-799b-82f9-2519142d4bdc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/26/2024
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-c0108160a0
+    query: 'Exámenes de las categorías de Técnico y de Mando Intermedio y Cuadro'
+    source: relations
+    relevant:
+      - 019d4b6a-abbc-7743-9667-705dce3e194a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/93/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-29353c05ad
+    query: 'Memorándum suscrito con Arcelor Mittal'
+    source: relations
+    relevant:
+      - 019d4b6a-95e9-7ce2-b5f2-b3709aae147f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/4/2024
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5a6c3e1140
+    query: 'Condiciones de financiación y precio del medicamento “Yescarta”. Ejecución de sentencia/Medicamentos'
+    source: relations
+    relevant:
+      - 019d4b6a-ac85-769c-ab02-f67823c1a923
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/6/2024
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-61285601d7
+    query: 'Declarantes IRPF Agencia Tributaria 2019 por mes'
+    source: relations
+    relevant:
+      - 019d4b6a-a9d2-7410-87d1-52586264c555
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/80/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-36d122a440
+    query: 'Personal fuera de convenio: retribuciones, titulaciones y funciones'
+    source: relations
+    relevant:
+      - 019ccb53-2f5a-7402-9efa-b280c1af49ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/31/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-eab24c1a91
+    query: 'Expediente ayuda a Grupo Universo Pachá con cargo a FONREC'
+    source: relations
+    relevant:
+      - 019d4b6a-aa7b-7c6d-a40e-347f353be4ee
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/109/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-8cc276e7c6
+    query: 'Construcción del pantalán de Repsol en Punta Langosteira'
+    source: relations
+    relevant:
+      - 019d4b6a-c516-7aa1-a210-ecd2ee8c1f62
+      - 019d4b6a-bb0f-7d80-abe0-ad14c8c7f2da
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/29/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-e9809fb610
+    query: 'Actas de la Junta General y la Asamblea CR Canal de Florida de Liébana'
+    source: relations
+    relevant:
+      - 019ccbcc-6379-70a0-8b10-272a2efed430
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/163/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-a98e7ea0cf
+    query: 'Competencias del Ministerio'
+    source: relations
+    relevant:
+      - 019ccb64-cbec-732d-9552-5f59aa2de9cb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/155/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-67963f9637
+    query: 'Competencias del Ministerio en materia civil y mercantil'
+    source: relations
+    relevant:
+      - 019ccb8c-32af-7ca6-abea-2f2c00364b8f
+      - 019ccb92-7751-7653-90eb-57da9023cdd6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/155/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-93f8ccb90e
+    query: 'Resultados anómalos en el Pasaporte Biológico'
+    source: relations
+    relevant:
+      - 019d4b6a-a9e7-76e8-a6bd-35ab4cf397b0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/128/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-25dc90c384
+    query: 'Relación de empresas sancionadas por haber cometido fraude o irregularidad en un ERTE'
+    source: relations
+    relevant:
+      - 019ccbd8-563c-7f8d-9e99-f45fc796511a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/75/2023
+      resolutionOutcomes: [retrotraer]
+      graded: derived
+  -
+    id: relations-dd442ef250
+    query: 'Concesiones de terminales de automóviles Puerto de Barcelona'
+    source: relations
+    relevant:
+      - 019ccb7a-5cb2-7a7b-8d81-efc2cae2a841
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/149/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-a6ce023bbf
+    query: 'Resolución y acuerdos sobre concesión de ayuda a Air Europa'
+    source: relations
+    relevant:
+      - 019d4b6a-964f-794d-afc8-031de7b17bae
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/171/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-74bfda8814
+    query: 'Nombramiento y toma de posesión del Presidente y del Comisario de Aguas de la Confederación Hidrográfica del Segura'
+    source: relations
+    relevant:
+      - 019d4b6a-96bd-746f-9c59-ca798777b40f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/144/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-2da32ba93b
+    query: 'Controles antidopaje desde 2011'
+    source: relations
+    relevant:
+      - 019ccbc9-eec0-7db7-8c30-cd1cc5ff11c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/129/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-8153f168be
+    query: 'Criterios de reparto y perceptores de la productividad de carácter coyuntural en la nómina de diciembre 2021'
+    source: relations
+    relevant:
+      - 019d4b6a-a776-734c-940e-e37e02c18557
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/103/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-155d84a17a
+    query: 'Salarios completos y desglosados de la totalidad de los miembros de la Alta Dirección'
+    source: relations
+    relevant:
+      - 019ccbd0-fd68-73e2-86d7-a5f14c1ac3a9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/115/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5df959152c
+    query: 'Delimitación de dos entidades inmobiliarias'
+    source: relations
+    relevant:
+      - 019d4b6a-abbd-75ea-9f71-980de341e87b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/133/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-e26b96c651
+    query: 'Complemento de productividad de carácter coyuntural'
+    source: relations
+    relevant:
+      - 019d4b6a-a625-7853-b5be-b9124af1a0ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/104/2023
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-4b5caa2f9c
+    query: 'Datos de muestreos analíticos realizados en ejecución del “Proyecto Mercurio Fase I y Fase II” en el vertedero de Son Reus'
+    source: relations
+    relevant:
+      - 019d4b6a-a177-79f4-918d-84c0206cc1b6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/108/2023
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-131d7dd357
+    query: 'Propiedades de la SAREB en Cataluña'
+    source: relations
+    relevant:
+      - 019d4b6a-a9c6-71e0-9cf4-2d2f2f329e30
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/90/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-839121eeb8
+    query: 'Estudio viabilidad conexión ferroviaria puerto exterior Punta Langosteira e informe Intervención Regional'
+    source: relations
+    relevant:
+      - 019ccb64-e843-796f-acd1-5f9ca6983842
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/71/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-a9d1217cdd
+    query: "\"Copia de la auditoría financiera realizada a la oficina técnica de \ncooperación de la AECID en Panamá\""
+    source: relations
+    relevant:
+      - 019d4b6a-a779-7a17-907e-5c7c08ccd17b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/72/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-01fe21e693
+    query: 'Datos envases, dosis y coste del medicamento Truvada'
+    source: relations
+    relevant:
+      - 019d4b6a-b543-7188-acbb-242b249e144d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/95/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-04adfa59e6
+    query: 'Retribución variable del personal directivo fuera de convenio (2017-2020)'
+    source: relations
+    relevant:
+      - 019ccb5e-b006-7b3e-ac9a-d26f0ccaef1e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/57/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c96df1ba7e
+    query: 'Expedientes sancionadores a empresas pesqueras'
+    source: relations
+    relevant:
+      - 019ccb80-0f6f-791a-827b-f54b3a14179a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/47/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-3b78175893
+    query: 'Denuncias presentadas ante la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019ccb41-a45f-7413-9352-79913747bec0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/44/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-d93d701432
+    query: 'Contratos de servicios de limpieza, seguridad y vigilancia de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019ccb3b-5749-7772-84f5-2669e96ee85c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/45/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-1c713d1f56
+    query: 'Documentación sobre solicitud concesión de terminal privada de mercancías en el Puerto de Alicante'
+    source: relations
+    relevant:
+      - 019ccbd5-feaf-718d-b2b4-6ab57eecce3a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/49/2023
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-224120201c
+    query: 'Actas Infracción Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019ccb57-5054-7a2d-84b1-a62c8daf7353
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/8/2021
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-ee810451a3
+    query: 'Recursos económicos para Consejo Estatal de Participación de la Infancia y la Adolescencia, y pensión amas de casa'
+    source: relations
+    relevant:
+      - 019ccbd6-37f2-7b5f-8ae6-115145159956
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/3/2023
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-387c9a1569
+    query: 'Número interrupciones voluntarias de embarazo por centro/hospital'
+    source: relations
+    relevant:
+      - 019ccb62-56ae-764b-ba36-046d31c6cbee
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: AN/38/2022
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-9f9b992bce
+    query: 'Órdenes del día y acuerdos del Consejo de Administración'
+    source: relations
+    relevant:
+      - 019ccb99-1482-771a-a67e-0eda0bc55ad6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/4/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-96c0cc95fe
+    query: 'Acceso al expediente sancionador contra Banco Popular Español en 2016'
+    source: relations
+    relevant:
+      - 019ccb48-a7be-7deb-850c-c2cc04912af7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/11/2020
+      resolutionOutcomes: [retrotraer]
+      graded: derived
+  -
+    id: relations-9e97e56600
+    query: 'Copia de informe sobre contratos de informática del IMSERSO'
+    source: relations
+    relevant:
+      - 019ccba6-b5fd-7f0c-afc8-db70129f68e5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/213/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-b955f62f32
+    query: 'Expedientes Renta 2018'
+    source: relations
+    relevant:
+      - 019ccb14-7684-7a93-9618-b739e23c88ad
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/70/2021
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-b943928d94
+    query: 'Incidentes notificados por personal sanitario desde 2012'
+    source: relations
+    relevant:
+      - 019ccb74-bb10-789e-aadc-8882ccb277fd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/131/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-cc05fbe4f7
+    query: 'Informes y actas de la Comisión Interministerial de Fijación de Precios de los Medicamentos'
+    source: relations
+    relevant:
+      - 019ccbc3-386c-7f70-a123-42c39f89e1e3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/48/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-636dc31628
+    query: 'Criterios particulares de reconocimiento de prestaciones por desempleo'
+    source: relations
+    relevant:
+      - 019ccb30-4bf6-7438-9eed-bf51f84142b8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/131/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-da5edb3a42
+    query: 'Información remitida por entidades bancarias según normativa prevención del blanqueo de capitales'
+    source: relations
+    relevant:
+      - 019ccb71-cb76-7971-a484-7fc65d6e87ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/112/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-f804e1892b
+    query: 'Acceso por denunciante a informe de actuaciones previas'
+    source: relations
+    relevant:
+      - 019ccb33-b56a-7bc5-b7b6-26807dde35bb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/107/2022
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-ebdaae88b8
+    query: 'Escritos remitidos por el Tribunal de Cuentas'
+    source: relations
+    relevant:
+      - 019ccb84-c1ec-79da-a2b3-bd799e2d2c79
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/96/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-58ebdb0bc4
+    query: 'Convenio representación y defensa de España'
+    source: relations
+    relevant:
+      - 019ccba0-11c5-7851-b5c7-7050f5e24b29
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/47/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-263994a7bb
+    query: 'Informe Abogacía del Estado justificativo de la liquidación de SEIASA'
+    source: relations
+    relevant:
+      - 019ccb4d-e23b-7409-9478-7e7d107c5abe
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/57/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-e5d266fdb8
+    query: 'Copia íntegra del expediente administrativo y composición del tribunal'
+    source: relations
+    relevant:
+      - 019d4b6a-b256-7a22-aaa7-17f5e5dccfe8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/62/2022
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-d854d5efba
+    query: 'Licitación completa de Renfe Viajeros Sociedad Mercantil Estatal, S.A'
+    source: relations
+    relevant:
+      - 019ccb98-0a9b-7877-81ee-041938ec29d9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/110/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-50cd6627de
+    query: 'Delineantes del CSIC que ejercen esta profesión dentro de la Comunidad de Madrid'
+    source: relations
+    relevant:
+      - 019ccb35-f6fe-77b1-b73c-603531c15855
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/99/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-58dc6537bc
+    query: 'Informes de la Abogacía del Estado y expediente elaboración normativa'
+    source: relations
+    relevant:
+      - 019ccba0-627a-7c6c-b660-164ee05d4239
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/45/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-780496f41d
+    query: 'Disposiciones Generales de la Abogacía General del Estado para la interposición de recursos'
+    source: relations
+    relevant:
+      - 019ccb33-3428-7a01-99ba-359e2da0e7c2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/48/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-37b4c3c954
+    query: 'Copia de expediente sancionador'
+    source: relations
+    relevant:
+      - 019ccb30-b6c3-7ebf-9dab-dab31f96f1f9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/3/2020
+      resolutionOutcomes: [retrotraer]
+      graded: derived
+  -
+    id: relations-5b036a1d0f
+    query: 'Solicitud de acta de título de procurador de una persona'
+    source: relations
+    relevant:
+      - 019ccb7c-2242-7dfe-8e63-f74a7259762f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/44/2020
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-b5a4a30e97
+    query: 'Contratos de servicios de vigilancia, seguridad y control de la Inspección de Trabajo'
+    source: relations
+    relevant:
+      - 019ccb3a-c189-7640-84e6-c0b3ab22db5d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/72/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-3c720ad1f4
+    query: 'Acceso a expediente de licencias audiovisuales'
+    source: relations
+    relevant:
+      - 019ccb59-3a83-7124-94f9-42fd8eeef9b3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/57/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-6291d5532c
+    query: 'Inspección y sanciones a Castilla La Mancha TV'
+    source: relations
+    relevant:
+      - 019ccbb6-449b-7089-ba26-b87810e5c1bb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/38/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-f8d10eee9f
+    query: 'Incumplimiento Ley alto cargo'
+    source: relations
+    relevant:
+      - 019ccb75-2e30-7f5e-9933-d43c57ff6f48
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/64/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-b7cf2997d6
+    query: 'Actas y otros documentos de las licitaciones en materia de seguridad y limpieza'
+    source: relations
+    relevant:
+      - 019ccbd0-9038-7ce4-832d-a1c0134ca843
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/46/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-11d27d8259
+    query: 'Acta del Consejo de Seguridad Nacional de 4 de marzo de 2020'
+    source: relations
+    relevant:
+      - 019ccbb2-93de-71eb-8542-eaae348bce31
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/7/2022
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5ee1e5aac4
+    query: 'Sustancias activas de la estadística anual de productos fitosanitarios'
+    source: relations
+    relevant:
+      - 019ccb77-1a88-7c23-a3a6-61c5f03634dc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/106/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-6132bd9b0b
+    query: 'Condiciones de financiación y precio del medicamento “Yescarta”'
+    source: relations
+    relevant:
+      - 019ccbce-b909-7916-8f78-8d5bb3ef45b5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/4/2022
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-d14af1412d
+    query: 'Dictamen sobre accidente en obra'
+    source: relations
+    relevant:
+      - 019ccbcb-0c1e-77ea-85b7-0246c1f7e5c9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/23/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-8f8a783fdc
+    query: 'Datos sobre el accidente de un buque'
+    source: relations
+    relevant:
+      - 019ccb9d-f0db-7a96-a594-7f70e490cf26
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/5/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-fc6d3bb353
+    query: 'Plan Director de la Red Ferroviaria de Galicia'
+    source: relations
+    relevant:
+      - 019ccbb5-caf5-750c-aa67-970460bc8576
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/130/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-6f28b58ea0
+    query: 'Indemnizaciones por defecto en las notificaciones'
+    source: relations
+    relevant:
+      - 019ccbab-5955-7416-9bf3-6402c9d4509e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/8/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-6a2b2b255e
+    query: 'Contrato del programa "A partir de hoy" (Días de Verano)'
+    source: relations
+    relevant:
+      - 019ccba6-4bcb-7956-a465-ae2d77b025a6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/3/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-123549be20
+    query: 'Acceso a expediente de licitación de desplazamientos de personal'
+    source: relations
+    relevant:
+      - 019d4b6a-ca83-7eeb-88e7-88b232fadfad
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/49/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-67cf1731ee
+    query: 'Retribuciones directivos de la Corporación RTVE'
+    source: relations
+    relevant:
+      - 019ccb6d-1a81-7dfb-8920-b7e5d8ab10e4
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/106/2021
+      resolutionOutcomes: [retrotraer]
+      graded: derived
+  -
+    id: relations-83bfb0169d
+    query: 'Medios de transporte oficiales utilizados por el Presidente del Gobierno'
+    source: relations
+    relevant:
+      - 019ccb93-62cb-7c45-85c2-5bb5dccd9949
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/124/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-cf1eb52d07
+    query: 'Retribuciones personal que haya ocupado un puesto de dirección y subdirección en RTVE'
+    source: relations
+    relevant:
+      - 019ccbad-3953-7ae7-af3a-f6402b5252ff
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/78/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-febb85c947
+    query: 'Retribuciones personal directivo CRTVE'
+    source: relations
+    relevant:
+      - 019d4b6a-c365-73ed-b1c1-338501891284
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/107/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0660a13ef0
+    query: 'Convenios de la Fundación Teatro Real'
+    source: relations
+    relevant:
+      - 019ccb60-81d5-7850-902b-e32ff5a7cc34
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/135/2020
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-b7f75bf7b2
+    query: 'Información sobre publicación de libro por el Centro de Investigaciones Sociológicas (CIS)'
+    source: relations
+    relevant:
+      - 019ccb30-2590-7c81-86ca-4f7e7d2a84b2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/97/2021
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-c6b1286446
+    query: 'Base del informe de deuda viva del Ayuntamiento de Reinosa'
+    source: relations
+    relevant:
+      - 019ccba0-f3d4-733b-a1f2-f0ba37176dcc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/68/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0ccceaef7e
+    query: 'Reconocimiento de sexenios de investigación'
+    source: relations
+    relevant:
+      - 019ccb66-b398-7380-8f8a-1d3cad08b274
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/66/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-f0c85a66b6
+    query: 'Retribuciones de directivos 2018'
+    source: relations
+    relevant:
+      - 019ccbce-22d2-7943-bbb5-0603478f1891
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: 'ECLI:ES:TS:2021:3434'
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-f0a8711fa0
+    query: 'Bienes inmatriculados de la Iglesia Católica'
+    source: relations
+    relevant:
+      - 019ccb7e-702a-7678-b401-c4c98c7b3b43
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/103/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-748a48782a
+    query: 'Documentación sobre la Fundación Alternativas'
+    source: relations
+    relevant:
+      - 019ccbd2-ac24-796e-8678-5f86a0193286
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/52/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-6ec4f62717
+    query: 'Comunicaciones con la Santa Sede sobre la exhumación de Franco'
+    source: relations
+    relevant:
+      - 019ccb51-c4ee-7525-9750-331205de9399
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/10/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-082b582b77
+    query: 'Comercialización del fármaco Vareniclina'
+    source: relations
+    relevant:
+      - 019ccbcf-1260-79d5-9ebc-c4c499f51387
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/51/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-0650f20e5f
+    query: 'Medicamentos del gasto farmacéutico hospitalario durante 2018'
+    source: relations
+    relevant:
+      - 019ccb59-4c20-7af3-bb99-9797bb536b5e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/39/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-371ccc44a2
+    query: 'Estadísticas de criminalidad en Madrid (2017-2019)'
+    source: relations
+    relevant:
+      - 019ccba7-da74-7064-beae-7f488794acca
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/85/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-c9ffda2c5b
+    query: 'Nombramiento, ceses y retribuciones de personal eventual 2018'
+    source: relations
+    relevant:
+      - 019ccb90-dbc3-7820-a5c5-786d5875ef1d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/95/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-d8a413612e
+    query: 'Documentos de expediente disciplinario Cgral de Colegios de Fisioterapeutas de España'
+    source: relations
+    relevant:
+      - 019ccb8d-fd22-768a-8328-e9bb6c28d338
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/98/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-7692f9a97b
+    query: 'Datos de volumen, sistema de contratación y precio de medicamento'
+    source: relations
+    relevant:
+      - 019ccb2e-4c80-7d45-a619-51735fbc357d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/25/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-a90605930b
+    query: 'Actas de procesos electorales'
+    source: relations
+    relevant:
+      - 019ccbab-c22d-7b5d-96cc-5f1f22b88843
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/60/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-7bb445b89f
+    query: 'Actas y acuerdos Consejo Administración de la Autoridad Portuaria de A Coruña'
+    source: relations
+    relevant:
+      - 019ccb8e-adf1-7eb5-82ad-f269e7a70342
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/97/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-cfcaa91711
+    query: 'Informe de Inspección y Estudio de Impacto Ambiental'
+    source: relations
+    relevant:
+      - 019ccbd3-66ce-7f69-949d-209ff1d92bd5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/45/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-bfeaea3dcd
+    query: 'Calendario vacunal y compra de vacunas'
+    source: relations
+    relevant:
+      - 019ccb86-dae9-797e-bca2-616f97349211
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/30/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-a091a7f418
+    query: 'Caché presentador y datos sobre producción de programas'
+    source: relations
+    relevant:
+      - 019ccba5-4f73-71b2-af1f-fc68f96fc9d8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA9/24/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-c76fe57555
+    query: 'Resolución completa del expediente sancionador contra Pricewaterhouse'
+    source: relations
+    relevant:
+      - 019ccb47-0c33-7abd-a244-027b716782f7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/15/2021
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-ef53bdb1f0
+    query: 'Contrato publicación libro Presidente del Gobierno'
+    source: relations
+    relevant:
+      - 019ccb53-cd41-7f3f-a99c-a81a66a6a991
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/19/2021
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-87c1ebb99a
+    query: 'Documentación sobre la Fundación Antama'
+    source: relations
+    relevant:
+      - 019ccbd2-cc8f-7d16-9434-ed7b60945957
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/15/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-307f27d0fc
+    query: 'Documentación sobre la Fundación Salud y Naturaleza'
+    source: relations
+    relevant:
+      - 019ccb2d-b623-7100-b55e-0ab8e2cee9ad
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/11/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-98f2e2f820
+    query: 'Documentación sobre la Fundación Toro de Lidia'
+    source: relations
+    relevant:
+      - 019ccbd2-f41d-7f44-ac7b-67358dfd0712
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/1/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-3eb200576b
+    query: 'Nombramientos, ceses y retribuciones del personal eventual de 2016'
+    source: relations
+    relevant:
+      - 019ccb90-9a10-760c-b3d2-e140ae049ebc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/9/2021
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-b09f53e66c
+    query: 'Informes sobre deber de colaboración de la Policía Portuaria'
+    source: relations
+    relevant:
+      - 019ccb71-b102-77be-b318-55d899651775
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/140/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-3d1ca91cfc
+    query: 'Datos sobre las retribuciones del 2018 del personal eventual'
+    source: relations
+    relevant:
+      - 019ccb8a-c3c4-71b3-9b03-a6220608186f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/55/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-f94eead109
+    query: 'Contrato transporte de trabajadores'
+    source: relations
+    relevant:
+      - 019ccbb6-b0e7-784f-99ba-c859124f04fe
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/125/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-7bf19276cb
+    query: 'Informes fallecimientos en Centros de Internamiento de Extranjeros'
+    source: relations
+    relevant:
+      - 019ccb61-7bc7-7a9a-bc60-15c58560787e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/61/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-9ea04eb9bf
+    query: 'Actas de reuniones del Consejo de Administración'
+    source: relations
+    relevant:
+      - 019ccb46-bb71-79fa-af39-d47bd44cf018
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/66/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-90e3e81bff
+    query: 'Acceso a expediente sobre liquidación de cuotas a la Seguridad Social'
+    source: relations
+    relevant:
+      - 019ccb9e-ef03-75ce-acc9-d6cd7f763f92
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/97/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-567917de93
+    query: 'Plan de Empresa del año 2018'
+    source: relations
+    relevant:
+      - 019ccbbb-ef6c-783c-be90-4c2d9d83c222
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/61/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-ad71f5ef5d
+    query: 'RPT, relación nominal del personal y masa salarial 2015-2016'
+    source: relations
+    relevant:
+      - 019ccb14-02da-700c-b126-2d0f498b3705
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/47/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-bb34d44020
+    query: 'Exámenes opositores Cuerpo de Gestión'
+    source: relations
+    relevant:
+      - 019ccb3c-ac44-751c-8537-d75af0210d50
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/32/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-95f295607b
+    query: 'Contratos entre Video Mercury Films y RTVE'
+    source: relations
+    relevant:
+      - 019ccb93-447d-7cea-a2c0-f486f660775b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/39/2020
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-ccdef33a3c
+    query: 'Actas de la Obra Pía en Italia'
+    source: relations
+    relevant:
+      - 019ccbac-a327-7c6e-a28a-55761f631fb9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/41/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-1f9d496421
+    query: 'Plantilla y retribuciones del personal directivo no sujeto a convenio colectivo'
+    source: relations
+    relevant:
+      - 019ccb6c-b459-71e2-bd0f-05ca1829735d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/47/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-f56cae3726
+    query: 'Precio y condiciones de financiación del fármaco Kymriah'
+    source: relations
+    relevant:
+      - 019ccb33-f07b-73b4-aae1-3231d0a6c715
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/42/2020
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-416258d1fd
+    query: 'Servicio de atención al cliente de Caixa Bank'
+    source: relations
+    relevant:
+      - 019ccb8a-07b9-7e53-9bd3-2a401cd330b6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/22/2020
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-93f98e1a84
+    query: 'Publicación resoluciones TEAR Murcia'
+    source: relations
+    relevant:
+      - 019ccbbd-ad20-714a-aa47-83a0cf68bbc8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/10/2020
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-c2cf74f6f7
+    query: 'Inspección a la entidad Banco de Madrid por blanqueo de capitales'
+    source: relations
+    relevant:
+      - 019ccb9d-bb33-7b5a-bf46-6c3aeea49dc9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/2/2020
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-743ecaed7c
+    query: 'Comisión social seguimiento soterramiento del AVE a Murcia'
+    source: relations
+    relevant:
+      - 019ccbbe-8058-7c02-a0fa-60af3549c2a5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/140/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-1a90c82111
+    query: 'Auditorías Inspección de Servicios y Obras'
+    source: relations
+    relevant:
+      - 019ccb9b-a91b-7727-9886-748542b8f0a2
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/189/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-622e883b8d
+    query: 'Retribuciones de productividad desde enero de 2016'
+    source: relations
+    relevant:
+      - 019ccb7d-dc43-7724-ab66-ac240ae2e46a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/134/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-c8769bef8c
+    query: 'Pruebas y plantillas de resultados de procesos selectivos'
+    source: relations
+    relevant:
+      - 019ccb96-331c-7d8d-9418-35c7381837e7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA5/120/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-8898a91b3a
+    query: 'Inmuebles en Cataluña'
+    source: relations
+    relevant:
+      - 019ccbb6-767b-7321-aef6-a5580024eb1e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/112/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-9f115cbd1a
+    query: 'Convocatorias, actas y órdenes del día reuniones Consejo de Administración de la CRTVE'
+    source: relations
+    relevant:
+      - 019ccb89-9c9b-7e9a-8e14-5098f2559835
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/81/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-fdadded5f3
+    query: 'Productividades Organismo Estatal Inspección de Trabajo y Seguridad Social'
+    source: relations
+    relevant:
+      - 019ccb84-7239-7969-b186-a0f9c016af38
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/98/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-4bc6450bf2
+    query: 'Actas y órdenes del día (2017-2018)'
+    source: relations
+    relevant:
+      - 019ccb72-3dfa-7f8e-b7da-ec7f0807cea7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA6/63/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0ed2f108ca
+    query: 'Informe de la Abogacía del Estado sobre condena impuesta por Laudo arbitral'
+    source: relations
+    relevant:
+      - 019ccb5a-61c2-7a7f-a0de-c0379d638e26
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/57/2019
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-c063f91f9f
+    query: 'Lista de colaboradores y gasto realizado'
+    source: relations
+    relevant:
+      - 019ccb4d-5e7f-7ec7-aba2-959cc333b875
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/54/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-db9d46a779
+    query: 'Informes jurídicos sobre interpretación normativa'
+    source: relations
+    relevant:
+      - 019ccb99-442b-797b-b7d2-be9d6ff996cc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/89/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-5202c10c83
+    query: 'Instalación de un restaurante en la playa'
+    source: relations
+    relevant:
+      - 019ccb6e-94fd-718d-b676-9e216a31c32e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/61/2019
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-e34a1d2c44
+    query: 'Preguntas y respuesta de aspirantes al carnet de conducir Clase B'
+    source: relations
+    relevant:
+      - 019ccb60-558a-79ca-9eea-c276e4896748
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/46/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-33309233e0
+    query: 'Acceso a las audio-actas y al Plan de viabilidad'
+    source: relations
+    relevant:
+      - 019ccb90-5238-76ea-94a0-1e85144d07a6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA12/49/2019
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-de8aa6ed28
+    query: 'Contenido de determinados ensayos clínicos con medicamentos'
+    source: relations
+    relevant:
+      - 019ccb43-bc5d-7a0a-915b-6859b9bf7c77
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/47/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-032a333420
+    query: 'Acceso a la información de un contrato'
+    source: relations
+    relevant:
+      - 019ccb13-156a-76c3-8671-2e6b10d59912
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/3/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-ae42746b0d
+    query: 'Condiciones laborales de los directivos'
+    source: relations
+    relevant:
+      - 019ccb87-5e81-754b-a538-daeba0d517e0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/6/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-ae9bda6420
+    query: 'Plan de Empresa y acta del Consejo de Administración'
+    source: relations
+    relevant:
+      - 019ccb49-c41c-7995-ba73-94762b90d387
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/17/2019
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-13a0fbcc0a
+    query: 'Productividades mensuales asignadas'
+    source: relations
+    relevant:
+      - 019ccb83-e233-7091-98ab-41d05b140d20
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/204/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-f4929b2c16
+    query: 'Instituciones Penitenciarias. Datos sobre fallecimientos, indemnizaciones e incidentes regimentales ocurridos en los centros penitenciarios españoles'
+    source: relations
+    relevant:
+      - 019ccb4c-51d4-7f24-9856-c7e039d4ed3b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/184/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-522660847b
+    query: 'Nota remitida a la embajadora de Letonia'
+    source: relations
+    relevant:
+      - 019ccb9b-db07-76d3-8c13-f9c4109ce7ae
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/165/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-487519ffd4
+    query: 'Acceso a expediente de contratación de solicitudes de visado'
+    source: relations
+    relevant:
+      - 019ccb67-90fa-76e0-a356-2ea10945dff5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA4/117/2018
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-8ae4430e77
+    query: 'Metodología definición instalaciones cogeneración'
+    source: relations
+    relevant:
+      - 019ccb91-b52c-7a6e-ab83-615c72859b3d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA3/110/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-4c75b85f37
+    query: 'Inadmisión de reclamación sobre medallas al mérito'
+    source: relations
+    relevant:
+      - 019ccb84-e765-75e4-a00b-9e21e865bc18
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/107/2018
+      resolutionOutcomes: [inadmissible]
+      graded: derived
+  -
+    id: relations-1c1a9667f4
+    query: 'Inventario de bienes muebles y artísticos del Parador de León'
+    source: relations
+    relevant:
+      - 019ccb8c-9566-7f3f-ba2a-611823471b98
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/113/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-ed5ed7f258
+    query: 'Información sobre el ERE'
+    source: relations
+    relevant:
+      - 019ccb76-851b-7a02-95f2-823e0a3e619b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/99/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-858c09012a
+    query: 'Situación económico-financiera de la Agencia'
+    source: relations
+    relevant:
+      - 019ccb76-1d8f-75f4-97a1-adbe80e321f6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA8/111/2018
+      resolutionOutcomes: [partial]
+      graded: derived
+  -
+    id: relations-94f960aa92
+    query: 'Actas de reuniones del Consejo de EMBL'
+    source: relations
+    relevant:
+      - 019ccb9a-9efd-7eb6-9842-8086dd164b10
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/17/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-3e50033ca3
+    query: 'Ministerio de Hacienda y Función Pública. Acuerdos sobre el cupo vasco'
+    source: relations
+    relevant:
+      - 019ccb5f-698d-7c99-837a-ea56bf42acd6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA7/88/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-0099a93853
+    query: 'Proyecto de desclasificación de documentos de Defensa'
+    source: relations
+    relevant:
+      - 019ccb6c-7931-7451-8910-76c313921543
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA10/70/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-8fa70fc08e
+    query: 'Expediente de suministro de tiras reactivas'
+    source: relations
+    relevant:
+      - 019ccb57-e125-761c-b911-c2129e942c30
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/54/2018
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-2e70c583fe
+    query: 'Gastos Festival de Eurovisión 2016'
+    source: relations
+    relevant:
+      - 019ccb97-af77-7187-b365-4c8877211f4b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/33/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-fcf2e7e5b9
+    query: 'Copia expediente disciplinario'
+    source: relations
+    relevant:
+      - 019ccb14-bc1e-7c4b-a373-169f5ea939ac
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA2/29/2018
+      resolutionOutcomes: [unfavorable]
+      graded: derived
+  -
+    id: relations-b9c5465d32
+    query: 'Ministerio de Fomento. Modificaciones de obra'
+    source: relations
+    relevant:
+      - 019ccb15-50f6-711e-9a09-232e8e71a7a1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA1/15/2018
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: relations-4fd2f04105
+    query: 'Pliego de condiciones de licitación para el suministro de 15 trenes de Alta Velocidad'
+    source: relations
+    relevant:
+      - 019ccb47-6fcd-76eb-902f-5e180b8408ee
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      judgment: JCCA11/98/2017
+      resolutionOutcomes: [favorable]
+      graded: derived
+  -
+    id: synthetic-972f6b3168
+    query: 'Derecho de acceso a estadísticas académicas detalladas sobre procesos de acreditación docente desglosadas por instituciones y periodos temporales'
+    source: synthetic
+    relevant:
+      - 019ccb7b-e298-744a-afad-35f1fb7fe199
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: R/0429/2018
+      graded: llm
+  -
+    id: synthetic-56d856cb91
+    query: 'El Ministerio no me pasa los datos de cuántas acreditaciones de catedráticos hubo cada año por universidad'
+    source: synthetic
+    relevant:
+      - 019ccb7b-e298-744a-afad-35f1fb7fe199
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: R/0429/2018
+      graded: llm
+  -
+    id: synthetic-d2243ef779
+    query: 'Incumplimiento del deber de respuesta ante la solicitud de datos sobre la propiedad de terrenos y espacios públicos por parte de un municipio'
+    source: synthetic
+    relevant:
+      - 019d59d3-c7e2-701f-a7c8-9fd3e230aba8
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: 073/2018
+      graded: llm
+  -
+    id: synthetic-0bf1cb9552
+    query: 'El ayuntamiento no me da información sobre quién es el dueño de un terreno y no me dicen por qué, ¿qué puedo hacer?'
+    source: synthetic
+    relevant:
+      - 019d59d3-c7e2-701f-a7c8-9fd3e230aba8
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: 073/2018
+      graded: llm
+  -
+    id: synthetic-a01c8fb383
+    query: 'Derecho de acceso a expedientes técnicos de infraestructuras municipales solicitados por representantes de los trabajadores ante la falta de respuesta administrativa.'
+    source: synthetic
+    relevant:
+      - 019d59c7-b5d4-7b20-b57b-dd57f2f835b8
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: R553/2022
+      graded: llm
+  -
+    id: synthetic-98e8892da1
+    query: 'El ayuntamiento no me da los papeles del estado del polideportivo aunque soy delegado sindical, ¿qué puedo hacer si no contestan?'
+    source: synthetic
+    relevant:
+      - 019d59c7-b5d4-7b20-b57b-dd57f2f835b8
+    outcomes:
+      - favorable
+      - partial
+    meta:
+      reference: R553/2022
+      graded: llm
+  -
+    id: langfuse-f76e066c94
+    query: 'reclamación por silencio administrativo en acceso a información pública, la administración no ha respondido a la solicitud de contratos menores'
+    source: langfuse
+    relevant:
+      - 019ccb2f-7f07-7d8c-aeb6-d84c4fd43716
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+      - 019ccba5-ae93-76d9-8063-fb48c53db7d4
+      - 019ccb6a-6080-73b0-b3d7-2c1e0a095822
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0054/2021, R/0407/2017, R/0603/2021, R/0349/2017]
+      graded: llm
+  -
+    id: langfuse-ec09e0ab58
+    query: 'acceso a expedientes de contratos menores de obras municipales'
+    source: langfuse
+    relevant:
+      - 019d59c7-bbdb-74be-a309-3f9a2b95b377
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+      - 019d59d5-c1b6-79f2-bb71-bbd433d9baa4
+      - 019d59d3-a186-7288-9680-b126f02bb685
+      - 019d50a6-4a9f-7e89-98a4-0b7e65d51291
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R582/2021, CT-89/2022, 208/2023, CT-104/2022]
+      graded: llm
+  -
+    id: langfuse-3783f58aee
+    query: 'reclamación por silencio administrativo negativo en solicitud de acceso a información sobre desglose de contratos menores de un ayuntamiento'
+    source: langfuse
+    relevant:
+      - 019edf03-16ca-771f-9f46-df8c0baa5d58
+      - 019d4b6f-2622-7c24-a440-0a6136d7b060
+      - 019d4b6e-94b6-7d95-a790-4a33832f228c
+      - 019d4b6e-a181-7b4c-bb9c-24cbb87dbc18
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R160/2026, 1134/2023, 0011/2022, 0149/2021]
+      graded: llm
+  -
+    id: langfuse-1c364e5805
+    query: 'acceso a la lista de contratos menores y sus expedientes, para evitar inadmisión por reelaboración o información auxiliar'
+    source: langfuse
+    relevant:
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d4b6a-8cbc-74ec-8e4b-ac6991db3df6
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [246/2025, R/0311/2024, R/0502/2024, R/0803/2023]
+      graded: llm
+  -
+    id: langfuse-9d3da3bc84
+    query: 'inadmisión de solicitud de acceso por defectos de forma o falta de uso de modelos oficiales.'
+    source: langfuse
+    relevant:
+      - 019d59d3-8b0c-7eae-83a5-7f1b8a95e5d8
+      - 019d4b6f-2859-7bcd-ad35-0ed1ed6d0b78
+      - 019d4b6f-0f57-7a6d-8380-ee84e5a5128b
+      - 019d4b6e-bbf6-7eb1-8b5b-f2e76b2523c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [1169/2024, 0907/2025, 0360/2019]
+      graded: llm
+  -
+    id: langfuse-389b64a096
+    query: 'inadmisión de solicitud de acceso por no utilizar el modelo de la administración, derecho de acceso a la información pública sin formalidades excesivas'
+    source: langfuse
+    relevant:
+      - 019edf39-5f13-7c8b-97fb-c78395b29612
+      - 019d59d3-c26c-76c0-b126-413a6ea8a4cc
+      - 019ccb5d-2f02-7824-8cef-28704bd52554
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [143/2019, R/0283/2020]
+      graded: llm
+  -
+    id: langfuse-d50111bfa8
+    query: 'la exigencia de un modelo normalizado o formulario específico como condición para la admisión de una solicitud de acceso a la información pública es ilegal y vulnera el derecho de acceso'
+    source: langfuse
+    relevant:
+      - 019d4b6a-dc64-76b4-93b9-d5e6328c014b
+      - 019d59c7-c45b-73a5-b0d1-0e66e9274a47
+      - 019d4b6f-0f57-7a6d-8380-ee84e5a5128b
+      - 019d4b6a-fa54-7b46-9a11-deecb856d1bb
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0307/2025, R131/2019, 0907/2025, RA/0572/2023]
+      graded: llm
+  -
+    id: langfuse-73c529a423
+    query: 'acceso a listados de contratos menores o registros de contratación pública de entes locales'
+    source: langfuse
+    relevant:
+      - 019ccb45-20b0-7eb7-ba12-203489ab9de8
+      - 019d4b6e-dae7-7160-bb08-df0959b921e0
+      - 019d4b6b-172f-7233-bead-4fb3fe2cae7a
+      - 019d4b6b-0c99-7870-996a-16bac0a5b559
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0155/2021, 0554/2022, RA/0002/2021, RA/0007/2022]
+      graded: llm
+  -
+    id: langfuse-2d91308eb0
+    query: 'reclamación por silencio administrativo en materia de acceso a la información pública, falta de respuesta de la administración después del plazo legal.'
+    source: langfuse
+    relevant:
+      - 019ccba2-2a3a-7c45-8e89-752a6188a846
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+      - 019d4b6b-00d2-7eee-8e9f-1f5d6dacb3c0
+      - 019edf2c-2cac-788a-b862-2f5cbcf96132
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0582/2018, R/0407/2017, RA/0883/2023, R/0386/2026]
+      graded: llm
+  -
+    id: langfuse-41300bae13
+    query: 'denegación de acceso a requisitos administrativos y procedimientos para la prestación de servicios públicos (suministro de agua)'
+    source: langfuse
+    relevant:
+      - 019d59d5-c066-73a2-9be4-1f85a5b6a64e
+      - 019d59d3-985d-7f7f-85ba-006510484694
+      - 019d5027-8626-7d99-aba2-483e42ccaf04
+      - 019d59d3-a5e4-7865-85a4-e4efb1211dff
+      - 019d4b6f-08f3-7f73-ba80-d2407f94d610
+      - 019d59d3-cbe9-7d5e-84fa-04fbae64ca82
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [78/2024, 824/2022, 0864/2020, 076/2016]
+      graded: llm
+  -
+    id: langfuse-4419d6fdc3
+    query: 'reclamación por silencio administrativo en solicitud de acceso a la información pública ante un ayuntamiento por falta de respuesta en el plazo legal'
+    source: langfuse
+    relevant:
+      - 019d59c7-a885-7729-8426-9aac00a7168f
+      - 019d59c7-b197-74f9-9d40-b272f31a378d
+      - 019edf39-589e-738a-afda-ea69358f8bf2
+      - 019d5032-cef8-74a4-8104-4f6479468190
+      - 019edf39-589c-7f01-8381-a73713babd5e
+      - 019d5032-cefb-77ce-9908-e422b986e8d5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R824/2025, R169/2023, 14/2020, 18/2020]
+      graded: llm
+  -
+    id: langfuse-686ef72257
+    query: 'acceso a información sobre procesos de selección, nombramientos y condiciones de contratación de personal en escuelas municipales de música o centros culturales'
+    source: langfuse
+    relevant:
+      - 019edf39-586a-7bda-977a-e9bf63fcb1ac
+      - 019d59d3-bd7b-7c04-a768-ccdcfa8420b3
+      - 019d4b6b-123f-7e38-8d16-0731169df37e
+      - 019d59d5-bdec-7c74-bc0b-99c4999f9f12
+      - 019d5024-3c4d-74c2-933f-0761dba92f31
+      - 019d59b8-5f5a-79dd-9666-3276ba219acb
+      - 019d59d3-8a07-71a2-9c36-3edf3e32a831
+      - 019d4b6a-e51a-71e2-abaa-7f7d2eb4ea6a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [160/2020, RA/0419/2020, 36/2025, RA/0153/2024]
+      graded: llm
+  -
+    id: langfuse-0d29c07e80
+    query: 'denegación de acceso a información sobre fraccionamiento de contratos menores, control de la división artificial de contratos para eludir licitación, transparencia en la contratación pública'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d59d3-a4fb-765c-bb3a-0bcaae7ab11c
+      - 019d4b6b-1bd9-78e4-a11c-2ae9fb5f6a95
+      - 019d59d3-a6cf-733a-90d8-06ce221a4bfc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0311/2024, 864/2022, RA/0188/2021, 742/2022]
+      graded: llm
+  -
+    id: langfuse-ce92bbc695
+    query: 'acceso a expedientes de contratación pública, insuficiencia de la publicidad activa en el perfil del contratante, derecho de acceso frente a enlaces de la plataforma de contratación'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9402-7ab2-85ad-de73daeeff71
+      - 019ccb74-e5fa-7a0a-87fb-78c3f9e14db1
+      - 019d4b6a-9c52-755e-bd0f-0597a709340e
+      - 019d4b6b-1528-7336-873b-e9993b153c9e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1339/2024, R/0397/2021, R/0707/2023, RA/0680/2020]
+      graded: llm
+  -
+    id: langfuse-6828226066
+    query: 'remisión a la plataforma de contratación es insuficiente para satisfacer el derecho de acceso al expediente íntegro, especialmente en contratos menores.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+      - 019ccbbb-1c49-720d-8cbc-8792a872a033
+      - 019d4b6a-9e07-70ba-9ae4-a0ba94378086
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0803/2023, R/0736/2019, R/0871/2023, R/0311/2024]
+      graded: llm
+  -
+    id: langfuse-c75e2ae34d
+    query: 'La remisión a la plataforma de contratación o publicidad activa es insuficiente cuando se solicita el expediente administrativo completo de un contrato. La información de la plataforma no agota el derecho de acceso.'
+    source: langfuse
+    relevant:
+      - 019ccba8-5b5a-747c-b175-7ccb83a47fe1
+      - 019d4b6a-9c52-755e-bd0f-0597a709340e
+      - 019d4b6a-f1fd-7150-8317-3fe4f5708776
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0620/2021, R/0707/2023, RA/0174/2023, R/0311/2024]
+      graded: llm
+  -
+    id: langfuse-090dd64ea5
+    query: 'acceso a contratos menores, adjudicatarios, importes, objeto del contrato, transparencia contratación pública'
+    source: langfuse
+    relevant:
+      - 019ccb45-20b0-7eb7-ba12-203489ab9de8
+      - 019d59d3-b6e6-7a05-9964-0c6cafa670d3
+      - 019d59d3-c08f-784b-bcb4-e4ecdfff8bea
+      - 019d59d3-a4fb-765c-bb3a-0bcaae7ab11c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0155/2021, 334/2021, 246/2019, 864/2022]
+      graded: llm
+  -
+    id: langfuse-35dbdf01e3
+    query: 'acceso a información sobre contratos menores y la insuficiencia de la publicación en el perfil de contratante o portal de transparencia'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d4b6a-9fa4-73d2-957e-673fa2455959
+      - 019d4b6b-0c99-7870-996a-16bac0a5b559
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0311/2024, R/1044/2023, RA/0007/2022, R/0803/2023]
+      graded: llm
+  -
+    id: langfuse-85827e691a
+    query: 'acceso a expedientes de contratación menor, publicidad activa insuficiente, obligación de entregar expediente completo'
+    source: langfuse
+    relevant:
+      - 019d59d3-96b2-7229-800b-542b713ba273
+      - 019d59b8-6416-7061-b550-d6550e889d0f
+      - 019d59d5-bebf-7923-80cd-b892faf75747
+      - 019d50a6-3fe1-75ff-9115-ba07bbacdf61
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d4b6a-9c52-755e-bd0f-0597a709340e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [266/2024, CT-141/2023, R/0311/2024, R/0707/2023]
+      graded: llm
+  -
+    id: langfuse-885d334808
+    query: 'acceso a expedientes de contratos menores y documentación contable/administrativa de la contratación pública'
+    source: langfuse
+    relevant:
+      - 019ccb38-a2a4-79af-8e79-38a9a5129e65
+      - 019d4b6a-8ea9-73cc-b1e8-c853b679f935
+      - 019d59d5-c1b6-79f2-bb71-bbd433d9baa4
+      - 019d59d3-a186-7288-9680-b126f02bb685
+      - 019d50a6-4a9f-7e89-98a4-0b7e65d51291
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0102/2017, R/0786/2023, 208/2023, CT-104/2022]
+      graded: llm
+  -
+    id: langfuse-6b6d8723f1
+    query: 'acceso a expedientes de contratos menores y documentación de su ejecución.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+      - 019d50a6-4a9f-7e89-98a4-0b7e65d51291
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0803/2023, CT-104/2022, 246/2025, CT-89/2022]
+      graded: llm
+  -
+    id: langfuse-61e32d608a
+    query: 'acceso a la relación de contratos menores o expedientes de contratación pública como información que debe ser facilitada si no está publicada o es insuficiente'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d59d5-bb56-7ab0-ab00-722aa0c0cd45
+      - 019d59d6-53e2-798c-87fb-93c669379efb
+      - 019d59d3-8816-7c23-a6ca-a967034c7d48
+      - 019d4b6a-9c52-755e-bd0f-0597a709340e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0803/2023, R/0311/2024, 245/2025, R/0707/2023]
+      graded: llm
+  -
+    id: langfuse-f6f90c1928
+    query: 'acceso a listado de contratos menores con importe, objeto y adjudicatario'
+    source: langfuse
+    relevant:
+      - 019d59d5-c1b6-79f2-bb71-bbd433d9baa4
+      - 019d59d3-a186-7288-9680-b126f02bb685
+      - 019d59d3-b6e6-7a05-9964-0c6cafa670d3
+      - 019ccb45-20b0-7eb7-ba12-203489ab9de8
+      - 019d59c7-c597-774c-9f0c-4fa91bb17e84
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [208/2023, 334/2021, R/0155/2021, R234/2019]
+      graded: llm
+  -
+    id: langfuse-21d6d82a1f
+    query: 'Acceso a expedientes de contratación de contratos menores para verificar si existe fraccionamiento de contrato o división indebida de objeto de contratación.'
+    source: langfuse
+    relevant:
+      - 019d50a6-4763-70a9-ba7a-aa597d87b093
+      - 019ccbbb-1c49-720d-8cbc-8792a872a033
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [CT-83/2023, R/0736/2019, CT-89/2022, 246/2025]
+      graded: llm
+  -
+    id: langfuse-2865f91910
+    query: 'acceso a expedientes de contratos menores de obras de reparación, evitar inadmisión por reelaboración o información auxiliar, documentos que deben obrar en poder del ayuntamiento como pliegos, facturas, actas de recepción y certificaciones de obra.'
+    source: langfuse
+    relevant:
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+      - 019d59d3-8c7e-73e1-a687-d7a46c1a4204
+      - 019d4b6f-2031-7c5b-bc7c-5c8b236a2b1b
+      - 019d4b6e-940c-7852-b93d-6c2440e73754
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [246/2025, CT-89/2022, 1069/2024, 0001/2016]
+      graded: llm
+  -
+    id: langfuse-c99145c739
+    query: 'acceso a expedientes de contratación menor, incluyendo documentos justificativos como facturas e informes, bajo la Ley 4/2016 de Castilla-La Mancha'
+    source: langfuse
+    relevant:
+      - 019d50a6-3fe1-75ff-9115-ba07bbacdf61
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019d50a6-4a9f-7e89-98a4-0b7e65d51291
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [CT-141/2023, 246/2025, CT-104/2022, CT-89/2022]
+      graded: llm
+  -
+    id: langfuse-d786ef0d4b
+    query: 'acceso a información sobre costes de costas procesales por litigios de la Abogacía del Estado contra ayuntamientos por la exhibición de la bandera de España'
+    source: langfuse
+    relevant:
+      - 019edf39-6539-7b40-9a93-a96bc5a11f56
+      - 019d5097-be0c-7d8c-8a40-b37c23f3f15e
+      - 019d5035-9fce-7d5c-9500-f30838c5bba2
+      - 019edf39-6535-776e-a827-a7938ca97612
+      - 019d5035-9fcd-720d-95cf-2ff613f00620
+      - 019edf39-6536-7199-9b94-cb879337f3f9
+      - 019d5035-9fce-74d4-9500-f30838b0c447
+      - 019ccb77-e496-7927-89a6-01be1f269254
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [60/2018, 72/2018, 70/2018, R/0410/2017]
+      graded: llm
+  -
+    id: langfuse-bcf04f67e1
+    query: 'denegación de acceso a contratos de limpieza alegando información publicada en la plataforma de contratación o que requiere reelaboración'
+    source: langfuse
+    relevant:
+      - 019edf39-6bbc-77af-980d-9fddc66b554d
+      - 019d5097-bcb7-7dc7-a95f-1ed8071145b6
+      - 019ccb38-a2a4-79af-8e79-38a9a5129e65
+      - 019d59d6-2b79-7629-960c-38971c8c4861
+      - 019d5097-be8e-77a0-bf55-1c2acf19fb13
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [20/2017, R/0102/2017, RDA093/2022, 021/2019]
+      graded: llm
+  -
+    id: langfuse-52d935e32b
+    query: 'reclamación por silencio administrativo en acceso a la información pública tras la falta de respuesta de la Administración en el plazo legal'
+    source: langfuse
+    relevant:
+      - 019d59c7-aa30-7a59-bf23-312871a78228
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+      - 019d59d3-98d5-7ea6-ab29-c2150eaada39
+      - 019d5027-8632-7129-8634-ede22351ca65
+      - 019d59d5-c0e0-7448-9bc6-98b28d9176e6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R867/2024, R/0064/2018, 41/2024]
+      graded: llm
+  -
+    id: langfuse-3f60c5be63
+    query: 'reclamación por silencio administrativo en materia de acceso a la información pública, falta de respuesta de la administración tras el plazo legal.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-a947-7a25-9394-740d0c2d849f
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+      - 019edf2c-2cac-788a-b862-2f5cbcf96132
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0256/2022, R/0407/2017, R/0386/2026]
+      graded: llm
+  -
+    id: langfuse-0f9e1d24e1
+    query: 'acceso al código fuente de un software de desarrollo propio de la Administración, propiedad intelectual de la entidad pública y transparencia.'
+    source: langfuse
+    relevant:
+      - 019edf34-6366-7c06-a41f-afef3687f3ec
+      - 019d59d6-52ea-73a2-94a7-486d112a71bd
+      - 019edf34-631b-7360-95d0-a32b3b1338c8
+      - 019d59d6-52ea-7f36-94a7-486d11deb57c
+      - 019d4b6b-1ceb-75a9-af45-6a68b2c8cbaf
+      - 019d4b6a-910a-79f7-9353-f09c3721a800
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [647/2025, 656/2025, RA/0253/2021, R/1071/2024]
+      graded: llm
+  -
+    id: langfuse-bc795b8685
+    query: 'acceso al código fuente o algoritmo de un software de gestión pública, propiedad intelectual vs transparencia'
+    source: langfuse
+    relevant:
+      - 019d4b6a-910a-79f7-9353-f09c3721a800
+      - 019edf34-6366-7c06-a41f-afef3687f3ec
+      - 019d59d6-52ea-73a2-94a7-486d112a71bd
+      - 019edf34-631b-7360-95d0-a32b3b1338c8
+      - 019d59d6-52ea-7f36-94a7-486d11deb57c
+      - 019d4b6e-a414-73cd-b129-57c7b73287e1
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1071/2024, 647/2025, 656/2025, 0171/2017]
+      graded: llm
+  -
+    id: langfuse-ef282c3c5d
+    query: 'acceso al código fuente de un software de la administración pública y su documentación técnica sin que se considere propiedad intelectual protegida que impida el acceso bajo la ley de transparencia'
+    source: langfuse
+    relevant:
+      - 019d4b6b-1ceb-75a9-af45-6a68b2c8cbaf
+      - 019edf34-631b-7360-95d0-a32b3b1338c8
+      - 019d59d6-52ea-7f36-94a7-486d11deb57c
+      - 019edf34-6366-7c06-a41f-afef3687f3ec
+      - 019d59d6-52ea-73a2-94a7-486d112a71bd
+      - 019d4b6a-910a-79f7-9353-f09c3721a800
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0253/2021, 656/2025, 647/2025, R/1071/2024]
+      graded: llm
+  -
+    id: langfuse-0691e16aa1
+    query: 'Acceso a expedientes de contratación menor, copia íntegra de documentos contractuales y anexos.'
+    source: langfuse
+    relevant:
+      - 019d50a6-4a9f-7e89-98a4-0b7e65d51291
+      - 019d4b6a-9d12-7b9a-ab69-48c136885238
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019d50a6-4af0-7d78-9d13-d8014c9929ba
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [CT-104/2022, R/0803/2023, 246/2025, CT-89/2022]
+      graded: llm
+  -
+    id: langfuse-c7417d2d91
+    query: 'Improcedencia del silencio administrativo frente a la obligación de resolver o, al menos, notificar la ampliación del plazo de resolución. El silencio administrativo como vulneración del derecho de acceso.'
+    source: langfuse
+    relevant:
+      - 019ccb9a-243c-743b-82c1-154e8a3bc89f
+      - 019dc99b-2adc-7a34-aaa6-5d0034f51eb1
+      - 019edf2c-2c54-7176-a5de-242316b4c4df
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0545/2018, R/0375/2026, R/0423/2026]
+      graded: llm
+  -
+    id: langfuse-2cfa74f4c8
+    query: 'Interés público en la fiscalización de la contratación pública menor y prevención del fraccionamiento de contratos. Doctrina sobre la transparencia en contratos de suministro de medicamentos y control de irregularidades en la contratación pública.'
+    source: langfuse
+    relevant:
+      - 019d59d3-c08f-784b-bcb4-e4ecdfff8bea
+      - 019d59d3-8818-7045-b558-722cb220b00c
+      - 019d59d5-bb56-74b4-ab00-722aa04dfda4
+      - 019d59d6-5270-7a02-9abc-8e9c198eb395
+      - 019ccb94-20a4-7c0d-bdba-45ec135acb57
+      - 019d59d5-bb59-7443-a43f-38ddfc2c8649
+      - 019d59d3-8818-7cbd-b558-722cb4453e93
+      - 019d59d6-53e1-7e94-bf1f-2be07270d9dc
+      - 019d59b8-625c-767d-962b-e3f999d1f8ee
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [246/2019, 246/2025, R/0522/2020, 238/2025]
+      graded: llm
+  -
+    id: langfuse-8c304b1a63
+    query: 'Diferencia entre publicidad activa (datos mínimos obligatorios por la LCSP) y el derecho de acceso a expedientes completos de contratación menor. La existencia de tablas de datos no exime de la obligación de facilitar el expediente íntegro.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8b8b-7a40-af7c-119d0adbba1a
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d4b6a-8cb3-733f-a0ef-4657baa4a126
+      - 019d4b6a-9c52-755e-bd0f-0597a709340e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0338/2024, R/0311/2024, R/0487/2024, R/0707/2023]
+      graded: llm
+  -
+    id: langfuse-bc3c48cc3c
+    query: 'silencio administrativo y falta de notificación de ampliación de plazo en derecho de acceso'
+    source: langfuse
+    relevant:
+      - 019d59c7-b197-74f9-9d40-b272f31a378d
+      - 019ccb37-69c7-7251-b340-b6cd85e8571d
+      - 019ccb32-c056-792a-be22-43b46ca9726f
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R169/2023, R/0096/2018, R/0074/2019, R/0064/2018]
+      graded: llm
+  -
+    id: langfuse-758b07b953
+    query: 'derecho de acceso a expedientes de contratos menores frente a la publicación de tablas resumen en el perfil del contratante'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8b15-7cb4-99d2-83c4488c5133
+      - 019d4b6a-a6bc-73be-96f3-56e94e6cf649
+      - 019d4b6a-8cba-791c-a5a3-b7f337d363d5
+      - 019d4b6a-8ea9-73cc-b1e8-c853b679f935
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0311/2024, R/0067/2022, R/0499/2024, R/0786/2023]
+      graded: llm
+  -
+    id: langfuse-b363563a3f
+    query: 'diferencia entre publicidad activa y derecho de acceso a expedientes completos en contratación pública'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8cb3-733f-a0ef-4657baa4a126
+      - 019d59c7-a9ae-7359-8f96-6b6d595337fb
+      - 019d4b6b-1f6d-7964-916f-62047d8bcc78
+      - 019d4b6b-197d-7215-b565-93c8e20ac822
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0487/2024, R466/2024, RA/0385/2021, RA/0122/2021]
+      graded: llm
+  -
+    id: langfuse-2388e61124
+    query: 'vulneración del derecho de acceso por incurrir en silencio administrativo sin notificación de ampliación de plazo'
+    source: langfuse
+    relevant:
+      - 019d4b6b-1c05-7a4e-87fa-a351933da134
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0230/2021, R/0064/2018, R/0407/2017]
+      graded: llm
+  -
+    id: langfuse-37bf84184e
+    query: 'interés público en la fiscalización de contratos menores y prevención del fraccionamiento de contratos en la contratación pública'
+    source: langfuse
+    relevant:
+      - 019d50a6-41a9-706f-a5bb-c2b193d498e2
+      - 019d4b6a-8b8b-7a40-af7c-119d0adbba1a
+      - 019d50a6-4763-70a9-ba7a-aa597d87b093
+      - 019d4b6a-896c-7ecb-96d6-3a6f740b79c8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [CT-320/2023, R/0338/2024, CT-83/2023, R/0168/2024]
+      graded: llm
+  -
+    id: langfuse-37b8959586
+    query: 'derecho de acceso a expedientes de contratación completa frente a la publicidad de tablas resumen en el perfil del contratante'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8cba-791c-a5a3-b7f337d363d5
+      - 019d4b6a-8ea9-73cc-b1e8-c853b679f935
+      - 019d4b6b-1528-7336-873b-e9993b153c9e
+      - 019ccb38-a2a4-79af-8e79-38a9a5129e65
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0499/2024, R/0786/2023, RA/0680/2020, R/0102/2017]
+      graded: llm
+  -
+    id: langfuse-74dd9f9778
+    query: 'solicitud de información sobre uso de fondos públicos, detección de gastos indebidos en subvenciones y desglose de cantidades por territorios'
+    source: langfuse
+    relevant:
+      - 019d4b6f-374c-7423-8a1a-2dd759fa465b
+      - 019d4b6b-2431-7987-8290-ec8c9089c9bc
+      - 019d4b6e-a42b-7507-a683-364b9afb835b
+      - 019d59d5-bd71-70e4-bb80-0e97c7e057cc
+      - 019d59d3-896b-764a-aa5e-fe03e3d2c4ea
+      - 019d59b8-5d8e-7c8c-9a87-749585ae5d9e
+      - 019e2bb9-a441-7d12-8e5a-a0ed0393c05b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [1534/2024, RA/0573/2021, 0174/2018, 82/2025]
+      graded: llm
+  -
+    id: langfuse-4e855180ae
+    query: 'Denegación de acceso a la información pública por falta de acreditación de interés legítimo o interés en la obtención de copias.'
+    source: langfuse
+    relevant:
+      - 019d4ef8-7ff7-7e75-bc6d-897004ab0717
+      - 019d59d3-bfde-731a-b495-c2cbc0dca30d
+      - 019d59d5-d336-7f49-b84c-86144013928b
+      - 019d59d3-8518-7418-bf29-9588a111e3a5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: ['RSCTG 74/21', 324/2019, 14/2016, 998/2025]
+      graded: llm
+  -
+    id: langfuse-a72046732d
+    query: 'reclamación por silencio administrativo en acceso a la información pública, falta de respuesta tras el vencimiento del plazo legal de un mes, denegación presunta por silencio negativo.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-a849-754f-b46a-0fd17f0f677e
+      - 019d59d3-98d5-7ea6-ab29-c2150eaada39
+      - 019d5027-8632-7129-8634-ede22351ca65
+      - 019d59d5-c0e0-7448-9bc6-98b28d9176e6
+      - 019d4ef2-d3b8-7413-a2c3-b8cd838aab6c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0193/2022, 41/2024, 'RSCTG 156/23']
+      graded: llm
+  -
+    id: langfuse-6ff7b772e0
+    query: 'inadmisión por información auxiliar o de apoyo, art. 18.1.b LTAIBG, datos estadísticos de gestión administrativa sobre tiempos de espera y expedientes pendientes de valoración'
+    source: langfuse
+    relevant:
+      - 019d59c7-c597-7bac-9f0c-4fa91c422e5d
+      - 019d4b6a-9a47-7130-b005-fb11b1590840
+      - 019d4b6a-9d0c-7565-8a94-00460b11ddee
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R35/2019, R/0544/2023, R/0794/2023]
+      graded: llm
+  -
+    id: langfuse-61f80a078c
+    query: 'inadmisión por reelaboración art 18.1.c LTAIBG carga desproporcionada extracción datos informáticos'
+    source: langfuse
+    relevant:
+      - 019d4b6a-f08a-70fa-9d1f-d9116ffaa6d0
+      - 019d4b6a-9550-76da-8a30-e58d8a2d700d
+      - 019d4b6a-8a74-7290-ae84-efa0cb6a64f4
+      - 019d4b6a-a9e2-775c-8bed-2da5cce890db
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0086/2023, R/0046/2023, R/0242/2024, R/0340/2022]
+      graded: llm
+  -
+    id: langfuse-0980148e30
+    query: 'inadmisión por carácter auxiliar art 18 LTAIBG información gestión sanitaria centro base'
+    source: langfuse
+    relevant:
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+      - 019d4b6a-e457-7e08-984c-0dcc5ef94a05
+      - 019d4b6a-7e65-7f23-b7ab-afa3a72a93aa
+      - 019d4b6b-0ee1-7993-9ac3-adae0bba4a9b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0491/2025, RA/0108/2024, R/0337/2025, RA/0105/2022]
+      graded: llm
+  -
+    id: langfuse-520c40480a
+    query: 'vulneración principio igualdad y confianza legítima cambio de criterio administración acceso información pública'
+    source: langfuse
+    relevant:
+      - 019d4b6e-96a3-7acd-8931-10ef32348b92
+      - 019d4b6e-96a2-79a6-a2a4-dbec3a9e60d4
+      - 019d4b6f-2627-7c2b-b99f-b984c9493ea0
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [0035/2016, 0035/2015, 1136/2021]
+      graded: llm
+  -
+    id: langfuse-ac1b8c900e
+    query: 'inadmisión de solicitud de acceso a información sobre datos estadísticos de gestión de expedientes y fechas de valoración en centros de salud'
+    source: langfuse
+    relevant:
+      - 019d4b6a-e451-7eb3-87ca-6960b10dde52
+      - 019edf2c-2bf2-7df7-b5f7-ce9e8491acc4
+      - 019d4ef6-3aec-7a24-a696-9fb8ade3ac7e
+      - 019d5153-d765-79df-89ec-5dd21408697d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0102/2024, R/0450/2026, 'RSCTG 34/22', 'AR 97/2021']
+      graded: llm
+  -
+    id: langfuse-38e3071a55
+    query: 'acceso a expedientes de contratación menor que superan el umbral de la LCSP'
+    source: langfuse
+    relevant:
+      - 019d4b6a-a6bc-73be-96f3-56e94e6cf649
+      - 019d4b6a-8cba-791c-a5a3-b7f337d363d5
+      - 019d4b6f-3bc0-7cd8-9f51-c5ba1e8f4b88
+      - 019d4b6a-8ea9-73cc-b1e8-c853b679f935
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0067/2022, R/0499/2024, 1664/2024, R/0786/2023]
+      graded: llm
+  -
+    id: langfuse-855c28ae7c
+    query: 'inadmisión por información auxiliar en materia de censo electoral o gestión administrativa de registros'
+    source: langfuse
+    relevant:
+      - 019d4b6b-23e0-71ca-a638-32280e141a36
+      - 019ccb71-1afb-7778-9463-dc87feada624
+      - 019ccb32-9ddd-73ac-8e02-4dfa6fb87567
+      - 019ccb41-242e-7cb1-b8da-6ed8304a7d93
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0539/2021, R/0379/2017, R/0074/2017, R/0139/2017]
+      graded: llm
+  -
+    id: langfuse-b72d980c4c
+    query: 'Denegación de acceso a un informe de inspección alegando protección de procesos judiciales en curso y tutela judicial efectiva (límite del art. 14 LTAIBG). Se requiere doctrina sobre el test de daño y la desproporcionalidad de la denegación total.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-debf-77fb-9612-f9312b5dcb48
+      - 019ccb5e-17b1-7675-bb7d-31ec1b0aeaa7
+      - 019d4b6b-04ee-701b-a33c-fcabefa6008e
+      - 019d4b6a-8c6c-7b49-bc9f-7101bfafbd11
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0447/2025, R/0289/2018, RA/1076/2023, R/0454/2024]
+      graded: llm
+  -
+    id: langfuse-40c02447f7
+    query: 'Denegación de acceso a información pública por no utilizar el formulario normalizado de solicitud (obstáculo formal). Se requiere jurisprudencia sobre el principio de informalismo y la obligación de permitir la subsanación cuando la información es identificable.'
+    source: langfuse
+    relevant:
+      - 019dc99b-9395-751f-86d5-297022e8aeeb
+      - 019d59c7-c3ff-711d-9f5e-879716e15750
+      - 019edf2c-80d4-73fc-a2fd-8a92d80c1bd6
+      - 019d59c7-c45b-73a5-b0d1-0e66e9274a47
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0292/2026, R133/2019, RA/0443/2026, R131/2019]
+      graded: llm
+  -
+    id: langfuse-3f0a780a7a
+    query: 'Denegación de acceso a informes de inspección por protección de procesos judiciales en curso y tutela judicial efectiva.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-e5fb-712e-b357-1784a708f1d8
+      - 019d4b6b-0ffa-737e-9ea2-10a52b0d637e
+      - 019d4b6a-8c6c-7b49-bc9f-7101bfafbd11
+      - 019d4b6a-97d4-7c37-9fcf-65644e882fc4
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0224/2024, RA/0158/2022, R/0454/2024, R/0312/2023]
+      graded: llm
+  -
+    id: langfuse-e0e9033507
+    query: 'Denegación de acceso por defecto formal en la solicitud (no uso de formulario normalizado) cuando la información es identificable.'
+    source: langfuse
+    relevant:
+      - 019ccb6f-7dca-72b6-8a07-17cb5a555cde
+      - 019d59d3-b091-70ae-ab9f-2d4e5875a1fb
+      - 019d59c7-c45b-73a5-b0d1-0e66e9274a47
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0372/2020, 851/2021, R131/2019]
+      graded: llm
+  -
+    id: langfuse-5fa93eec93
+    query: 'Denegación de acceso a informes de inspección por afectación a procesos judiciales en curso y tutela judicial efectiva.'
+    source: langfuse
+    relevant:
+      - 019d4b6a-e5fa-7675-9908-d31605a62f57
+      - 019d4b6a-94c2-7da0-a01b-adadbbcad3bd
+      - 019d4b6a-97d4-7c37-9fcf-65644e882fc4
+      - 019d4b6a-8c6c-7b49-bc9f-7101bfafbd11
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0223/2024, R/1441/2024, R/0312/2023, R/0454/2024]
+      graded: llm
+  -
+    id: langfuse-17dcf93223
+    query: 'reclamación por silencio administrativo negativo en acceso a la información pública, denegación presunta por falta de respuesta, deber de transparencia y eficacia administrativa'
+    source: langfuse
+    relevant:
+      - 019edf39-589c-7f01-8381-a73713babd5e
+      - 019d5032-cefb-77ce-9908-e422b986e8d5
+      - 019d59d6-2a4b-7244-8e78-f670f2ab8996
+      - 019d59c7-b197-74f9-9d40-b272f31a378d
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [18/2020, RDA026/2023, R169/2023, R/0064/2018]
+      graded: llm
+  -
+    id: langfuse-5f53fde73b
+    query: 'reclamación por silencio administrativo en acceso a la información pública, la administración no ha respondido tras el plazo legal y la denegación presunta es improcedente por falta de motivación'
+    source: langfuse
+    relevant:
+      - 019d59d5-d2ec-7821-a329-7c46fbdd0808
+      - 019d5097-bcb5-7e01-a464-2e67f7fc9121
+      - 019d4ef0-9069-715f-b421-9c2783f22369
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [13/2017, 'RSCTG 24/24', R/0407/2017]
+      graded: llm
+  -
+    id: langfuse-e5d962afe2
+    query: 'reclamación por silencio administrativo en acceso a la información pública, falta de respuesta de la administración, vulneración del derecho de acceso por inacción'
+    source: langfuse
+    relevant:
+      - 019d4ef0-9069-715f-b421-9c2783f22369
+      - 019d59d3-98d5-7ea6-ab29-c2150eaada39
+      - 019d5027-8632-7129-8634-ede22351ca65
+      - 019d59d5-c0e0-7448-9bc6-98b28d9176e6
+      - 019ccb77-31ec-7ee3-bd15-3d57b4857f1a
+      - 019d59d5-d2ec-7821-a329-7c46fbdd0808
+      - 019d5097-bcb5-7e01-a464-2e67f7fc9121
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: ['RSCTG 24/24', 41/2024, R/0407/2017, 13/2017]
+      graded: llm
+  -
+    id: langfuse-e519173682
+    query: 'reclamación por silencio administrativo negativo en materia de acceso a la información pública, falta de respuesta del organismo tras el plazo legal de un mes'
+    source: langfuse
+    relevant:
+      - 019d4b6a-95e8-7cdd-b5c2-4157c603e617
+      - 019d59d3-98d5-7ea6-ab29-c2150eaada39
+      - 019d5027-8632-7129-8634-ede22351ca65
+      - 019d59d5-c0e0-7448-9bc6-98b28d9176e6
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0087/2023, 41/2024, R/0064/2018]
+      graded: llm
+  -
+    id: langfuse-6c1358076d
+    query: 'reclamación por silencio administrativo negativo en materia de acceso a la información pública, solicitud de datos estadísticos sobre agresiones a fuerzas de seguridad'
+    source: langfuse
+    relevant:
+      - 019ccb37-69c7-7251-b340-b6cd85e8571d
+      - 019ccb77-c1ad-71e5-9bc0-8e32b9144244
+      - 019ccb78-4ac0-7851-a73f-c35fce976afd
+      - 019ccb50-2042-7977-bc88-d41171b824b3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0096/2018, R/0409/2020, R/0411/2020, R/0212/2018]
+      graded: llm
+  -
+    id: langfuse-da749ec0d6
+    query: 'reclamación por silencio administrativo en materia de acceso a la información pública, falta de respuesta de la administración en el plazo legal, denegación presunta.'
+    source: langfuse
+    relevant:
+      - 019d50a6-3f2e-768f-b145-bd9c9df6efdc
+      - 019d5153-d362-7af6-bda0-44001bf341b0
+      - 019d5153-d321-7f93-9306-2693db881ce8
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [CT-91/2024, 'AR 57/2025', 'AR 68/2025']
+      graded: llm
+  -
+    id: langfuse-56f99bf738
+    query: 'reclamación por silencio administrativo ante el Consell de Transparència (CTBG) por falta de respuesta a solicitud de expedientes de contratación menor, Ayuntamiento de Alzira'
+    source: langfuse
+    relevant:
+      - 019d4b6a-ff9b-703e-87f5-ac712de01b7c
+      - 019d4b6a-f87e-7187-b9b3-3c18b1015277
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0818/2023, RA/0474/2023]
+      graded: llm
+  -
+    id: langfuse-e74ab1283d
+    query: 'reclamación por silencio administrativo en acceso a la información pública, falta de respuesta de la administración en el plazo legal, solicitud de expedientes de contratación menor'
+    source: langfuse
+    relevant:
+      - 019d4b6f-2297-7b63-82d2-5cd7aa1f7f0e
+      - 019d4b6e-aa27-76c3-a49f-b98bd301ef0e
+      - 019d4b6e-a181-7b4c-bb9c-24cbb87dbc18
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [1094/2022, 0223/2021, 0149/2021]
+      graded: llm
+  -
+    id: langfuse-939ec3ed78
+    query: 'solicitud de información sobre número de acuerdos de ampliación de plazo por falta de medios adoptados por el Consejo de Transparencia de Andalucía desde 2024'
+    source: langfuse
+    relevant:
+      - 019edf34-5dd4-7190-9443-935f9bf5b51a
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [856/2026]
+      graded: llm
+  -
+    id: langfuse-53882cdeca
+    query: 'reclamación por silencio administrativo ante ayuntamiento solicitud de expedientes de contratación'
+    source: langfuse
+    relevant:
+      - 019d4b6f-2297-7b63-82d2-5cd7aa1f7f0e
+      - 019d4b6f-2b86-7ace-a08f-5ed64f01466a
+      - 019d4b6e-94b6-7d95-a790-4a33832f228c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [1094/2022, 1233/2023, 0011/2022]
+      graded: llm
+  -
+    id: langfuse-10d02d9caa
+    query: 'reclamación por silencio administrativo en acceso a información pública, falta de respuesta en plazo legal, denegación presunta por silencio negativo'
+    source: langfuse
+    relevant:
+      - 019edf39-589c-7f01-8381-a73713babd5e
+      - 019d5032-cefb-77ce-9908-e422b986e8d5
+      - 019d59c7-b197-74f9-9d40-b272f31a378d
+      - 019ccb30-f9ed-75b8-b5b8-8cdaf87f33e9
+      - 019d59d3-98d5-7ea6-ab29-c2150eaada39
+      - 019d5027-8632-7129-8634-ede22351ca65
+      - 019d59d5-c0e0-7448-9bc6-98b28d9176e6
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [18/2020, R169/2023, R/0064/2018, 41/2024]
+      graded: llm
+  -
+    id: langfuse-cc1dc770d3
+    query: 'denegación de acceso porque la información ya se encuentra publicada en resúmenes o de forma parcial'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9216-77d2-a0b8-38bff91af4d3
+      - 019d59c7-b4a0-7d32-83f9-1a86204bcad8
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+      - 019ccb64-53b6-759f-9184-0bf1d3603843
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1174/2024, R525/2022, 10/2020, R/0324/2018]
+      graded: llm
+  -
+    id: langfuse-f43607d5f6
+    query: 'inadmisión por protección de datos y derechos de terceros art 18.1.b LTAIBG disociación o anonimización'
+    source: langfuse
+    relevant:
+      - 019d59d3-a9aa-7e0f-a041-97c70f0a5ab1
+      - 019d4b6a-88f1-774f-97b3-1c9c8b7989bb
+      - 019d59d5-bb59-79bf-a43f-38ddfc72dc50
+      - 019d59d6-5572-7012-8523-0c4ae9412932
+      - 019d59d3-8818-7865-b558-722cb3acdad1
+      - 019d59b8-62a6-7252-acf9-a1339f040e2e
+      - 019d4b6a-dac6-7826-b15b-48859564aa79
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [512/2022, R/0121/2024, 237/2025, RA/0205/2025]
+      graded: llm
+  -
+    id: langfuse-8467ad5045
+    query: 'denegación de acceso por considerar que la información ya ha sido publicada mediante resúmenes'
+    source: langfuse
+    relevant:
+      - 019d59c7-b4a0-7d32-83f9-1a86204bcad8
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+      - 019d4b6a-9216-77d2-a0b8-38bff91af4d3
+      - 019ccb64-53b6-759f-9184-0bf1d3603843
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R525/2022, 10/2020, R/1174/2024, R/0324/2018]
+      graded: llm
+  -
+    id: langfuse-d15eb42cd1
+    query: 'inadmisión por protección de datos y derechos de terceros art 18.1.b LTAIBG cuando la información es de interés público o puede ser disociada'
+    source: langfuse
+    relevant:
+      - 019d4b6a-88f1-774f-97b3-1c9c8b7989bb
+      - 019d59d3-a931-76c1-b530-900c864ed668
+      - 019d59d5-bb59-79bf-a43f-38ddfc72dc50
+      - 019d59d6-5572-7012-8523-0c4ae9412932
+      - 019d59d3-8818-7865-b558-722cb3acdad1
+      - 019d59b8-62a6-7252-acf9-a1339f040e2e
+      - 019ccb9c-58c5-7196-b8c2-25782267aff3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0121/2024, 554/2022, 237/2025, R/0553/2017]
+      graded: llm
+  -
+    id: langfuse-f8f252fcbe
+    query: 'acceso a informes y consultas remitidas a órganos de control o electorales'
+    source: langfuse
+    relevant:
+      - 019d4b6e-c0bd-771f-90c1-28144d380d4c
+      - 019d4b6f-0090-73cb-9786-63c324e17ec0
+      - 019d4b6e-9728-71fb-9eec-1d032be980a5
+      - 019d4b6e-d303-7b40-b095-f069dc993b02
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [0392/2020, 0809/2021, 0041/2016, 0501/2016]
+      graded: llm
+  -
+    id: langfuse-6aeaf6017d
+    query: 'suficiencia de información publicada frente a acceso a documentos íntegros, control ciudadano'
+    source: langfuse
+    relevant:
+      - 019d4b6a-fde7-710c-b76a-f2cd8ff007f5
+      - 019edf39-4918-7b3a-b1db-8959803a95d1
+      - 019d502d-71ed-7d0c-b428-4660371da512
+      - 019d59d3-af21-7b82-ac91-15faab5aeddf
+      - 019d4b6a-eac4-7b87-8228-319bda5e7e17
+      - 019d4b6e-f472-793d-8706-340ed4ce37d7
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0747/2023, 74/2022, RA/0485/2024, 0728/2020]
+      graded: llm
+  -
+    id: langfuse-10001da6db
+    query: 'información de carácter auxiliar vs información determinante de decisiones, art. 18.1.b LTAIBG'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8c6b-7457-8290-e7ebadd54339
+      - 019d4b6a-9e93-7e88-9ac7-236b781836a2
+      - 019ccb7d-c511-7cb4-b011-b2f4adf54512
+      - 019d59d3-a410-711b-ae3a-d866bcaa8b5c
+      - 019d59d5-c3a3-7ae3-9f7d-7d6dac89bc83
+      - 019d502a-cacc-79b8-bb69-eb1247edb5de
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0452/2024, R/0927/2023, R/0436/2021, 29/2023]
+      graded: llm
+  -
+    id: langfuse-57c73350c2
+    query: 'acceso a informes técnicos que sirven de base a decisiones de otros órganos, relevancia de la motivación'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9346-7907-9801-5f50f4caac37
+      - 019d4b6a-9339-7e27-bfbe-32f8544ded49
+      - 019d4b6a-a6bb-7699-88b4-8a5af574a67f
+      - 019d4b6a-91fd-772b-97ee-db764198e227
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1252/2024, R/1230/2024, R/0066/2022, R/1136/2024]
+      graded: llm
+  -
+    id: langfuse-46c526e77f
+    query: 'denegación por información auxiliar art 18.1.b LTAIBG informes técnicos consulta órganos'
+    source: langfuse
+    relevant:
+      - 019d4b6a-920a-7c3f-80e9-3fd489a9acb4
+      - 019ccb35-3111-7385-ad66-3ca575ce3ad6
+      - 019ccb8a-44f1-7da0-ba09-ad9ff02fde42
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1158/2024, R/0085/2017, R/0485/2017, RA/0491/2025]
+      graded: llm
+  -
+    id: langfuse-7bbe68ea9f
+    query: 'denegación por protección de datos de terceros o seguridad pública, art. 14 LTAIBG, informes técnicos de seguridad'
+    source: langfuse
+    relevant:
+      - 019d59d3-a931-76c1-b530-900c864ed668
+      - 019d59d5-bb59-79bf-a43f-38ddfc72dc50
+      - 019d59d6-5572-7012-8523-0c4ae9412932
+      - 019d59d3-8818-7865-b558-722cb3acdad1
+      - 019d59b8-62a6-7252-acf9-a1339f040e2e
+      - 019edf39-48fe-796e-ad7e-218497f00942
+      - 019d502b-76ff-7e4a-88c9-c1c1530f9d95
+      - 019d59d3-ae48-7a9d-b3ef-86cc00b66d6e
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [554/2022, 237/2025, 147/2022]
+      graded: llm
+  -
+    id: langfuse-fbb8fb6aac
+    query: 'inadmisión por información auxiliar o de apoyo, art. 18.1.b) LTAIBG, informes técnicos remitidos a otros órganos'
+    source: langfuse
+    relevant:
+      - 019d4b6b-05cd-74f3-8c17-75b7bc617f85
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+      - 019d4b6b-05d7-7b79-8f99-f7fc4d7fe9f6
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0723/2021, RA/0549/2020, RA/0744/2021, R/0810/2020]
+      graded: llm
+  -
+    id: langfuse-883542b217
+    query: 'denegación de acceso a información que ya ha sido publicada por la Administración en su web o portal de transparencia'
+    source: langfuse
+    relevant:
+      - 019d59c7-b21c-7d07-9e71-52e6dc8c5e81
+      - 019dc6f7-c1d9-7411-9eeb-c9e531ca4b9d
+      - 019d59c7-adcc-7074-9563-2b16a19c6bc5
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: ['R158 a 408/2023', R1046/2025, R307/2024]
+      graded: llm
+  -
+    id: langfuse-2c9c7e8b6b
+    query: 'denegación de acceso a información por no uso de formulario normalizado o exceso de formalismo en la solicitud de acceso'
+    source: langfuse
+    relevant:
+      - 019d59d3-b42c-7509-876a-d8cc1e4fc311
+      - 019d59c7-c45b-73a5-b0d1-0e66e9274a47
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [528/2021, R131/2019]
+      graded: llm
+  -
+    id: langfuse-cea707f0f6
+    query: 'denegación por protección de datos art 14 o 18 LTAIBG en solicitudes de informes técnicos y administrativos'
+    source: langfuse
+    relevant:
+      - 019d4b6a-95da-7a4d-a23a-8d2bf25b9348
+      - 019d4b6a-9f2e-7adf-b96f-88a2e3c65afb
+      - 019d4b6a-910a-79f7-9353-f09c3721a800
+      - 019d4b6b-05d6-792f-9e3c-23e280da264b
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0071/2023, R/0992/2023, R/1071/2024, RA/0743/2021]
+      graded: llm
+  -
+    id: langfuse-39b5b4ce45
+    query: 'inadmisión por información de carácter auxiliar o de apoyo, art. 18.1.b LTAIBG en relación con informes remitidos a órganos de decisión'
+    source: langfuse
+    relevant:
+      - 019d4b6b-05cd-74f3-8c17-75b7bc617f85
+      - 019d59d3-90de-7d13-96c9-a7d90c88299d
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0723/2021, 586/2024, RA/0549/2020, 69/2024]
+      graded: llm
+  -
+    id: langfuse-a4df70bccd
+    query: 'inadmisión por información ya publicada o resúmenes insuficientes, art. 18.1.b LTAIBG'
+    source: langfuse
+    relevant:
+      - 019ccb42-45b0-76be-bd8b-f07c5d7be94f
+      - 019ccbc3-df8c-7354-9c35-3a5fddd37be4
+      - 019d4b6a-97cf-725f-9a4a-e2cea481641c
+      - 019ccbcb-4fc6-7f58-bff9-fc504aac09fc
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0143/2018, R/0798/2021, R/0302/2023, R/0856/2020]
+      graded: llm
+  -
+    id: langfuse-69966f9667
+    query: 'inadmisión por información de carácter auxiliar, art. 18.1.b LTAIBG, informes que fundamentan decisiones de otros órganos'
+    source: langfuse
+    relevant:
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+      - 019d59d3-b204-7e51-a3a1-a1e2977d21b7
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019d59d3-90de-7d13-96c9-a7d90c88299d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0549/2020, 731/2021, 69/2024, 586/2024]
+      graded: llm
+  -
+    id: langfuse-344f901fb4
+    query: 'derecho de acceso a documentos que sirven de base a decisiones de la Junta Electoral Central, transparencia en procesos electorales'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8dd5-7563-b23e-31abfd3f59dc
+      - 019d4b6a-8bfa-72b0-bd74-b8a94132a190
+      - 019d4b6a-8c5f-7251-b8a4-91277d3c6a46
+      - 019d4b6a-8bf6-7667-b71d-041732dd9800
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0671/2024, R/0419/2024, R/0432/2024, R/0414/2024]
+      graded: llm
+  -
+    id: langfuse-ce3b5600b9
+    query: 'inadmisión por información auxiliar o interna cuando el documento ha determinado el sentido de una resolución de un órgano constitucional o administrativo'
+    source: langfuse
+    relevant:
+      - 019ccbae-bd8a-7237-b889-c32c2571675e
+      - 019d4b6a-9d6d-7e5e-8ff7-6dc12a5b1fbe
+      - 019d59d6-2770-72db-af26-2cdcc0b36b64
+      - 019d4b6b-06b3-7d8e-aab0-73780b2c6e30
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0662/2018, R/0822/2023, RDA311/2023, RA/0848/2021]
+      graded: llm
+  -
+    id: langfuse-b179d381c9
+    query: 'denegación acceso información por alegar que la información ya está publicada en resúmenes'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9216-77d2-a0b8-38bff91af4d3
+      - 019ccb34-ac97-7ea1-996f-77c05e7dd90e
+      - 019d59d6-2b7c-7182-a022-9843b7bba940
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1174/2024, R/0083/2017, RDA089/2022, 10/2020]
+      graded: llm
+  -
+    id: langfuse-4d2971f63b
+    query: 'inadmisión por información auxiliar art 18.1.b LTAIBG informes técnicos remitidos a otros órganos'
+    source: langfuse
+    relevant:
+      - 019ccb8a-44f1-7da0-ba09-ad9ff02fde42
+      - 019d59d3-a82f-7c41-b1d9-c06501fb59f3
+      - 019ccb9a-58bc-7e72-9c47-c76bf861083c
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0485/2017, 648/2022, R/0546/2018, RA/0491/2025]
+      graded: llm
+  -
+    id: langfuse-0ee2aad085
+    query: 'inadmisión por información auxiliar o de apoyo, art. 18.1.b LTAIBG'
+    source: langfuse
+    relevant:
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+      - 019ccb9a-58bc-7e72-9c47-c76bf861083c
+      - 019ccb37-20b0-7415-a50a-5b9ac61f9c1e
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0491/2025, R/0546/2018, R/0094/2021, RA/0549/2020]
+      graded: llm
+  -
+    id: langfuse-3b85c761cf
+    query: 'inadmisión por carácter auxiliar de los documentos, art. 18.1.b LTAIBG, informes que sustentan decisiones de órganos constitucionales'
+    source: langfuse
+    relevant:
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019ccb83-0c4a-75d8-abc4-42256bebb13a
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+      - 019d4b6a-9781-7f18-aeda-318b98c85a67
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [69/2024, R/0456/2021, R/0810/2020, R/0267/2023]
+      graded: llm
+  -
+    id: langfuse-7c0bccc709
+    query: 'inaplicabilidad de la causa de información auxiliar cuando la información es determinante para la validez de actos administrativos o acuerdos de órganos superiores'
+    source: langfuse
+    relevant:
+      - 019ccba4-c692-723a-ab06-ed1bb9eafdc8
+      - 019ccb40-c2e6-761f-bab2-2c8d15235686
+      - 019d4b6a-90f8-77e4-9a36-1e84c48ec43d
+      - 019ccb90-0ee3-7c7b-8930-3e3de6d28250
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0598/2019, R/0137/2020, R/1052/2024, R/0506/2020]
+      graded: llm
+  -
+    id: langfuse-bb5c53ca98
+    query: 'denegación de acceso por alegar que la información ya ha sido publicada en resúmenes'
+    source: langfuse
+    relevant:
+      - 019d59d3-bb51-7416-bc5a-28065608aa0d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [385/2020]
+      graded: llm
+  -
+    id: langfuse-c62353e26c
+    query: 'inadmisión por carácter auxiliar de informes remitidos a la Junta Electoral Central para fundamentar acuerdos'
+    source: langfuse
+    relevant:
+      - 019ccb65-72c1-7d1d-95f8-5b2e4638cbf0
+      - 019ccb90-0ee3-7c7b-8930-3e3de6d28250
+      - 019ccba0-c21d-74ac-be28-c0c1bfe76920
+      - 019d5097-bcb6-7965-b985-fb87fc71094c
+      - 019d59d5-d2ec-7025-a329-7c46faf9d984
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0329/2017, R/0506/2020, R/0573/2019, 16/2017]
+      graded: llm
+  -
+    id: langfuse-5e397ad6b6
+    query: 'derecho de acceso a documentos técnicos que sustentan acuerdos de la Junta Electoral Central'
+    source: langfuse
+    relevant:
+      - 019d4b6a-8bf9-7662-ac41-794d771a3909
+      - 019d4b6a-8dd5-7563-b23e-31abfd3f59dc
+      - 019d4b6a-8c5f-7251-b8a4-91277d3c6a46
+      - 019d4b6a-8bf6-7667-b71d-041732dd9800
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0418/2024, R/0671/2024, R/0432/2024, R/0414/2024]
+      graded: llm
+  -
+    id: langfuse-e9df4808cd
+    query: 'inadmisión por información auxiliar, art. 18.1.b LTAIBG, informes técnicos que fundamentan decisiones de órganos constitucionales'
+    source: langfuse
+    relevant:
+      - 019d59d3-b204-7e51-a3a1-a1e2977d21b7
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019ccb9a-4587-767c-849a-72b00d91af02
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [731/2021, 69/2024, R/0545/2021, R/0810/2020]
+      graded: llm
+  -
+    id: langfuse-1345777776
+    query: 'suficiencia de resúmenes frente a la solicitud de documentos íntegros en derecho de acceso'
+    source: langfuse
+    relevant:
+      - 019d5026-311b-79e3-a3ec-e36e8da8e384
+      - 019d59d3-9804-7708-98f4-b29709290e48
+      - 019d59d6-51ee-7e39-9e78-9fa06376c6da
+      - 019d59b8-636b-73f8-b07c-83154823bb19
+      - 019d59d5-bfcd-71a9-a5b1-df8fc0abbfcb
+      - 019d4b6e-9cd9-7485-bc21-58c379528885
+      - 019d59b8-5d86-7b69-bce7-f8173698077d
+      - 019d59d5-bc25-719a-9a37-7cba015edec8
+      - 019d59d3-88d4-74d0-8efd-2c63ed2419b9
+      - 019dc989-ea9a-7c75-9ff0-4019da300747
+      - 019d4b6f-27a8-7171-8838-086d902782ae
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [129/2024, 0108/2022, 150/2025, 1154/2021]
+      graded: llm
+  -
+    id: langfuse-7299324709
+    query: 'inadmisión por carácter auxiliar de informes técnicos que fundamentan acuerdos de la JEC o autoridad electoral'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9415-7720-b042-880d1eea0494
+      - 019d4b6a-90f8-77e4-9a36-1e84c48ec43d
+      - 019d5097-bcb6-7965-b985-fb87fc71094c
+      - 019d59d5-d2ec-7025-a329-7c46faf9d984
+      - 019ccb95-44b0-79b4-b8e6-9b616d2364cd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1369/2024, R/1052/2024, 16/2017, R/0527/2016]
+      graded: llm
+  -
+    id: langfuse-b117f48339
+    query: 'denegación por información ya publicada o resúmenes insuficientes'
+    source: langfuse
+    relevant:
+      - 019d59d5-bf4d-7ab3-8c13-14915941771a
+      - 019d59d3-9744-7541-95cc-33df18676419
+      - 019d59b8-6419-7c77-889c-75cb4aaab993
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+      - 019d59d3-a658-76b4-a514-07d90d65a9ad
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [198/2024, 10/2020, 798/2022]
+      graded: llm
+  -
+    id: langfuse-b4753eaaee
+    query: 'inadmisión por información auxiliar, art. 18.1.b LTAIBG, informes técnicos que sustentan decisiones'
+    source: langfuse
+    relevant:
+      - 019d59d3-b204-7e51-a3a1-a1e2977d21b7
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019ccbcc-4a33-7139-99ed-0dfe36ee08c7
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [731/2021, 69/2024, R/0864/2020, R/0810/2020]
+      graded: llm
+  -
+    id: langfuse-3c0c1666da
+    query: 'inadmisión por información auxiliar art 18.1 b LTAIBG informes técnicos que sustentan decisiones de órganos constitucionales'
+    source: langfuse
+    relevant:
+      - 019d4b6a-90f8-77e4-9a36-1e84c48ec43d
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+      - 019d4b6a-830f-7d68-9ad2-1e37171d1d9f
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1052/2024, R/0810/2020, RA/0491/2025, R/0872/2025]
+      graded: llm
+  -
+    id: langfuse-62dc3bc66d
+    query: 'inadmisión por información auxiliar o de apoyo, art. 18.1.b LTAIBG, informes técnicos que sustentan decisiones de órganos de control o de la JEC'
+    source: langfuse
+    relevant:
+      - 019d59d3-90de-7d13-96c9-a7d90c88299d
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [586/2024, RA/0549/2020, 69/2024, R/0810/2020]
+      graded: llm
+  -
+    id: langfuse-45c1a5af8b
+    query: 'derecho de acceso a informes técnicos y consultas remitidas a otros órganos, relevancia de los informes para la toma de decisiones'
+    source: langfuse
+    relevant:
+      - 019d4b6a-91fb-72ad-be78-806c4507dbe9
+      - 019d5153-d4df-7b00-a1c1-4e185e2aae0d
+      - 019d4b6a-8c69-7460-be82-368e07a8f788
+      - 019d4b6a-91fd-772b-97ee-db764198e227
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1132/2024, 'AR 06/2024', R/0449/2024, R/1136/2024]
+      graded: llm
+  -
+    id: langfuse-7f38c9fb08
+    query: 'inadmisión por información ya publicada o resúmenes, suficiencia de la información pública'
+    source: langfuse
+    relevant:
+      - 019d4b6a-910c-7599-925b-177e14641fec
+      - 019ccbcb-4fc6-7f58-bff9-fc504aac09fc
+      - 019d59d5-bf4d-7ab3-8c13-14915941771a
+      - 019d59d3-9744-7541-95cc-33df18676419
+      - 019d59b8-6419-7c77-889c-75cb4aaab993
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1073/2024, R/0856/2020, 198/2024, 10/2020]
+      graded: llm
+  -
+    id: langfuse-a3836c6e1d
+    query: 'insuficiencia de resúmenes para satisfacer el derecho de acceso a la información pública'
+    source: langfuse
+    relevant:
+      - 019d4b6e-e155-735a-8293-64f8613b187b
+      - 019d4b6e-9a4b-71f1-b2fc-3a3c36431c46
+      - 019d4b6e-b240-7c2b-a3da-8886696fd13f
+      - 019d4b6e-cd89-767e-a892-dfce7aa64994
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [0599/2023, 0070/2024, 0291/2023, 0468/2023]
+      graded: llm
+  -
+    id: langfuse-9520e86981
+    query: 'inadmisión por información auxiliar o de apoyo, art. 18.1.b LTAIBG, documentos técnicos que fundamentan decisiones'
+    source: langfuse
+    relevant:
+      - 019d4b6b-05cd-74f3-8c17-75b7bc617f85
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019d59d3-90de-7d13-96c9-a7d90c88299d
+      - 019d4b6a-aecd-732c-b6d9-2b0be5d25c99
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0723/2021, 69/2024, 586/2024, R/0810/2020]
+      graded: llm
+  -
+    id: langfuse-3ab5d24f16
+    query: 'inadmisión por carácter auxiliar de documentos que sustentan decisiones de un órgano constitucional, art. 18.1.b LTAIBG'
+    source: langfuse
+    relevant:
+      - 019d4b6a-9781-7f18-aeda-318b98c85a67
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019d59d3-90de-7d13-96c9-a7d90c88299d
+      - 019d4b6a-9c03-761b-8411-870f1ea44289
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0267/2023, 69/2024, 586/2024, R/0696/2023]
+      graded: llm
+  -
+    id: langfuse-00adc28fe7
+    query: 'inaplicabilidad de la causa de inadmisión por información ya publicada cuando existen resúmenes pero no el documento íntegro'
+    source: langfuse
+    relevant:
+      - 019ccbd9-77eb-7401-b785-93b9c6b93602
+      - 019d4b6a-91fb-72ad-be78-806c4507dbe9
+      - 019edf39-589f-76d8-bbce-a7b10e3ee156
+      - 019d5032-cefd-7ee8-8bcc-a77603e24013
+      - 019d59d5-bf4d-7ab3-8c13-14915941771a
+      - 019d59d3-9744-7541-95cc-33df18676419
+      - 019d59b8-6419-7c77-889c-75cb4aaab993
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/1051/2021, R/1132/2024, 10/2020, 198/2024]
+      graded: llm
+  -
+    id: langfuse-7a2bd183b8
+    query: 'inadmisión por carácter auxiliar de documentos remitidos a un órgano constitucional para su decisión'
+    source: langfuse
+    relevant:
+      - 019d5097-bd20-779b-bffa-964244815dbf
+      - 019d5037-1047-75bb-821e-caaf2fbfaa6b
+      - 019d4b6b-23e0-71ca-a638-32280e141a36
+      - 019edf03-e073-7bac-a08b-f130ec8c16a3
+      - 019d4b6a-90f8-77e4-9a36-1e84c48ec43d
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [02/2018, RA/0539/2021, R311/2025, R/1052/2024]
+      graded: llm
+  -
+    id: langfuse-dc27be47ae
+    query: 'denegación de acceso por alegar que la información ya ha sido publicada en resúmenes o de forma parcial'
+    source: langfuse
+    relevant:
+      - 019d59c7-afea-79bd-86e3-9c8c7570b3db
+      - 019d59c7-b4f6-7286-a35a-36e8ead01ebe
+      - 019d59c7-b4a0-7d32-83f9-1a86204bcad8
+      - 019d4b6a-9216-77d2-a0b8-38bff91af4d3
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R15/2024, R208/2022, R525/2022, R/1174/2024]
+      graded: llm
+  -
+    id: langfuse-cd99685b4f
+    query: 'inadmisión por carácter auxiliar de documentos remitidos a órganos de control o decisión, art. 18.1.b LTAIBG'
+    source: langfuse
+    relevant:
+      - 019d59b8-6327-7e55-81fa-5c0cd978cd3d
+      - 019d5027-8631-7601-b93c-206cdd7bbcc3
+      - 019d59d3-9866-7adc-a1ac-56756f554d17
+      - 019d59d5-c06b-79a9-b318-a9e8f281e15d
+      - 019d4b6a-9781-7f18-aeda-318b98c85a67
+      - 019d4b6a-9c03-761b-8411-870f1ea44289
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [69/2024, R/0267/2023, R/0696/2023]
+      graded: llm
+  -
+    id: langfuse-8368933038
+    query: 'inadmisión por afectación a intereses de terceros, art. 14 LTAIBG'
+    source: langfuse
+    relevant:
+      - 019edf39-492c-71ae-9a34-3c198dfd7844
+      - 019d59d3-afcc-7e78-baf5-7fe54dd86e09
+      - 019d502e-171b-7b5d-9a2b-d345ef27a43e
+      - 019ccb92-cfd7-7770-8bdf-f6fd45b608c6
+      - 019ccb9d-61d8-7810-b749-f5409d052b1a
+      - 019d4b6a-93ac-7d71-869b-3f4bbe310b66
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [29/2022, R/0519/2016, R/0556/2016, R/1303/2024]
+      graded: llm
+  -
+    id: langfuse-a87e1b958c
+    query: 'suficiencia de resúmenes publicados frente a derecho de acceso a la información íntegra'
+    source: langfuse
+    relevant:
+      - 019d4b6e-e155-735a-8293-64f8613b187b
+      - 019d4b6e-ee4b-7b54-8a1e-d6c84b6c8b44
+      - 019d4b6e-b240-7c2b-a3da-8886696fd13f
+      - 019d4b6e-cd89-767e-a892-dfce7aa64994
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [0599/2023, 0689/2023, 0291/2023, 0468/2023]
+      graded: llm
+  -
+    id: langfuse-45dbd72d8b
+    query: 'inadmisión por información de carácter auxiliar o de apoyo, art. 18.1.b) LTAIBG'
+    source: langfuse
+    relevant:
+      - 019d4b6b-2434-79e7-a267-da6fa922ba44
+      - 019d4b6b-1319-732d-af40-9169e3dc4a5c
+      - 019d4b6b-05d7-7b79-8f99-f7fc4d7fe9f6
+      - 019d4b6b-05cd-74f3-8c17-75b7bc617f85
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RA/0574/2021, RA/0549/2020, RA/0744/2021, RA/0723/2021]
+      graded: llm
+  -
+    id: langfuse-2cff98ac4b
+    query: 'insuficiencia de resúmenes publicados para satisfacer el derecho de acceso a la información íntegra'
+    source: langfuse
+    relevant:
+      - 019d4b6e-ee4b-7b54-8a1e-d6c84b6c8b44
+      - 019d4b6e-e155-735a-8293-64f8613b187b
+      - 019d4b6e-b240-7c2b-a3da-8886696fd13f
+      - 019d4b6e-cd89-767e-a892-dfce7aa64994
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [0689/2023, 0599/2023, 0291/2023, 0468/2023]
+      graded: llm
+  -
+    id: langfuse-a7a06e5b4b
+    query: 'denegación por protección de datos cuando la administración no ofrece la disociación de la información solicitada'
+    source: langfuse
+    relevant:
+      - 019d59d3-9c74-72b2-97f6-5554e17184ad
+      - 019d59d6-55d0-7952-84ee-626d228abb66
+      - 019d59d5-bb58-7841-aeb4-a7296d7ca21c
+      - 019d59d3-87d2-7cde-a48c-bfd1bf78d73e
+      - 019d59d3-99c2-736a-acdb-273523a6d312
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [617/2023, 240/2025, 846/2023]
+      graded: llm
+  -
+    id: langfuse-132ac5a873
+    query: 'inaplicabilidad de la causa de información auxiliar cuando el documento motiva decisiones de órganos constitucionales o de alta relevancia pública'
+    source: langfuse
+    relevant:
+      - 019ccb9c-e247-75a8-a051-70fe67bb052a
+      - 019ccb5c-eb6a-709f-bddc-c8e4da1d845b
+      - 019ccb90-0ee3-7c7b-8930-3e3de6d28250
+      - 019ccb5e-453b-70b4-b93f-90285fc7efcd
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [R/0554/2020, R/0282/2019, R/0506/2020, R/0290/2018]
+      graded: llm
+  -
+    id: langfuse-a2fea50035
+    query: 'inadmisión por información auxiliar o interna art 18.1.b LTAIBG informes remitidos a otros órganos que motivan decisiones públicas'
+    source: langfuse
+    relevant:
+      - 019d59d6-2770-72db-af26-2cdcc0b36b64
+      - 019d4b6b-06b3-7d8e-aab0-73780b2c6e30
+      - 019d4b6b-1136-7ecf-aec9-a08537a14232
+      - 019d4b6a-df9a-72f6-b2e7-62f327fe4050
+    outcomes:
+      - favorable
+      - partial
+      - unfavorable
+      - inadmissible
+      - acuerdo_mediacion
+      - archivada
+    meta:
+      references: [RDA311/2023, RA/0848/2021, RA/0238/2022, RA/0491/2025]
+      graded: llm

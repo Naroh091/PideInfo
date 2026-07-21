@@ -36,7 +36,7 @@ final readonly class ActivitySummaryWarmer
 
         $currentFingerprint = $notifications === []
             ? null
-            : $this->summarizer->fingerprint($notifications);
+            : $this->summarizer->fingerprint($user, $notifications);
 
         // Already up-to-date with the persisted snapshot.
         if ($currentFingerprint === $user->getActivitySummaryFingerprint()) {

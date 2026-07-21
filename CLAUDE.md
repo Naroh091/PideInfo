@@ -5,6 +5,7 @@ For more insights about the project, check README.md
 If you need the architecture info, check docs/architecture.md
 The flow of information requests is outlined in docs/request-workflow.md
 The flow of complaints when the request response is not what the user expects is in docs/complaint-workflow.md
+The public no-account drafting flow (/redactar, anonymous drafts + claim) is in docs/anonymous-drafting.md
 The document processing is in docs/document-processing.md
 The inbound email pipeline is in docs/inbound-email.md
 The MCP server (HTTP transport + OAuth2) is in docs/mcp.md
@@ -12,6 +13,8 @@ The Elasticsearch-backed resolution search is in docs/search.md
 The legal framework (legalize-es corpus, `find_law`/`search_legislation`/`read_law_articles`) is in docs/legal-framework.md
 The judgment corpus (CTBG recursos, `search_judgments`, the resolution↔judgment cross) is in docs/judgments.md
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
+El A/B testing server-side (GrowthBook; sin experimentos activos — el del hero se retiró) está en docs/experiments.md
+La evaluación offline del retrieval (ground truth versionado + `app:retrieval:eval` + runs en Langfuse) está en docs/retrieval-eval.md
 
 
 # Development keys:
@@ -23,6 +26,8 @@ Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 - All resolution ingestion commands must support the same processing features (PDF extraction, metadata extraction, text cleaning) in both inline and async (`--async`) modes. The async path in `ProcessResolutionHandler` must mirror what the command does inline.
 - MCP tools (`src/Mcp/Tool/`) must always filter by `Security::getUser()` and validate ownership before returning or mutating an entity. Mutation tools must record an audit entry through the existing `StatusHistory`/`DeadlineHistory` pipelines and tag the `notes` field with `[mcp/{client_id}]` (using `OAuthTokenContext::getClientId()`) so the channel is identifiable.
 - Never instantiate Gemini/OpenAI clients directly from MCP tools — go through `App\\Service\\AI\\Llm\\LlmClient` (or services that already do, e.g. `ComplaintGenerator`).
+- Cualquier cambio en el ranking del retrieval (RRF, rerankers, boosts, chunking, embeddings) debe pasar por `app:retrieval:eval` ANTES de mergearse, comparando contra el último run en Langfuse (docs/retrieval-eval.md). El dataset canónico es `config/eval/retrieval/*.yaml` (git); Langfuse es solo espejo — nunca editar casos solo en Langfuse. El merge de `build-dataset` conserva los casos existentes por id.
+- The RAG retrievers (`ResolutionRetriever`, `CriteriaRetriever`) rank by the pgvector store's `score`, which is the raw **cosine distance** (`embedding <=> query`, `ORDER BY score ASC`): **lower = better, NOT a normalised similarity**. Any re-ranking must subtract from the distance and sort ascending (see `DoctrinePriorityBoostTrait`). EXCEPTION: with `RESOLUTION_HYBRID_RETRIEVAL=1`, `ResolutionRetriever` fuses the dense ranking with a BM25 ranking (`rankIds`) via RRF and the final order is by `rrfScore` DESC (higher = better) — the doctrine boost still runs on the dense arm, in distance units, BEFORE the fusion (docs/search.md). The garante-priority boost (`DoctrinePriorityResolver` → garante of `ApplicableLaw` + CTBG) decides priority with the authoritative `getComplaintOrganism()` relation after rehydration, **never** with the vector metadata `source` (whose codes don't map 1:1 to organism `shortName`: CTAR≠CTA, CRT≠CTCLM, CTPD≠CTPDA).
 - Any new norm added to `TrackedNorms` requires `app:legalize:sync-catalog --verify` to stay green (a wrong BOE id fails **silently**: the norm is simply never indexed), followed by `app:legalize:index --norm=<id>` and `fos:elastica:populate --index=laws`. Any new searchable property of `LegalArticle` must also be added to the `laws` mapping in `config/packages/fos_elastica.yaml`.
 - `legal_article` is written **only** by `LegalArticleIndexer`, through bulk DBAL. Never add a Doctrine index listener for it: the writes bypass the UnitOfWork and the listener would be blind. Indexing is dispatched explicitly, per norm (`IndexLegalNormMessage`).
 - The agent must never cite a legal article it has not read through `search_legislation` or `read_law_articles` in the same conversation. If you touch `TOOLS_PREAMBLE`, keep that rule intact — article numbers and deadlines change with every reform.

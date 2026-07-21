@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\AI\Agent\Tool;
 
 use App\Prompt\PromptStore;
+use App\Service\AI\Agent\AgentDoctrineContext;
 use App\Service\AI\Agent\AgentProgress;
 use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\Llm\ChatRequest;
@@ -65,6 +66,7 @@ final class SearchCriteriaTool
         private readonly LlmClient $llmClient,
         private readonly PromptStore $promptStore,
         private readonly AgentProgress $progress,
+        private readonly AgentDoctrineContext $doctrineContext,
     ) {
     }
 
@@ -78,7 +80,11 @@ final class SearchCriteriaTool
 
         $this->progress->step('Buscando criterios interpretativos del CTBG…', 'search_criteria');
 
-        $candidates = $this->criteriaRetriever->retrieveFull($argumentation, self::RETRIEVE_TOP_K);
+        $candidates = $this->criteriaRetriever->retrieveFull(
+            $argumentation,
+            self::RETRIEVE_TOP_K,
+            $this->doctrineContext->getPriorityOrganismIds(),
+        );
 
         if ($candidates === []) {
             return 'No se han encontrado criterios interpretativos relevantes para este argumento. Apóyate en las resoluciones de search_resolutions y en los principios generales de la ley aplicable.';
@@ -168,9 +174,10 @@ final class SearchCriteriaTool
                 : '';
 
             $blocks[] = trim(sprintf(
-                "### Criterio %s (%s)\n**Tema:** %s\n\n**Doctrina aplicable:** %s\n\n%s",
+                "### Criterio %s (%s)\n**Órgano emisor:** %s\n**Tema:** %s\n\n**Doctrina aplicable:** %s\n\n%s",
                 $r['canonical'] ?? '—',
                 $r['year'] ?? '—',
+                $r['complaintOrganism'] ?? 'CTBG',
                 $r['topic'] ?? '—',
                 $r['agent_argument'],
                 $keypointsBlock,
@@ -178,7 +185,7 @@ final class SearchCriteriaTool
         }
 
         return sprintf(
-            "Se han encontrado **%d criterio(s) interpretativo(s) aplicable(s)** (de %d leídos en profundidad). Cítalos con la fórmula literal «Criterio CI/<nº>/<año>», identificando siempre al CTBG como órgano emisor, SOLO si encajan con el argumento:\n\n%s",
+            "Se han encontrado **%d criterio(s) interpretativo(s) aplicable(s)** (de %d leídos en profundidad). Cítalos con la fórmula literal «Criterio CI/<nº>/<año>», identificando SIEMPRE su órgano emisor (el indicado en cada criterio), SOLO si encajan con el argumento:\n\n%s",
             count($relevant),
             $reviewed,
             implode("\n\n---\n\n", $blocks),

@@ -21,7 +21,7 @@ Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas).
 Desarrolla la fundamentación basándote en:
 - {{applicable_law_name}}
 - Las resoluciones encontradas mediante la herramienta `search_resolutions` — solo si son REALMENTE relevantes
-- Los documentos del expediente (ver abajo) — son tu fuente PRIMARIA de hechos
+- Los documentos del expediente (léelos con `read_request_documents`) — son tu fuente PRIMARIA de hechos
 
 ### FLUJO DE TRABAJO OBLIGATORIO ANTES DE REDACTAR
 
@@ -41,7 +41,7 @@ Cada fundamento debe ser un punto numerado con título temático descriptivo que
 
 Cada punto debe seguir esta estructura:
 1. **Título temático** en negrita que identifique la cuestión (ej. "Sobre la inadmisibilidad de...", "Sobre la forma de acceso a la información pública y la vulneración del artículo 22.1 de la LTAIBG", "Sobre la naturaleza electrónica de los expedientes...", "Inaplicabilidad de la causa de inadmisión por reelaboración", "Sobre la interoperabilidad y los medios electrónicos en la Administración")
-2. **Argumentación**: cita artículos de ley literalmente, refuta los argumentos concretos que la Administración haya invocado en su resolución (si los hay) punto por punto, y apoya con criterios interpretativos y resoluciones favorables cuando sean relevantes. **No te limites a frases genéricas tipo «no se han alegado límites»: si los hay, nómbralos; si no los hay, dilo y termina.**
+2. **Argumentación**: cita artículos de ley literalmente, refuta los argumentos concretos que la Administración haya invocado en su resolución (si los hay) punto por punto, y apoya con criterios interpretativos y resoluciones favorables cuando sean relevantes. **No te limites a frases genéricas tipo «no se han alegado límites»: si los hay, nómbralos; si no los hay, dilo y termina.** **Al citar cualquier resolución, criterio interpretativo o sentencia, identifica SIEMPRE a continuación el órgano que la dictó** (p. ej. «la Resolución R/0123/2023 del Consejo de Transparencia y Buen Gobierno», «el Criterio Interpretativo CI/004/2015 del CTBG» o «la sentencia 3826/2025 del Tribunal Supremo»); el órgano emisor aparece en el resultado de la herramienta, no lo inventes.
 
 Ejemplos de títulos temáticos correctos:
 - "Sobre la inadmisibilidad de [causa invocada por la Administración]"
@@ -111,7 +111,7 @@ Redacta la petición formal al {{transparency_council}} solicitando que estime l
 
 ## DOCUMENTOS DEL EXPEDIENTE
 
-A continuación se incluyen los documentos adjuntos al expediente. Úsalos como fuente PRIMARIA de hechos:
+Los documentos adjuntos al expediente se leen con la herramienta `read_request_documents`. Úsalos como fuente PRIMARIA de hechos:
 - La resolución/denegación contiene los argumentos de la Administración que debes refutar.
 - Los acuses de recibo y inicio de tramitación contienen fechas clave.
 - Las alegaciones de la administración son los argumentos que debes rebatir.
