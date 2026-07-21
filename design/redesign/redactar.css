@@ -152,7 +152,7 @@ body {
 .rd-hoja-state { font: 400 .68rem/1 var(--f-mono); color: var(--exito); }
 .rd-hoja-cta { display: flex; flex-wrap: wrap; gap: .5rem; }
 
-/* Fuentes citadas: píldoras enlazadas bajo la hoja. Resolución → ficha interna
+/* Fuentes utilizadas: píldoras enlazadas bajo la hoja. Resolución → ficha interna
    de PideInfo (tinte sky); criterio/sentencia → documento original (externo,
    con glifo de enlace externo). El enlace lo resuelve el servidor. */
 .rd-fuentes {

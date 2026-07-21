@@ -55,6 +55,13 @@
 
 {% block title %}{{ pageTitle }}{% endblock %}
 
+{# Turbo Drive intercambia el <body> sin recarga y Alpine (CDN, se inicializa una
+   sola vez) no se reinicia en los renders de Turbo: al llegar aquí por navegación
+   interna, el efecto x-show del modal `agentPresent` queda muerto y "Presentar
+   (auto/supervisado)" no abre el popup aunque la tarea se encole. Forzamos carga
+   completa al entrar. Ver docs/complaint-workflow.md → "Modal de progreso unificado". #}
+{% block meta %}<meta name="turbo-visit-control" content="reload">{% endblock %}
+
 
 {% block content %}
 <div data-controller="assistant-chat"

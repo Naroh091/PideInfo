@@ -150,6 +150,8 @@ Cerrar el modal **no cancela** la tarea en el backend; una nota informativa indi
 
 El antiguo controlador Stimulus `assets/controllers/agent_present_controller.js` (pastilla de estado + panel de reserva en la página de detalle) ha sido **retirado**; toda la presentación vía agente pasa ahora por este modal compartido.
 
+> **Caveat Turbo + Alpine.** El modal es un componente Alpine (store `agentPresent` en `layouts/app.html.twig`), y Alpine se carga una sola vez por CDN. `@symfony/ux-turbo` (`turbo-core`) está activado, así que la navegación interna intercambia el `<body>` por el lado del cliente **sin recargar**, y Alpine **no se reinicializa** en los renders de Turbo. Consecuencia: al llegar a una página con el modal por navegación interna, el efecto reactivo `x-show` del modal queda **muerto** — `store.open()` corre y la tarea se encola, pero el popup nunca aparece (`display:none` permanente). El fix aplicado es forzar carga completa en las plantillas que hospedan el modal (`asistente/conversacion.html.twig`, `solicitudes/show.html.twig`, `complaint/redactar.html.twig`) con `{% block meta %}<meta name="turbo-visit-control" content="reload">{% endblock %}`. Cualquier plantilla nueva que incluya `_partials/_agent_present_modal.html.twig` (o que dependa de reactividad Alpine tras navegación interna) necesita el mismo meta.
+
 ### 2. Confirmación del acuse de recibo
 
 El consejo de transparencia acusa recibo de la reclamación.

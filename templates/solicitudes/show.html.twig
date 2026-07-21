@@ -4,6 +4,11 @@
 
 {% block title %}{{ request.title }} - PideInfo{% endblock %}
 
+{# Forzar carga completa: Turbo Drive + Alpine dejan muerto el efecto x-show del
+   modal `agentPresent` (Presentar con el agente) al llegar por navegación interna.
+   Ver docs/complaint-workflow.md → "Modal de progreso unificado". #}
+{% block meta %}<meta name="turbo-visit-control" content="reload">{% endblock %}
+
 {% block stylesheets %}
     {{ parent() }}
     <style>

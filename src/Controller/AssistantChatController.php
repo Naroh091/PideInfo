@@ -163,7 +163,7 @@ final class AssistantChatController extends AbstractController
                 }
 
                 $normalized = $this->applyRequestDraft($accessRequest, $draft);
-                // Fuentes citadas (ya resueltas con enlace) para re-pintar las pills al recargar.
+                // Fuentes utilizadas (ya resueltas con enlace) para re-pintar las pills al recargar.
                 $accessRequest->setMetadataValue('cited_sources', $sources);
                 $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
                 $this->entityManager->flush();

@@ -3613,7 +3613,7 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 .paper-sheet.is-frozen .draft-title-input,
 .paper-sheet.is-frozen .draft-body-input { background: #f8fafc; color: rgb(71 85 105); cursor: default; }
 
-/* «Fuentes citadas» dentro de la hoja, bajo el separador. Resolución → ficha
+/* «Fuentes utilizadas» dentro de la hoja, bajo el separador. Resolución → ficha
    interna de PideInfo (tinte sky); criterio/sentencia → documento externo (↗).
    El enlace lo resuelve el servidor (CitationLinkResolver). */
 .draft-sources {

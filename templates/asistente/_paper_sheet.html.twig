@@ -65,7 +65,7 @@
             {% endif %}
 
             <div class="draft-sources" data-paper-sheet-target="sources"{{ (prefill and draftSources|default([])|length) ? '' : ' hidden' }}>
-                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes utilizadas</span>
                 <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills">
                     {% if prefill %}{% for s in draftSources|default([]) %}
                         {% set internal = (s.type|default('')) == 'resolution' %}
@@ -145,7 +145,7 @@
                       placeholder="El documento que generes aparecerá aquí. Puedes editarlo antes de descargarlo o guardarlo."></textarea>
 
             <div class="draft-sources" data-paper-sheet-target="sources" hidden>
-                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes utilizadas</span>
                 <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills"></div>
             </div>
 
@@ -207,7 +207,7 @@
                       placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o pídesela al asistente en el chat…{% else %}Escribe la reclamación, o pídesela al asistente en el chat…{% endif %}"></textarea>
 
             <div class="draft-sources" data-paper-sheet-target="sources"{{ (prefill and draftSources|default([])|length) ? '' : ' hidden' }}>
-                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes citadas</span>
+                <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes utilizadas</span>
                 <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills">
                     {% if prefill %}{% for s in draftSources|default([]) %}
                         {% set internal = (s.type|default('')) == 'resolution' %}

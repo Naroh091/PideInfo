@@ -217,7 +217,7 @@ export default class extends Controller {
     }
 
     /**
-     * Render the «Fuentes citadas» pills inside this sheet. `sources` are the
+     * Render the «Fuentes utilizadas» pills inside this sheet. `sources` are the
      * server-resolved citations ({type, reference, label, url}); resolution →
      * ficha interna (sin glifo externo), criterio/sentencia → documento externo.
      *

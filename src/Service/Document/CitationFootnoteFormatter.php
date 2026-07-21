@@ -7,7 +7,7 @@ namespace App\Service\Document;
 /**
  * Turns the citations stored in `AccessRequest.metadata['cited_sources']` into
  * numbered footnotes for the generated PDFs: a superscript marker (¹, ²…) placed
- * in the body right after the reference is mentioned, plus a "Fuentes citadas"
+ * in the body right after the reference is mentioned, plus a "Fuentes utilizadas"
  * list rendered at the end of the document with the resolvable link.
  *
  * Two entry points share the same numbering/notes logic:
@@ -17,7 +17,7 @@ namespace App\Service\Document;
  * dompdf cannot anchor a footnote to the physical page where its marker lands
  * (it has no CSS `float: footnote`), so the notes collect at the end of the
  * content flow; for a one-page document — the common case — that reads as
- * page footnotes. See docs/request-workflow.md (sección «Fuentes citadas»).
+ * page footnotes. See docs/request-workflow.md (sección «Fuentes utilizadas»).
  */
 final class CitationFootnoteFormatter
 {

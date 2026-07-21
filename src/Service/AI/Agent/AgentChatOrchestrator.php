@@ -99,7 +99,7 @@ class AgentChatOrchestrator
                     ],
                     'sources'   => [
                         'type'        => ['array', 'null'],
-                        'description' => 'Fuentes citadas en el borrador: SOLO las resoluciones, criterios interpretativos o sentencias que hayas leído con las tools (search_resolutions / search_criteria / search_judgments) en ESTA conversación y que EFECTIVAMENTE cites en el texto. Vacío/null si no citas ninguna. NUNCA inventes referencias.',
+                        'description' => 'Fuentes utilizadas en el borrador: SOLO las resoluciones, criterios interpretativos o sentencias que hayas leído con las tools (search_resolutions / search_criteria / search_judgments) en ESTA conversación y que EFECTIVAMENTE cites en el texto. Vacío/null si no citas ninguna. NUNCA inventes referencias.',
                         'items'       => [
                             'type'       => 'object',
                             'properties' => [
@@ -703,7 +703,7 @@ TXT;
             return;
         }
 
-        // Fuentes citadas declaradas por el modelo. Resolvemos el enlace en
+        // Fuentes utilizadas declaradas por el modelo. Resolvemos el enlace en
         // SERVIDOR a partir de la referencia (ficha interna para resoluciones;
         // documento original para criterios/sentencias) en vez de fiarnos de una
         // URL inventada por el modelo. `sources` no es un campo de la hoja.
