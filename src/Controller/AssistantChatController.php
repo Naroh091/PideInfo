@@ -354,6 +354,11 @@ final class AssistantChatController extends AbstractController
             traceName: $traceName,
             hasDraft: trim(strip_tags($currentBodyHtml)) !== '',
             priorityOrganismIds: $this->doctrinePriority->priorityOrganismIdsFor($accessRequest),
+            // edit_request solo en el turno de consulta puro (no en el hand-off a
+            // reclamación) y solo mientras la solicitud sigue en borrador.
+            editableRequestId: $flow === 'consult' && $accessRequest->getStatus() === AccessRequest::STATUS_PENDING
+                ? $accessRequest->getId()->toRfc4122()
+                : null,
         );
 
         return $this->streamTurn(

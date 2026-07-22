@@ -47,6 +47,15 @@ final readonly class AssistantChatRequest
          * @var list<string>
          */
         public array $priorityOrganismIds = [],
+        /**
+         * UUID (RFC 4122) of the request the model may edit this turn via the
+         * `edit_request` tool, or null when editing is not available. Set by
+         * the controller ONLY on consult turns over a request still in draft
+         * (STATUS_PENDING); the orchestrator publishes it to the per-turn
+         * {@see \App\Service\AI\Agent\AgentRequestContext}, whose value is the
+         * hard UUID gate the tool checks before writing anything.
+         */
+        public ?string $editableRequestId = null,
     ) {
     }
 }

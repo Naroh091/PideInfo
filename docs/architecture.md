@@ -230,6 +230,7 @@ El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un mode
 | `SearchResolutionsTool` | RAG de dos etapas: screening por keypoints + revisión de texto completo |
 | `SearchResolutionsFilteredTool` | Búsqueda estructurada por filtros exactos vía Elasticsearch (`ResolutionFilteredLookup`); totales y desglose por resultado. Complementa a la semántica, no la sustituye |
 | `ReadRequestDocumentsTool` | Lee documentos de la solicitud con sub-llamada LLM por documento |
+| `EditRequestDraftTool` | Edita título/cuerpo del borrador de la solicitud de la conversación (solo chat de consulta + `STATUS_PENDING`; gate duro por UUID vía `AgentRequestContext`) |
 | `GetUserPreferencesTool` | Devuelve las preferencias de redacción del usuario |
 | `SaveUserPreferenceTool` | Persiste una preferencia de estilo generalizable aprendida del usuario |
 | `AgentProgress` | Buffer compartido de pasos de progreso emitidos por las herramientas |
@@ -276,6 +277,32 @@ ayuntamiento gallego, con doctrina de la Comisión de Transparencia de Galicia (
 ![ReadRequestDocumentsTool: análisis por documento](diagrams/png/document-processing-agent.drawio.png)
 
 *Fuente editable: [`diagrams/document-processing-agent.drawio`](diagrams/document-processing-agent.drawio)*
+
+### Herramienta EditRequestDraftTool — edición del borrador desde el chat de consulta
+
+`edit_request` permite al agente aplicar directamente cambios de **título y cuerpo** sobre la
+solicitud de la conversación, sin salir del chat. Es una tool de **escritura**, así que su
+exposición y su ejecución están dobladas de gates:
+
+- **Exposición** (`AgentChatOrchestrator::toolDefinitionsFor()`): solo se ofrece al modelo —
+  definición **y** sección del preámbulo — cuando el turno es del **flujo `consult`** (la ficha
+  de la solicitud; no el hand-off a reclamación ni el canvas `/redactar`, que ya edita vía
+  `decision → applyDraft`), la solicitud sigue en **`STATUS_PENDING`** y hay usuario
+  autenticado. Lo decide `AssistantChatController::consult()` vía
+  `AssistantChatRequest::$editableRequestId` (null = no editable).
+- **Gate duro por UUID**: el orquestador publica ese id en **`AgentRequestContext`** (singleton
+  por turno, espejo de `AgentDoctrineContext`, reseteado al inicio de cada `stream()`). La tool
+  **rechaza** cualquier `requestId` que no coincida exactamente — rechazo ruidoso, no corrección
+  silenciosa: en una tool de escritura un UUID distinto delata a un modelo confundido.
+- **Defensa en profundidad en ejecución**: la tool revalida propiedad (`Security::getUser()` ===
+  dueño) y estado (`STATUS_PENDING` en el momento de ejecutar, no solo al exponerla). Además, si
+  no se ofreció, su nombre no está en `validToolNames` y una llamada alucinada se reconduce sin
+  ejecutarse.
+- **Escritura por la vía única**: los campos llegan mergeados con los valores actuales (campo
+  vacío = conservar) a `RequestDraftGenerator::applyDraft()` — mismos topes por canal, HTML→texto
+  plano y sincronización `expone`/`solicita` ↔ `description` (REG) que el canvas de `/redactar`.
+- Emite el paso de progreso **"Editando el borrador de la solicitud…"**; la ficha muestra el
+  texto nuevo al recargar (el chat de consulta es un FAB sobre la página, sin refresco en vivo).
 
 ### Protocolo SSE completo
 

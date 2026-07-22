@@ -34,7 +34,7 @@ class AgentChatOrchestratorToolsetTest extends TestCase
     {
         return array_map(
             static fn (string $name) => ['type' => 'function', 'function' => ['name' => $name, 'description' => '', 'parameters' => []]],
-            ['search_resolutions', 'read_request_documents', 'web_search', 'visit_url', 'scrape_url', 'find_law'],
+            ['search_resolutions', 'read_request_documents', 'web_search', 'visit_url', 'scrape_url', 'find_law', 'edit_request'],
         );
     }
 
@@ -42,7 +42,7 @@ class AgentChatOrchestratorToolsetTest extends TestCase
     {
         $o = $this->orchestratorWithToolDefs($this->sampleDefs());
 
-        $names = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', true));
+        $names = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', true, false));
 
         $this->assertNotContains('web_search', $names);
         $this->assertNotContains('visit_url', $names);
@@ -55,19 +55,33 @@ class AgentChatOrchestratorToolsetTest extends TestCase
     {
         $o = $this->orchestratorWithToolDefs($this->sampleDefs());
 
-        $names = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', false));
+        $names = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', false, false));
 
         $this->assertContains('web_search', $names);
         $this->assertContains('visit_url', $names);
         $this->assertContains('scrape_url', $names);
     }
 
+    public function testEditToolWithheldUnlessTurnAllowsIt(): void
+    {
+        $o = $this->orchestratorWithToolDefs($this->sampleDefs());
+
+        $without = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', false, false));
+        $with = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', false, true));
+        // Un turno anónimo nunca la recibe, aunque el flag llegara encendido.
+        $anon = array_map(static fn ($d) => $d['function']['name'], $this->call($o, 'toolDefinitionsFor', true, true));
+
+        $this->assertNotContains('edit_request', $without);
+        $this->assertContains('edit_request', $with);
+        $this->assertNotContains('edit_request', $anon);
+    }
+
     public function testAnonymousPreambleOmitsEgressSection(): void
     {
         $o = $this->orchestratorWithToolDefs([]);
 
-        $anon = $this->call($o, 'toolsPreamble', true);
-        $auth = $this->call($o, 'toolsPreamble', false);
+        $anon = $this->call($o, 'toolsPreamble', true, false);
+        $auth = $this->call($o, 'toolsPreamble', false, false);
 
         // The egress sections describe these tools; anonymous must not mention them.
         $this->assertStringNotContainsString('### web_search', $anon);

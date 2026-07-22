@@ -8,6 +8,7 @@ use App\DTO\ChatMessage;
 use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
 use App\Service\AI\Agent\AgentProgress;
+use App\Service\AI\Agent\Tool\EditRequestDraftTool;
 use App\Service\AI\Agent\Tool\FindLawTool;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
 use App\Service\AI\Agent\Tool\ReadLawArticlesTool;
@@ -309,12 +310,40 @@ Reglas:
 TXT;
 
     /**
+     * Description of `edit_request`, appended to {@see TOOLS_PREAMBLE} only on
+     * turns where the tool is actually offered (consult flow over a request
+     * still in draft, authenticated owner — see {@see EDIT_REQUEST_TOOL}).
+     * Telling the model about it on any other turn would only invite calls
+     * that the gate refuses.
+     */
+    private const EDIT_TOOL_PREAMBLE = <<<'TXT'
+### edit_request
+Edita el borrador de ESTA solicitud (título y/o cuerpo) directamente en el expediente. Solo funciona mientras la solicitud sigue en borrador, y solo sobre la solicitud de esta conversación: pasa su ID exacto en `requestId` (el «ID de la solicitud» del contexto); cualquier otro se rechaza.
+
+**CÓMO USARLA:**
+- Cuando el usuario pida cambiar el título o el texto de la solicitud («cámbiale el título», «reescribe el cuerpo para pedir también X»), APLICA el cambio con esta herramienta en lugar de limitarte a proponerlo en el chat.
+- Envía solo los campos que cambian; los vacíos conservan su valor actual.
+- Si la solicitud va por registro (REG), el cuerpo son los campos `expone` y `solicita`; si va por portal o email, el campo `body`.
+- Tras editar, confirma al usuario el cambio aplicado e indícale que recargue la ficha para ver el texto actualizado.
+- NO la uses para reclamaciones ni otros escritos: solo edita el borrador de la solicitud.
+
+TXT;
+
+    /**
      * Web-egress tools withheld from anonymous drafters: they let the model fetch
      * an arbitrary URL, which is an SSRF/exfiltration surface with no accountable
      * user behind it. The drafting flow doesn't need them (they belong to the
      * registered research agent). Names match the `#[AsTool(name: …)]` declarations.
      */
     private const EGRESS_TOOLS = ['web_search', 'visit_url', 'scrape_url'];
+
+    /**
+     * Write tool offered ONLY on consult turns over a request still in draft
+     * (STATUS_PENDING) with an authenticated owner. The controller decides via
+     * {@see AssistantChatRequest::$editableRequestId}; the tool re-validates
+     * everything (UUID gate, ownership, status) at execution time.
+     */
+    private const EDIT_REQUEST_TOOL = 'edit_request';
 
     private readonly Toolbox $toolbox;
     /** @var list<array{type: string, function: array<string, mixed>}> */
@@ -335,8 +364,10 @@ TXT;
         private readonly SearchLegislationTool $searchLegislationTool,
         private readonly ReadLawArticlesTool $readLawArticlesTool,
         private readonly SearchJudgmentsTool $searchJudgmentsTool,
+        private readonly EditRequestDraftTool $editRequestTool,
         private readonly AgentProgress $agentProgress,
         private readonly AgentDoctrineContext $doctrineContext,
+        private readonly AgentRequestContext $requestContext,
         private readonly Tracer $tracer,
         private readonly Security $security,
         private readonly LoggerInterface $logger,
@@ -346,7 +377,7 @@ TXT;
             $searchTool, $filteredSearchTool, $criteriaTool, $docTool, $prefsTool, $savePrefTool,
             $webSearchTool, $visitUrlTool, $scrapeUrlTool,
             $findLawTool, $searchLegislationTool, $readLawArticlesTool,
-            $searchJudgmentsTool,
+            $searchJudgmentsTool, $editRequestTool,
         ];
         $this->toolbox = new Toolbox($toolInstances);
         $this->toolDefinitions = $this->buildToolDefinitions($toolInstances);
@@ -411,13 +442,24 @@ TXT;
         // the web-egress tools are withheld both from the model's tool list and from
         // its preamble (see EGRESS_TOOLS / toolsPreamble).
         $anonymous = $userId === null;
-        $toolDefinitions = $this->toolDefinitionsFor($anonymous);
+
+        // edit_request: only offered when the controller marked this turn's
+        // request as editable AND there is an accountable user behind the turn.
+        // The per-turn context is what the tool's hard UUID gate checks — reset
+        // first so a previous turn's editable id can never leak into this one.
+        $this->requestContext->reset();
+        $canEditRequest = !$anonymous && $req->editableRequestId !== null;
+        if ($canEditRequest) {
+            $this->requestContext->setEditableRequestId($req->editableRequestId);
+        }
+
+        $toolDefinitions = $this->toolDefinitionsFor($anonymous, $canEditRequest);
         $validToolNames = array_values(array_filter(array_map(
             static fn (array $d): ?string => $d['function']['name'] ?? null,
             $toolDefinitions,
         )));
 
-        $messages = $this->buildMessages($req, $anonymous);
+        $messages = $this->buildMessages($req, $anonymous, $canEditRequest);
         $converter = new ToolResultConverter();
 
         // Link every generation to the Langfuse-managed system prompt it runs on
@@ -837,35 +879,51 @@ TXT;
      *
      * @return list<array<string, mixed>>
      */
-    /** Assembles the tools preamble, including the egress-tool section only for authenticated turns. */
-    private function toolsPreamble(bool $anonymous): string
+    /**
+     * Assembles the tools preamble: the egress-tool section only for
+     * authenticated turns, the edit_request section only when the tool is
+     * offered this turn.
+     */
+    private function toolsPreamble(bool $anonymous, bool $canEditRequest): string
     {
-        return $anonymous
-            ? self::TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE
-            : self::TOOLS_PREAMBLE . self::EGRESS_TOOLS_PREAMBLE . self::TOOLS_PROTOCOL_PREAMBLE;
+        $preamble = self::TOOLS_PREAMBLE;
+        if (!$anonymous) {
+            $preamble .= self::EGRESS_TOOLS_PREAMBLE;
+        }
+        if ($canEditRequest) {
+            $preamble .= self::EDIT_TOOL_PREAMBLE;
+        }
+
+        return $preamble . self::TOOLS_PROTOCOL_PREAMBLE;
     }
 
     /**
      * Tool definitions offered to the model this turn. Anonymous drafters never
-     * see the web-egress tools (see {@see EGRESS_TOOLS}).
+     * see the web-egress tools (see {@see EGRESS_TOOLS}); edit_request is only
+     * offered when this turn's request is editable (see {@see EDIT_REQUEST_TOOL}).
      *
      * @return list<array{type: string, function: array<string, mixed>}>
      */
-    private function toolDefinitionsFor(bool $anonymous): array
+    private function toolDefinitionsFor(bool $anonymous, bool $canEditRequest): array
     {
-        if (!$anonymous) {
+        $withheld = $canEditRequest && !$anonymous ? [] : [self::EDIT_REQUEST_TOOL];
+        if ($anonymous) {
+            $withheld = [...$withheld, ...self::EGRESS_TOOLS];
+        }
+
+        if ($withheld === []) {
             return $this->toolDefinitions;
         }
 
         return array_values(array_filter(
             $this->toolDefinitions,
-            static fn (array $def): bool => !in_array($def['function']['name'] ?? '', self::EGRESS_TOOLS, true),
+            static fn (array $def): bool => !in_array($def['function']['name'] ?? '', $withheld, true),
         ));
     }
 
-    private function buildMessages(AssistantChatRequest $req, bool $anonymous): array
+    private function buildMessages(AssistantChatRequest $req, bool $anonymous, bool $canEditRequest): array
     {
-        $systemPrompt = $req->systemPrompt . $this->toolsPreamble($anonymous) . self::LEARNING_PREAMBLE;
+        $systemPrompt = $req->systemPrompt . $this->toolsPreamble($anonymous, $canEditRequest) . self::LEARNING_PREAMBLE;
 
         // Inject the entity ID so the model can pass it to read_request_documents.
         if ($req->entityId !== '') {
@@ -946,6 +1004,7 @@ TXT;
             'search_resolutions'     => 'Buscando resoluciones aplicables…',
             'search_criteria'        => 'Buscando criterios interpretativos…',
             'read_request_documents' => 'Leyendo documentación de la solicitud…',
+            'edit_request'           => 'Editando el borrador de la solicitud…',
             'get_user_preferences'   => 'Cargando preferencias de redacción…',
             'save_user_preference'   => 'Aprendiendo preferencia…',
             'web_search'             => 'Buscando en internet…',
