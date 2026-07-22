@@ -15,6 +15,7 @@ The judgment corpus (CTBG recursos, `search_judgments`, the resolution↔judgmen
 Caveats no obvios del flujo OAuth/MCP están en docs/mcp_caveats.md
 El A/B testing server-side (GrowthBook; sin experimentos activos — el del hero se retiró) está en docs/experiments.md
 La evaluación offline del retrieval (ground truth versionado + `app:retrieval:eval` + runs en Langfuse) está en docs/retrieval-eval.md
+La mesa de resoluciones (/mesa-resoluciones, herramienta interna para el CTBG con puerta por contraseña `MESA_PASSWORDS`) está en docs/mesa-resoluciones.md
 
 
 # Development keys:

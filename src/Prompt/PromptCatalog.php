@@ -46,6 +46,9 @@ final class PromptCatalog
             // Retrieval evaluation harness (docs/retrieval-eval.md)
             ['name' => 'pideinfo-eval-synthetic-queries', 'commitMessage' => 'Eval: synthetic known-item queries for the retrieval ground-truth dataset'],
             ['name' => 'pideinfo-eval-chunk-contexts', 'commitMessage' => 'Eval: per-chunk situating context for the contextual-retrieval pilot'],
+            // Mesa de resoluciones (/mesa-resoluciones): cribado batch de candidatas + respuesta doctrinal con citas
+            ['name' => 'pideinfo-mesa-cribado', 'commitMessage' => 'Mesa: batch relevance screen over 40 candidates (keeps contrary doctrine)'],
+            ['name' => 'pideinfo-mesa-respuesta', 'commitMessage' => 'Mesa: reasoned answer with citations over retrieved resolutions'],
             // Anonymous generation guardrails: moderation of the visitor message (in) and the generated draft (out)
             ['name' => 'pideinfo-moderation-input', 'commitMessage' => 'Anon moderation: screen the visitor message before drafting'],
             ['name' => 'pideinfo-moderation-output', 'commitMessage' => 'Anon moderation: screen the generated draft before delivery'],

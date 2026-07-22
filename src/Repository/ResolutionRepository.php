@@ -653,6 +653,28 @@ class ResolutionRepository extends ServiceEntityRepository
     }
 
     /**
+     * Totales por año para el histograma de la mesa de resoluciones, del corpus
+     * completo o del consejo indicado (UUID RFC 4122).
+     *
+     * @return list<array{year: int, total: int}>
+     */
+    public function getYearlyCountsByOrganism(?string $organismId = null): array
+    {
+        $conn = $this->getEntityManager()->getConnection();
+
+        return $conn->fetchAllAssociative(
+            'SELECT EXTRACT(YEAR FROM r.resolution_date)::int AS year,
+                    COUNT(*)::int AS total
+             FROM resolution r
+             WHERE r.resolution_date IS NOT NULL'
+            . ($organismId !== null ? ' AND r.complaint_organism_id = :organism' : '')
+            . ' GROUP BY year
+             ORDER BY year ASC',
+            $organismId !== null ? ['organism' => $organismId] : []
+        );
+    }
+
+    /**
      * @return array<array{keyword: string, count: int}>
      */
     public function getTopKeywords(string $publicBodyName, int $limit = 10): array

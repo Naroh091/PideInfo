@@ -1,0 +1,643 @@
+{# Mesa de resoluciones — herramienta interna para el CTBG. Página standalone
+   a propósito: no extiende base.html.twig porque tiene identidad visual propia
+   (maqueta en design/mesa-ctbg/, CSS en assets/mesa/mesa.css). #}
+{% macro hiddens(qs, except) %}
+    {%- for k, v in qs -%}
+        {%- if k not in except -%}<input type="hidden" name="{{ k }}" value="{{ v }}">{%- endif -%}
+    {%- endfor -%}
+{% endmacro %}
+{% import _self as ui %}
+
+{# Parámetros vivos de la URL, sin vacíos: la base de todos los enlaces. #}
+{% set qs = {} %}
+{% for k, v in filters %}{% if v is not empty %}{% set qs = qs|merge({(k): v}) %}{% endif %}{% endfor %}
+{% if corpus == 'todos' %}{% set qs = qs|merge({corpus: 'todos'}) %}{% endif %}
+{% if modo == 'preguntar' %}{% set qs = qs|merge({modo: 'preguntar'}) %}{% endif %}
+
+{% set pillClass = {
+    favorable: 'pill--estimada',
+    partial: 'pill--parcial',
+    acuerdo_mediacion: 'pill--estimada',
+    unfavorable: 'pill--desestimada',
+} %}
+{% set dotClass = {
+    favorable: 'punto--estimada',
+    partial: 'punto--parcial',
+    acuerdo_mediacion: 'punto--estimada',
+    unfavorable: 'punto--desestimada',
+} %}
+{% set judClass = {
+    confirmada_firme: 'judicial--confirmada',
+    anulada_firme_pro_acceso: 'judicial--anulada',
+    anulada_firme_contra_acceso: 'judicial--anulada',
+    anulada_parcial_firme: 'judicial--anulada',
+    recurrida_pendiente: 'judicial--pendiente',
+    retrotraida_firme: 'judicial--pendiente',
+} %}
+{% set annulledCodes = ['anulada_firme_pro_acceso', 'anulada_firme_contra_acceso', 'anulada_parcial_firme'] %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Mesa de resoluciones — CTBG</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('mesa/mesa.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<header class="barra">
+    <a href="{{ path('app_mesa_index') }}" class="barra-marca">
+        <span class="barra-sello">MESA</span>
+        <span class="barra-nombre">Mesa de resoluciones</span>
+    </a>
+    <span class="barra-ambito">Consejo de Transparencia y Buen Gobierno</span>
+    <div class="barra-der">
+        <span class="barra-corpus"><b>{{ corpusTotals.ctbg|number_format(0, ',', '.') }}</b> resoluciones propias · <b>{{ corpusTotals.todos|number_format(0, ',', '.') }}</b> con todos los consejos</span>
+        <span class="barra-propuesta">Propuesta · PideInfo</span>
+        <form method="post" action="{{ path('app_mesa_salir') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('mesa_salir') }}">
+            <button class="btn" type="submit" title="Cerrar la sesión de la mesa"><i data-lucide="log-out"></i> Salir</button>
+        </form>
+    </div>
+</header>
+
+<section class="consulta">
+    <div class="consulta-int">
+        <div class="consulta-fila">
+            <div class="modo" role="tablist" aria-label="Modo de consulta">
+                <a class="modo-btn {{ modo == 'buscar' ? 'activo' }}" role="tab" aria-selected="{{ modo == 'buscar' ? 'true' : 'false' }}"
+                   href="{{ path('app_mesa_index', qs|merge({modo: ''})|filter(v => v is not empty)) }}"><i data-lucide="search"></i> Buscar</a>
+                <a class="modo-btn {{ modo == 'preguntar' ? 'activo' }}" role="tab" aria-selected="{{ modo == 'preguntar' ? 'true' : 'false' }}"
+                   href="{{ path('app_mesa_index', qs|merge({modo: 'preguntar'})) }}"><i data-lucide="message-circle-question"></i> Preguntar</a>
+            </div>
+            <form id="consulta-form" class="buscador" method="get" action="{{ path('app_mesa_index') }}">
+                <i data-lucide="{{ modo == 'preguntar' ? 'message-circle-question' : 'search' }}"></i>
+                {% if modo == 'preguntar' %}
+                    <input id="consulta-input" type="text" name="search" value=""
+                           placeholder="Haz una pregunta doctrinal: ¿puede denegarse X invocando Y?"
+                           aria-label="Pregunta en lenguaje natural" autocomplete="off">
+                {% else %}
+                    <input id="consulta-input" class="buscador-texto" type="text" name="search" value="{{ filters.search }}"
+                           placeholder="Busca en el texto completo: contratos menores, retribuciones, agenda…"
+                           aria-label="Búsqueda de texto">
+                {% endif %}
+                {{ ui.hiddens(qs, ['search', 'tipo', 'page', 'sort']) }}
+                <button class="buscador-btn" type="submit">{{ modo == 'preguntar' ? 'Preguntar' : 'Buscar' }} <i data-lucide="corner-down-left"></i></button>
+                {% if modo == 'buscar' %}
+                    <input type="hidden" name="tipo" id="tipo-hidden" value="{{ tipo }}">
+                {% endif %}
+            </form>
+        </div>
+        <div class="consulta-pie">
+            <div class="ambito-corpus" aria-label="Corpus consultado">
+                <span>Corpus:</span>
+                <a class="ambito-chip {{ corpus == 'ctbg' ? 'activo' }}" href="{{ path('app_mesa_index', qs|merge({corpus: ''})|filter(v => v is not empty)) }}">Solo CTBG · {{ corpusTotals.ctbg|number_format(0, ',', '.') }}</a>
+                <a class="ambito-chip {{ corpus == 'todos' ? 'activo' }}" href="{{ path('app_mesa_index', qs|merge({corpus: 'todos'})) }}">Todos los consejos · {{ corpusTotals.todos|number_format(0, ',', '.') }}</a>
+            </div>
+            {% if modo == 'buscar' %}
+                <div class="ambito-corpus" aria-label="Tipo de búsqueda" title="Por palabras encuentra el vocabulario exacto; por significado entiende la idea aunque cambien las palabras.">
+                    <span>Búsqueda:</span>
+                    <a class="ambito-chip {{ tipo == 'palabras' ? 'activo' }}" href="{{ path('app_mesa_index', qs|merge({tipo: ''})|filter(v => v is not empty)) }}">Por palabras</a>
+                    <a class="ambito-chip {{ tipo == 'significado' ? 'activo' }}" href="{{ path('app_mesa_index', qs|merge({tipo: 'significado'})) }}">Por significado</a>
+                    <a class="ambito-chip {{ tipo == 'ambas' ? 'activo' }}" href="{{ path('app_mesa_index', qs|merge({tipo: 'ambas'})) }}">Combinada</a>
+                </div>
+            {% endif %}
+            <span class="consulta-ayuda">
+                {% if modo == 'preguntar' %}
+                    Si citas una referencia (<code>RA/0278/2025</code>) se lee íntegra. Verifica siempre la cita.
+                {% else %}
+                    También entiende referencias: escribe <code>R/0456/2019</code> para localizarla.
+                {% endif %}
+            </span>
+        </div>
+    </div>
+</section>
+
+<main class="tablero">
+
+    {# ── Carril de filtros ── #}
+    <aside class="filtros" aria-label="Filtros">
+
+        <div class="filtro">
+            <p class="filtro-titulo">Periodo
+                {% if yearlyCounts is not empty %}<small>{{ (yearlyCounts|first).year }}–{{ (yearlyCounts|last).year }}</small>{% endif %}
+            </p>
+            {% if yearlyCounts is not empty %}
+                {% set maxYearTotal = 1 %}
+                {% for y in yearlyCounts %}{% if y.total > maxYearTotal %}{% set maxYearTotal = y.total %}{% endif %}{% endfor %}
+                <div class="anios">
+                    {% for y in yearlyCounts %}
+                        {% set activeYear = filters.dateFrom == y.year ~ '-01-01' and filters.dateTo == y.year ~ '-12-31' %}
+                        <a class="anio {{ filters.dateFrom is empty and filters.dateTo is empty or activeYear ? 'dentro' }}"
+                           style="height: {{ ((y.total / maxYearTotal) * 100)|round }}%"
+                           title="{{ y.year }} · {{ y.total|number_format(0, ',', '.') }} resoluciones"
+                           href="{{ path('app_mesa_index', qs|merge(activeYear ? {dateFrom: '', dateTo: '', page: ''} : {dateFrom: y.year ~ '-01-01', dateTo: y.year ~ '-12-31', page: ''})|filter(v => v is not empty)) }}"></a>
+                    {% endfor %}
+                </div>
+                <div class="anios-ejes"><span>{{ (yearlyCounts|first).year }}</span><span>{{ (yearlyCounts|last).year }}</span></div>
+            {% endif %}
+            <form method="get" action="{{ path('app_mesa_index') }}" class="filtro-fechas">
+                {{ ui.hiddens(qs, ['dateFrom', 'dateTo', 'page']) }}
+                <input type="date" name="dateFrom" value="{{ filters.dateFrom }}" aria-label="Desde" onchange="this.form.submit()">
+                <input type="date" name="dateTo" value="{{ filters.dateTo }}" aria-label="Hasta" onchange="this.form.submit()">
+            </form>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Sentido del fallo</p>
+            {% for f in outcomeFacet %}
+                {% set active = filters.outcome == f.code %}
+                <a class="faceta {{ active ? 'marcada' }}"
+                   href="{{ path('app_mesa_index', qs|merge({outcome: active ? '' : f.code, page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span>
+                    <span class="punto {{ dotClass[f.code]|default('punto--neutra') }}"></span>
+                    <span>{{ f.label }}</span>
+                    <b>{{ f.count|number_format(0, ',', '.') }}</b>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Límite invocado <small>art. 14</small></p>
+            {% for code, label in limitLabels|slice(0, 4) %}
+                {% set active = filters.limit == code %}
+                <a class="faceta {{ active ? 'marcada' }}" title="{{ label }}"
+                   href="{{ path('app_mesa_index', qs|merge({limit: active ? '' : code, page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span><span>{{ label|length > 46 ? label|slice(0, 46) ~ '…' : label }}</span>
+                </a>
+            {% endfor %}
+            <details {{ filters.limit is not empty and filters.limit not in limitLabels|slice(0, 4)|keys ? 'open' }}>
+                <summary class="filtro-mas">Ver los {{ limitLabels|length }} límites</summary>
+                {% for code, label in limitLabels|slice(4) %}
+                    {% set active = filters.limit == code %}
+                    <a class="faceta {{ active ? 'marcada' }}" title="{{ label }}"
+                       href="{{ path('app_mesa_index', qs|merge({limit: active ? '' : code, page: ''})|filter(v => v is not empty)) }}">
+                        <span class="caja"></span><span>{{ label|length > 46 ? label|slice(0, 46) ~ '…' : label }}</span>
+                    </a>
+                {% endfor %}
+            </details>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Causa de inadmisión <small>art. 18</small></p>
+            {% for code, label in inadmissionCauseLabels %}
+                {% set active = filters.inadmissionCause == code %}
+                <a class="faceta {{ active ? 'marcada' }}" title="{{ label }}"
+                   href="{{ path('app_mesa_index', qs|merge({inadmissionCause: active ? '' : code, page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span><span>{{ label|length > 46 ? label|slice(0, 46) ~ '…' : label }}</span>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Situación judicial</p>
+            {% for code, label in judicialStatusLabels %}
+                {% set active = filters.judicialStatus == code %}
+                <a class="faceta {{ active ? 'marcada' }}"
+                   href="{{ path('app_mesa_index', qs|merge({judicialStatus: active ? '' : code, page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span><span>{{ label }}</span>
+                </a>
+            {% endfor %}
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Administración reclamada</p>
+            <form method="get" action="{{ path('app_mesa_index') }}">
+                {{ ui.hiddens(qs, ['publicBody', 'page']) }}
+                <input class="filtro-buscar" type="text" name="publicBody" value="{{ filters.publicBody }}"
+                       placeholder="Ministerio, universidad, ente…" aria-label="Administración reclamada">
+            </form>
+            {% if filters.publicBody is not empty %}
+                <a class="faceta marcada" href="{{ path('app_mesa_index', qs|merge({publicBody: '', page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span><span>{{ filters.publicBody }}</span>
+                </a>
+            {% endif %}
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Plazo de tramitación</p>
+            {% for code, label in resolveTimeLabels %}
+                {% set active = filters.resolveTime == code %}
+                <a class="faceta {{ active ? 'marcada' }}"
+                   href="{{ path('app_mesa_index', qs|merge({resolveTime: active ? '' : code, page: ''})|filter(v => v is not empty)) }}">
+                    <span class="caja"></span><span>{{ label }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    </aside>
+
+    {# ── Columna central ── #}
+    <section class="centro">
+
+        {% if searchDegraded %}
+            <div class="degradado">
+                <i data-lucide="triangle-alert"></i>
+                <span>El buscador avanzado no está disponible ahora mismo: los resultados vienen del modo de reserva, sin relevancia ni texto completo.</span>
+            </div>
+        {% endif %}
+
+        {% if modo == 'preguntar' %}
+            <div id="respuesta-zona"
+                 data-endpoint="{{ path('app_mesa_preguntar') }}"
+                 data-token="{{ csrf_token('mesa_preguntar') }}"
+                 data-fijar="{{ path('app_mesa_fijar') }}"
+                 data-pins-token="{{ csrf_token('mesa_pins') }}"
+                 data-corpus="{{ corpus }}">
+                <article class="respuesta" id="respuesta-cargando" hidden aria-live="polite">
+                    <div class="cargando"><span class="cargando-aro" aria-hidden="true"></span><span id="cargando-texto">Buscando en el corpus…</span></div>
+                </article>
+                <article class="respuesta" id="respuesta" hidden aria-label="Respuesta razonada">
+                    <header class="respuesta-cab">
+                        <i data-lucide="sparkles"></i>
+                        <span><b>Respuesta razonada</b> — <span id="respuesta-m"></span> candidatas evaluadas, leídas a fondo las <span id="respuesta-n"></span> más pertinentes</span>
+                        <span class="fuentes">verificables abajo</span>
+                    </header>
+                    <div class="respuesta-cuerpo" id="respuesta-parrafos"></div>
+                    <div class="respuesta-cuerpo" id="respuesta-matiz-zona" style="padding-top:0" hidden>
+                        <div class="respuesta-matiz"><i data-lucide="octagon-alert"></i><span id="respuesta-matiz"></span></div>
+                    </div>
+                    <div class="citas" id="respuesta-citas" aria-label="Fuentes citadas"></div>
+                    <footer class="respuesta-pie">
+                        <i data-lucide="shield-check"></i>
+                        <span>Cada cita enlaza a la resolución completa. Verifica antes de incorporar a la ponencia.</span>
+                    </footer>
+                </article>
+                <article class="respuesta" id="respuesta-fallo" hidden>
+                    <div class="respuesta-error" id="respuesta-fallo-texto"></div>
+                </article>
+            </div>
+        {% endif %}
+
+        {# Chips de filtros activos #}
+        {% set activeChips = [] %}
+        {% if filters.outcome is not empty %}{% set activeChips = activeChips|merge([{label: outcomeLabels[filters.outcome]|default(filters.outcome), param: 'outcome'}]) %}{% endif %}
+        {% if filters.limit is not empty %}{% set activeChips = activeChips|merge([{label: 'Límite: ' ~ (limitLabels[filters.limit]|default(filters.limit))|slice(0, 32), param: 'limit'}]) %}{% endif %}
+        {% if filters.inadmissionCause is not empty %}{% set activeChips = activeChips|merge([{label: 'Inadmisión: ' ~ (inadmissionCauseLabels[filters.inadmissionCause]|default(filters.inadmissionCause))|slice(0, 32), param: 'inadmissionCause'}]) %}{% endif %}
+        {% if filters.judicialStatus is not empty %}{% set activeChips = activeChips|merge([{label: judicialStatusLabels[filters.judicialStatus]|default(filters.judicialStatus), param: 'judicialStatus'}]) %}{% endif %}
+        {% if filters.publicBody is not empty %}{% set activeChips = activeChips|merge([{label: filters.publicBody, param: 'publicBody'}]) %}{% endif %}
+        {% if filters.resolveTime is not empty %}{% set activeChips = activeChips|merge([{label: resolveTimeLabels[filters.resolveTime]|default(filters.resolveTime), param: 'resolveTime'}]) %}{% endif %}
+        {% if filters.dateFrom is not empty or filters.dateTo is not empty %}{% set activeChips = activeChips|merge([{label: (filters.dateFrom ?: '…') ~ ' → ' ~ (filters.dateTo ?: 'hoy'), param: 'dateFrom,dateTo'}]) %}{% endif %}
+
+        {% if activeChips is not empty %}
+            <div class="activos" aria-label="Filtros activos">
+                {% for chip in activeChips %}
+                    {% set removal = {} %}
+                    {% for p in chip.param|split(',') %}{% set removal = removal|merge({(p): ''}) %}{% endfor %}
+                    <a class="activo-chip" href="{{ path('app_mesa_index', qs|merge(removal)|merge({page: ''})|filter(v => v is not empty)) }}">{{ chip.label }} <i data-lucide="x"></i></a>
+                {% endfor %}
+                <a class="activos-limpiar" href="{{ path('app_mesa_index', {corpus: corpus == 'todos' ? 'todos' : null, modo: modo == 'preguntar' ? 'preguntar' : null}|filter(v => v is not null)) }}">Limpiar filtros</a>
+            </div>
+        {% endif %}
+
+        <div class="lista-cab">
+            <h2>Resoluciones</h2>
+            <span class="recuento">
+                {% if tipo == 'palabras' %}
+                    {{ total|number_format(0, ',', '.') }} coincidencias
+                {% else %}
+                    las {{ total }} más afines, de más a menos
+                {% endif %}
+            </span>
+            {% if tipo == 'palabras' and filters.search is not empty %}
+                {% set bySort = filters.sort == 'fecha' %}
+                <span class="orden">Ordenadas por
+                    {% if bySort %}
+                        <a href="{{ path('app_mesa_index', qs|merge({sort: ''})|filter(v => v is not empty)) }}" style="color:inherit">relevancia</a> · <b>fecha</b>
+                    {% else %}
+                        <b>relevancia</b> · <a href="{{ path('app_mesa_index', qs|merge({sort: 'fecha'})) }}" style="color:inherit">fecha</a>
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
+
+        {% if resolutions is empty %}
+            <div class="vacio">
+                <i data-lucide="inbox"></i>
+                {% if activeChips is not empty or filters.search is not empty %}
+                    <span>Nada coincide con estos filtros. Prueba a quitar alguno, ampliar el corpus a todos los consejos{{ modo == 'buscar' ? ' o cambiar el tipo de búsqueda' }}.</span>
+                {% else %}
+                    <span>El corpus aún no tiene resoluciones cargadas.</span>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% for resolution in resolutions %}
+            {% set jud = resolution.judicialStatusView %}
+            {% set annulled = resolution.judicialStatus in annulledCodes %}
+            <article class="fila {{ annulled ? 'fila--anulada' }}">
+                <div class="fila-meta">
+                    <a class="sello-ref" href="{{ path('app_resoluciones_show', {id: resolution.id}) }}">{{ resolution.referenceNumber }}</a>
+                    <span class="fila-fecha">{{ resolution.resolutionDate ? resolution.resolutionDate|date('d/m/Y') : 'sin fecha' }}</span>
+                    {% if resolution.publicBodyName %}<span class="fila-organismo">contra {{ resolution.publicBodyName }}</span>{% endif %}
+                    {% if corpus == 'todos' and resolution.complaintOrganism %}<span class="etiqueta">{{ resolution.complaintOrganism.shortName ?: resolution.complaintOrganism.name }}</span>{% endif %}
+                </div>
+                <h3 class="fila-titulo"><a href="{{ path('app_resoluciones_show', {id: resolution.id}) }}" style="color:inherit;text-decoration:none">{{ resolution.subject ?: resolution.summary|slice(0, 140) }}</a></h3>
+                {% if annulled %}
+                    <div class="fila-aviso">
+                        <i data-lucide="octagon-alert"></i>
+                        <span><b>{{ jud.title }}.</b> {{ jud.detail }}</span>
+                    </div>
+                {% endif %}
+                {% if resolution.summary %}
+                    <p class="fila-extracto">{{ resolution.summary|slice(0, 260) }}{{ resolution.summary|length > 260 ? '…' }}</p>
+                {% endif %}
+                <div class="fila-etiquetas">
+                    {% for code in resolution.limits ?? [] %}
+                        {% set label = limitLabels[code]|default(code) %}
+                        <span class="etiqueta etiqueta--ley" title="{{ label }}">{{ label|length > 34 ? label|slice(0, 34) ~ '…' : label }}</span>
+                    {% endfor %}
+                    {% for code in resolution.inadmissionCauses ?? [] %}
+                        {% set label = inadmissionCauseLabels[code]|default(code) %}
+                        <span class="etiqueta etiqueta--ley" title="{{ label }}">{{ label|length > 34 ? label|slice(0, 34) ~ '…' : label }}</span>
+                    {% endfor %}
+                    {% for keyword in (resolution.keywords ?? [])|slice(0, 3) %}
+                        <span class="etiqueta">{{ keyword }}</span>
+                    {% endfor %}
+                </div>
+                <div class="fila-der">
+                    <span class="pill {{ pillClass[resolution.outcome]|default('pill--neutra') }}">{{ resolution.outcomeLabel }}</span>
+                    {% if jud.isChallenged %}
+                        <span class="judicial {{ judClass[jud.code]|default('judicial--neutra') }}"><i data-lucide="gavel"></i> {{ jud.badgeLabel }}</span>
+                    {% else %}
+                        <span class="judicial judicial--neutra"><i data-lucide="gavel"></i> No recurrida</span>
+                    {% endif %}
+                    {% set yaFijada = false %}
+                    {% for item in pinned %}{% if item.resolution.id == resolution.id %}{% set yaFijada = true %}{% endif %}{% endfor %}
+                    <form method="post" action="{{ path('app_mesa_fijar') }}">
+                        <input type="hidden" name="id" value="{{ resolution.id }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('mesa_pins') }}">
+                        <input type="hidden" name="volver" value="{{ app.request.queryString ?? '' }}">
+                        {% if yaFijada %}
+                            <button class="fijar fijar--hecho" formaction="{{ path('app_mesa_quitar') }}" type="submit"><i data-lucide="pin"></i> En la mesa</button>
+                        {% else %}
+                            <button class="fijar" formaction="{{ path('app_mesa_fijar') }}" type="submit"><i data-lucide="pin"></i> Añadir a la mesa</button>
+                        {% endif %}
+                    </form>
+                </div>
+            </article>
+        {% endfor %}
+
+        {% if totalPages > 1 %}
+            <nav class="paginacion" aria-label="Paginación">
+                {% if page > 1 %}
+                    <a class="btn" href="{{ path('app_mesa_index', qs|merge({page: page - 1 == 1 ? '' : page - 1})|filter(v => v is not empty)) }}"><i data-lucide="chevron-left"></i> Anteriores</a>
+                {% endif %}
+                <span>Página <b>{{ page }}</b> de <b>{{ totalPages }}</b></span>
+                {% if page < totalPages %}
+                    <a class="btn" href="{{ path('app_mesa_index', qs|merge({page: page + 1})) }}">Siguientes <i data-lucide="chevron-right"></i></a>
+                {% endif %}
+            </nav>
+        {% endif %}
+    </section>
+
+    {# ── La mesa ── #}
+    <aside class="mesa" aria-label="Expediente en curso">
+        <div class="mesa-carta">
+            <header class="mesa-cab">
+                <h2>La mesa</h2>
+                <small>{{ pinned|length }} {{ pinned|length == 1 ? 'elemento' : 'elementos' }}</small>
+            </header>
+
+            {% if pinned is empty %}
+                <div class="mesa-item mesa-item--vacio">
+                    <p>Fija aquí las resoluciones con las que estés trabajando: podrás anotarlas y exportar la fundamentación con sus citas.</p>
+                </div>
+            {% endif %}
+
+            {% for item in pinned %}
+                {% set r = item.resolution %}
+                <div class="mesa-item">
+                    <div class="mesa-item-fila">
+                        <a class="sello-ref" href="{{ path('app_resoluciones_show', {id: r.id}) }}">{{ r.referenceNumber }}</a>
+                        <span class="pill {{ pillClass[r.outcome]|default('pill--neutra') }}">{{ r.outcomeLabel }}</span>
+                        <form method="post" action="{{ path('app_mesa_quitar') }}" class="quitar-form">
+                            <input type="hidden" name="id" value="{{ r.id }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('mesa_pins') }}">
+                            <input type="hidden" name="volver" value="{{ app.request.queryString ?? '' }}">
+                            <button class="quitar" type="submit" aria-label="Quitar de la mesa"><i data-lucide="x"></i></button>
+                        </form>
+                    </div>
+                    {% if r.judicialStatus in annulledCodes %}
+                        <p style="color: var(--anulada); font-weight: 600">{{ r.judicialStatusView.badgeLabel }} — verifica antes de citar.</p>
+                    {% endif %}
+                    <p>{{ r.subject ?: r.summary|slice(0, 120) }}</p>
+                    {% if item.note is not empty %}
+                        <div class="mesa-nota">«{{ item.note }}»</div>
+                    {% endif %}
+                    <form method="post" action="{{ path('app_mesa_nota') }}" class="mesa-nota-form">
+                        <input type="hidden" name="id" value="{{ r.id }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('mesa_pins') }}">
+                        <input type="hidden" name="volver" value="{{ app.request.queryString ?? '' }}">
+                        <input type="text" name="nota" value="{{ item.note }}" placeholder="Nota: qué FJ citar, para qué…" aria-label="Nota de la ponencia" maxlength="500">
+                        <button type="submit" aria-label="Guardar la nota"><i data-lucide="check"></i></button>
+                    </form>
+                </div>
+            {% endfor %}
+
+            {% if pinned is not empty %}
+                <div class="mesa-acciones">
+                    <a class="btn btn--sello" href="{{ path('app_mesa_exportar') }}"><i data-lucide="file-down"></i> Exportar fundamentación</a>
+                    <form method="post" action="{{ path('app_mesa_vaciar') }}" style="display:contents">
+                        <input type="hidden" name="_token" value="{{ csrf_token('mesa_pins') }}">
+                        <input type="hidden" name="volver" value="{{ app.request.queryString ?? '' }}">
+                        <button class="mesa-vaciar" type="submit" style="background:none;border:0;cursor:pointer">Vaciar la mesa</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </aside>
+</main>
+
+<footer class="pie">
+    <b>Los datos proceden del corpus público que mantiene PideInfo</b> — resoluciones de los 14 consejos de transparencia cruzadas con las sentencias que las confirman o anulan. Una resolución anulada por sentencia firme nunca se presenta aquí como precedente citable sin su advertencia.
+</footer>
+
+<script>
+lucide.createIcons();
+
+(function () {
+    var zona = document.getElementById('respuesta-zona');
+    if (!zona) return; // modo buscar: el formulario navega solo
+
+    var form = document.getElementById('consulta-form');
+    var input = document.getElementById('consulta-input');
+    var cargando = document.getElementById('respuesta-cargando');
+    var cargandoTexto = document.getElementById('cargando-texto');
+    var panel = document.getElementById('respuesta');
+    var fallo = document.getElementById('respuesta-fallo');
+    var falloTexto = document.getElementById('respuesta-fallo-texto');
+
+    var PASOS = [
+        'Buscando en el corpus…',
+        'Evaluando hasta 40 resoluciones candidatas…',
+        'Leyendo a fondo las más pertinentes…',
+        'Comprobando su historial judicial…',
+        'Redactando la respuesta con citas…'
+    ];
+    var pasoTimer = null;
+
+    var PILL = {
+        favorable: 'pill--estimada',
+        partial: 'pill--parcial',
+        acuerdo_mediacion: 'pill--estimada',
+        unfavorable: 'pill--desestimada'
+    };
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var pregunta = input.value.trim();
+        if (pregunta.length < 10) {
+            mostrarFallo('Escribe la pregunta completa, como se la harías a un compañero.');
+            return;
+        }
+
+        panel.hidden = true;
+        fallo.hidden = true;
+        cargando.hidden = false;
+        var paso = 0;
+        cargandoTexto.textContent = PASOS[0];
+        pasoTimer = setInterval(function () {
+            paso = Math.min(paso + 1, PASOS.length - 1);
+            cargandoTexto.textContent = PASOS[paso];
+        }, 4000);
+
+        fetch(zona.dataset.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                pregunta: pregunta,
+                corpus: zona.dataset.corpus,
+                _token: zona.dataset.token
+            })
+        })
+            .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+            .then(function (r) {
+                if (!r.ok) throw new Error(r.data && r.data.error ? r.data.error : 'No se ha podido elaborar la respuesta.');
+                pintarRespuesta(r.data);
+            })
+            .catch(function (err) {
+                mostrarFallo(err && err.message ? err.message : 'No se ha podido elaborar la respuesta. Vuelve a intentarlo.');
+            })
+            .finally(function () {
+                clearInterval(pasoTimer);
+                cargando.hidden = true;
+            });
+    });
+
+    function mostrarFallo(mensaje) {
+        clearInterval(pasoTimer);
+        cargando.hidden = true;
+        panel.hidden = true;
+        falloTexto.textContent = mensaje;
+        fallo.hidden = false;
+    }
+
+    function pintarRespuesta(data) {
+        document.getElementById('respuesta-n').textContent = data.consulted;
+        document.getElementById('respuesta-m').textContent = data.screened || data.consulted;
+
+        var parrafos = document.getElementById('respuesta-parrafos');
+        parrafos.innerHTML = '';
+        data.paragraphs.forEach(function (html) {
+            var p = document.createElement('p');
+            p.innerHTML = html; // HTML generado y escapado por el servidor
+            parrafos.appendChild(p);
+        });
+
+        var matizZona = document.getElementById('respuesta-matiz-zona');
+        if (data.caution) {
+            document.getElementById('respuesta-matiz').textContent = data.caution;
+            matizZona.hidden = false;
+        } else {
+            matizZona.hidden = true;
+        }
+
+        var citas = document.getElementById('respuesta-citas');
+        citas.innerHTML = '';
+        data.sources.forEach(function (s, i) {
+            var carta = document.createElement('div');
+            carta.className = 'cita-carta';
+
+            var fila = document.createElement('a');
+            fila.className = 'cita-fila';
+            fila.href = s.url;
+            var n = document.createElement('span');
+            n.className = 'cita-n';
+            n.textContent = i + 1;
+            var ref = document.createElement('span');
+            ref.className = 'cita-ref';
+            ref.textContent = s.reference;
+            fila.appendChild(n);
+            fila.appendChild(ref);
+            carta.appendChild(fila);
+
+            var texto = document.createElement('small');
+            var partes = [];
+            if (s.publicBody) partes.push(s.publicBody);
+            if (s.date) partes.push(s.date);
+            if (s.organism) partes.push(s.organism);
+            texto.textContent = (partes.length ? partes.join(' · ') + '. ' : '') + (s.summary || '');
+            carta.appendChild(texto);
+
+            var acciones = document.createElement('span');
+            acciones.className = 'cita-acciones';
+
+            var pill = document.createElement('span');
+            pill.className = 'pill ' + (s.annulled ? 'pill--anulada' : (PILL[s.outcome] || 'pill--neutra'));
+            pill.textContent = s.annulled ? s.outcomeLabel + ' · anulada' : s.outcomeLabel;
+            acciones.appendChild(pill);
+
+            var fijar = document.createElement('button');
+            fijar.type = 'button';
+            fijar.className = 'fijar';
+            fijar.innerHTML = '<i data-lucide="pin"></i> Añadir a la mesa';
+            fijar.addEventListener('click', function () { fijarCita(s.id, fijar); });
+            acciones.appendChild(fijar);
+
+            carta.appendChild(acciones);
+            citas.appendChild(carta);
+        });
+
+        fallo.hidden = true;
+        panel.hidden = false;
+        lucide.createIcons();
+    }
+
+    // Fija una resolución citada sin recargar (la respuesta se perdería): el
+    // POST redirige al tablero y con ese HTML se refresca solo el carril de la mesa.
+    function fijarCita(id, boton) {
+        boton.disabled = true;
+        var datos = new FormData();
+        datos.append('id', id);
+        datos.append('_token', zona.dataset.pinsToken);
+        datos.append('volver', window.location.search.replace(/^\?/, ''));
+
+        fetch(zona.dataset.fijar, { method: 'POST', body: datos })
+            .then(function (res) {
+                if (!res.ok) throw new Error();
+                return res.text();
+            })
+            .then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var nueva = doc.querySelector('aside.mesa');
+                var actual = document.querySelector('aside.mesa');
+                if (nueva && actual) actual.replaceWith(nueva);
+                boton.classList.add('fijar--hecho');
+                boton.innerHTML = '<i data-lucide="pin"></i> En la mesa';
+                lucide.createIcons();
+            })
+            .catch(function () {
+                boton.disabled = false;
+            });
+    }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Mesa de resoluciones — acceso</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ asset('mesa/mesa.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<div class="acceso">
+    <form class="acceso-carta" method="post" action="{{ path('app_mesa_acceso') }}">
+        <span class="barra-sello">MESA</span>
+        <h1 class="acceso-titulo">Mesa de resoluciones</h1>
+        <p class="acceso-sub">Escribe la clave compartida para entrar.</p>
+
+        {% if error %}
+            <p class="acceso-error"><i data-lucide="octagon-alert"></i><span>{{ error }}</span></p>
+        {% endif %}
+
+        <input type="password" name="password" aria-label="Clave de acceso" autocomplete="current-password" autofocus required>
+        <input type="hidden" name="_token" value="{{ csrf_token('mesa_acceso') }}">
+        <button class="acceso-boton" type="submit">Entrar en la mesa</button>
+    </form>
+
+    <p class="acceso-pie">Propuesta de PideInfo. Trabaja sobre el corpus público de resoluciones y sentencias; no expone ningún dato que no esté ya publicado.</p>
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>

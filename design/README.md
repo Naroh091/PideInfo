@@ -10,6 +10,12 @@ en ese fichero, o cualquier clase de Tailwind que no se usara antes en el
 proyecto, exige ejecutar `php bin/console tailwind:build`**; limpiar la caché
 no basta.
 
+> **Fuera del sistema:** la **mesa de resoluciones** (`/mesa-resoluciones`,
+> herramienta interna para el CTBG) tiene identidad visual propia a propósito
+> — maqueta en `design/mesa-ctbg/`, CSS real en `assets/mesa/mesa.css`,
+> decisiones en `design/mesa-ctbg/features.md` y docs/mesa-resoluciones.md.
+> Nada de esta guía aplica ahí, ni sus clases deben usarse en la app.
+
 ---
 
 ## Fundamentos

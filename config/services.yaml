@@ -82,6 +82,11 @@ services:
 
     App\Search\LegislationSearchInterface: '@App\Search\FallbackLegislationSearch'
 
+    # Mesa de resoluciones: la puerta lee las contraseñas compartidas de la env.
+    App\Service\Mesa\MesaAccessGate:
+        arguments:
+            $passwords: '%env(MESA_PASSWORDS)%'
+
     # CamoFox MCP client — browser automation for web search and URL visiting.
     # Uses a scoped HttpClient so it can reach the camofox-mcp container on the
     # Coolify network without affecting the default HttpClient used elsewhere.

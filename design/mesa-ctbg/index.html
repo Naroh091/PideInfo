@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mesa de resoluciones — propuesta para el CTBG</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="mesa.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+<!-- ── Barra superior ──────────────────────────────────────── -->
+<header class="barra">
+    <a href="#" class="barra-marca">
+        <span class="barra-sello">MESA</span>
+        <span class="barra-nombre">Mesa de resoluciones</span>
+    </a>
+    <span class="barra-ambito">Uso avanzado</span>
+    <div class="barra-der">
+        <span class="barra-corpus"><b>14.111</b> resoluciones CTBG 2015–2026 · índice actualizado hoy</span>
+    </div>
+</header>
+
+<!-- ── Franja de consulta ──────────────────────────────────── -->
+<section class="consulta">
+    <div class="consulta-int">
+        <div class="consulta-fila">
+            <div class="modo" role="tablist" aria-label="Modo de consulta">
+                <button class="modo-btn" role="tab" aria-selected="false"><i data-lucide="search"></i> Buscar</button>
+                <button class="modo-btn activo" role="tab" aria-selected="true"><i data-lucide="message-circle-question"></i> Preguntar</button>
+            </div>
+            <div class="buscador">
+                <i data-lucide="message-circle-question"></i>
+                <input type="text" value="¿Puede una universidad pública denegar la relación de sus contratos menores invocando el perjuicio a los intereses económicos del art. 14.1.h?" aria-label="Pregunta en lenguaje natural">
+                <button class="buscador-btn">Preguntar <i data-lucide="corner-down-left"></i></button>
+            </div>
+        </div>
+        <div class="consulta-pie">
+            <div class="ambito-corpus" aria-label="Corpus consultado">
+                <span>Corpus:</span>
+                <button class="ambito-chip activo">Solo CTBG · 14.111</button>
+                <button class="ambito-chip">Todos los consejos · 45.891</button>
+                <button class="ambito-chip">+ sentencias AN y TS</button>
+            </div>
+            <span class="consulta-ayuda">También entiende referencias: escribe <code>R/0456/2019</code> para abrirla directamente.</span>
+        </div>
+    </div>
+</section>
+
+<!-- ── Tablero ─────────────────────────────────────────────── -->
+<main class="tablero">
+
+    <!-- Carril de filtros -->
+    <aside class="filtros" aria-label="Filtros">
+
+        <div class="filtro">
+            <p class="filtro-titulo">Periodo <small>2015–2026</small></p>
+            <div class="anios" aria-hidden="true">
+                <span class="anio" style="height:18%" title="2015"></span>
+                <span class="anio" style="height:34%" title="2016"></span>
+                <span class="anio dentro" style="height:46%" title="2017"></span>
+                <span class="anio dentro" style="height:58%" title="2018"></span>
+                <span class="anio dentro" style="height:64%" title="2019"></span>
+                <span class="anio dentro" style="height:52%" title="2020"></span>
+                <span class="anio dentro" style="height:78%" title="2021"></span>
+                <span class="anio dentro" style="height:88%" title="2022"></span>
+                <span class="anio dentro" style="height:96%" title="2023"></span>
+                <span class="anio dentro" style="height:100%" title="2024"></span>
+                <span class="anio dentro" style="height:92%" title="2025"></span>
+                <span class="anio dentro" style="height:38%" title="2026"></span>
+            </div>
+            <div class="anios-ejes"><span>2015</span><span>2026</span></div>
+            <p class="anios-rango">Desde <b>2017</b> hasta <b>hoy</b></p>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Sentido del fallo</p>
+            <label class="faceta marcada"><input type="checkbox" checked><span class="punto punto--estimada"></span><span>Estimada</span><b>74</b></label>
+            <label class="faceta marcada"><input type="checkbox" checked><span class="punto punto--parcial"></span><span>Estimada parcialmente</span><b>21</b></label>
+            <label class="faceta"><input type="checkbox"><span class="punto punto--desestimada"></span><span>Desestimada</span><b>18</b></label>
+            <label class="faceta"><input type="checkbox"><span class="punto punto--neutra"></span><span>Inadmitida</span><b>15</b></label>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Límite invocado <small>art. 14</small></p>
+            <label class="faceta marcada"><input type="checkbox" checked><span>14.1.h — Intereses económicos y comerciales</span><b>128</b></label>
+            <label class="faceta"><input type="checkbox"><span>14.1.g — Funciones de vigilancia e inspección</span><b>–</b></label>
+            <label class="faceta"><input type="checkbox"><span>14.1.e — Prevención e investigación de ilícitos</span><b>–</b></label>
+            <a class="filtro-mas" href="#">Ver los 12 límites</a>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Causa de inadmisión <small>art. 18</small></p>
+            <label class="faceta"><input type="checkbox"><span>18.1.c — Reelaboración</span><b>9</b></label>
+            <label class="faceta"><input type="checkbox"><span>18.1.a — Información en curso de elaboración</span><b>4</b></label>
+            <a class="filtro-mas" href="#">Ver las 5 causas</a>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Situación judicial</p>
+            <label class="faceta"><input type="checkbox"><span>No recurrida</span><b>109</b></label>
+            <label class="faceta"><input type="checkbox"><span>Confirmada por sentencia</span><b>9</b></label>
+            <label class="faceta"><input type="checkbox"><span>Recurso pendiente</span><b>6</b></label>
+            <label class="faceta"><input type="checkbox"><span>Anulada</span><b>4</b></label>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Administración reclamada</p>
+            <input class="filtro-buscar" type="text" placeholder="Ministerio, universidad, ente…">
+            <label class="faceta marcada"><input type="checkbox" checked><span>Universidades públicas</span><b>31</b></label>
+            <label class="faceta"><input type="checkbox"><span>Ministerio de Hacienda</span><b>17</b></label>
+            <label class="faceta"><input type="checkbox"><span>ADIF</span><b>8</b></label>
+        </div>
+
+        <div class="filtro">
+            <p class="filtro-titulo">Plazo de tramitación</p>
+            <label class="faceta"><input type="checkbox"><span>Menos de 3 meses</span><b>64</b></label>
+            <label class="faceta"><input type="checkbox"><span>De 3 a 6 meses</span><b>47</b></label>
+            <label class="faceta"><input type="checkbox"><span>Más de 6 meses</span><b>17</b></label>
+        </div>
+    </aside>
+
+    <!-- Columna central -->
+    <section class="centro">
+
+        <!-- Respuesta razonada -->
+        <article class="respuesta" aria-label="Respuesta razonada">
+            <header class="respuesta-cab">
+                <i data-lucide="sparkles"></i>
+                <span><b>Respuesta razonada</b> — elaborada leyendo a texto completo las 6 resoluciones más pertinentes</span>
+                <span class="fuentes">6 fuentes · verificables abajo</span>
+            </header>
+            <div class="respuesta-cuerpo">
+                <p>El criterio consolidado del Consejo es que <b>no basta la invocación genérica</b> del art. 14.1.h para denegar la relación de contratos menores: la contratación pública es información sujeta a publicidad activa (art. 8.1.a de la Ley 19/2013) y el límite exige acreditar un perjuicio <em>concreto, definido y evaluable</em>, aplicando el test del daño del criterio interpretativo CI/002/2015.<a class="cita" href="#">R/0456/2019</a><a class="cita" href="#">CI/002/2015</a></p>
+                <p>Cuando entre los adjudicatarios hay personas físicas, el Consejo ha estimado <b>parcialmente</b>, ordenando entregar la relación con disociación de los datos personales no vinculados a la actividad profesional (art. 15.4).<a class="cita" href="#">R/0731/2021</a> La doctrina se ha mantenido estable frente a ministerios y entes instrumentales, y una de las estimaciones fue confirmada en sede judicial.<a class="cita" href="#">R/0089/2020</a></p>
+            </div>
+            <div class="respuesta-cuerpo" style="padding-top:0">
+                <div class="respuesta-matiz">
+                    <i data-lucide="octagon-alert"></i>
+                    <span><b>Cautela:</b> la resolución R/0512/2018, que estimaba un caso análogo, fue <b>anulada por la SAN 89/2020 (firme)</b> por un defecto de ponderación. No la cites como precedente favorable; el razonamiento de esta respuesta no se apoya en ella.</span>
+                </div>
+            </div>
+            <div class="citas" aria-label="Fuentes citadas">
+                <a class="cita-carta" href="#">
+                    <span class="cita-fila"><span class="cita-n">1</span><span class="cita-ref">R/0456/2019</span></span>
+                    <small>Relación de contratos menores de la UCM, ejercicio 2018. Invocación genérica del 14.1.h rechazada.</small>
+                    <span class="pill pill--estimada">Estimada</span>
+                </a>
+                <a class="cita-carta" href="#">
+                    <span class="cita-fila"><span class="cita-n">2</span><span class="cita-ref">R/0731/2021</span></span>
+                    <small>Contratos menores de la Universidad de Granada. Disociación de adjudicatarios personas físicas.</small>
+                    <span class="pill pill--parcial">Estimada parcialmente</span>
+                </a>
+                <a class="cita-carta" href="#">
+                    <span class="cita-fila"><span class="cita-n">3</span><span class="cita-ref">R/0089/2020</span></span>
+                    <small>Contratos menores del Ministerio de Hacienda. Confirmada por SAN 67/2022.</small>
+                    <span class="pill pill--estimada">Estimada</span>
+                </a>
+                <a class="cita-carta" href="#">
+                    <span class="cita-fila"><span class="cita-n">4</span><span class="cita-ref">R/0512/2018</span></span>
+                    <small>Caso análogo anulado en vía judicial por defecto de ponderación del límite.</small>
+                    <span class="pill pill--anulada">Anulada · SAN 89/2020</span>
+                </a>
+            </div>
+            <footer class="respuesta-pie">
+                <i data-lucide="shield-check"></i>
+                <span>Cada afirmación enlaza al párrafo exacto de la resolución citada. Verifica antes de incorporar a la ponencia.</span>
+                <span class="acciones">
+                    <button class="btn"><i data-lucide="copy"></i> Copiar con citas</button>
+                    <button class="btn btn--sello"><i data-lucide="pin"></i> Guardar en la mesa</button>
+                </span>
+            </footer>
+        </article>
+
+        <!-- Filtros activos -->
+        <div class="activos" aria-label="Filtros activos">
+            <span class="activo-chip">Límite 14.1.h <i data-lucide="x"></i></span>
+            <span class="activo-chip">Universidades públicas <i data-lucide="x"></i></span>
+            <span class="activo-chip">Estimada + parcial <i data-lucide="x"></i></span>
+            <span class="activo-chip">2017 – hoy <i data-lucide="x"></i></span>
+            <a class="activos-limpiar" href="#">Limpiar filtros</a>
+        </div>
+
+        <!-- Cabecera del listado -->
+        <div class="lista-cab">
+            <h2>Resoluciones que respaldan la respuesta</h2>
+            <span class="recuento">128 coincidencias</span>
+            <span class="orden">Ordenadas por <b>relevancia</b> · <a href="#" style="color:inherit">fecha</a> <i data-lucide="chevrons-up-down"></i></span>
+        </div>
+
+        <!-- Resultados -->
+        <a class="fila" href="#">
+            <div class="fila-meta">
+                <span class="sello-ref">R/0456/2019</span>
+                <span class="fila-fecha">12 mar 2019</span>
+                <span class="fila-organismo">contra Universidad Complutense de Madrid</span>
+            </div>
+            <h3 class="fila-titulo">Relación de contratos menores adjudicados durante el ejercicio 2018, con objeto, importe y adjudicatario</h3>
+            <p class="fila-extracto">«…la invocación del límite previsto en el artículo 14.1.h) exige identificar un <mark>perjuicio concreto, definido y evaluable</mark> a los intereses económicos y comerciales, sin que la mera referencia genérica al precepto pueda amparar la denegación…»</p>
+            <div class="fila-etiquetas">
+                <span class="etiqueta etiqueta--ley">art. 14.1.h</span>
+                <span class="etiqueta">contratación pública</span>
+                <span class="etiqueta">test del daño</span>
+            </div>
+            <div class="fila-der">
+                <span class="pill pill--estimada">Estimada</span>
+                <span class="judicial judicial--neutra"><i data-lucide="gavel"></i> No recurrida</span>
+                <button class="fijar fijar--hecho"><i data-lucide="pin"></i> En la mesa</button>
+            </div>
+        </a>
+
+        <a class="fila" href="#">
+            <div class="fila-meta">
+                <span class="sello-ref">R/0731/2021</span>
+                <span class="fila-fecha">28 oct 2021</span>
+                <span class="fila-organismo">contra Universidad de Granada</span>
+            </div>
+            <h3 class="fila-titulo">Contratos menores de los servicios centrales, con desglose de adjudicatarios</h3>
+            <p class="fila-extracto">«…procede la entrega previa <mark>disociación de los datos personales</mark> de los adjudicatarios personas físicas que no guarden relación con su actividad profesional, conforme al artículo 15.4…»</p>
+            <div class="fila-etiquetas">
+                <span class="etiqueta etiqueta--ley">art. 14.1.h</span>
+                <span class="etiqueta etiqueta--ley">art. 15.4</span>
+                <span class="etiqueta">datos personales</span>
+            </div>
+            <div class="fila-der">
+                <span class="pill pill--parcial">Estimada parcialmente</span>
+                <span class="judicial judicial--neutra"><i data-lucide="gavel"></i> No recurrida</span>
+                <button class="fijar fijar--hecho"><i data-lucide="pin"></i> En la mesa</button>
+            </div>
+        </a>
+
+        <a class="fila fila--anulada" href="#">
+            <div class="fila-meta">
+                <span class="sello-ref">R/0512/2018</span>
+                <span class="fila-fecha">3 jul 2018</span>
+                <span class="fila-organismo">contra Universidad Politécnica de Valencia</span>
+            </div>
+            <h3 class="fila-titulo">Contratos de patrocinio y colaboración empresarial de la Fundación universitaria</h3>
+            <p class="fila-extracto">«…los convenios de patrocinio no quedan amparados por el límite del 14.1.h cuando el interés comercial alegado no se concreta…»</p>
+            <div class="fila-aviso">
+                <i data-lucide="octagon-alert"></i>
+                <span><b>Anulada por la SAN 89/2020 (firme).</b> La Sala apreció defecto de ponderación. No citable como precedente favorable — consulta la sentencia para conocer el razonamiento que prevaleció.</span>
+            </div>
+            <div class="fila-etiquetas">
+                <span class="etiqueta etiqueta--ley">art. 14.1.h</span>
+                <span class="etiqueta">patrocinio</span>
+            </div>
+            <div class="fila-der">
+                <span class="pill pill--anulada">Anulada</span>
+                <span class="judicial judicial--anulada"><i data-lucide="gavel"></i> SAN 89/2020 · firme</span>
+                <button class="fijar"><i data-lucide="pin"></i> Añadir a la mesa</button>
+            </div>
+        </a>
+
+        <a class="fila" href="#">
+            <div class="fila-meta">
+                <span class="sello-ref">R/0089/2020</span>
+                <span class="fila-fecha">19 feb 2020</span>
+                <span class="fila-organismo">contra Ministerio de Hacienda</span>
+            </div>
+            <h3 class="fila-titulo">Relación de contratos menores tramitados por la Subsecretaría en 2019</h3>
+            <p class="fila-extracto">«…la información sobre <mark>contratos menores</mark> constituye el paradigma de información sometida a publicidad activa por el artículo 8.1.a)…»</p>
+            <div class="fila-etiquetas">
+                <span class="etiqueta etiqueta--ley">art. 14.1.h</span>
+                <span class="etiqueta etiqueta--ley">art. 8.1.a</span>
+                <span class="etiqueta">publicidad activa</span>
+            </div>
+            <div class="fila-der">
+                <span class="pill pill--estimada">Estimada</span>
+                <span class="judicial judicial--confirmada"><i data-lucide="gavel"></i> Confirmada · SAN 67/2022</span>
+                <button class="fijar"><i data-lucide="pin"></i> Añadir a la mesa</button>
+            </div>
+        </a>
+
+        <a class="fila" href="#">
+            <div class="fila-meta">
+                <span class="sello-ref">R/0288/2017</span>
+                <span class="fila-fecha">7 sep 2017</span>
+                <span class="fila-organismo">contra UNED</span>
+            </div>
+            <h3 class="fila-titulo">Facturación de los cursos de idiomas gestionados por entidad colaboradora</h3>
+            <p class="fila-extracto">«…el carácter mercantil de la entidad colaboradora no convierte en confidencial la información sobre <mark>fondos públicos</mark> gestionados por cuenta de la universidad…»</p>
+            <div class="fila-etiquetas">
+                <span class="etiqueta etiqueta--ley">art. 14.1.h</span>
+                <span class="etiqueta">entes instrumentales</span>
+            </div>
+            <div class="fila-der">
+                <span class="pill pill--estimada">Estimada</span>
+                <span class="judicial judicial--pendiente"><i data-lucide="gavel"></i> Recurso pendiente</span>
+                <button class="fijar"><i data-lucide="pin"></i> Añadir a la mesa</button>
+            </div>
+        </a>
+
+        <button class="btn lista-mas">Cargar 20 más <i data-lucide="chevron-down"></i></button>
+    </section>
+
+    <!-- La mesa -->
+    <aside class="mesa" aria-label="Expediente en curso">
+        <div class="mesa-carta">
+            <header class="mesa-cab">
+                <h2>La mesa</h2>
+                <small>R/0294/2026 · ponencia</small>
+            </header>
+
+            <div class="mesa-item">
+                <div class="mesa-item-fila">
+                    <span class="sello-ref">R/0456/2019</span>
+                    <span class="pill pill--estimada">Estimada</span>
+                    <button class="quitar" aria-label="Quitar de la mesa"><i data-lucide="x"></i></button>
+                </div>
+                <p>Contratos menores UCM 2018 — rechazo de la invocación genérica del 14.1.h.</p>
+                <div class="mesa-nota">«Fundamento 5º: definición de perjuicio concreto. Citar literal en el FJ 3.»</div>
+            </div>
+
+            <div class="mesa-item">
+                <div class="mesa-item-fila">
+                    <span class="sello-ref">R/0731/2021</span>
+                    <span class="pill pill--parcial">Parcial</span>
+                    <button class="quitar" aria-label="Quitar de la mesa"><i data-lucide="x"></i></button>
+                </div>
+                <p>Disociación de adjudicatarios personas físicas (art. 15.4).</p>
+            </div>
+
+            <div class="mesa-item">
+                <div class="mesa-item-fila">
+                    <span class="sello-ref">SAN 67/2022</span>
+                    <span class="pill pill--neutra">Sentencia</span>
+                    <button class="quitar" aria-label="Quitar de la mesa"><i data-lucide="x"></i></button>
+                </div>
+                <p>Confirma R/0089/2020 — respaldo judicial del criterio sobre contratos menores.</p>
+            </div>
+
+            <div class="mesa-acciones">
+                <button class="btn btn--sello"><i data-lucide="columns-2"></i> Comparar criterio (3)</button>
+                <button class="btn"><i data-lucide="file-down"></i> Exportar fundamentación</button>
+                <a class="mesa-vaciar" href="#">Vaciar la mesa</a>
+            </div>
+        </div>
+
+        <div class="mesa-carta">
+            <header class="mesa-cab">
+                <h2 style="font-size:1rem">Criterio relacionado</h2>
+            </header>
+            <div class="criterio">
+                <span class="criterio-ref">CI/002/2015</span>
+                <p>Aplicación de los límites al derecho de acceso: exigencia de ponderación y prueba del daño, caso por caso.</p>
+                <a href="#">Leer el criterio completo →</a>
+            </div>
+        </div>
+    </aside>
+</main>
+
+<footer class="pie">
+    <b>Maqueta de propuesta.</b> Los datos mostrados proceden del corpus público que mantiene PideInfo: 14.111 resoluciones del CTBG (2015–2026), 45.891 contando los demás consejos, cruzadas con las sentencias de la AN y el TS que las confirman o anulan.
+</footer>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
