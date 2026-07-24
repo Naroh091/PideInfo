@@ -113,8 +113,8 @@ Usa "audiencia" si es una notificación del organismo de transparencia notifican
 
 IMPORTANTE - Cuando el documento contiene una decisión sobre el acceso (concede / deniega / inadmite / parcial), usa el documentType específico según el sentido del fallo:
 
-- **"resolucion"**: el órgano ESTIMA totalmente o DESESTIMA totalmente el acceso (denegación total).
-  Palabras clave: "se estima la solicitud", "estimar", "se desestima", "desestimar", "se deniega el acceso", "RESUELVO conceder/denegar".
+- **"resolucion"**: el órgano ESTIMA totalmente o DESESTIMA totalmente el acceso (denegación total). También usa `resolucion` cuando la Administración responde al solicitante y entrega, adjunta o incorpora la documentación solicitada dentro del mismo PDF, aunque use palabras como "remisión", "remite" o "se acompaña".
+  Palabras clave: "se estima la solicitud", "estimar", "se desestima", "desestimar", "se deniega el acceso", "RESUELVO conceder/denegar", "se remite la documentación" o "se acompaña la documentación" cuando se entregan al solicitante.
 
 - **"inadmitida"**: el órgano INADMITE la solicitud a trámite (no entra a valorar el fondo).
   Palabras clave: "se inadmite", "INADMITIR", "no admitir a trámite", "inadmisión", "inadmisible". Suele citar art. 18 de la Ley 19/2013 (causas de inadmisión).
@@ -128,7 +128,8 @@ NO uses "resolucion"/"inadmitida"/"parcialmente_concedida" para:
 - Meros acuses de recibo → usa "acuse_recibo"
 - Notificaciones de inicio de tramitación → usa "inicio_tramitacion"
 - Prórrogas del plazo → usa "prorroga"
-- Traslados a otro órgano → usa "traslado"
+- Traslados de la SOLICITUD a otro órgano competente conforme al art. 19.1 → usa "traslado". Debe quedar claro que la solicitud cambia de órgano para que ese otro órgano responda.
+- Una respuesta de la Administración que entrega la información solicitada al ciudadano NO es un traslado, aunque diga "remisión", "remite" o "se acompaña"; usa "resolucion" o "parcialmente_concedida" según el acceso.
 - Notificaciones puras sin decisión → usa "notificacion"
 
 IMPORTANTE:
