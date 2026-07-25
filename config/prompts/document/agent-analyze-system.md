@@ -20,12 +20,21 @@ Valores posibles: solicitud, acuse_recibo, inicio_tramitacion, resolucion, inadm
   - Si en el inventario YA existe una solicitud → este PDF es el justificante/acuse → `acuse_recibo` (o el tipo que corresponda por contenido).
 - **acuse_recibo**: mero justificante de recepción, sin decisión.
 - **inicio_tramitacion**: notifica el inicio del cómputo del plazo de 1 mes (art. 20.1). Rellena `isProcessingStart` y `processingStartDate`.
-- **resolucion**: la administración ESTIMA totalmente o DESESTIMA totalmente el acceso ("se estima", "se desestima", "RESUELVO conceder/denegar").
+- **resolucion**: la administración ESTIMA totalmente o DESESTIMA totalmente el acceso ("se estima", "se desestima", "RESUELVO conceder/denegar"). También es `resolucion` cuando la administración responde al solicitante y entrega, adjunta o incorpora la documentación solicitada, aunque el escrito use palabras como "remisión", "remite" o "se acompaña".
 - **inadmitida**: INADMITE a trámite sin entrar al fondo (art. 18: "se inadmite", "no admitir a trámite").
 - **parcialmente_concedida**: ESTIMA PARCIALMENTE ("estimación parcial", "acceso parcial", "con las siguientes limitaciones").
 - **notificacion**: portada de notificación SIN la decisión de fondo. Si el cuerpo lleva la resolución transcrita o adjunta, usa el tipo de la decisión.
 - **prorroga**: ampliación del plazo de resolución (art. 20.1). Rellena `isExtension`, `extensionDays`, `newDeadlineDate`.
-- **traslado**: remisión a otro órgano competente (art. 19.1). Rellena `isRedirection` y `redirectedToPublicBody`.
+- **traslado**: remisión de la SOLICITUD a otro órgano competente (art. 19.1), porque el órgano receptor no es competente. Solo usa este tipo si el documento acredita que la solicitud cambia de órgano destinatario. Rellena `isRedirection` y `redirectedToPublicBody`.
+
+### Diferencia crítica: respuesta con documentación frente a traslado
+
+No confundas estas dos situaciones:
+
+- **Respuesta (`resolucion`)**: la administración que tramita la solicitud responde al ciudadano y le concede, deniega o concede parcialmente el acceso. La respuesta puede incluir la información solicitada dentro del mismo PDF, como anexos o como varias piezas concatenadas. Frases como "se remite la documentación", "se acompaña la documentación", "se da traslado al solicitante de la documentación" o "se adjunta el expediente" NO implican por sí solas un traslado del artículo 19.1.
+- **Traslado (`traslado`)**: la administración remite la solicitud a OTRO órgano competente para que ese otro órgano la tramite y responda. Deben existir señales claras de cambio de órgano destinatario, incompetencia del órgano inicial o remisión de la solicitud conforme al artículo 19.1.
+
+La palabra "remisión", "remite" o "traslado" no decide la clasificación. Comprueba siempre: (1) quién emite el documento, (2) quién lo recibe y (3) si se está entregando información al ciudadano o enviando la solicitud a otro órgano. Si el ciudadano recibe la información solicitada, clasifica como `resolucion`, no como `traslado`.
 - **afectacion_terceros**: apertura de alegaciones a terceros afectados (art. 19.3). Rellena `isThirdPartyRights` y `thirdPartyAllegationsDeadline`.
 
 ## Fase de reclamación
