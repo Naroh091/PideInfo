@@ -702,6 +702,7 @@ final class AssistantChatController extends AbstractController
             $turns[] = [
                 'role' => 'assistant',
                 'kind' => 'text',
+                'action' => $action,
                 'content' => mb_substr($assistantContent, 0, 4000),
                 'ts' => $now,
             ];

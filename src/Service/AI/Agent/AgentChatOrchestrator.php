@@ -223,7 +223,7 @@ Estas tres herramientas te dan el **texto literal y vigente** de la legislación
 Lee y analiza los documentos adjuntos a la solicitud (resolución de la Administración, acuses de recibo, alegaciones, etc.). Úsala al inicio para conocer los argumentos exactos de la Administración.
 
 ### get_user_preferences
-Devuelve las preferencias de redacción del usuario. Úsala al inicio de una sesión de redacción.
+Devuelve las preferencias de redacción del usuario. Normalmente ya las tienes en el contexto del sistema ("Estilo aprendido"); úsala solo si necesitas releerlas (p. ej. tras guardar una nueva en este mismo turno).
 
 ### save_user_preference
 Guarda una preferencia de redacción GENERALIZABLE del usuario (un gusto de estilo para TODAS sus redacciones futuras). Ver "Aprender preferencias de redacción del usuario".
@@ -274,11 +274,13 @@ TXT;
 
 ---
 
+**Cuándo aplica el protocolo siguiente:** SOLO cuando la acción de este turno vaya a ser `generate` o `rewrite`. Si el usuario pregunta, comenta o duda (action `reply`), puedes usar las mismas herramientas para DOCUMENTAR tu respuesta, pero el resultado del turno es una respuesta en `conversational_reply`, NO un borrador. **Haber buscado doctrina NO te obliga a redactar:** usa lo encontrado para contestar con franqueza y deja el borrador del canvas tal como está.
+
 **Protocolo obligatorio para generar o reescribir un borrador:**
 1. **Primero** lee los documentos con `read_request_documents` para identificar los argumentos exactos que ha invocado la Administración (límites del art.14, causas de inadmisión del art.18, etc.)
 2. **Para cada argumento concreto identificado**, llama a `search_resolutions` Y a `search_criteria` con ese argumento específico — una llamada de cada por argumento
 3. **Si `search_resolutions` o `search_criteria` no devuelven resultados**, reformula el enunciado y vuelve a llamarla: más genérico, sinónimos jurídicos, o el principio subyacente en lugar de la causa concreta. Ejemplo: si "reelaboración art.18.1.c" no da resultados, prueba "carga desproporcionada en acceso a información" o "límite de esfuerzo en solicitudes de acceso". Como último recurso, `search_resolutions_filtered` con el código exacto (`inadmissionCause: "reelaboracion"`) lista la doctrina existente sobre esa causa
-4. Una vez tienes doctrina (resoluciones y/o criterios) por cada argumento (o has agotado 2 intentos por argumento), genera el borrador
+4. Una vez tienes doctrina (resoluciones y/o criterios) por cada argumento (o has agotado 2 intentos por argumento), emite el borrador — solo si el objetivo del turno era generarlo o reescribirlo; si el usuario solo preguntaba, responde con `reply`
 5. NO busques doctrina antes de leer los documentos
 
 TXT;
@@ -472,9 +474,7 @@ TXT;
             ]
             : [];
 
-        // ── Deterministic pre-calls ──────────────────────────────────────────
         $isFirstAssistantTurn = $this->isFirstAssistantTurn($req);
-        yield from $this->runDeterministicPreCalls($req, $messages, $isFirstAssistantTurn);
 
         // ── Optional tool-calling loop (model-driven) ────────────────────────
         // First turn of the conversation, iter=0: force read_request_documents so
@@ -780,55 +780,6 @@ TXT;
     }
 
     /**
-     * Pre-calls tools that should always run before the model responds, regardless
-     * of whether the underlying model supports function calling.
-     *
-     * Injects results into $messages as an assistant context block so the model
-     * sees them without needing to invoke tools itself.
-     *
-     * @param list<array<string, mixed>> &$messages
-     * @return \Generator yields ['step', ...] events
-     */
-    private function runDeterministicPreCalls(AssistantChatRequest $req, array &$messages, bool $showSteps = true): \Generator
-    {
-        $contextParts = [];
-
-        // 1. User writing preferences. Injected every turn (the context block is
-        // per-turn, it does not accumulate in the persisted history), but the
-        // progress step is only surfaced on the conversation's first turn —
-        // repeating "Cargando preferencias…" on every message reads as rework.
-        if ($showSteps) {
-            yield ['step', ['message' => 'Cargando preferencias de redacción…', 'tool' => 'get_user_preferences']];
-        }
-        try {
-            $prefs = ($this->prefsTool)();
-            if ($prefs !== '' && !str_contains($prefs, 'no ha configurado')) {
-                $contextParts[] = $prefs;
-            }
-        } catch (\Throwable) {}
-        foreach ($this->agentProgress->drain() as $step) {
-            if ($showSteps) {
-                yield ['step', $step];
-            }
-        }
-
-        // read_request_documents is intentionally NOT pre-called here:
-        // the model calls it spontaneously in iter=1 when it needs document context.
-        // Pre-calling it would run the document LLM extraction twice for the same docs.
-
-        if ($contextParts === []) {
-            return;
-        }
-
-        // Inject as an assistant message + user acknowledgment so the model
-        // sees this context without requiring native function-calling support.
-        $contextBlock = "He recopilado el siguiente contexto antes de responderte:\n\n"
-            . implode("\n\n---\n\n", $contextParts);
-        $messages[] = ['role' => 'assistant', 'content' => $contextBlock];
-        $messages[] = ['role' => 'user',      'content' => 'Gracias. Procede ahora siguiendo las instrucciones del sistema.'];
-    }
-
-    /**
      * First response of the conversation: no assistant turn in the persisted
      * history yet. Gates the forced document read and the visible pre-call
      * steps — later turns already carry that context (or can re-fetch it via
@@ -1063,6 +1014,16 @@ TXT;
             $content = (string) ($turn['content'] ?? '');
             if (trim($content) === '') {
                 continue;
+            }
+            // LLM-only marker of what the assistant did in past turns, so a later
+            // question turn has contrast against "acted on the canvas" turns and
+            // the model doesn't redraft by inertia. Never rendered to the user.
+            if ($role === 'assistant') {
+                $content .= match ($turn['action'] ?? null) {
+                    'generate' => "\n\n[En este turno generé el borrador; está en el canvas.]",
+                    'rewrite'  => "\n\n[En este turno reescribí el borrador del canvas.]",
+                    default    => '',
+                };
             }
             $messages[] = new ChatMessage(role: $role, content: $content);
         }

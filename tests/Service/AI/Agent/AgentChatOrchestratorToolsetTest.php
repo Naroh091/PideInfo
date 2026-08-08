@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\AI\Agent;
 
+use App\DTO\ChatMessage;
 use App\Service\AI\Agent\AgentChatOrchestrator;
+use App\Service\AI\Chat\AssistantChatRequest;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -90,5 +92,57 @@ class AgentChatOrchestratorToolsetTest extends TestCase
         // Shared sections survive in both.
         $this->assertStringContainsString('### search_resolutions', $anon);
         $this->assertStringContainsString('Protocolo obligatorio', $anon);
+        // The doctrine protocol is scoped to generate/rewrite turns: searching
+        // doctrine to answer a question must NOT imply drafting.
+        $this->assertStringContainsString('NO te obliga a redactar', $anon);
+    }
+
+    public function testUserMessageIsAlwaysTheLastMessage(): void
+    {
+        $o = $this->orchestratorWithToolDefs([]);
+
+        $req = new AssistantChatRequest(
+            flow: 'request',
+            entityId: '00000000-0000-0000-0000-000000000000',
+            systemPrompt: 'prompt',
+            userMessage: '¿se puede pedir esto?',
+            history: [
+                new ChatMessage(role: 'user', content: 'hola'),
+                new ChatMessage(role: 'assistant', content: 'respuesta'),
+            ],
+            attachments: [],
+            label: 'test',
+        );
+
+        $messages = $this->call($o, 'buildMessages', $req, true, false);
+
+        $last = end($messages);
+        $this->assertSame('user', $last['role']);
+        $this->assertSame('¿se puede pedir esto?', $last['content']);
+        // The synthetic "Gracias. Procede ahora…" tail must be gone: it buried
+        // the user's real question under an order to proceed per system prompt.
+        $this->assertFalse(
+            method_exists(AgentChatOrchestrator::class, 'runDeterministicPreCalls'),
+            'runDeterministicPreCalls must stay deleted: it appended a synthetic user turn after the real one',
+        );
+    }
+
+    public function testToLlmHistoryMarksDraftActions(): void
+    {
+        $messages = AgentChatOrchestrator::toLlmHistory([
+            ['role' => 'user', 'content' => 'hazme el borrador'],
+            ['role' => 'assistant', 'content' => '✦ Borrador generado.', 'action' => 'generate'],
+            ['role' => 'user', 'content' => 'más corto'],
+            ['role' => 'assistant', 'content' => 'Hecho.', 'action' => 'rewrite'],
+            ['role' => 'assistant', 'content' => 'Una respuesta.', 'action' => 'reply'],
+            ['role' => 'assistant', 'content' => 'Turno antiguo sin action.'],
+        ]);
+
+        $this->assertStringContainsString('[En este turno generé el borrador', $messages[1]->content);
+        $this->assertStringContainsString('[En este turno reescribí el borrador', $messages[3]->content);
+        $this->assertSame('Una respuesta.', $messages[4]->content);
+        $this->assertSame('Turno antiguo sin action.', $messages[5]->content);
+        // User turns are never annotated.
+        $this->assertSame('hazme el borrador', $messages[0]->content);
     }
 }
