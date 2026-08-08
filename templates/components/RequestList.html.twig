@@ -81,11 +81,11 @@
                                 {% endif %}
                             </p>
                             <p class="mb-0 small">
-                                <span class="text-muted">Enviada:</span> {{ request.sentAt|date('d/m/Y') }}
+                                <span class="text-muted">Enviada:</span> {{ request.sentAt ? request.sentAt|date('d/m/Y') : '—' }}
                                 <span class="mx-2">|</span>
                                 <span class="text-muted">Plazo:</span>
                                 <span class="{{ request.isDeadlinePassed ? 'text-danger fw-bold' : '' }}">
-                                    {{ request.deadlineAt|date('d/m/Y') }}
+                                    {{ request.deadlineAt ? request.deadlineAt|date('d/m/Y') : '—' }}
                                 </span>
                                 {% if request.isDeadlinePassed %}
                                     <span class="badge bg-danger ms-1">Vencido</span>

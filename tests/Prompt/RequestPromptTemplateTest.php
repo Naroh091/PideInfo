@@ -31,6 +31,7 @@ final class RequestPromptTemplateTest extends TestCase
             'applicable_law_code' => 'LTAIPBG',
             'deadline' => '1 mes (silencio negativo)',
             'channel_block' => '## Canal de prueba',
+            'state' => 'El borrador aún NO existe.',
             'similar_resolutions' => 'Sin resoluciones.',
         ]);
 

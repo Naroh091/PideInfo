@@ -87,9 +87,6 @@ final class GenerateAccessRequestTool
 
         $applicableLaw = $this->resolveApplicableLaw($publicBody, $applicableLawId);
 
-        $sentAt = new \DateTimeImmutable('today');
-        $deadline = $this->deadlineCalculator->calculate($sentAt, $applicableLaw);
-
         // Build the draft in memory (channel drives the composer); persist only
         // once the AI actually produces a draft.
         $request = new AccessRequest();
@@ -100,9 +97,6 @@ final class GenerateAccessRequestTool
         $request->setPublicBody($publicBody);
         $request->setRegDestination($regDestination);
         $request->setApplicableLaw($applicableLaw);
-        $request->setSentAt($sentAt);
-        $request->setDeadlineAt($deadline);
-        $request->setOriginalDeadlineAt($deadline);
         $request->setStatus(AccessRequest::STATUS_PENDING);
         $request->setMetadataValue('generated_via', 'mcp/' . $this->tokenContext->getClientId());
         $request->setMetadataValue('draft_batch_id', Uuid::v7()->toRfc4122());

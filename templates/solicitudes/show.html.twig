@@ -880,7 +880,7 @@
             </div>
             <div class="exp-meta-celda">
                 <span class="exp-meta-clave">Presentada</span>
-                <span class="exp-meta-valor es-mono">{{ request.sentAt|date('d/m/Y') }}</span>
+                <span class="exp-meta-valor es-mono">{{ request.sentAt ? request.sentAt|date('d/m/Y') : '—' }}</span>
             </div>
             <div class="exp-meta-celda">
                 <span class="exp-meta-clave">
@@ -1194,7 +1194,7 @@
                                 {% if request.status == 'pending' %}
                                     {{ request.createdAt|date('d/m/Y') }} · pendiente de envío
                                 {% else %}
-                                    {{ request.sentAt|date('d/m/Y') }}{% if request.externalId %} · {{ request.externalId }}{% endif %}
+                                    {{ request.sentAt ? request.sentAt|date('d/m/Y') : '—' }}{% if request.externalId %} · {{ request.externalId }}{% endif %}
                                 {% endif %}
                             </p>
                         </div>

@@ -195,16 +195,18 @@
                     <h4 class="text-xs font-medium text-slate-500 mb-1">Plazo actual</h4>
                     {% if request.status in ['granted', 'finished'] %}
                         <p class="text-sm text-slate-500">
-                            {{ request.deadlineAt|date('d/m/Y') }}
+                            {{ request.deadlineAt ? request.deadlineAt|date('d/m/Y') : '—' }}
                             <span class="badge badge-success ml-1">Resuelta</span>
                         </p>
-                    {% else %}
+                    {% elseif request.deadlineAt %}
                         <p class="text-sm {{ request.isDeadlinePassed ? 'text-red-600' : 'text-slate-800' }}">
                             {{ request.deadlineAt|date('d/m/Y') }}
                             {% if not request.isDeadlinePassed %}
                                 <span class="text-slate-500">({{ request.daysUntilDeadline }} días)</span>
                             {% endif %}
                         </p>
+                    {% else %}
+                        <p class="text-sm text-slate-500">Pendiente de envío</p>
                     {% endif %}
                     <p class="text-xs text-slate-500 mt-1">Puedes modificar el plazo en el formulario</p>
                 </div>

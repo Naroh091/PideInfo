@@ -155,7 +155,7 @@
                     {% endif %}
                 {% endif %}
 
-                {% set displayDate = isCreation ? request.sentAt : history.createdAt %}
+                {% set displayDate = isCreation ? (request.sentAt ?: request.createdAt) : history.createdAt %}
                 <div class="crono-fila">
                     <span class="crono-fecha" title="{{ displayDate|date('d/m/Y H:i') }}">{{ displayDate|date('d/m/Y') }}</span>
                     <span class="crono-punto {{ dotColor }}"></span>

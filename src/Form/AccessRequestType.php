@@ -53,7 +53,8 @@ class AccessRequestType extends AbstractType
                 'label' => 'Fecha de envío',
                 'widget' => 'single_text',
                 'input' => 'datetime_immutable',
-                'constraints' => [
+                'required' => !$options['include_status_fields'],
+                'constraints' => $options['include_status_fields'] ? [] : [
                     new NotBlank(['message' => 'Por favor, introduce la fecha de envío']),
                 ],
             ])

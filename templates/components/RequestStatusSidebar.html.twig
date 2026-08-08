@@ -10,7 +10,7 @@
             <span class="ficha-clave">Respuesta</span>
             {% if request.status in ['granted', 'finished'] %}
                 <span class="ficha-valor">
-                    {{ request.deadlineAt|date('d/m/Y') }}
+                    {{ request.deadlineAt ? request.deadlineAt|date('d/m/Y') : '—' }}
                     <span class="ficha-tag is-resolved">Resuelta</span>
                 </span>
             {% elseif request.isDeadlineSuspended %}
@@ -19,12 +19,16 @@
                 </span>
             {% elseif request.isDeadlinePassed %}
                 <span class="ficha-valor rojo">
-                    {{ request.deadlineAt|date('d/m/Y') }}
+                    {{ request.deadlineAt ? request.deadlineAt|date('d/m/Y') : '—' }}
                     <span class="ficha-tag is-passed">Vencido</span>
                 </span>
-            {% else %}
+            {% elseif request.deadlineAt %}
                 <span class="ficha-valor {{ request.daysUntilDeadline <= 7 ? 'ambar' }}">
                     {{ request.deadlineAt|date('d/m/Y') }} · {{ request.daysUntilDeadline }} día{{ request.daysUntilDeadline != 1 ? 's' : '' }}
+                </span>
+            {% else %}
+                <span class="ficha-valor">
+                    <span class="ficha-tag is-draft">Pendiente de envío</span>
                 </span>
             {% endif %}
         </div>

@@ -10,7 +10,6 @@ use App\Repository\AccessRequestRepository;
 use App\Repository\PublicBodyRepository;
 use App\Repository\RegDestinationRepository;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
-use App\Service\AccessRequest\DeadlineCalculator;
 use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Service\Anonymous\AnonymousDraftSessionStore;
@@ -187,7 +186,6 @@ class AnonymousDraftController extends AbstractController
         RegDestinationRepository $regDestinationRepository,
         ChannelResolver $channelResolver,
         ApplicableLawResolver $applicableLawResolver,
-        DeadlineCalculator $deadlineCalculator,
     ): JsonResponse {
         if ($this->getUser() !== null) {
             return new JsonResponse(['error' => 'already_authenticated'], Response::HTTP_CONFLICT);
@@ -305,18 +303,12 @@ class AnonymousDraftController extends AbstractController
             return new JsonResponse(['error' => 'no_applicable_law'], Response::HTTP_BAD_REQUEST);
         }
 
-        $sentAt = new \DateTimeImmutable('today');
-        $deadline = $deadlineCalculator->calculate($sentAt, $law);
-
         $accessRequest = new AccessRequest();
         $accessRequest->setTitle('');
         $accessRequest->setDescription('');
         $accessRequest->setPublicBody($body);
         $accessRequest->setRegDestination($regDestination);
         $accessRequest->setApplicableLaw($law);
-        $accessRequest->setSentAt($sentAt);
-        $accessRequest->setDeadlineAt($deadline);
-        $accessRequest->setOriginalDeadlineAt($deadline);
         $accessRequest->setStatus(AccessRequest::STATUS_PENDING);
         if ($resolutionResult !== null) {
             $accessRequest->setResolutionResult($resolutionResult);
@@ -324,7 +316,7 @@ class AnonymousDraftController extends AbstractController
 
         $accessRequest->setMetadataValue('anonymous', [
             'flow' => $flow,
-            'createdAt' => $sentAt->format(\DateTimeInterface::ATOM),
+            'createdAt' => (new \DateTimeImmutable('now'))->format(\DateTimeInterface::ATOM),
             'ip' => $request->getClientIp(),
             'turns' => 0,
         ]);

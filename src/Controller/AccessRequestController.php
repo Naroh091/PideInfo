@@ -21,7 +21,6 @@ use App\Repository\PublicBodyRepository;
 use App\Repository\RegDestinationRepository;
 use App\Repository\StatusHistoryRepository;
 use App\Service\AccessRequest\AccessRequestManager;
-use App\Service\AccessRequest\DeadlineCalculator;
 use App\Service\AccessRequest\AccessRequestSuccessAnalyzer;
 use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\Document\CitationFootnoteFormatter;
@@ -329,7 +328,6 @@ class AccessRequestController extends AbstractController
         RegDestinationRepository $regDestinationRepository,
         ChannelResolver $channelResolver,
         ApplicableLawResolver $applicableLawResolver,
-        DeadlineCalculator $deadlineCalculator,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
@@ -428,7 +426,6 @@ class AccessRequestController extends AbstractController
         }
 
         $batchId = Uuid::v7()->toRfc4122();
-        $tentativeSentAt = new \DateTimeImmutable('today');
 
         $created = [];
         $this->entityManager->beginTransaction();
@@ -448,10 +445,6 @@ class AccessRequestController extends AbstractController
                 $accessRequest->setPublicBody($body);
                 $accessRequest->setRegDestination($entry['regDestination']);
                 $accessRequest->setApplicableLaw($law);
-                $accessRequest->setSentAt($tentativeSentAt);
-                $tentativeDeadline = $deadlineCalculator->calculate($tentativeSentAt, $law);
-                $accessRequest->setDeadlineAt($tentativeDeadline);
-                $accessRequest->setOriginalDeadlineAt($tentativeDeadline);
                 $accessRequest->setStatus(AccessRequest::STATUS_PENDING);
 
                 $accessRequest->setMetadataValue('draft_batch_id', $batchId);
@@ -985,7 +978,7 @@ class AccessRequestController extends AbstractController
                 // palette y el desplegable de listas; mismas claves de siempre.
                 'status' => $ar->getInternalState(),
                 'statusLabel' => $ar->getInternalStateLabel(),
-                'sentAt' => $ar->getSentAt()->format('d/m/Y'),
+                'sentAt' => $ar->getSentAt()?->format('d/m/Y'),
             ];
         }
 
@@ -1093,7 +1086,7 @@ class AccessRequestController extends AbstractController
 
             // Handle deadline change (records DeadlineHistory)
             $newDeadline = $accessRequest->getDeadlineAt();
-            if ($newDeadline->format('Y-m-d') !== $previousDeadline->format('Y-m-d')) {
+            if (($newDeadline?->format('Y-m-d')) !== ($previousDeadline?->format('Y-m-d'))) {
                 $deadlineHistory = new DeadlineHistory();
                 $deadlineHistory->setAccessRequest($accessRequest);
                 $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_RESPONSE);

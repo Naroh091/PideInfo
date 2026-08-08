@@ -22,7 +22,8 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
  * OJO: el handler procesa TODAS las solicitudes vencidas de la BD, no solo el
  * fixture. Contra el corpus vivo (TEST_DB_SUFFIX=) esto hace de facto el
  * trabajo del cron nocturno: cualquier solicitud real con plazo vencido en
- * sent/processing/pending pasará a silencio (con su notificación).
+ * sent/processing pasará a silencio (con su notificación). Los borradores
+ * (pending) quedan fuera: no tienen plazo hasta que se envíen.
  */
 final class UpdateExpiredRequestsHandlerTest extends KernelTestCase
 {
