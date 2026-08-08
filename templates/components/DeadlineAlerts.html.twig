@@ -119,7 +119,7 @@
             </p>
         </div>
         <div class="agenda-row-date">
-            {{ alert.deadlineAt|date('d/m') }}
+            {{ alert.deadlineAt ? alert.deadlineAt|date('d/m') : '—' }}
         </div>
     </a>
 {% endmacro %}

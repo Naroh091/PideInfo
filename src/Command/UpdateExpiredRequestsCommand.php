@@ -61,7 +61,7 @@ class UpdateExpiredRequestsCommand extends Command
                 '  - [%s] %s (deadline: %s)',
                 $request->getId()->toRfc4122(),
                 $request->getTitle(),
-                $request->getDeadlineAt()->format('d/m/Y')
+                $request->getDeadlineAt()?->format('d/m/Y') ?? '—'
             ));
 
             if (!$dryRun) {
@@ -98,7 +98,6 @@ class UpdateExpiredRequestsCommand extends Command
             ->setParameter('pendingStatuses', [
                 AccessRequest::STATUS_SENT,
                 AccessRequest::STATUS_PROCESSING,
-                AccessRequest::STATUS_PENDING,
             ])
             ->getQuery()
             ->getResult();

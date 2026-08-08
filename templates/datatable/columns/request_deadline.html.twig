@@ -1,19 +1,22 @@
 {# Plazo al estilo del libro de registro: fecha en mono + línea de
    semáforo (sol-dias) debajo — maqueta design/redesign/solicitudes-a.html. #}
 {% if row.hasReceivedResponse %}
-    <span class="sol-mono">{{ row.deadlineAt|date('d/m/Y') }}</span>
+    <span class="sol-mono">{{ row.deadlineAt ? row.deadlineAt|date('d/m/Y') : '—' }}</span>
     <p class="sol-dias sol-dias--exito mt-0.5">resuelta</p>
 {% elseif row.isDeadlineSuspended %}
     <span class="sol-mono">{{ row.deadlineAt ? row.deadlineAt|date('d/m/Y') : '—' }}</span>
     <p class="sol-dias sol-dias--aviso mt-0.5">plazo suspendido</p>
 {% elseif row.isDeadlinePassed %}
-    <span class="sol-mono">{{ row.deadlineAt|date('d/m/Y') }}</span>
+    <span class="sol-mono">{{ row.deadlineAt ? row.deadlineAt|date('d/m/Y') : '—' }}</span>
     <p class="sol-dias sol-dias--rojo mt-0.5">vencido{% if not row.hasActiveComplaint %} · reclamable{% endif %}</p>
-{% else %}
+{% elseif row.deadlineAt %}
     <span class="sol-mono">{{ row.deadlineAt|date('d/m/Y') }}</span>
     <p class="sol-dias {{ row.daysUntilDeadline <= 3 ? 'sol-dias--rojo' : (row.daysUntilDeadline <= 7 ? 'sol-dias--aviso' : 'sol-dias--ok') }} mt-0.5">
         {{ row.daysUntilDeadline == 0 ? 'vence hoy' : (row.daysUntilDeadline == 1 ? 'vence mañana' : 'quedan ' ~ row.daysUntilDeadline ~ ' días') }}
     </p>
+{% else %}
+    <span class="sol-mono">—</span>
+    <p class="sol-dias sol-dias--ok mt-0.5">pendiente de envío</p>
 {% endif %}
 
 {# Plazo de la reclamación (resolución del consejo), si aplica #}

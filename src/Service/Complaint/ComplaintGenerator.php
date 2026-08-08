@@ -525,7 +525,7 @@ final class ComplaintGenerator
 
     private function buildTimeline(AccessRequest $accessRequest): string
     {
-        $timeline = "El día {$accessRequest->getSentAt()->format('d/m/Y')} presenté solicitud de acceso a información pública";
+        $timeline = "El día {$accessRequest->getSentAt()?->format('d/m/Y')} presenté solicitud de acceso a información pública";
         if ($accessRequest->getAcknowledgedAt()) {
             $timeline .= ", recibiendo acuse de recibo el {$accessRequest->getAcknowledgedAt()->format('d/m/Y')}";
         }

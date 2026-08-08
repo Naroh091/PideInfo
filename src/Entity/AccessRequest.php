@@ -192,8 +192,8 @@ class AccessRequest
     #[ORM\JoinColumn(nullable: false)]
     private ApplicableLaw $applicableLaw;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
-    private \DateTimeImmutable $sentAt;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $sentAt = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $acknowledgedAt = null;
@@ -204,8 +204,8 @@ class AccessRequest
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $resolvedAt = null;
 
-    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
-    private \DateTimeImmutable $deadlineAt;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $deadlineAt = null;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $originalDeadlineAt = null;
@@ -871,12 +871,12 @@ class AccessRequest
         return $this;
     }
 
-    public function getSentAt(): \DateTimeImmutable
+    public function getSentAt(): ?\DateTimeImmutable
     {
         return $this->sentAt;
     }
 
-    public function setSentAt(\DateTimeImmutable $sentAt): static
+    public function setSentAt(?\DateTimeImmutable $sentAt): static
     {
         $this->sentAt = $sentAt;
         return $this;
@@ -915,12 +915,12 @@ class AccessRequest
         return $this;
     }
 
-    public function getDeadlineAt(): \DateTimeImmutable
+    public function getDeadlineAt(): ?\DateTimeImmutable
     {
         return $this->deadlineAt;
     }
 
-    public function setDeadlineAt(\DateTimeImmutable $deadlineAt): static
+    public function setDeadlineAt(?\DateTimeImmutable $deadlineAt): static
     {
         $this->deadlineAt = $deadlineAt;
         return $this;
@@ -1111,6 +1111,9 @@ class AccessRequest
 
     public function isDeadlinePassed(): bool
     {
+        if ($this->deadlineAt === null) {
+            return false;
+        }
         // An explicit decision (any outcome, including partial grants and
         // inadmissions) means there is no silencio administrativo to flag.
         if ($this->hasReceivedResponse()) {
@@ -1121,6 +1124,9 @@ class AccessRequest
 
     public function getDaysUntilDeadline(): int
     {
+        if ($this->deadlineAt === null) {
+            return 0;
+        }
         $today = new \DateTimeImmutable('today');
         $interval = $today->diff($this->deadlineAt);
         return $interval->invert ? -$interval->days : $interval->days;

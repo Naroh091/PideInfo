@@ -155,7 +155,7 @@
             <span class="paso3-nombre">{{ silencePositive ? 'Silencio positivo' : 'Plazo vencido' }}</span>
             <span class="paso3-filete"></span>
             <span class="paso3-plazo">
-                venció el <b>{{ request.deadlineAt|date('d/m/Y') }}</b>
+                venció el <b>{{ request.deadlineAt ? request.deadlineAt|date('d/m/Y') : '—' }}</b>
                 {% if not silencePositive %} · <span class="rojo">procede reclamación</span>{% endif %}
             </span>
         </div>

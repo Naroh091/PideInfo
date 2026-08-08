@@ -68,8 +68,11 @@ class AccessRequestManager
         $request->setUser($user);
         $request->setOrganization($user->getOrganization());
 
+        $sentAt = $request->getSentAt() ?? new \DateTimeImmutable('today');
+        $request->setSentAt($sentAt);
+
         $deadline = $this->deadlineCalculator->calculate(
-            $request->getSentAt(),
+            $sentAt,
             $request->getApplicableLaw()
         );
         $request->setDeadlineAt($deadline);
@@ -402,6 +405,9 @@ class AccessRequestManager
         // Determine the base date for calculation
         // Use processingStartedAt if available (art. 20.1), otherwise sentAt
         $baseDate = $request->getProcessingStartedAt() ?? $request->getSentAt();
+        if ($baseDate === null) {
+            return;
+        }
 
         $previousDeadline = $request->getDeadlineAt();
         $newDeadline = $this->deadlineCalculator->calculate($baseDate, $newLaw);
@@ -580,6 +586,32 @@ class AccessRequestManager
             ], true)) {
                 $request->setResolutionResult(null);
                 $request->setResolvedAt(null);
+            }
+
+            // When transitioning to "sent": ensure dates are set. Drafts no
+            // longer carry provisional dates — calculate them on dispatch.
+            if ($newStatus === AccessRequest::STATUS_SENT) {
+                if ($request->getSentAt() === null) {
+                    $request->setSentAt(new \DateTimeImmutable('today'));
+                }
+                if ($request->getDeadlineAt() === null) {
+                    $deadline = $this->deadlineCalculator->calculate(
+                        $request->getSentAt(),
+                        $request->getApplicableLaw()
+                    );
+                    $request->setDeadlineAt($deadline);
+                    if ($request->getOriginalDeadlineAt() === null) {
+                        $request->setOriginalDeadlineAt($deadline);
+                    }
+
+                    $deadlineHistory = new DeadlineHistory();
+                    $deadlineHistory->setAccessRequest($request);
+                    $deadlineHistory->setDeadlineType(DeadlineHistory::TYPE_RESPONSE);
+                    $deadlineHistory->setNewDeadline($deadline);
+                    $deadlineHistory->setReason(DeadlineHistory::REASON_INITIAL);
+                    $deadlineHistory->setNotes('Plazo calculado al pasar a estado "Enviada".');
+                    $request->addDeadlineHistory($deadlineHistory);
+                }
             }
 
             // If the deadline was suspended (third-party allegations) and a resolution arrives,
