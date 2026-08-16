@@ -43,6 +43,15 @@ final readonly class ChatRequest
         public ?string $label = null,
         public ?string $traceName = null,
         ?CompiledPrompt $promptRef = null,
+        /**
+         * Enruta esta generación al modelo TEACHER cuando está configurado
+         * ({@see \App\Service\AI\ModelRouter}). Solo lo piden los sitios cuya
+         * salida se recoge como material de destilación (redacción de
+         * reclamaciones y respuestas a alegaciones); el resto de llamadas de la
+         * aplicación siguen yendo al modelo de siempre. Sin teacher configurado
+         * no tiene efecto.
+         */
+        public bool $preferTeacher = false,
     ) {
         $this->systemPrompt = $systemPrompt instanceof CompiledPrompt ? $systemPrompt->text : $systemPrompt;
         $this->promptRef = $promptRef ?? ($systemPrompt instanceof CompiledPrompt ? $systemPrompt : null);

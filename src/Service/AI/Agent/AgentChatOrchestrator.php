@@ -6,8 +6,11 @@ namespace App\Service\AI\Agent;
 
 use App\DTO\ChatMessage;
 use App\Observability\AttributeKeys;
+use App\Observability\TracePayload;
 use App\Observability\Tracer;
 use App\Service\AI\Agent\AgentProgress;
+use App\Service\AI\ModelChoice;
+use App\Service\AI\ModelRouter;
 use App\Service\AI\Agent\Tool\EditRequestDraftTool;
 use App\Service\AI\Agent\Tool\FindLawTool;
 use App\Service\AI\Agent\Tool\GetUserPreferencesTool;
@@ -23,7 +26,6 @@ use App\Service\AI\Agent\Tool\ScrapeUrlTool;
 use App\Service\AI\Agent\Tool\VisitUrlTool;
 use App\Service\AI\Agent\Tool\WebSearchTool;
 use App\Service\AI\Chat\AssistantChatRequest;
-use App\Service\AI\CustomModelClient;
 use App\Service\AI\Llm\ContentPart;
 use OpenTelemetry\API\Trace\SpanInterface;
 use Psr\Log\LoggerInterface;
@@ -352,7 +354,6 @@ TXT;
     private readonly array $toolDefinitions;
 
     public function __construct(
-        private readonly CustomModelClient $customClient,
         private readonly SearchResolutionsTool $searchTool,
         private readonly SearchResolutionsFilteredTool $filteredSearchTool,
         private readonly SearchCriteriaTool $criteriaTool,
@@ -368,6 +369,8 @@ TXT;
         private readonly SearchJudgmentsTool $searchJudgmentsTool,
         private readonly EditRequestDraftTool $editRequestTool,
         private readonly AgentProgress $agentProgress,
+        private readonly AgentTurnTraceCapture $traceCapture,
+        private readonly ModelRouter $modelRouter,
         private readonly AgentDoctrineContext $doctrineContext,
         private readonly AgentRequestContext $requestContext,
         private readonly Tracer $tracer,
@@ -393,7 +396,7 @@ TXT;
      *
      * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
      */
-    public function stream(AssistantChatRequest $req): \Generator
+    public function stream(AssistantChatRequest $req, ?ModelChoice $forceModel = null): \Generator
     {
         $userId = $this->security->getUser()?->getUserIdentifier();
 
@@ -404,16 +407,26 @@ TXT;
             default                                             => 'ComplaintGenerationAgent',
         };
 
+        // El modelo se elige UNA vez por turno: el bucle de tools y la decisión
+        // final tienen que salir del mismo modelo o la traza no representa a
+        // ninguno de los dos. `$forceModel` solo lo usa la comparación offline
+        // (`app:agent:compare`), que necesita correr el MISMO caso con cada
+        // modelo en vez de dejar que decida el muestreo.
+        $model = $forceModel ?? $this->modelRouter->pick();
+
         return yield from $this->tracer->traceRootStream(
             name: $traceName,
             attributes: [
                 AttributeKeys::GEN_AI_SYSTEM        => 'openai',
-                AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
+                AttributeKeys::GEN_AI_REQUEST_MODEL => $model->client->getModel(),
                 AttributeKeys::LANGFUSE_USER_ID     => $userId ?? '',
-                AttributeKeys::LANGFUSE_SESSION_ID  => $req->entityId,
+                AttributeKeys::LANGFUSE_SESSION_ID  => $req->entityId . ':' . self::taskLabel($req),
+                AttributeKeys::LANGFUSE_TAGS        => ['agente', self::taskLabel($req)],
                 'agent.flow'                        => $req->flow,
+                'agent.task'                        => self::taskLabel($req),
+                'agent.model_role'                  => $model->role,
             ],
-            gen: $this->doStream($req, $userId),
+            gen: $this->doStream($req, $userId, $model),
             // Trace output = the final generated document (reclamación / solicitud /
             // alegaciones), or the reply text on planning/answer turns. doStream
             // returns it; traceRootStream forwards the generator's return value here.
@@ -431,7 +444,7 @@ TXT;
      *
      * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
      */
-    private function doStream(AssistantChatRequest $req, ?string $userId): \Generator
+    private function doStream(AssistantChatRequest $req, ?string $userId, ModelChoice $model): \Generator
     {
         $this->agentProgress->reset();
 
@@ -454,6 +467,13 @@ TXT;
         if ($canEditRequest) {
             $this->requestContext->setEditableRequestId($req->editableRequestId);
         }
+
+        // Una SESIÓN de Langfuse por conversación, no por expediente: sobre la
+        // misma solicitud puede haber una conversación de redacción, otra de
+        // reclamación y otra de alegaciones, y son hilos distintos. Todas las
+        // observaciones del turno cuelgan de esta sesión.
+        $task      = self::taskLabel($req);
+        $sessionId = $req->entityId . ':' . $task;
 
         $toolDefinitions = $this->toolDefinitionsFor($anonymous, $canEditRequest);
         $validToolNames = array_values(array_filter(array_map(
@@ -490,13 +510,16 @@ TXT;
                 ? ['type' => 'function', 'function' => ['name' => 'read_request_documents']]
                 : 'auto';
 
-            $inputSummary = json_encode([
-                'messages'    => count($messages),
-                'tools'       => count($toolDefinitions),
-                'flow'        => $req->flow,
-                'entity'      => $req->entityId,
+            // Input REAL de la llamada, no un resumen: es lo que hace la traza
+            // reconstruible (y reutilizable como material de entrenamiento).
+            $observationInput = TracePayload::encode([
+                'messages'    => TracePayload::sanitizeMessages($messages),
+                'tools'       => array_values(array_filter(array_map(
+                    static fn (array $d): ?string => $d['function']['name'] ?? null,
+                    $toolDefinitions,
+                ))),
                 'tool_choice' => is_array($toolChoice) ? $toolChoice['function']['name'] : $toolChoice,
-            ], JSON_UNESCAPED_UNICODE);
+            ]);
 
             try {
                 $iteration = $toolIterations;
@@ -505,14 +528,15 @@ TXT;
                     attributes: [
                         AttributeKeys::GEN_AI_OPERATION           => 'tool_calling',
                         AttributeKeys::GEN_AI_SYSTEM              => 'openai',
-                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $this->customClient->getModel(),
-                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $inputSummary,
-                        AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
+                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $model->client->getModel(),
+                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $observationInput,
+                        AttributeKeys::LANGFUSE_SESSION_ID        => $sessionId,
                         'agent.iteration'                         => $iteration,
                         'agent.flow'                              => $req->flow,
+                        'agent.task'                              => $task,
                         ...$promptAttrs,
                     ],
-                    fn: fn () => $this->customClient->chatWithTools($messages, $toolDefinitions, $toolChoice),
+                    fn: fn () => $model->client->chatWithTools($messages, $toolDefinitions, $toolChoice),
                     captureOutput: function (array $r, SpanInterface $span): void {
                         $span->setAttribute('agent.response_type', $r['type']);
                         $span->setAttribute(AttributeKeys::GEN_AI_USAGE_INPUT_TOKENS, $r['promptTokens'] ?? 0);
@@ -521,12 +545,10 @@ TXT;
                             $calls = $r['calls'] ?? [];
                             $names = array_column($calls, 'name');
                             $span->setAttribute('agent.tools_called', implode(', ', $names));
-                            // Serialize tool calls with their arguments for full visibility.
-                            $callsSummary = array_map(
-                                fn (array $c) => sprintf('%s(%s)', $c['name'], mb_substr(json_encode($c['arguments'], JSON_UNESCAPED_UNICODE), 0, 300)),
-                                $calls,
-                            );
-                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, implode(' | ', $callsSummary));
+                            // Argumentos ÍNTEGROS: recortarlos a 300 caracteres
+                            // dejaba la traza inservible para reconstruir la
+                            // llamada (una argumentación de búsqueda es larga).
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, TracePayload::encode($calls));
                         } else {
                             // The model returned text (often the decision JSON itself).
                             // Capture a meaningful summary — full reply + action + draft
@@ -598,9 +620,27 @@ TXT;
                 ]];
 
                 try {
-                    $toolCall   = new ToolCall($callData['id'], $toolName, $callData['arguments']);
-                    $toolResult = $this->toolbox->execute($toolCall);
-                    $resultText = $converter->convert($toolResult);
+                    $toolCall = new ToolCall($callData['id'], $toolName, $callData['arguments']);
+                    // Un span por ejecución de herramienta. Sin esto, el
+                    // resultado literal de las búsquedas —la doctrina que el
+                    // modelo tuvo delante al redactar— no queda en ningún sitio,
+                    // y sin él la traza no explica por qué escribió lo que
+                    // escribió.
+                    $resultText = $this->tracer->span(
+                        name: 'agent.tool.' . $toolName,
+                        attributes: [
+                            AttributeKeys::LANGFUSE_OBSERVATION_INPUT => TracePayload::encode($callData['arguments']),
+                            AttributeKeys::LANGFUSE_SESSION_ID        => $sessionId,
+                            'agent.tool'                              => $toolName,
+                            'agent.iteration'                         => $toolIterations,
+                            'agent.flow'                              => $req->flow,
+                            'agent.task'                              => $task,
+                        ],
+                        fn: fn (): string => $converter->convert($this->toolbox->execute($toolCall)),
+                        captureOutput: static function (string $text, SpanInterface $span): void {
+                            $span->setAttribute(AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT, TracePayload::text($text));
+                        },
+                    );
                 } catch (\Throwable $e) {
                     $this->logger->warning('AgentChatOrchestrator tool execution failed', [
                         'tool'  => $toolName,
@@ -650,13 +690,17 @@ TXT;
                     attributes: [
                         AttributeKeys::GEN_AI_OPERATION           => 'chat',
                         AttributeKeys::GEN_AI_SYSTEM              => 'openai',
-                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $this->customClient->getModel(),
-                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => json_encode(['messages' => count($messages), 'flow' => $req->flow], JSON_UNESCAPED_UNICODE),
-                        AttributeKeys::LANGFUSE_SESSION_ID        => $req->entityId,
+                        AttributeKeys::GEN_AI_REQUEST_MODEL       => $model->client->getModel(),
+                        AttributeKeys::LANGFUSE_OBSERVATION_INPUT => TracePayload::encode([
+                            'messages' => TracePayload::sanitizeMessages($messages),
+                            'schema'   => $planRequired ? 'assistant_plan' : 'assistant_decision',
+                        ]),
+                        AttributeKeys::LANGFUSE_SESSION_ID        => $sessionId,
                         'agent.flow'                              => $req->flow,
+                        'agent.task'                              => $task,
                         ...$promptAttrs,
                     ],
-                    fn: fn () => $this->customClient->chatRaw(
+                    fn: fn () => $model->client->chatRaw(
                         messages: $messages,
                         jsonSchema: $planRequired ? self::PLAN_SCHEMA : self::DECISION_SCHEMA,
                         schemaName: $planRequired ? 'assistant_plan' : 'assistant_decision',
@@ -676,6 +720,7 @@ TXT;
                     'flow'  => $req->flow,
                     'error' => $e->getMessage(),
                 ]);
+                $this->captureTurn($req, $model, $messages, status: AgentTurnTrace::STATUS_LLM_ERROR);
                 yield ['error', ['message' => 'No se ha podido contactar con el modelo. Reintenta en unos segundos.']];
                 return;
             }
@@ -685,6 +730,13 @@ TXT;
                 $this->logger->warning('AgentChatOrchestrator: invalid JSON in final response', [
                     'preview' => mb_substr($result->content, 0, 300),
                 ]);
+                $this->captureTurn(
+                    $req,
+                    $model,
+                    $messages,
+                    status: AgentTurnTrace::STATUS_INVALID_JSON,
+                    rawOutput: (string) $result->content,
+                );
                 yield ['error', ['message' => 'El asistente respondió en un formato inesperado. Reintenta en unos segundos.']];
                 return;
             }
@@ -695,17 +747,24 @@ TXT;
         // mostró y el usuario espera el documento), lo reconducimos con un segundo
         // intento que fuerza la generación. Rompe el bucle "plan → apruebo → otro
         // plan" con modelos que no respetan bien la regla "genera tras aprobación".
+        // Conversación SIN los turnos sintéticos que inyecta el nudge. Es la que
+        // se guarda como traza: entrenar con el apaño enseñaría al modelo a
+        // necesitarlo.
+        $cleanMessages = $messages;
+        $wasNudged = false;
+
         if (
             !$planRequired
             && $req->flow === 'complaint'
             && ($data['action'] ?? 'reply') === 'reply'
             && is_array($data['plan'] ?? null) && count($data['plan']) > 0
         ) {
+            $wasNudged = true;
             yield ['step', ['message' => 'Redactando el borrador…', 'tool' => null]];
             $messages[] = ['role' => 'assistant', 'content' => json_encode($data, JSON_UNESCAPED_UNICODE)];
             $messages[] = ['role' => 'user', 'content' => 'El plan de argumentos ya está definido y aprobado. Ahora DEBES redactar el documento completo: responde con "action":"generate" y el objeto "draft" con el "body_html" del escrito entero. NO vuelvas a proponer un plan.'];
             try {
-                $nudged = $this->customClient->chatRaw(
+                $nudged = $model->client->chatRaw(
                     messages: $messages,
                     jsonSchema: self::DECISION_SCHEMA,
                     schemaName: 'assistant_decision',
@@ -732,6 +791,7 @@ TXT;
 
         $action = (string) ($data['action'] ?? 'reply');
         if (!in_array($action, ['reply', 'generate', 'rewrite'], true)) {
+            $this->captureTurn($req, $model, $cleanMessages, $data, AgentTurnTrace::STATUS_INVALID_ACTION, nudged: $wasNudged);
             yield ['error', ['message' => sprintf('Acción desconocida: «%s».', $action)]];
             return;
         }
@@ -741,6 +801,7 @@ TXT;
             : null;
 
         if ($action !== 'reply' && $draft === null) {
+            $this->captureTurn($req, $model, $cleanMessages, $data, AgentTurnTrace::STATUS_MISSING_DRAFT, nudged: $wasNudged);
             yield ['error', ['message' => 'El asistente decidió generar/reescribir pero no envió el borrador.']];
             return;
         }
@@ -766,6 +827,10 @@ TXT;
                 $plan[] = ['argument' => $argument, 'strategy' => $strategy];
             }
         }
+
+        // Volcado opcional de la conversación completa del turno (system + tools +
+        // decisión) como traza de entrenamiento; no-op sin AGENT_TRACE_CAPTURE_DIR.
+        $this->captureTurn($req, $model, $cleanMessages, $data, nudged: $wasNudged);
 
         yield ['decision', ['action' => $action, 'draft' => $draft, 'plan' => $plan, 'sources' => $sources]];
 
@@ -812,6 +877,60 @@ TXT;
             }
         }
         return true;
+    }
+
+    /**
+     * Tarea de destilación a la que pertenece el turno. NO coincide con `flow`:
+     * reclamaciones y respuestas a alegaciones comparten `flow = complaint` pero
+     * son tareas distintas, y el hand-off desde consulta (`ConsultAlegationHandoff`)
+     * produce alegaciones aunque venga por otra ruta. Es la clave por la que se
+     * parten los ficheros de trazas.
+     */
+    public static function taskLabel(AssistantChatRequest $req): string
+    {
+        return match (true) {
+            $req->flow === 'request'                            => 'request',
+            str_contains((string) $req->traceName, 'Alegation') => 'alegation',
+            $req->flow === 'consult'                            => 'consult',
+            default                                             => 'complaint',
+        };
+    }
+
+    /**
+     * Vuelca el turno como traza de entrenamiento con sus metadatos de
+     * reproducibilidad. No-op sin AGENT_TRACE_CAPTURE_DIR.
+     *
+     * @param list<array<string, mixed>> $messages
+     * @param array<string, mixed>       $decision
+     */
+    private function captureTurn(
+        AssistantChatRequest $req,
+        ModelChoice $model,
+        array $messages,
+        array $decision = [],
+        string $status = AgentTurnTrace::STATUS_OK,
+        string $rawOutput = '',
+        bool $nudged = false,
+    ): void {
+        if (!$this->traceCapture->isEnabled()) {
+            return;
+        }
+
+        $this->traceCapture->capture(new AgentTurnTrace(
+            task: self::taskLabel($req),
+            flow: $req->flow,
+            entityId: $req->entityId,
+            messages: $messages,
+            decision: $decision,
+            status: $status,
+            rawOutput: $rawOutput,
+            modelRole: $model->role,
+            modelName: $model->client->getModel(),
+            temperature: $model->client->getTemperature(),
+            promptName: $req->promptRef?->name,
+            promptVersion: $req->promptRef?->version,
+            nudged: $nudged,
+        ));
     }
 
     private function buildDraftingContext(AssistantChatRequest $req): string
