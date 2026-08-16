@@ -21,15 +21,15 @@ final class Version20260808120000 extends AbstractMigration
 
     public function up(Schema $schema): void
     {
-        $this->addSql('ALTER TABLE access_request MODIFY sent_at DATE NULL');
-        $this->addSql('ALTER TABLE access_request MODIFY deadline_at DATE NULL');
+        $this->addSql('ALTER TABLE access_request ALTER sent_at DROP NOT NULL');
+        $this->addSql('ALTER TABLE access_request ALTER deadline_at DROP NOT NULL');
     }
 
     public function down(Schema $schema): void
     {
         $this->addSql('UPDATE access_request SET sent_at = created_at WHERE sent_at IS NULL');
         $this->addSql('UPDATE access_request SET deadline_at = sent_at WHERE deadline_at IS NULL AND sent_at IS NOT NULL');
-        $this->addSql('ALTER TABLE access_request MODIFY sent_at DATE NOT NULL');
-        $this->addSql('ALTER TABLE access_request MODIFY deadline_at DATE NOT NULL');
+        $this->addSql('ALTER TABLE access_request ALTER sent_at SET NOT NULL');
+        $this->addSql('ALTER TABLE access_request ALTER deadline_at SET NOT NULL');
     }
 }
