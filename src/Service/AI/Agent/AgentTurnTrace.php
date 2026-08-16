@@ -44,7 +44,7 @@ final readonly class AgentTurnTrace
         public string $rawOutput = '',
         public string $modelRole = 'student',
         public string $modelName = '',
-        public float $temperature = 0.0,
+        public ?float $temperature = null,
         public ?string $promptName = null,
         public ?int $promptVersion = null,
         /**

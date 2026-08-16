@@ -87,7 +87,7 @@ final class ModelRouter
      */
     public function warnIfMisconfigured(): void
     {
-        if ($this->isTeacherConfigured() && $this->teacherClient->getTemperature() > 0.7) {
+        if ($this->isTeacherConfigured() && ($this->teacherClient->getTemperature() ?? 0.0) > 0.7) {
             $this->logger->warning('TEACHER_MODEL_TEMP alto para recogida de trazas', [
                 'temperature' => $this->teacherClient->getTemperature(),
             ]);

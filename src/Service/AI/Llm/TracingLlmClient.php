@@ -120,11 +120,14 @@ final class TracingLlmClient extends LlmClient
             AttributeKeys::GEN_AI_OPERATION => 'chat',
             AttributeKeys::GEN_AI_SYSTEM => 'openai',
             AttributeKeys::GEN_AI_REQUEST_MODEL => $this->customClient->getModel(),
-            AttributeKeys::GEN_AI_REQUEST_TEMPERATURE => $this->customClient->getTemperature(),
             AttributeKeys::GEN_AI_REQUEST_MAX_TOKENS => $req->maxOutputTokens,
             AttributeKeys::LANGFUSE_OBSERVATION_LABEL => $req->label,
             AttributeKeys::LANGFUSE_OBSERVATION_INPUT => $this->serializeInput($req),
         ];
+
+        if ($this->customClient->getTemperature() !== null) {
+            $attrs[AttributeKeys::GEN_AI_REQUEST_TEMPERATURE] = $this->customClient->getTemperature();
+        }
 
         if ($req->promptRef?->version !== null) {
             $attrs[AttributeKeys::LANGFUSE_OBSERVATION_PROMPT_NAME] = $req->promptRef->name;

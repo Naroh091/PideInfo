@@ -116,7 +116,9 @@ services:
             $endpoint: '%env(TEACHER_MODEL_ENDPOINT)%'
             $apiKey: '%env(TEACHER_MODEL_API_KEY)%'
             $maxTokens: '%env(int:TEACHER_MODEL_MAX_TOKENS)%'
-            $temperature: '%env(float:TEACHER_MODEL_TEMP)%'
+            # Sin `float:` a propósito: vacío significa "no fijada" y CustomModelClient
+            # lo trata como tal, omitiendo `temperature` de la petición en vez de mandar 0.0.
+            $temperature: '%env(TEACHER_MODEL_TEMP)%'
             $logger: '@logger'
             $llmApiLimiter: '@limiter.llm_api'
 

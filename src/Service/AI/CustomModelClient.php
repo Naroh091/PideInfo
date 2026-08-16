@@ -25,6 +25,8 @@ final class CustomModelClient
 
     private ?OpenAIClient $client = null;
 
+    private readonly ?float $temperature;
+
     public function __construct(
         #[Autowire(env: 'CUSTOM_MODEL')]
         private readonly string $model,
@@ -34,14 +36,19 @@ final class CustomModelClient
         private readonly string $apiKey,
         #[Autowire(env: 'int:CUSTOM_MODEL_MAX_TOKENS')]
         private readonly int $maxTokens,
-        #[Autowire(env: 'float:CUSTOM_MODEL_TEMP')]
-        private readonly float $temperature,
+        // Raw string, not `float:` — an empty env var means "not set" and must
+        // stay unset rather than cast to 0.0, so it can be dropped from the
+        // request entirely (some backends, e.g. reasoning models, reject a
+        // `temperature` param outright).
+        #[Autowire(env: 'CUSTOM_MODEL_TEMP')]
+        string $temperature,
         private readonly LoggerInterface $logger,
         // Nullable so the TracingLlmClient decorator can omit it when calling
         // parent::__construct — it delegates to the real CustomModelClient which
         // already throttles. Autowired by Symfony from the `llm_api` limiter.
         private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
     ) {
+        $this->temperature = $temperature === '' ? null : (float) $temperature;
     }
 
     private function throttle(): void
@@ -57,9 +64,10 @@ final class CustomModelClient
     /**
      * Sampling temperature applied to every custom-model call (CUSTOM_MODEL_TEMP).
      * Per-request temperatures are intentionally ignored on this backend: the
-     * self-hosted model has its own recommended setting.
+     * self-hosted model has its own recommended setting. Null when the env var
+     * is unset, meaning `temperature` is omitted from the request entirely.
      */
-    public function getTemperature(): float
+    public function getTemperature(): ?float
     {
         return $this->temperature;
     }
@@ -183,11 +191,13 @@ final class CustomModelClient
         $params = [
             'model'       => $this->model,
             'messages'    => $messages,
-            'temperature' => $this->temperature,
             'max_tokens'  => $this->maxTokens,
             'tools'       => $tools,
             'tool_choice' => $toolChoice,
         ];
+        if ($this->temperature !== null) {
+            $params['temperature'] = $this->temperature;
+        }
 
         $response = $this->getClient()->chat()->create($params);
         $choice   = $response->choices[0];
@@ -306,11 +316,13 @@ final class CustomModelClient
         $params = [
             'model' => $this->model,
             'messages' => $messages,
-            'temperature' => $this->temperature,
             'max_tokens' => $maxTokens,
             'stream' => true,
             'stream_options' => ['include_usage' => true],
         ];
+        if ($this->temperature !== null) {
+            $params['temperature'] = $this->temperature;
+        }
 
         if ($responseFormat !== null) {
             $params['response_format'] = $responseFormat;
@@ -392,11 +404,13 @@ final class CustomModelClient
         $params = [
             'model' => $this->model,
             'messages' => $messages,
-            'temperature' => $this->temperature,
             'max_tokens' => $maxTokens,
             'stream' => true,
             'stream_options' => ['include_usage' => true],
         ];
+        if ($this->temperature !== null) {
+            $params['temperature'] = $this->temperature;
+        }
 
         if ($responseFormat !== null) {
             $params['response_format'] = $responseFormat;

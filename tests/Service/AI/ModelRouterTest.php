@@ -14,7 +14,7 @@ final class ModelRouterTest extends TestCase
 {
     private function client(string $model): CustomModelClient
     {
-        return new CustomModelClient($model, 'http://localhost/v1', '', 4096, 0.3, new NullLogger());
+        return new CustomModelClient($model, 'http://localhost/v1', '', 4096, '0.3', new NullLogger());
     }
 
     private function router(string $teacherModel, string $teacherEndpoint, int $sample): ModelRouter
