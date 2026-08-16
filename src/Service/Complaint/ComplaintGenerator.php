@@ -14,11 +14,15 @@ use App\Observability\AttributeKeys;
 use App\Observability\Tracer;
 use App\Prompt\CompiledPrompt;
 use App\Prompt\PromptStore;
+use App\Service\AI\Agent\AgentTurnTrace;
+use App\Service\AI\Agent\AgentTurnTraceCapture;
 use App\Service\AI\CriteriaRetriever;
 use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\DocumentEmbeddingsRetriever;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\LlmClient;
+use App\Service\AI\ModelChoice;
+use App\Service\AI\ModelRouter;
 use App\Service\AI\ResolutionRetriever;
 use App\Service\TransparencyCouncilResolver;
 use Doctrine\ORM\EntityManagerInterface;
@@ -39,7 +43,55 @@ final class ComplaintGenerator
         private readonly PromptStore $promptStore,
         private readonly DocumentEmbeddingsRetriever $documentEmbeddingsRetriever,
         private readonly DoctrinePriorityResolver $doctrinePriority,
+        private readonly ModelRouter $modelRouter,
+        private readonly AgentTurnTraceCapture $traceCapture,
     ) {
+    }
+
+    /**
+     * Vuelca una generación one-shot (la vía NO agéntica de reclamaciones y
+     * respuestas a alegaciones, {@see \App\Controller\ComplaintController}) como
+     * traza de destilación.
+     *
+     * La tarea lleva sufijo `-oneshot` a propósito: estas conversaciones no
+     * tienen bucle de herramientas, así que su forma de entrada no es la misma
+     * que la del agente y mezclarlas en el mismo corpus enseñaría al modelo a
+     * redactar sin buscar doctrina.
+     *
+     * @param ChatMessage[] $conversationHistory
+     */
+    private function captureOneShot(
+        AccessRequest $accessRequest,
+        string $task,
+        ModelChoice $model,
+        string $systemPrompt,
+        array $conversationHistory,
+        ?CompiledPrompt $prompt,
+        string $content,
+    ): void {
+        if (!$this->traceCapture->isEnabled()) {
+            return;
+        }
+
+        $messages = [['role' => 'system', 'content' => $systemPrompt]];
+        foreach ($conversationHistory as $message) {
+            $messages[] = ['role' => $message->role, 'content' => $message->content];
+        }
+
+        $this->traceCapture->capture(new AgentTurnTrace(
+            task: $task,
+            flow: 'complaint',
+            entityId: $accessRequest->getId()->toRfc4122(),
+            messages: $messages,
+            // Forma de decisión idéntica a la del agente para que la proyección
+            // al formato de entrenamiento sea una sola, no dos.
+            decision: ['conversational_reply' => '', 'action' => 'generate', 'draft' => ['body_html' => $content]],
+            modelRole: $model->role,
+            modelName: $model->client->getModel(),
+            temperature: $model->client->getTemperature(),
+            promptName: $prompt?->name,
+            promptVersion: $prompt?->version,
+        ));
     }
 
     /**
@@ -77,10 +129,17 @@ final class ComplaintGenerator
      */
     private function rootAttributes(AccessRequest $accessRequest, string $kind): array
     {
+        // Misma sesión que la vía agéntica del mismo escrito (`<uuid>:complaint`
+        // / `<uuid>:alegation`): sobre un expediente puede haber varias
+        // conversaciones distintas, pero TODO lo que produce la reclamación —da
+        // igual por qué camino— pertenece a la misma.
+        $task = str_starts_with($kind, 'alegaciones') ? 'alegation' : 'complaint';
+
         return [
             AttributeKeys::LANGFUSE_USER_ID => $accessRequest->getUser()?->getEmail(),
-            AttributeKeys::LANGFUSE_SESSION_ID => (string) $accessRequest->getId(),
-            AttributeKeys::LANGFUSE_TAGS => ['complaint', $kind],
+            AttributeKeys::LANGFUSE_SESSION_ID => $accessRequest->getId() . ':' . $task,
+            AttributeKeys::LANGFUSE_TAGS => ['one-shot', $task, $kind],
+            'agent.task' => $task,
             'access_request.status' => $accessRequest->getStatus(),
             'access_request.applicable_law' => $accessRequest->getApplicableLaw()?->getName(),
         ];
@@ -200,6 +259,7 @@ final class ComplaintGenerator
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
+        $model = $this->modelRouter->pick();
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
@@ -207,6 +267,7 @@ final class ComplaintGenerator
             maxOutputTokens: 8192,
             label: 'complaint.generate',
             promptRef: $prompt,
+            preferTeacher: $model->isTeacher(),
         ));
 
         foreach ($stream as $delta) {
@@ -214,6 +275,7 @@ final class ComplaintGenerator
         }
 
         $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+        $this->captureOneShot($accessRequest, 'complaint-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -264,15 +326,18 @@ final class ComplaintGenerator
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
+        $model = $this->modelRouter->pick();
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,
+            preferTeacher: $model->isTeacher(),
         ))->content;
 
         $content = $this->sanitizeHtmlResponse($content);
+        $this->captureOneShot($accessRequest, 'complaint-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -892,6 +957,7 @@ GRANTED_PENDING;
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
+        $model = $this->modelRouter->pick();
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
@@ -899,6 +965,7 @@ GRANTED_PENDING;
             maxOutputTokens: 8192,
             label: 'complaint.alegation_response',
             promptRef: $prompt,
+            preferTeacher: $model->isTeacher(),
         ));
 
         foreach ($stream as $delta) {
@@ -906,6 +973,7 @@ GRANTED_PENDING;
         }
 
         $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+        $this->captureOneShot($accessRequest, 'alegation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -958,15 +1026,18 @@ GRANTED_PENDING;
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
+        $model = $this->modelRouter->pick();
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             temperature: 1.0,
             maxOutputTokens: 8192,
             promptRef: $prompt,
+            preferTeacher: $model->isTeacher(),
         ))->content;
 
         $content = $this->sanitizeHtmlResponse($content);
+        $this->captureOneShot($accessRequest, 'alegation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);

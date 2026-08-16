@@ -333,6 +333,26 @@ En la página de detalle de la solicitud, cuando existe una reclamación, el usu
 
 Estos campos en línea envían a `AccessRequestController::editComplaint()`.
 
+## Captura de trazas para destilación
+
+Cuando `AGENT_TRACE_CAPTURE_DIR` está puesto, la redacción de reclamaciones y de respuestas a
+alegaciones se vuelca como trazas de entrenamiento (ver `docs/request-workflow.md` para el formato
+y los avisos de privacidad). Dos particularidades de este flujo:
+
+- **Son dos tareas, no una.** Reclamación y respuesta a alegaciones comparten `flow = complaint`
+  pero acaban en ficheros separados (`agent-complaint-*.jsonl` / `agent-alegation-*.jsonl`), porque
+  redactar una reclamación no es lo mismo que rebatir punto por punto un escrito de alegaciones.
+  El hand-off desde consulta (`ConsultAlegationHandoff`) se clasifica también como `alegation`.
+- **Hay dos vías de generación y las dos se capturan.** La agéntica (`AgentChatOrchestrator`, con
+  bucle de tools y protocolo FASE 1/FASE 2) y la one-shot de `ComplaintGenerator::generate()` /
+  `::generateAlegationResponse()`, que usa `ComplaintController` y la tool MCP
+  `generate_complaint_draft`. La segunda escribe en ficheros con sufijo `-oneshot` porque **no
+  tiene bucle de herramientas**: su forma de entrada es distinta y mezclarlas en el mismo corpus
+  enseñaría al modelo a redactar sin buscar doctrina.
+
+Ambas vías respetan `ModelRouter`, así que con el teacher activo la salida que recibe el usuario
+—y la que se guarda— es la del modelo grande.
+
 ## Integración MCP
 
 Clientes MCP pueden cubrir el ciclo completo de la reclamación con tres tools (`docs/mcp.md`):

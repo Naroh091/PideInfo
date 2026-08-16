@@ -3,6 +3,7 @@
 namespace App\Service\AI\Llm;
 
 use App\Service\AI\CustomModelClient;
+use App\Service\AI\ModelRouter;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -14,12 +15,32 @@ class LlmClient
     public function __construct(
         private readonly CustomModelClient $customClient,
         private readonly LoggerInterface $logger,
+        // Nullable porque TracingLlmClient llama a parent::__construct con dos
+        // argumentos; el decorador delega siempre en la instancia interna, que
+        // sí lo recibe autowired, así que el enrutado no se pierde.
+        private readonly ?ModelRouter $modelRouter = null,
     ) {
+    }
+
+    /**
+     * Cliente con el que se despacha esta petición: el TEACHER cuando la
+     * petición lo pide explícitamente y está configurado, el de siempre en
+     * cualquier otro caso. Aquí NO se sortea nada — el muestreo lo hace quien
+     * construye la petición ({@see ModelRouter::pick()}), para que el modelo que
+     * sirve la generación y el que se anota en la traza sean el mismo.
+     */
+    private function clientFor(ChatRequest $req): CustomModelClient
+    {
+        if (!$req->preferTeacher || $this->modelRouter === null || !$this->modelRouter->isTeacherConfigured()) {
+            return $this->customClient;
+        }
+
+        return $this->modelRouter->teacher();
     }
 
     public function chat(ChatRequest $req): ChatResult
     {
-        return $this->customClient->call($req);
+        return $this->clientFor($req)->call($req);
     }
 
     /**
@@ -29,7 +50,7 @@ class LlmClient
      */
     public function chatStream(ChatRequest $req): \Generator
     {
-        return yield from $this->customClient->streamCall($req);
+        return yield from $this->clientFor($req)->streamCall($req);
     }
 
     /**

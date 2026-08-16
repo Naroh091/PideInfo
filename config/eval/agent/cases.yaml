@@ -1,0 +1,54 @@
+# Casos de comparación de modelos del agente (`app:agent:compare`).
+#
+# Cada caso es una CONVERSACIÓN ACOTADA sobre un expediente REAL: el system prompt lo
+# compilan los composers desde la entidad (organismo, ley aplicable, canal,
+# estado, documentos), así que un `request_id` inventado no sirve — compararía
+# a los modelos sobre un contexto que no se da en producción.
+#
+# Elige casos DIFÍCILES. 
+#
+#   id:           estable; es la clave del pack y del reparto ciego A/B
+#   task:         request | complaint | alegation
+#   request_id:   UUID de la AccessRequest
+#   user_message: el primer mensaje del usuario
+#   follow_ups:   guion de mensajes siguientes, FIJOS e IDÉNTICOS para los dos
+#                 modelos. No es un usuario simulado: es texto escrito a mano,
+#                 así que ninguno recibe información que el otro no tenga. Cada
+#                 modelo avanza por su propia rama (redacta desde SU plan).
+#                 Sin follow_ups la comparación es de un solo turno — y en
+#                 reclamación/alegaciones eso compara PLANES, no escritos,
+#                 porque la FASE 1 está forzada por código.
+#   history:      turnos ya ocurridos antes de que arranque el caso (opcional)
+#   notes:        qué se está probando; se le enseña al juez como contexto
+#
+# Este fichero es el dataset ESTABLE, el que se repite entre iteraciones. Para
+# probar un expediente suelto no hace falta tocarlo:
+#   php bin/console app:agent:compare --request-id=<uuid> [--task=alegation] [--message='…']
+#
+# Ejecutar el dataset:
+#   php bin/console app:agent:compare --limit=5
+#   php bin/console app:agent:compare --task=alegation
+#
+# Para quedarte además con las trayectorias completas (tool calls y resultados
+# literales de cada modelo), lanza el comando con la captura encendida:
+#   AGENT_TRACE_CAPTURE_DIR=var/agent-compare/trazas php bin/console app:agent:compare
+
+cases: []
+    # - id: contratos-menores-ayuntamiento
+    #   task: request
+    #   request_id: 00000000-0000-0000-0000-000000000000
+    #   user_message: 'Quiero pedir los contratos menores adjudicados en 2024 y a qué empresas'
+    #   follow_ups:
+    #       # Aporta el dato que faltaba: quien lo preguntó lo aprovecha, quien
+    #       # redactó a ciegas queda retratado.
+    #       - 'Me interesan 2023 y 2024, y en formato reutilizable'
+    #   notes: 'Materia LCSP en ente local; ¿acierta la ley sectorial y pide el periodo antes de redactar?'
+    #
+    # - id: alegaciones-autonomia-organo
+    #   task: alegation
+    #   request_id: 00000000-0000-0000-0000-000000000000
+    #   user_message: 'Responde a las alegaciones'
+    #   follow_ups:
+    #       # FASE 1 → FASE 2: cada modelo redacta desde SU propio plan.
+    #       - 'Adelante'
+    #   notes: 'Comprueba que identifica TODAS las alegaciones y que el escrito entrega lo que su plan prometía.'

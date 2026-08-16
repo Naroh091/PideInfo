@@ -103,6 +103,23 @@ services:
             $endpoint: '%env(CRAWL4AI_ENDPOINT)%'
             $apiToken: '%env(CRAWL4AI_API_TOKEN)%'
 
+    # Segunda instancia del cliente OpenAI-compatible apuntando al modelo TEACHER.
+    # Solo la usa AgentModelRouter para servir turnos con el teacher durante la
+    # recogida de trazas de destilación. La conexión se abre de forma perezosa, así
+    # que con TEACHER_MODEL_ENDPOINT vacío este servicio no contacta con nadie.
+    # Comparte el limitador `llm_api` a propósito: si el teacher se sirve desde el
+    # mismo endpoint self-hosted, el presupuesto global tiene que seguir siendo uno.
+    app.custom_model_client.teacher:
+        class: App\Service\AI\CustomModelClient
+        arguments:
+            $model: '%env(TEACHER_MODEL)%'
+            $endpoint: '%env(TEACHER_MODEL_ENDPOINT)%'
+            $apiKey: '%env(TEACHER_MODEL_API_KEY)%'
+            $maxTokens: '%env(int:TEACHER_MODEL_MAX_TOKENS)%'
+            $temperature: '%env(float:TEACHER_MODEL_TEMP)%'
+            $logger: '@logger'
+            $llmApiLimiter: '@limiter.llm_api'
+
 when@prod:
     services:
         Redis:
