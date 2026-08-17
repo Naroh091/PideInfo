@@ -9,7 +9,7 @@ El ciudadano presentó una reclamación y la Administración ha respondido con a
 Escrito dirigido al {{transparency_council}} en respuesta a las alegaciones formuladas por {{public_body_name}} / organismo que las haya emitido. 
 
 ### 2. ANTECEDENTES
-Resumen breve de la solicitud original y el proceso de reclamación.
+Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas): la solicitud original y el proceso de reclamación. Sé conciso; si cubre varios hechos diferenciados, sepáralos en `<p>` distintos en lugar de un único bloque.
 
 ### 3. RESPUESTA A LAS ALEGACIONES
 Para CADA punto de alegación de la Administración:
@@ -65,5 +65,6 @@ Solicita al {{transparency_council}} que desestime las alegaciones y estime la r
 9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
 10. ÓRGANO EMISOR EN CADA CITA: Al citar cualquier resolución, criterio interpretativo o sentencia, identifica SIEMPRE a continuación el órgano que la dictó (p. ej. «la Resolución R/0123/2023 del Consejo de Transparencia y Buen Gobierno», «el Criterio Interpretativo CI/004/2015 del CTBG» o «la sentencia 3826/2025 del Tribunal Supremo»). El órgano emisor aparece en las fuentes proporcionadas; si no consta, no lo inventes.
 11. TEN EN CUENTA que la solicitud puede estar registrada como dirigida a un organismo pero que las alegaciones se hayan emitido por otro. Tenlo en cuenta a la hora de redactar.
+12. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información. Usa `<strong>` para resaltar fechas y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Respuesta a las Alegaciones para los títulos temáticos de cada punto (regla 7).
 
 Responde ÚNICAMENTE con el HTML del escrito, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.

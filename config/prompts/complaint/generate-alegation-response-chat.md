@@ -118,5 +118,6 @@ A continuación se incluyen los documentos adjuntos al expediente. Úsalos como 
 10. PRIORIDAD: Los documentos del expediente (alegaciones, reclamación) son hechos del caso. Las resoluciones de `search_resolutions` y los criterios de `search_criteria` son precedente jurídico. Úsalos de forma diferenciada.
 11. NO SOLICITAR SANCIONES: El escrito solo pide que se desestimen las alegaciones y se estime la solicitud de acceso.
 12. ABREVIATURAS OFICIALES: Usa siempre las abreviaturas oficiales: CTBG, GAIP, CTCYL, CVAIP, CTPD, CTPDA, CTR, CVT, CTAR, CTCAN, CTG, CTN. No uses el nombre completo salvo en la primera mención.
+13. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información (esto aplica sobre todo a los Antecedentes). Usa `<strong>` para resaltar fechas, plazos y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Respuesta a las Alegaciones para los títulos temáticos de cada punto (regla 7).
 
 Responde ÚNICAMENTE con el HTML del escrito de respuesta a las alegaciones, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.

@@ -216,7 +216,7 @@ Al elegir `I_DECIDE_TO_BRING_IT_MYSELF` aparece un botón **Adjuntar** (`<button
 
 ### Documentación adicional (drag-drop)
 
-Zona "Arrastre a este área documentos a cargar" + botón **Añadir documento adicional** (`id16d`). Aquí es donde se sube el **PDF generado por PideInfo con la reclamación argumentada** (lo que hoy genera `app_complaint_pdf` y descarga el handler `present_complaint`).
+Zona "Arrastre a este área documentos a cargar" + botón **Añadir documento adicional** (`id16d`). Aquí se sube el **PDF generado por PideInfo con la reclamación argumentada** (lo genera `app_complaint_pdf`, lo descarga el handler `present_complaint` bajo la clave `reclamacion` y lo adjunta `CtbgComplaintFiller._step3_documents()` vía `_add_additional_doc()`, con la descripción «Reclamación argumentada»). Su texto ya va en el campo "Exponga brevemente los motivos" del paso 2; el PDF conserva el formato (negritas, párrafos) que ese textarea no admite.
 
 ### Submit
 
@@ -243,9 +243,16 @@ async def step3_attach_documents(page, payload):
         # Esperar a que el modal se cierre
         await page.locator('iframe[id^="_wicket_window_"]').wait_for(state='hidden', timeout=15000)
 
-    # Documento adicional: el PDF de la reclamación argumentada de PideInfo
+    # Documento adicional: el PDF de la reclamación argumentada de PideInfo.
+    # El modal de "documento adicional" es el mismo flujo de dos pasos
+    # (validez → fichero) que el de las cards obligatorias.
     await page.locator('button:has-text("Añadir documento adicional")').click()
-    # (modal probablemente similar — TBD)
+    modal = page.frame_locator('iframe[id^="_wicket_window_"]')
+    await modal.locator('select#id17d').select_option('EE01')  # Original
+    await modal.locator('button:has-text("Siguiente")').click()
+    await modal.locator('input[type=file]#inputfile').set_input_files(complaint_pdf_path)
+    await modal.locator('button:has-text("Cargar")').click()
+    await page.locator('iframe[id^="_wicket_window_"]').wait_for(state='hidden', timeout=15000)
 
     await page.locator('button:has-text("Guardar y continuar")').click()
 ```

@@ -4,19 +4,14 @@ El escrito debe tener esta estructura:
 
 ## 1. RESUMEN DE LA RECLAMACIÓN
 
-Escribe un párrafo breve que resuma:
-- Qué información se solicitó: {{request_title}}
-- A qué organismo: {{public_body_name}}
-- Qué ocurrió: {{status}}
-- Lo que dijo la Administración (si emitió resolución): {{denial_reason}}. **Si en los documentos del expediente la Administración invoca límites concretos del art. 14 o causas de inadmisión del art. 18 LTAIBG (o equivalente autonómico), reprodúcelos aquí literalmente — aunque este campo te llegue vacío o con un texto genérico.** El campo `denial_reason` es solo lo que un humano anotó a mano; los documentos son la verdad.
-- Por qué debe estimarse la reclamación (una frase, adaptada al supuesto: denegación, parcial, silencio, concesión no materializada, inadmisión…)
+FUSIONA el resumen y los antecedentes en este único apartado, bajo el encabezado `<h1>Resumen de la reclamación</h1>` — NO los repitas en dos bloques separados que cuenten lo mismo con distintas palabras.
 
-## 2. ANTECEDENTES
-
-Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas). Incluye esta información de forma fluida:
+- Primer párrafo, de resumen: qué información se solicitó ({{request_title}}), a qué organismo ({{public_body_name}}), qué ocurrió ({{status}}), lo que dijo la Administración si emitió resolución ({{denial_reason}}. **Si en los documentos del expediente la Administración invoca límites concretos del art. 14 o causas de inadmisión del art. 18 LTAIBG —o equivalente autonómico—, reprodúcelos aquí literalmente, aunque este campo te llegue vacío o con un texto genérico.** El campo `denial_reason` es solo lo que un humano anotó a mano; los documentos son la verdad), y por qué debe estimarse la reclamación (una frase, adaptada al supuesto: denegación, parcial, silencio, concesión no materializada, inadmisión…).
+- A continuación, en PROSA NARRATIVA (párrafos, no listas con viñetas), los antecedentes: las fechas y hechos concretos que sustentan lo anterior. Incluye esta información de forma fluida:
 {{timeline}}
+- No dupliques información entre el párrafo de resumen y el de antecedentes: el resumen adelanta el caso en una frase, los antecedentes lo desarrollan con fechas y hechos.
 
-## 3. FUNDAMENTACIÓN DE LA RECLAMACIÓN
+## 2. FUNDAMENTACIÓN DE LA RECLAMACIÓN
 
 Desarrolla la fundamentación basándote en:
 - {{applicable_law_name}}
@@ -103,7 +98,7 @@ Ejemplos de cita correcta:
 
 Usa SIEMPRE la fórmula literal «Criterio <identificador>» para criterios interpretativos. Si el órgano emisor no consta en las fuentes encontradas, no inventes el nombre.
 
-## 4. SOLICITUD
+## 3. SOLICITUD
 
 Redacta la petición formal al {{transparency_council}} solicitando que estime la reclamación.
 
@@ -137,7 +132,7 @@ Los documentos adjuntos al expediente se leen con la herramienta `read_request_d
 
 1. DOCUMENTO COMPLETO: El texto debe estar listo para firmar, sin huecos por rellenar
 2. SIN PLACEHOLDERS: NUNCA escribas [nombre], [fecha], [espacio para...], [completar], [firma], etc.
-3. ANTECEDENTES EN PROSA: Los antecedentes deben redactarse en párrafos narrativos, NO en listas con viñetas
+3. ANTECEDENTES EN PROSA: Los antecedentes (fusionados con el resumen en el apartado 1) deben redactarse en párrafos narrativos, NO en listas con viñetas
 4. TONO formal, cordial y directo. Español administrativo claro, sin tecnicismos innecesarios. No uses construcciones como "es improcedente jurídicamente", "silencio que vicia el procedimiento", "se requiere"... En cambio usa construcciones menos cargadas como "esta parte considera que no es aplicable", "se solicita". No motives un arranque de solicitud con "es de interés conocer": se puede justificar la solicitud pero siempre al final y de forma más natural.
 5. CITAS RELEVANTES Y ATRIBUIDAS: Solo cita una resolución si es REALMENTE relevante. Identifica siempre el órgano emisor. No inventes referencias.
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
@@ -147,5 +142,6 @@ Los documentos adjuntos al expediente se leen con la herramienta `read_request_d
 10. PRIORIDAD: Los documentos del expediente son hechos del caso. Las resoluciones de `search_resolutions` son precedente jurídico. Úsalos de forma diferenciada.
 11. NO SOLICITAR SANCIONES: La reclamación solo pide que se estime la solicitud de acceso.
 12. ABREVIATURAS OFICIALES: Usa siempre las abreviaturas oficiales: CTBG, GAIP, CTCYL, CVAIP, CTPD, CTPDA, CTR, CVT, CTAR, CTCAN, CTG, CTN. No uses el nombre completo salvo en la primera mención.
+13. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información (esto aplica sobre todo al apartado de Resumen de la reclamación, que al incluir los antecedentes necesitará varios `<p>`). Usa `<strong>` para resaltar fechas, plazos y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Fundamentación para los títulos temáticos de cada punto (regla 7).
 
 Responde ÚNICAMENTE con el HTML de la reclamación, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.

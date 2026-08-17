@@ -3,19 +3,14 @@ Redacta una reclamación ante {{transparency_council}} con la siguiente estructu
 
 ## 1. RESUMEN DE LA RECLAMACIÓN
 
-Escribe un párrafo breve que resuma:
-- Qué información se solicitó: {{request_title}} {{request_description}}
-- A qué organismo: {{public_body_name}}
-- Qué ocurrió: {{status}}
-- Lo que dijo la Administración (si emitió resolución): {{denial_reason}}. **Si en los documentos del expediente la Administración invoca límites concretos del art. 14 o causas de inadmisión del art. 18 LTAIBG (o equivalente autonómico), reprodúcelos aquí literalmente — aunque este campo te llegue vacío o con un texto genérico.** El campo `denial_reason` es solo lo que un humano anotó a mano; los documentos son la verdad.
-- Por qué debe estimarse la reclamación (una frase, adaptada al supuesto: denegación, parcial, silencio, concesión no materializada, inadmisión…)
+FUSIONA el resumen y los antecedentes en este único apartado, bajo el encabezado `<h1>Resumen de la reclamación</h1>` — NO los repitas en dos bloques separados que cuenten lo mismo con distintas palabras.
 
-## 2. ANTECEDENTES
-
-Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas). Incluye esta información de forma fluida:
+- Primer párrafo, de resumen: qué información se solicitó ({{request_title}} {{request_description}}), a qué organismo ({{public_body_name}}), qué ocurrió ({{status}}), lo que dijo la Administración si emitió resolución ({{denial_reason}}. **Si en los documentos del expediente la Administración invoca límites concretos del art. 14 o causas de inadmisión del art. 18 LTAIBG —o equivalente autonómico—, reprodúcelos aquí literalmente, aunque este campo te llegue vacío o con un texto genérico.** El campo `denial_reason` es solo lo que un humano anotó a mano; los documentos son la verdad), y por qué debe estimarse la reclamación (una frase, adaptada al supuesto: denegación, parcial, silencio, concesión no materializada, inadmisión…).
+- A continuación, en PROSA NARRATIVA (párrafos, no listas con viñetas), los antecedentes: las fechas y hechos concretos que sustentan lo anterior. Incluye esta información de forma fluida:
 {{timeline}}
+- No dupliques información entre el párrafo de resumen y el de antecedentes: el resumen adelanta el caso en una frase, los antecedentes lo desarrollan con fechas y hechos.
 
-## 3. FUNDAMENTACIÓN DE LA RECLAMACIÓN
+## 2. FUNDAMENTACIÓN DE LA RECLAMACIÓN
 
 Desarrolla la fundamentación basándote en:
 - {{applicable_law_name}}
@@ -98,7 +93,7 @@ Cuando cites un criterio interpretativo, usa SIEMPRE la fórmula literal «Crite
 
 Si el órgano emisor de una fuente no consta en el contexto proporcionado, no inventes el nombre: omite la cita.
 
-## 4. SOLICITUD
+## 3. SOLICITUD
 
 Redacta la petición formal a {{transparency_council}} solicitando que estime la reclamación.
 
@@ -145,11 +140,11 @@ Las resoluciones y criterios que verás después son precedente jurídico-interp
 
 1. DOCUMENTO COMPLETO: El texto debe estar listo para firmar, sin huecos por rellenar
 2. SIN PLACEHOLDERS: NUNCA escribas [nombre], [fecha], [espacio para...], [completar], [firma], etc.
-3. ANTECEDENTES EN PROSA: Los antecedentes deben redactarse en párrafos narrativos, NO en listas con viñetas
+3. ANTECEDENTES EN PROSA: Los antecedentes (fusionados con el resumen en el apartado 1) deben redactarse en párrafos narrativos, NO en listas con viñetas
 4. TONO formal, cordial y directo. Español administrativo claro, sin tecnicismos innecesarios. No uses construcciones como "es improcedente jurídicamente", "silencio que vicia el procedimiento", "se requiere"... En cambio usa construcciones menos cargadas como "esta parte considera que no es aplicable", "se solicita". No motives un arranque de solicitud con "es de interés conocer": se puede justificar la solicitud pero siempre al final y de forma más natural.
 5. CITAS RELEVANTES Y ATRIBUIDAS: Solo menciona una resolución, criterio interpretativo o doctrina si es REALMENTE relevante para el fondo de la reclamación — no las incluyas como adorno ni para engrosar el texto. Cuando cites una resolución o doctrina, IDENTIFICA SIEMPRE al órgano que la emitió (ej. "el {{transparency_council}}, en su Resolución R/0123/2023..."; "el Tribunal Supremo, en su sentencia de 16 de octubre de 2017..."). Si el órgano emisor no consta en las fuentes proporcionadas, no inventes el nombre.
 6. NO incluir encabezado con datos del reclamante (el usuario los añadirá después)
-7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada sección principal ("Resumen de la reclamación", "Antecedentes", "Fundamentación de la reclamación", "Solicitud"). Para subsecciones dentro de una sección, usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
+7. FORMATO HTML: Devuelve HTML semántico usando ÚNICAMENTE estas etiquetas: <h1>, <p>, <strong>, <em>, <ol>, <ul>, <li>, <blockquote>, <br>, <a>. NO uses <h2>, <h3>, <div>, <span>, <html>, <head>, <body>, estilos inline ni clases CSS. Usa <h1> para cada una de las TRES secciones principales, exactamente en este orden y sin ninguna sección adicional: "Resumen de la reclamación" (incluye los antecedentes, ver apartado 1), "Fundamentación de la reclamación", "Solicitud". Para subsecciones dentro de una sección, usa un párrafo con <strong> al inicio en lugar de un encabezado adicional.
 8. SUCINTO EN LO FORMAL: Sé breve y directo en cuestiones formales y de procedimiento. Reserva el detalle y la extensión para la argumentación jurídica de fondo, y aún así — especialmente en supuestos de silencio administrativo — prefiere la brevedad: no alargues la argumentación cuando el caso es sencillo.
 9. SOLO FUENTES PROPORCIONADAS: Basa tu argumentación EXCLUSIVAMENTE en los criterios interpretativos y resoluciones proporcionados arriba. NO inventes, cites ni menciones ninguna resolución, sentencia, criterio interpretativo o referencia normativa que no aparezca explícitamente en el contexto proporcionado. Si no hay suficientes fuentes, argumenta con los principios generales de la ley aplicable sin fabricar referencias concretas.
 10. PRIORIDAD DE FUENTES: Los documentos del expediente son hechos del caso concreto. Las resoluciones y criterios RAG son precedente interpretativo. Distingue claramente entre ambos en tu argumentación: usa los documentos del expediente para los hechos y la refutación de la administración; usa las resoluciones y criterios RAG para el fundamento jurídico.
@@ -157,5 +152,6 @@ Las resoluciones y criterios que verás después son precedente jurídico-interp
 12. MENCIONES DE ORGANISMOS: Ten especial cuidado en cómo denominas a los organismos, tanto los reclamados como a los que se dirige la reclamación. Integra su nombre de forma natural, si es una comisión la debes llamar, en el redactado de frases "la Comisión", si es un Ayuntamiento "el Ayuntamiento"...
 13. Si crees que falta información para la reclamación (por ejemplo, la información reclamada es demasiado general y no está claro qué se pidió) díselo al usuario para que te aporte más contexto.
 14. Ten en cuenta que el organismo formal al que se ha enviado la solicitud puede no ser el organismo destinatario final (por ejemplo, si se solicita información de un organismo dependiente de otro y es el organismo padre el que figura en el registro electrónico). Si este es el caso, menciónalo de forma natural y coherente.
+15. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información (esto aplica sobre todo al apartado de Resumen de la reclamación, que al incluir los antecedentes necesitará varios `<p>`). Usa `<strong>` para resaltar fechas, plazos y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Fundamentación para los títulos temáticos de cada punto (regla 7).
  
 Responde ÚNICAMENTE con el HTML de la reclamación, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.
