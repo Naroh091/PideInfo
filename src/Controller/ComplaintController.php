@@ -729,6 +729,7 @@ class ComplaintController extends AbstractController
         $task->setPayload([
             'access_request_id'    => $accessRequest->getId()->toRfc4122(),
             'complaint_document_id' => $complaintDocument->getId()->toRfc4122(),
+            'pdf_download_url'     => $this->generateUrl('app_complaint_pdf', ['id' => $accessRequest->getId()], UrlGeneratorInterface::ABSOLUTE_URL),
 
             // Destination
             'dir3_code'            => $organism->getDir3Code(),
