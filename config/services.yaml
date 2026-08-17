@@ -121,6 +121,11 @@ services:
             $temperature: '%env(TEACHER_MODEL_TEMP)%'
             $logger: '@logger'
             $llmApiLimiter: '@limiter.llm_api'
+            # Anthropic's OpenAI-compat layer requires `strict: true` on every
+            # response_format.json_schema. Only DECISION_SCHEMA/PLAN_SCHEMA
+            # (AgentChatOrchestrator) are ever sent through this client with a
+            # schema, and both are kept strict-mode compliant for that reason.
+            $strictJsonSchema: true
 
 when@prod:
     services:

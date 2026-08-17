@@ -68,7 +68,7 @@ class AgentChatOrchestrator
     private const DECISION_SCHEMA = [
         'type'                 => 'object',
         'additionalProperties' => false,
-        'required'             => ['conversational_reply', 'action'],
+        'required'             => ['conversational_reply', 'action', 'plan', 'draft'],
         'properties'           => [
             'conversational_reply' => [
                 'type'        => 'string',
@@ -89,13 +89,15 @@ class AgentChatOrchestrator
                 ],
             ],
             'draft'                => [
-                'type'       => ['object', 'null'],
-                'properties' => [
-                    'title'     => ['type' => 'string'],
-                    'body_html' => ['type' => 'string'],
-                    'body_text' => ['type' => 'string'],
-                    'expone'    => ['type' => 'string'],
-                    'solicita'  => ['type' => 'string'],
+                'type'                 => ['object', 'null'],
+                'additionalProperties' => false,
+                'required'             => ['title', 'body_html', 'body_text', 'expone', 'solicita', 'doc_type', 'sources'],
+                'properties'           => [
+                    'title'     => ['type' => ['string', 'null']],
+                    'body_html' => ['type' => ['string', 'null']],
+                    'body_text' => ['type' => ['string', 'null']],
+                    'expone'    => ['type' => ['string', 'null']],
+                    'solicita'  => ['type' => ['string', 'null']],
                     'doc_type'  => [
                         'type'        => ['string', 'null'],
                         'description' => 'SOLO en el flujo de consulta libre: clasifica el documento generado en uno de: complaint (reclamación), alegation_response (respuesta a alegaciones), subsanacion_response (respuesta a subsanación), other (cualquier otro escrito). Omite/null en los demás flujos.',
@@ -104,8 +106,10 @@ class AgentChatOrchestrator
                         'type'        => ['array', 'null'],
                         'description' => 'Fuentes utilizadas en el borrador: SOLO las resoluciones, criterios interpretativos o sentencias que hayas leído con las tools (search_resolutions / search_criteria / search_judgments) en ESTA conversación y que EFECTIVAMENTE cites en el texto. Vacío/null si no citas ninguna. NUNCA inventes referencias.',
                         'items'       => [
-                            'type'       => 'object',
-                            'properties' => [
+                            'type'                 => 'object',
+                            'additionalProperties' => false,
+                            'required'             => ['type', 'reference', 'label'],
+                            'properties'           => [
                                 'type'      => ['type' => 'string', 'enum' => ['resolution', 'criterion', 'judgment'], 'description' => 'resolution = resolución de un consejo de transparencia; criterion = criterio interpretativo (CI); judgment = sentencia judicial.'],
                                 'reference' => ['type' => 'string', 'description' => 'La referencia EXACTA tal como aparece en el resultado de la tool (p. ej. "R/0155/2021", "CI/004/2015", "TS/1547/2017"). No la reformatees.'],
                                 'label'     => ['type' => 'string', 'description' => 'Etiqueta legible corta para el usuario (p. ej. "Resolución R/0155/2021", "Criterio CI 4/2015", "STS 1547/2017").'],

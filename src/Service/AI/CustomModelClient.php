@@ -47,6 +47,13 @@ final class CustomModelClient
         // parent::__construct — it delegates to the real CustomModelClient which
         // already throttles. Autowired by Symfony from the `llm_api` limiter.
         private readonly ?RateLimiterFactoryInterface $llmApiLimiter = null,
+        // Anthropic's OpenAI-compatibility layer (used for the teacher backend) requires
+        // `strict: true` on every `response_format.json_schema` and rejects `strict: false`
+        // outright — but it also validates the schema itself against strict-mode rules
+        // (every property in `required`, `additionalProperties: false` at every object
+        // level), so this can only be turned on for backends whose schemas are actually
+        // compliant. Defaults off so the student backend's behavior never changes.
+        private readonly bool $strictJsonSchema = false,
     ) {
         $this->temperature = $temperature === '' ? null : (float) $temperature;
     }
@@ -156,6 +163,9 @@ final class CustomModelClient
                     'schema' => $req->jsonSchema,
                 ],
             ];
+            if ($this->strictJsonSchema) {
+                $responseFormat['json_schema']['strict'] = true;
+            }
         } elseif ($req->jsonMode) {
             $responseFormat = ['type' => 'json_object'];
         }
@@ -271,15 +281,19 @@ final class CustomModelClient
         ?int $maxOutputTokens = null,
     ): ChatResult {
         $this->throttle();
-        $responseFormat = $jsonSchema !== null
-            ? [
+        $responseFormat = null;
+        if ($jsonSchema !== null) {
+            $responseFormat = [
                 'type' => 'json_schema',
                 'json_schema' => [
                     'name' => $schemaName,
                     'schema' => $jsonSchema,
                 ],
-            ]
-            : null;
+            ];
+            if ($this->strictJsonSchema) {
+                $responseFormat['json_schema']['strict'] = true;
+            }
+        }
 
         return $this->dispatch($messages, $maxOutputTokens ?? $this->maxTokens, $maxRetries, $responseFormat);
     }
