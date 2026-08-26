@@ -104,7 +104,10 @@ php bin/console app:agent:compare --limit=5
 AGENT_TRACE_CAPTURE_DIR=var/agent-compare/trazas php bin/console app:agent:compare
 ```
 
-Requiere `TEACHER_MODEL` + `TEACHER_MODEL_ENDPOINT`; sin ellos aborta (no hay con qué comparar).
+Requiere `TEACHER_MODEL` + `TEACHER_MODEL_ENDPOINT`; sin ellos aborta (no hay con qué comparar). Usa
+`ModelRouter::teacher()`/`::student()` directamente (vía `$forceModel` en `AgentChatOrchestrator::stream()`),
+así que ignora los flags `TEACHER_ENABLED_*`: la comparación fuerza ambos modelos en cada caso
+independientemente de qué features tengan el teacher activado en producción.
 
 **Cada modelo ejecuta su propio bucle agéntico**: elige sus herramientas, ve sus resultados y
 redacta con ellos. Es la comparación honesta —el modelo pequeño no hereda las búsquedas del
