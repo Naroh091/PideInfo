@@ -16,13 +16,22 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
  * no de la que ya tenemos: entrenar con las salidas del modelo pequeño sería
  * clonar exactamente el comportamiento que se pretende mejorar.
  *
- * Se activa solo si TEACHER_MODEL y TEACHER_MODEL_ENDPOINT están puestos.
+ * Se activa solo si TEACHER_MODEL y TEACHER_MODEL_ENDPOINT están puestos, Y la
+ * feature concreta que llama a {@see pick()} tiene su flag `TEACHER_ENABLED_*`
+ * a true — el teacher NUNCA sirve una feature que no lo pide explícitamente
+ * (p.ej. el análisis de documentos o el chat de consulta libre siguen siempre
+ * con el modelo pequeño, gane lo que gane el muestreo).
  * TEACHER_MODEL_SAMPLE (0-100) permite bajar el porcentaje o cortar en seco sin
- * redeploy. El rol elegido se guarda en cada traza, así que un corpus recogido
- * durante un cambio de porcentaje sigue siendo separable a posteriori.
+ * redeploy, dentro de las features habilitadas. El rol elegido se guarda en
+ * cada traza, así que un corpus recogido durante un cambio de porcentaje sigue
+ * siendo separable a posteriori.
  */
 final class ModelRouter
 {
+    public const FEATURE_REQUEST = 'request';
+    public const FEATURE_COMPLAINT = 'complaint';
+    public const FEATURE_ALEGATION = 'alegation';
+
     public function __construct(
         private readonly CustomModelClient $studentClient,
         #[Autowire(service: 'app.custom_model_client.teacher')]
@@ -33,6 +42,12 @@ final class ModelRouter
         private readonly string $teacherEndpoint,
         #[Autowire(env: 'int:TEACHER_MODEL_SAMPLE')]
         private readonly int $samplePercent,
+        #[Autowire(env: 'bool:TEACHER_ENABLED_REQUESTS')]
+        private readonly bool $enabledForRequests,
+        #[Autowire(env: 'bool:TEACHER_ENABLED_COMPLAINTS')]
+        private readonly bool $enabledForComplaints,
+        #[Autowire(env: 'bool:TEACHER_ENABLED_ALEGATIONS')]
+        private readonly bool $enabledForAlegations,
         private readonly LoggerInterface $logger,
     ) {
     }
@@ -40,6 +55,16 @@ final class ModelRouter
     public function isTeacherConfigured(): bool
     {
         return $this->teacherModel !== '' && $this->teacherEndpoint !== '';
+    }
+
+    private function isFeatureEnabled(string $feature): bool
+    {
+        return match ($feature) {
+            self::FEATURE_REQUEST => $this->enabledForRequests,
+            self::FEATURE_COMPLAINT => $this->enabledForComplaints,
+            self::FEATURE_ALEGATION => $this->enabledForAlegations,
+            default => false,
+        };
     }
 
     /**
@@ -64,12 +89,13 @@ final class ModelRouter
     }
 
     /**
-     * Elige el modelo de este turno. Se llama UNA vez por turno y el resultado
-     * se usa en todas las llamadas del turno.
+     * Elige el modelo de este turno para la feature dada (una de las
+     * constantes FEATURE_*). Se llama UNA vez por turno y el resultado se usa
+     * en todas las llamadas del turno.
      */
-    public function pick(): ModelChoice
+    public function pick(string $feature): ModelChoice
     {
-        if (!$this->isTeacherConfigured() || $this->samplePercent <= 0) {
+        if (!$this->isTeacherConfigured() || !$this->isFeatureEnabled($feature) || $this->samplePercent <= 0) {
             return new ModelChoice($this->studentClient, ModelChoice::ROLE_STUDENT);
         }
 

@@ -259,7 +259,7 @@ final class ComplaintGenerator
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        $model = $this->modelRouter->pick();
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_COMPLAINT);
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
@@ -326,7 +326,7 @@ final class ComplaintGenerator
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        $model = $this->modelRouter->pick();
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_COMPLAINT);
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
@@ -957,7 +957,7 @@ GRANTED_PENDING;
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        $model = $this->modelRouter->pick();
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_ALEGATION);
         $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
@@ -1026,7 +1026,7 @@ GRANTED_PENDING;
             $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
         }
 
-        $model = $this->modelRouter->pick();
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_ALEGATION);
         $content = $this->llmClient->chat(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,

@@ -416,7 +416,11 @@ TXT;
         // ninguno de los dos. `$forceModel` solo lo usa la comparación offline
         // (`app:agent:compare`), que necesita correr el MISMO caso con cada
         // modelo en vez de dejar que decida el muestreo.
-        $model = $forceModel ?? $this->modelRouter->pick();
+        //
+        // La feature es `taskLabel($req)`, NO `$traceName`: así el chat de
+        // consulta libre (`consult`) nunca activa el teacher, solo lo hacen
+        // las tres tareas de generación (request/complaint/alegation).
+        $model = $forceModel ?? $this->modelRouter->pick(self::taskLabel($req));
 
         return yield from $this->tracer->traceRootStream(
             name: $traceName,

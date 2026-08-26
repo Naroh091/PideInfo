@@ -353,7 +353,10 @@ y los avisos de privacidad). Dos particularidades de este flujo:
   enseñaría al modelo a redactar sin buscar doctrina.
 
 Ambas vías respetan `ModelRouter`, así que con el teacher activo la salida que recibe el usuario
-—y la que se guarda— es la del modelo grande.
+—y la que se guarda— es la del modelo grande. `ComplaintGenerator` pasa `ModelRouter::FEATURE_COMPLAINT`
+al generar la reclamación y `ModelRouter::FEATURE_ALEGATION` al generar la respuesta a alegaciones,
+así que cada una se activa con su propio flag (`TEACHER_ENABLED_COMPLAINTS` / `TEACHER_ENABLED_ALEGATIONS`),
+independiente del de solicitudes.
 
 ## Integración MCP
 
