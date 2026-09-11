@@ -59,7 +59,10 @@ compartida con `AccessRequestController` y `AssistantChatController`.
 
 Los dos endpoints SSE del chat (`POST /asistente/request/{id}` y
 `/asistente/complaint/{id}`) se **comparten**, no se espejan: su
-`IsGranted('view')` se resuelve por la rama de sesión del voter. Con usuario
+`IsGranted('view')` se resuelve por la rama de sesión del voter. Lo mismo vale
+para la recuperación de turnos cuyo stream se cortó (`GET /asistente/{flow}/{id}/turno`
+y `POST …/turno/{turnId}/entregado`; ver docs/architecture.md → «Resiliencia del
+stream SSE»). Con usuario
 null, `AssistantChatController` lee/escribe el historial en metadata y aplica
 los límites anti-abuso.
 

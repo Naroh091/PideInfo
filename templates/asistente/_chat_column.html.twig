@@ -8,10 +8,13 @@
    Variables:
      flow        — 'consult' (u otro flujo de hoja HTML)
      endpointUrl — ruta SSE del flujo
+     turnUrl     — ruta de recuperación del último turno (opcional; sin ella no hay
+                   recuperación tras un corte del stream)
      request     — AccessRequest
      chatHistory — turnos persistidos a renderizar en servidor (opcional) #}
 <div data-controller="assistant-chat"
      data-assistant-chat-endpoint-url-value="{{ endpointUrl }}"
+     {% if turnUrl is defined %}data-assistant-chat-turn-url-value="{{ turnUrl }}"{% endif %}
      data-assistant-chat-flow-value="{{ flow }}"
      data-assistant-chat-is-reg-value="false"
      data-assistant-chat-anonymous-value="false"

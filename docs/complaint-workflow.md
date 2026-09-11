@@ -112,6 +112,12 @@ Las dos primeras rutas convergen en un `Document(type=Complaint)` guardado y en 
 
 **Pipeline de streaming.** SSE sigue la misma forma que `app_complaint_create_stream`: eventos `chunk`, `done`, `error`. El legado no-streaming `POST /solicitudes/{id}/reclamacion/generar` (`app_complaint_create`) y su hermano SSE se mantienen para las tools MCP y el agente.
 
+**Turnos largos.** Un turno del chat (`POST /asistente/complaint/{id}`) puede tardar varios
+minutos, sobre todo con el teacher. El stream lleva keep-alive y corre en un pool php-fpm
+propio con límite de 900 s. Además, cada turno queda registrado en `ai_assistant_turn`: si la
+conexión se corta, el navegador recupera la respuesta y el borrador en vez de perderlos. Ver
+[Resiliencia del stream SSE](architecture.md#resiliencia-del-stream-sse).
+
 **Rutas legadas.** `/reclamacion/asistente` (`app_complaint_assistant`) y `/reclamacion/redactar` (`app_complaint_draft`) ahora devuelven 301 a la vista unificada. Sus plantillas (`interactive.html.twig`, `draft.html.twig`) no se usan y se conservan solo como referencia hasta la primera pasada de limpieza.
 
 **Detección automática.** Cuando se sube un documento clasificado como `DocumentType::Complaint`, el sistema crea automáticamente la entidad de reclamación y registra una entrada en la línea temporal.

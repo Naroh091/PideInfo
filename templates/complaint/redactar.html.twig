@@ -256,6 +256,7 @@
         {# ── Floating chatbot (bottom-right) — unified assistant-chat controller ── #}
         <div data-controller="assistant-chat"
              data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
+             data-assistant-chat-turn-url-value="{{ path('app_assistant_chat_turn', {flow: 'complaint', id: request.id}) }}"
              data-assistant-chat-canvas-outlet-selector-value="#complaint-canvas"
              @assistant-chat:before-send.window="$refs.assistantCurrentBodyHtml.value = (editorInstance ? editorInstance.innerHTML : '')">
 

@@ -72,6 +72,7 @@
          data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
      {% endif %}
      data-assistant-chat-flow-value="{{ flow }}"
+     data-assistant-chat-turn-url-value="{{ path('app_assistant_chat_turn', {flow: isRequest ? 'request' : 'complaint', id: request.id}) }}"
      data-assistant-chat-anonymous-value="{{ anonymous ? 'true' : 'false' }}"
      {% if anonymous %}data-assistant-chat-register-url-value="{{ path('app_register') }}"{% endif %}
      data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}"

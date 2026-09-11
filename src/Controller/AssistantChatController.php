@@ -10,8 +10,10 @@ use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Service\AI\Agent\AgentChatOrchestrator;
 use App\Service\AI\Chat\AssistantChatRequest as AssistantChatTurn;
+use App\Service\AI\Chat\AssistantTurnStore;
 use App\Service\AI\Chat\ChatAttachmentParser;
 use App\Service\AI\Chat\ChatHistoryStore;
+use App\Service\AI\Chat\StreamHeartbeat;
 use App\Service\AI\Chat\ConsultIntentClassifier;
 use App\Service\AI\Chat\Composer\ComplaintPromptComposer;
 use App\Service\AI\Chat\Composer\ConsultPromptComposer;
@@ -28,6 +30,7 @@ use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
@@ -97,6 +100,9 @@ final class AssistantChatController extends AbstractController
         private readonly RateLimiterFactory $moderationStrikeLimiter,
         #[Autowire(service: 'limiter.anonymous_generation_global')]
         private readonly RateLimiterFactory $globalGenerationLimiter,
+        private readonly AssistantTurnStore $turnStore,
+        private readonly StreamHeartbeat $heartbeat,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -176,6 +182,8 @@ final class AssistantChatController extends AbstractController
             anonymous: $this->getUser() === null,
             accessRequest: $accessRequest,
             clientIp: $request->getClientIp(),
+            turnId: $this->turnIdFrom($request),
+            threadKey: $historyKey,
         );
     }
 
@@ -283,6 +291,8 @@ final class AssistantChatController extends AbstractController
             anonymous: $this->getUser() === null,
             accessRequest: $accessRequest,
             clientIp: $request->getClientIp(),
+            turnId: $this->turnIdFrom($request),
+            threadKey: $historyKey,
         );
     }
 
@@ -398,7 +408,78 @@ final class AssistantChatController extends AbstractController
             anonymous: false,
             accessRequest: $accessRequest,
             clientIp: $request->getClientIp(),
+            turnId: $this->turnIdFrom($request),
+            threadKey: $historyKey,
         );
+    }
+
+    /**
+     * Latest recorded turn of a conversation thread ({@see AssistantTurnStore}),
+     * polled by the browser to recover a result whose SSE stream was cut. With
+     * `turnId` it returns that turn only, so a poller never mistakes a newer turn
+     * for its own.
+     */
+    #[Route('/asistente/{flow}/{id}/turno', name: 'app_assistant_chat_turn', requirements: ['flow' => 'request|complaint|consult'], methods: ['GET'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function turn(Request $request, string $flow, AccessRequest $accessRequest): JsonResponse
+    {
+        $threadKey = $this->turnThreadKey($flow, $request->query->get('mode'));
+        if ($threadKey === null) {
+            return new JsonResponse(['error' => 'invalid_thread'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $turn = $this->turnStore->find($accessRequest, $threadKey);
+        $turnId = $request->query->get('turnId');
+        if ($turn !== null && is_string($turnId) && $turnId !== '' && $turn['turnId'] !== $turnId) {
+            $turn = null;
+        }
+
+        return new JsonResponse(['turn' => $turn]);
+    }
+
+    /**
+     * The browser applied a turn's result (live or recovered): mark it delivered so
+     * a reload does not apply it again.
+     */
+    #[Route('/asistente/{flow}/{id}/turno/{turnId}/entregado', name: 'app_assistant_chat_turn_delivered', requirements: ['flow' => 'request|complaint|consult', 'turnId' => '[A-Za-z0-9-]{8,64}'], methods: ['POST'])]
+    #[IsGranted('view', 'accessRequest')]
+    public function turnDelivered(Request $request, string $flow, string $turnId, AccessRequest $accessRequest): JsonResponse
+    {
+        $threadKey = $this->turnThreadKey($flow, $request->query->get('mode'));
+        if ($threadKey === null) {
+            return new JsonResponse(['error' => 'invalid_thread'], Response::HTTP_BAD_REQUEST);
+        }
+
+        return new JsonResponse(['delivered' => $this->turnStore->markDelivered($accessRequest, $threadKey, $turnId)]);
+    }
+
+    /**
+     * Thread a turn is recorded under: the flow's chat-history key, so each
+     * conversation (request draft, complaint, alegation response, consult) keeps
+     * its own latest turn. Null for an unknown flow or mode, and for consult
+     * without a user (that flow is authenticated only).
+     */
+    private function turnThreadKey(string $flow, mixed $mode): ?string
+    {
+        return match ($flow) {
+            'request' => self::CHAT_HISTORY_KEY_REQUEST,
+            'complaint' => in_array($mode, [ComplaintDraftGenerator::MODE_COMPLAINT, ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE], true)
+                ? self::CHAT_HISTORY_KEY_COMPLAINT_PREFIX . $mode
+                : null,
+            'consult' => $this->getUser() !== null ? self::CHAT_HISTORY_KEY_CONSULT : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Client-generated id of the turn being sent. Null (turn not recorded) when it is
+     * missing or malformed, e.g. a page still running the previous JS.
+     */
+    private function turnIdFrom(Request $request): ?string
+    {
+        $turnId = $request->request->get('turnId');
+
+        return is_string($turnId) && preg_match(AssistantTurnStore::TURN_ID_PATTERN, $turnId) === 1 ? $turnId : null;
     }
 
     /**
@@ -446,10 +527,13 @@ final class AssistantChatController extends AbstractController
         bool $anonymous = false,
         ?AccessRequest $accessRequest = null,
         ?string $clientIp = null,
+        ?string $turnId = null,
+        ?string $threadKey = null,
     ): StreamedResponse {
-        $events = $this->streamEvents($turn, $userMessage, $onDecision, $anonymous, $accessRequest, $clientIp);
+        $events = $this->streamEvents($turn, $userMessage, $onDecision, $anonymous, $accessRequest, $clientIp, $turnId, $threadKey);
+        $heartbeat = $this->heartbeat;
 
-        $response = new StreamedResponse(function () use ($events): void {
+        $response = new StreamedResponse(function () use ($events, $heartbeat): void {
             while (\function_exists('ob_get_level') && ob_get_level() > 0) {
                 @ob_end_flush();
             }
@@ -458,7 +542,14 @@ final class AssistantChatController extends AbstractController
             @ini_set('implicit_flush', '1');
             ignore_user_abort(true);
 
-            $emit = static function (string $event, array $data): void {
+            $flushOutput = static function (): void {
+                if (\function_exists('ob_get_level') && ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                @flush();
+            };
+
+            $emit = static function (string $event, array $data) use ($flushOutput, $heartbeat): void {
                 // JSON_INVALID_UTF8_SUBSTITUTE is defense-in-depth: even after
                 // the splitter snaps to char boundaries, any stray bad byte
                 // upstream becomes U+FFFD instead of dropping the whole chunk
@@ -468,21 +559,26 @@ final class AssistantChatController extends AbstractController
                     $data,
                     JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE,
                 ) . "\n\n";
-                if (\function_exists('ob_get_level') && ob_get_level() > 0) {
-                    @ob_flush();
-                }
-                @flush();
+                $flushOutput();
+                $heartbeat->touch();
             };
 
-            // Initial keep-alive comment so proxies don't buffer the first byte.
-            echo ": ping\n\n";
-            if (\function_exists('ob_get_level') && ob_get_level() > 0) {
-                @ob_flush();
-            }
-            @flush();
+            // Keep-alive comment: once up front so proxies don't buffer the first
+            // byte, then as a heartbeat while a model call blocks for minutes
+            // without events (Cloudflare drops a response after 100 s of silence).
+            $ping = static function () use ($flushOutput): void {
+                echo ": ping\n\n";
+                $flushOutput();
+            };
+            $ping();
 
-            foreach ($events as [$event, $payload]) {
-                $emit($event, $payload);
+            $heartbeat->start($ping);
+            try {
+                foreach ($events as [$event, $payload]) {
+                    $emit($event, $payload);
+                }
+            } finally {
+                $heartbeat->stop();
             }
         });
 
@@ -495,6 +591,93 @@ final class AssistantChatController extends AbstractController
     }
 
     /**
+     * Produces the ordered [event, payload] tuples for one turn ({@see turnEvents})
+     * and, when the client sent a turn id, records the turn in AssistantTurnStore:
+     * opened before the agent runs and closed with the replayable events (full
+     * reply, enriched decision, errors) right before `done`. A browser whose SSE
+     * stream was cut can then recover the result instead of losing it.
+     *
+     * @param callable(string $action, ?array<string,mixed> $draft, string $chatReply): ?array<string,mixed> $onDecision
+     * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
+     */
+    private function streamEvents(
+        AssistantChatTurn $turn,
+        string $userMessage,
+        callable $onDecision,
+        bool $anonymous,
+        ?AccessRequest $accessRequest,
+        ?string $clientIp,
+        ?string $turnId = null,
+        ?string $threadKey = null,
+    ): \Generator {
+        $recorded = $turnId !== null && $threadKey !== null && $accessRequest !== null
+            && $this->recordTurn(fn () => $this->turnStore->start($accessRequest, $threadKey, $turnId));
+
+        $reply = '';
+        $decision = null;
+        $errorEvents = [];
+        foreach ($this->turnEvents($turn, $userMessage, $onDecision, $anonymous, $accessRequest, $clientIp) as [$event, $payload]) {
+            if ($event === 'chat_token') {
+                $reply .= (string) ($payload['text'] ?? '');
+            } elseif ($event === 'decision') {
+                $decision = $payload;
+            } elseif ($event === 'error') {
+                $errorEvents[] = ['error', $payload];
+            } elseif ($event === 'done' && $recorded) {
+                $replay = $reply !== '' ? [['chat_token', ['text' => $reply]]] : [];
+                if ($decision !== null) {
+                    $replay[] = ['decision', $decision];
+                }
+                $replay = [...$replay, ...$errorEvents];
+                $status = $decision === null && $errorEvents !== []
+                    ? AssistantTurnStore::STATUS_ERROR
+                    : AssistantTurnStore::STATUS_DONE;
+
+                $this->recordTurn(function () use ($accessRequest, $threadKey, $turnId, $status, $replay): void {
+                    $this->ensureDatabaseConnection();
+                    $this->turnStore->finish($accessRequest, $threadKey, $turnId, $status, $replay);
+                });
+            }
+
+            yield [$event, $payload];
+        }
+    }
+
+    /**
+     * Turn recording is best-effort: a failure is logged and never breaks the turn.
+     */
+    private function recordTurn(callable $write): bool
+    {
+        try {
+            $write();
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->logger->error('AssistantChatController: could not record the assistant turn', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * A turn can leave the database connection idle for many minutes while the
+     * model works. Probe it before persisting and reopen it if the server dropped
+     * it (DBAL reconnects lazily after close()), so the result isn't lost to a
+     * stale socket.
+     */
+    private function ensureDatabaseConnection(): void
+    {
+        $connection = $this->entityManager->getConnection();
+        try {
+            $connection->fetchOne('SELECT 1');
+        } catch (\Doctrine\DBAL\Exception) {
+            $connection->close();
+        }
+    }
+
+    /**
      * Produces the ordered [event, payload] tuples for one turn — including the
      * anonymous input/output moderation branches — decoupled from the SSE
      * flushing so it can be unit-tested. Side effects (history persistence via
@@ -504,7 +687,7 @@ final class AssistantChatController extends AbstractController
      * @param callable(string $action, ?array<string,mixed> $draft, string $chatReply): ?array<string,mixed> $onDecision
      * @return \Generator<int, array{0: string, 1: array<string, mixed>}, void, void>
      */
-    private function streamEvents(
+    private function turnEvents(
         AssistantChatTurn $turn,
         string $userMessage,
         callable $onDecision,
@@ -560,6 +743,7 @@ final class AssistantChatController extends AbstractController
                     }
 
                     $sources = is_array($payload['sources'] ?? null) ? $payload['sources'] : [];
+                    $this->ensureDatabaseConnection();
                     $extra = $onDecision($action, $draft, $chatReply, $sources);
                     if (is_array($extra)) {
                         $payload = array_merge($payload, $extra);
@@ -568,6 +752,12 @@ final class AssistantChatController extends AbstractController
                 yield [$event, $payload];
             }
         } catch (\Throwable $e) {
+            // Logged: a swallowed failure here hid why a turn never persisted.
+            $this->logger->error('AssistantChatController: turn failed', [
+                'flow'   => $turn->flow,
+                'entity' => $turn->entityId,
+                'error'  => $e->getMessage(),
+            ]);
             yield ['error', ['message' => 'Error inesperado: ' . mb_substr($e->getMessage(), 0, 200)]];
         }
 
