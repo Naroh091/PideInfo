@@ -1995,6 +1995,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 {% include 'asistente/_chat_column.html.twig' with {
                     flow: 'consult',
                     endpointUrl: path('app_assistant_chat_consult', {id: request.id}),
+                    turnUrl: path('app_assistant_chat_turn', {flow: 'consult', id: request.id}),
                     request: request,
                     chatHistory: consultChatHistory|default([]),
                 } %}

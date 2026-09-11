@@ -4,7 +4,10 @@
         timeouts {
             read_body 30s
             read_header 10s
-            write 300s
+            # Deadline for the WHOLE response, not for each write. An assistant SSE
+            # turn (/asistente/*) may stream for up to 900 s (php-fpm `assistant`
+            # pool), so this must stay above that or Caddy cuts the stream.
+            write 960s
             idle 120s
         }
         trusted_proxies static 127.0.0.1/24 172.16.0.0/12 10.0.0.0/8 192.168.0.0/16
@@ -22,6 +25,16 @@
 
     # Health check endpoint (useful for load balancers)
     respond /health 200
+
+    # Assistant chat (SSE): long agentic turns run in the dedicated `assistant`
+    # php-fpm pool (docker/php-fpm.conf, 900 s). Its path matcher sorts this
+    # block before the generic php_fastcgi below.
+    php_fastcgi /asistente/* 127.0.0.1:9001 {
+        read_timeout 960s
+        write_timeout 10s
+        dial_timeout 5s
+        env HTTPS on
+    }
 
     php_fastcgi 127.0.0.1:9000 {
         read_timeout 300s

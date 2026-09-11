@@ -312,11 +312,68 @@ exposición y su ejecución están dobladas de gates:
 
 | Evento | Payload | Cuándo |
 |---|---|---|
+| `: ping` | — (comentario SSE) | Al abrir el stream y, como keep-alive, cada ≥15 s mientras se espera al modelo (`StreamHeartbeat`) |
 | `step` | `{message, tool}` | Antes de cada herramienta y en cada sub-paso interno (incl. `Aprendiendo preferencia…`) |
 | `chat_token` | `{text}` | Chunks del `conversational_reply` final |
-| `decision` | `{action, draft, plan}` | Al finalizar; `action` ∈ `{reply, generate, rewrite}` |
+| `decision` | `{action, draft, plan, sources, previous}` | Al finalizar; `action` ∈ `{reply, generate, rewrite}` |
 | `error` | `{message}` | Cualquier fallo |
 | `done` | `{}` | Siempre al terminar |
+
+### Resiliencia del stream SSE
+
+Un turno agéntico (tool loop + redacción final, sobre todo con el teacher) puede durar varios
+minutos, y la llamada final al modelo no emite ningún evento mientras genera. Antes, a los
+300 s se perdía el turno entero. php-fpm mataba el worker (`request_terminate_timeout`
+ignora `ignore_user_abort`) antes de que `onDecision` persistiera nada. El navegador se
+quedaba sin respuesta ni aviso, aunque la generación sí aparecía en Langfuse. Cuatro piezas
+lo evitan:
+
+1. **Keep-alive.** Mientras dura el `StreamedResponse`, `StreamHeartbeat` guarda un *sink*
+   que escribe `: ping` y hace flush. `CustomModelClient` lo invoca mientras espera al
+   modelo, con al menos 15 s entre latidos. Hace falta porque Cloudflare corta a los 100 s
+   sin bytes del origen. Fuera de un stream (workers, comandos) es un no-op. Según el tipo
+   de llamada, el latido sale de un sitio distinto:
+   - **Sin streaming** (`chatWithTools`): del callback `progress` de Guzzle sobre curl, que
+     curl invoca ~1/s aunque el servidor calle.
+   - **En streaming** (`chatRaw`, `streamCall`, `streamRaw`): van por `Psr18Client` +
+     `CurlHttpClient` de Symfony (`withStreamHandler`) y laten desde `on_progress`, además
+     de en cada chunk. Guzzle solo hace streaming con su handler de streams PHP, que no
+     ejecuta nada mientras el servidor calla (cola, prefill). Con él,
+     `agent.final-decision` pasaba minutos sin latir.
+2. **Límites de tiempo dedicados.** Caddy enruta `/asistente/*` a un pool php-fpm propio:
+   `[assistant]` en `127.0.0.1:9001`, con `request_terminate_timeout = 900s`,
+   `pm = ondemand` y 15 workers. Esa ruta usa `read_timeout 960s`. El `write` global de
+   Caddy, que es el plazo de la respuesta ENTERA y no de cada escritura, está en 960 s. El
+   resto de rutas sigue con 300 s en el pool `www`. Si se tocan, hay que mantener
+   fpm `assistant` < Caddy (`write`/`read_timeout`) ≤ `AssistantTurnStore::STALE_AFTER_SECONDS`.
+3. **Registro del turno (`ai_assistant_turn`).** El navegador genera un `turnId` y lo envía
+   con el mensaje. `AssistantChatController::streamEvents()` abre el registro (`running`)
+   al empezar. Justo antes de `done` lo cierra (`done`/`error`) con los eventos
+   reproducibles:
+   - la respuesta completa (`chat_token`);
+   - la `decision` ya enriquecida por `onDecision` (borrador, `previous`, fuentes);
+   - los `error`.
+
+   Hay una fila por `(access_request_id, thread_key)`, donde `thread_key` es la clave de
+   historial del flujo. Cada escritura posterior va fijada a su `turn_id`, así que un turno
+   superado que termine tarde no pisa al nuevo. Un `running` con más de 960 s se reporta
+   como `lost`. Antes de `onDecision` se comprueba la conexión a PostgreSQL y se reabre si
+   el servidor la cerró durante la espera. Un fallo del registro se loguea pero nunca rompe
+   el turno.
+4. **Recuperación en el navegador** (`assistant_chat_controller.js`).
+   - **Corte del stream.** Si el stream termina sin `done` (corte de red o proxy, o un 5xx),
+     la burbuja muestra «Se ha perdido la conexión. Recuperando la respuesta…». Después
+     sondea `GET /asistente/{flow}/{id}/turno?turnId=…&mode=…` cada 5 s, durante un máximo
+     de 16 min, y reproduce los eventos en la misma burbuja.
+   - **Al cargar la página** consulta el último turno del hilo. Si sigue `running`, se
+     engancha a él. Si terminó sin entregarse, aplica el borrador (reclamación, alegaciones
+     o consulta, cuya hoja es efímera; en solicitudes ya está persistido) o avisa del error
+     o de la pérdida.
+   - **Confirmación.** Cada entrega se confirma con
+     `POST /asistente/{flow}/{id}/turno/{turnId}/entregado`, para no aplicarla dos veces.
+
+   Ambos endpoints llevan `IsGranted('view')`, como el chat (rama de sesión para anónimos;
+   `consult` exige usuario).
 
 ### Historial de chat — aislamiento por usuario
 

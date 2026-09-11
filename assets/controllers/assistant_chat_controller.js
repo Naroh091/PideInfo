@@ -35,6 +35,9 @@ export default class extends Controller {
     static targets = ['fab', 'panel', 'history', 'input', 'attachInput', 'attachChips', 'sendButton', 'status', 'extra', 'introTemplate', 'sheetTemplate'];
     static values = {
         endpointUrl: String,
+        // GET del último turno del hilo (AssistantChatController::turn). Permite
+        // recuperar un resultado cuyo stream SSE se cortó; vacío = sin recuperación.
+        turnUrl: { type: String, default: '' },
         isReg: { type: Boolean, default: false },
         canvasOutletSelector: { type: String, default: '' },
         hasDraft: { type: Boolean, default: false },
@@ -63,6 +66,7 @@ export default class extends Controller {
             this._scrollToBottom();
         }
         this._initTimeline();
+        if (this.turnUrlValue) this._resumePendingTurn();
     }
 
     disconnect() {
@@ -373,11 +377,83 @@ export default class extends Controller {
         }
 
         const assistantBubble = this._appendAssistantBubble('');
+        const { tokens, ctx } = this._bubbleContext(assistantBubble);
+
+        // Id del turno: el servidor guarda el resultado bajo este id para poder
+        // recuperarlo si el stream se corta (AssistantTurnStore).
+        const turnId = this._newTurnId();
+        formData.append('turnId', turnId);
+
+        this._abort = new AbortController();
+        const signal = this._abort.signal;
+        try {
+            let response;
+            try {
+                response = await fetch(this.endpointUrlValue, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: formData,
+                    signal,
+                    headers: { 'Accept': 'text/event-stream' },
+                });
+            } catch (err) {
+                if (!signal.aborted) {
+                    this._handleSseEvent('error', { message: 'No se ha podido contactar con el asistente. Reintenta en unos segundos.' }, tokens, ctx);
+                }
+                return;
+            }
+
+            if (!response.ok || !response.body) {
+                // Un 5xx de un proxy intermedio no implica que el turno haya muerto.
+                if (response.status >= 500 && this.turnUrlValue) {
+                    await this._recoverTurn(turnId, tokens, ctx);
+                    return;
+                }
+                let detail = '';
+                try { detail = (await response.json())?.message || ''; } catch {}
+                this._handleSseEvent('error', { message: detail || `Error del servidor (${response.status}).` }, tokens, ctx);
+                return;
+            }
+
+            let finished = false;
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            try {
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    let idx;
+                    while ((idx = buffer.indexOf('\n\n')) !== -1) {
+                        const raw = buffer.slice(0, idx);
+                        buffer = buffer.slice(idx + 2);
+                        if (this._processSseRecord(raw, tokens, ctx) === 'done') finished = true;
+                    }
+                }
+            } catch (err) {
+                // Stream cortado (red, proxy): el resultado se recupera abajo.
+            }
+
+            if (finished) {
+                this._ackTurn(turnId);
+            } else if (!signal.aborted) {
+                await this._recoverTurn(turnId, tokens, ctx);
+            }
+        } finally {
+            this._busy = false;
+            this._setBusy(false);
+            this._abort = null;
+        }
+    }
+
+    /** Text node of an assistant bubble plus the context the SSE handlers need. */
+    _bubbleContext(assistantBubble) {
         const tokens = assistantBubble.querySelector('.chat-bubble-text');
         const progress = assistantBubble.querySelector('.chat-bubble-progress');
         const progressCurrent = assistantBubble.querySelector('.chat-progress-current span:last-child');
         const progressSteps = assistantBubble.querySelector('.chat-progress-steps');
-        let completedSteps = [];
+        const completedSteps = [];
         let progressShown = true;
 
         // Helper: transition from progress area to text area on first token.
@@ -406,61 +482,142 @@ export default class extends Controller {
             this._pinToElement(assistantBubble);
         };
 
-        this._abort = new AbortController();
-        let response;
-        try {
-            response = await fetch(this.endpointUrlValue, {
-                method: 'POST',
-                credentials: 'same-origin',
-                body: formData,
-                signal: this._abort.signal,
-                headers: { 'Accept': 'text/event-stream' },
-            });
-        } catch (err) {
-            tokens.textContent = 'No se ha podido contactar con el asistente. Reintenta en unos segundos.';
-            this._busy = false;
-            this._setBusy(false);
+        return { tokens, ctx: { activateText, completedSteps, progressCurrent, progressSteps } };
+    }
+
+    /* ── Recuperación de turnos cuyo stream se cortó ────────────────────── */
+
+    _newTurnId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+    }
+
+    /** URL del turno, con el modo (reclamación/alegaciones) del hilo si lo hay. */
+    _turnEndpoint(suffix = '', params = {}) {
+        const url = new URL(this.turnUrlValue + suffix, window.location.origin);
+        const modeInput = this.hasExtraTarget
+            ? this.extraTargets.find((el) => el.getAttribute('name') === 'mode')
+            : null;
+        if (modeInput?.value) url.searchParams.set('mode', modeInput.value);
+        for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+        return url;
+    }
+
+    /** Último turno del hilo (o el turno `turnId`); null si no existe. */
+    async _fetchTurn(turnId = null) {
+        const response = await fetch(this._turnEndpoint('', turnId ? { turnId } : {}), {
+            credentials: 'same-origin',
+            headers: { 'Accept': 'application/json' },
+        });
+        if (!response.ok) throw new Error(`turn status ${response.status}`);
+        const data = await response.json();
+        return data?.turn ?? null;
+    }
+
+    /** Marca el turno como entregado para que una recarga no lo aplique otra vez. */
+    _ackTurn(turnId) {
+        if (!this.turnUrlValue) return;
+        fetch(this._turnEndpoint(`/${encodeURIComponent(turnId)}/entregado`), {
+            method: 'POST',
+            credentials: 'same-origin',
+        }).catch(() => {});
+    }
+
+    /**
+     * El stream terminó sin `done`, pero el turno sigue vivo en el servidor (o ya
+     * terminó): sondea su registro hasta tener el resultado y lo reproduce en la
+     * misma burbuja. El servidor mata el turno a los 900 s, así que 16 min basta.
+     */
+    async _recoverTurn(turnId, tokens, ctx) {
+        if (!this.turnUrlValue) {
+            this._handleSseEvent('error', { message: 'Se ha perdido la conexión con el asistente. Recarga la página para ver si la respuesta llegó a completarse.' }, tokens, ctx);
             return;
         }
+        if (ctx.progressCurrent) ctx.progressCurrent.textContent = 'Se ha perdido la conexión. Recuperando la respuesta…';
 
-        if (!response.ok || !response.body) {
-            let detail = '';
-            try { detail = (await response.json())?.message || ''; } catch {}
-            tokens.textContent = detail || `Error del servidor (${response.status}).`;
-            this._busy = false;
-            this._setBusy(false);
-            return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        let buffer = '';
-        try {
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                let idx;
-                while ((idx = buffer.indexOf('\n\n')) !== -1) {
-                    const raw = buffer.slice(0, idx);
-                    buffer = buffer.slice(idx + 2);
-                    this._processSseRecord(raw, tokens, {
-                        activateText,
-                        completedSteps,
-                        progressCurrent,
-                        progressSteps,
-                    });
-                }
+        const deadline = Date.now() + 16 * 60 * 1000;
+        while (Date.now() < deadline && this.element.isConnected) {
+            await new Promise((resolve) => setTimeout(resolve, 5000));
+            let turn;
+            try {
+                turn = await this._fetchTurn(turnId);
+            } catch {
+                continue; // la red puede seguir inestable: se reintenta
             }
-        } catch (err) {
-            tokens.textContent = (tokens.textContent || '') + '\n[conexión interrumpida]';
-        } finally {
-            this._busy = false;
-            this._setBusy(false);
-            this._abort = null;
+            if (!turn) break; // el servidor no llegó a registrar este turno
+            if (turn.status === 'running') continue;
+            this._replayTurn(turn, tokens, ctx);
+            this._ackTurn(turnId);
+            return;
+        }
+
+        if (this.element.isConnected) {
+            this._handleSseEvent('error', { message: 'No he podido recuperar la respuesta del asistente. Recarga la página en unos minutos o vuelve a intentarlo.' }, tokens, ctx);
         }
     }
 
+    /** Reproduce en una burbuja los eventos guardados de un turno terminado. */
+    _replayTurn(turn, tokens, ctx) {
+        if (turn.status === 'lost') {
+            this._handleSseEvent('error', { message: 'La respuesta del asistente no llegó a completarse. Vuelve a intentarlo.' }, tokens, ctx);
+            return;
+        }
+        // Descarta lo que llegara a pintarse antes del corte: el registro trae la respuesta entera.
+        tokens._raw = '';
+        tokens.innerHTML = '';
+        for (const [event, payload] of turn.events || []) {
+            this._handleSseEvent(event, payload || {}, tokens, ctx);
+        }
+        this._handleSseEvent('done', {}, tokens, ctx);
+    }
+
+    /**
+     * Al cargar la página: si el último turno del hilo sigue en marcha (el usuario
+     * recargó mientras el modelo trabajaba) se engancha a él; si terminó sin que
+     * nadie lo recibiera, aplica el borrador. La respuesta de texto ya la pinta el
+     * servidor en el historial, y en solicitudes el borrador también se persiste al
+     * decidir, así que ahí solo se confirma la entrega.
+     */
+    async _resumePendingTurn() {
+        let turn;
+        try {
+            turn = await this._fetchTurn();
+        } catch {
+            return;
+        }
+        if (!turn || turn.deliveredAt || this._busy) return;
+
+        if (turn.status === 'running') {
+            if (this.hasHistoryTarget) this.historyTarget.querySelector('[data-intro-choice]')?.remove();
+            this._busy = true;
+            this._setBusy(true);
+            const { tokens, ctx } = this._bubbleContext(this._appendAssistantBubble(''));
+            if (ctx.progressCurrent) ctx.progressCurrent.textContent = 'Recuperando la respuesta en curso…';
+            try {
+                await this._recoverTurn(turn.turnId, tokens, ctx);
+            } finally {
+                this._busy = false;
+                this._setBusy(false);
+            }
+            return;
+        }
+
+        const events = turn.events || [];
+        const decision = events.find(([event]) => event === 'decision')?.[1];
+        const error = events.find(([event]) => event === 'error')?.[1];
+        if (turn.status === 'lost') {
+            this._appendSystemBubble('⚠ La última respuesta del asistente no llegó a completarse. Vuelve a intentarlo.');
+        } else if (decision?.draft && this.flowValue !== 'request') {
+            this._applyDecision({ ...decision, plan: [], previous: null }, null);
+        } else if (!decision && error?.message) {
+            this._appendSystemBubble(`⚠ ${error.message}`);
+        }
+        this._ackTurn(turn.turnId);
+    }
+
+    /** Parses one SSE record and handles it. Returns the event name, or null if ignored. */
     _processSseRecord(raw, tokensEl, ctx = {}) {
         let event = 'message';
         let data = '';
@@ -469,10 +626,16 @@ export default class extends Controller {
             if (line.startsWith('event:')) event = line.slice(6).trim();
             else if (line.startsWith('data:')) data += line.slice(5).trim();
         }
-        if (!data && event !== 'done') return;
+        if (!data && event !== 'done') return null;
         let payload = {};
-        try { payload = data ? JSON.parse(data) : {}; } catch { return; }
+        try { payload = data ? JSON.parse(data) : {}; } catch { return null; }
 
+        this._handleSseEvent(event, payload, tokensEl, ctx);
+        return event;
+    }
+
+    /** Renders one event, live from the stream or replayed from a recovered turn. */
+    _handleSseEvent(event, payload, tokensEl, ctx = {}) {
         const { activateText, completedSteps, progressCurrent, progressSteps } = ctx;
 
         switch (event) {

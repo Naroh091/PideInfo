@@ -2,14 +2,20 @@
 
 namespace App\Service\AI;
 
+use App\Service\AI\Chat\StreamHeartbeat;
 use App\Service\AI\Llm\ChatRequest;
 use App\Service\AI\Llm\ChatResult;
 use App\Service\AI\Llm\ContentPart;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Psr7\HttpFactory;
 use OpenAI;
 use OpenAI\Client as OpenAIClient;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpClient\CurlHttpClient;
+use Symfony\Component\HttpClient\Psr18Client;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 
 /**
@@ -54,6 +60,9 @@ final class CustomModelClient
         // level), so this can only be turned on for backends whose schemas are actually
         // compliant. Defaults off so the student backend's behavior never changes.
         private readonly bool $strictJsonSchema = false,
+        // Keeps the assistant's SSE response alive while this client waits on the
+        // model; a no-op outside a stream (see StreamHeartbeat).
+        private readonly ?StreamHeartbeat $heartbeat = null,
     ) {
         $this->temperature = $temperature === '' ? null : (float) $temperature;
     }
@@ -358,6 +367,9 @@ final class CustomModelClient
             try {
                 $stream = $this->getClient()->chat()->createStreamed($params);
                 foreach ($stream as $chunk) {
+                    // chatRaw() only returns once the whole answer is in; keep the
+                    // assistant's SSE response alive meanwhile.
+                    $this->heartbeat?->beat();
                     $delta = $chunk->choices[0]->delta->content ?? null;
                     if (is_string($delta) && $delta !== '') {
                         $content .= $delta;
@@ -517,8 +529,30 @@ final class CustomModelClient
     private function getClient(): OpenAIClient
     {
         if ($this->client === null) {
+            $heartbeat = $this->heartbeat;
+            $beat = static function () use ($heartbeat): void {
+                $heartbeat?->beat();
+            };
+
+            // Non-streamed calls (chatWithTools): Guzzle over curl, whose `progress`
+            // callback runs about once per second for the whole request, even while
+            // the model is still thinking.
+            $httpClient = new GuzzleClient(['timeout' => 600, 'progress' => $beat]);
+
+            // Streamed calls (chatRaw, streamCall): Guzzle only streams through its
+            // PHP-stream handler, which runs no code while the server is silent (queue,
+            // prefill), so the heartbeat never fired during the longest waits. Symfony's
+            // curl client streams for real and calls `on_progress` periodically.
+            $psr17 = new HttpFactory();
+            $streamClient = new Psr18Client(
+                new CurlHttpClient(['timeout' => 600, 'max_duration' => 600, 'on_progress' => $beat]),
+                $psr17,
+                $psr17,
+            );
+
             $factory = OpenAI::factory()
-                ->withHttpClient(new GuzzleClient(['timeout' => 600]))
+                ->withHttpClient($httpClient)
+                ->withStreamHandler(static fn (RequestInterface $request): ResponseInterface => $streamClient->sendRequest($request))
                 ->withBaseUri($this->endpoint);
 
             $factory = $factory->withApiKey($this->apiKey !== '' ? $this->apiKey : 'no-key');
