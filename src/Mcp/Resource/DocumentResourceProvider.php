@@ -6,6 +6,7 @@ namespace App\Mcp\Resource;
 
 use App\Entity\User;
 use App\Repository\DocumentRepository;
+use App\Mcp\Service\DocumentStorageKey;
 use App\Security\OAuth2\OAuthTokenContext;
 use Aws\S3\S3Client;
 use League\Flysystem\FilesystemOperator;
@@ -103,7 +104,7 @@ final class DocumentResourceProvider
         // so the client unambiguously knows it has to fetch the body itself.
         $command = $this->s3Client->getCommand('GetObject', [
             'Bucket' => $this->s3Bucket,
-            'Key' => $stored,
+            'Key' => DocumentStorageKey::forStoredFilename($stored),
         ]);
         $presignedUrl = (string) $this->s3Client
             ->createPresignedRequest($command, '+15 minutes')

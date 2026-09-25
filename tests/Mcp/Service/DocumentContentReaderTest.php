@@ -133,14 +133,14 @@ class DocumentContentReaderTest extends TestCase
             ->with('large.zip')
             ->willReturn(true);
 
-        $presignedUri = 'https://test-bucket.s3.eu-west-1.amazonaws.com/large.zip?X-Amz-Signature=abc123';
+        $presignedUri = 'https://test-bucket.s3.eu-west-1.amazonaws.com/documents/large.zip?X-Amz-Signature=abc123';
 
         $mockCommand = $this->createMock(CommandInterface::class);
         $this->s3Client->expects($this->once())
             ->method('getCommand')
             ->with('GetObject', [
                 'Bucket' => 'test-bucket',
-                'Key' => 'large.zip',
+                'Key' => 'documents/large.zip',
             ])
             ->willReturn($mockCommand);
 

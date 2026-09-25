@@ -86,7 +86,7 @@ final class DocumentContentReader
     {
         $command = $this->s3Client->getCommand('GetObject', [
             'Bucket' => $this->s3Bucket,
-            'Key' => $stored,
+            'Key' => DocumentStorageKey::forStoredFilename($stored),
         ]);
 
         $request = $this->s3Client->createPresignedRequest($command, '+15 minutes');
