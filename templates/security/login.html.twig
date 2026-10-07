@@ -54,6 +54,8 @@
 
         <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
 
+        {% include '_partials/turnstile.html.twig' with {'site_key': turnstileSiteKey, 'action': 'login'} only %}
+
         <button type="submit" class="btn btn-primary w-full">
             <i data-lucide="log-in" class="w-4 h-4 mr-2"></i>
             Iniciar sesión

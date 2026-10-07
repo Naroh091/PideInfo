@@ -9,8 +9,9 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * Server-side verification of Cloudflare Turnstile tokens, guarding the
- * anonymous draft creation endpoint (POST /redactar/crear).
+ * Server-side verification of Cloudflare Turnstile tokens, guarding the public
+ * entry points: anonymous draft creation (POST /redactar/crear), the login
+ * form (TurnstileLoginListener) and registration (SecurityController).
  *
  * With an empty secret (dev/test, or Turnstile not yet configured) every
  * token passes: the per-IP rate limiters remain as the only line of defence.

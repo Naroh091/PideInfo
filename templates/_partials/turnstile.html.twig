@@ -1,0 +1,23 @@
+{# Cloudflare Turnstile widget for plain POST forms (login, registration).
+
+   Put it INSIDE the <form>: api.js injects the hidden `cf-turnstile-response`
+   field into the form containing it on its own, so the POST already carries
+   the token with nothing else added. (The public /redactar flow cannot use
+   this partial: it submits over fetch and keeps its own hidden input.)
+
+   With an empty `site_key` nothing is rendered — the same switch that turns
+   server-side verification off when TURNSTILE_SECRET_KEY is empty
+   (TurnstileVerifier::isConfigured()).
+
+   Params:
+     site_key — TURNSTILE_SITE_KEY; empty = disabled
+     action   — optional label Cloudflare groups its analytics by #}
+{% if site_key|default('') %}
+    <div class="flex justify-center">
+        <div class="cf-turnstile"
+             data-sitekey="{{ site_key }}"
+             {% if action|default('') %}data-action="{{ action }}"{% endif %}
+             data-language="es"></div>
+    </div>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
