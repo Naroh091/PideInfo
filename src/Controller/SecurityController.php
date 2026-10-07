@@ -3,11 +3,14 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\EventListener\TurnstileLoginListener;
 use App\Form\RegistrationFormType;
 use App\Service\Anonymous\AnonymousDraftClaimer;
+use App\Service\Security\TurnstileVerifier;
 use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -29,6 +32,7 @@ class SecurityController extends AbstractController
         #[Autowire('%mail_from_address%')] private string $mailFromAddress,
         #[Autowire('%mail_from_name%')] private string $mailFromName,
         #[Autowire(env: 'bool:USER_NEEDS_MANUAL_ACTIVATION')] private bool $needsManualActivation,
+        #[Autowire(env: 'TURNSTILE_SITE_KEY')] private string $turnstileSiteKey = '',
     ) {
     }
 
@@ -45,6 +49,9 @@ class SecurityController extends AbstractController
         return $this->render('security/login.html.twig', [
             'last_username' => $lastUsername,
             'error' => $error,
+            // The token itself is verified by TurnstileLoginListener: the
+            // POST is handled by form_login, not by this controller.
+            'turnstileSiteKey' => $this->turnstileSiteKey,
         ]);
     }
 
@@ -60,6 +67,7 @@ class SecurityController extends AbstractController
         UserPasswordHasherInterface $passwordHasher,
         MailerInterface $mailer,
         AnonymousDraftClaimer $draftClaimer,
+        TurnstileVerifier $turnstile,
     ): Response {
         if ($this->getUser()) {
             return $this->redirectToRoute('app_dashboard');
@@ -68,6 +76,15 @@ class SecurityController extends AbstractController
         $user = new User();
         $form = $this->createForm(RegistrationFormType::class, $user);
         $form->handleRequest($request);
+
+        // A form error (not an exception): the visitor gets their data back
+        // along with a fresh widget, since the token is single-use.
+        if ($form->isSubmitted() && !$turnstile->verify(
+            $request->request->getString(TurnstileLoginListener::TOKEN_FIELD),
+            $request->getClientIp(),
+        )) {
+            $form->addError(new FormError('No hemos podido verificar que no eres un robot. Vuelve a intentarlo.'));
+        }
 
         if ($form->isSubmitted() && $form->isValid()) {
             $user->setPassword(
@@ -122,6 +139,7 @@ class SecurityController extends AbstractController
 
         return $this->render('security/register.html.twig', [
             'registrationForm' => $form,
+            'turnstileSiteKey' => $this->turnstileSiteKey,
         ]);
     }
 

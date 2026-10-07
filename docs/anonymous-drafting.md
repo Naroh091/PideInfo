@@ -89,7 +89,7 @@ Anti-abuso **volumétrico** (todos por IP salvo donde se indica):
 
 | Mecanismo | Dónde | Límite |
 |---|---|---|
-| Cloudflare Turnstile | `POST /redactar/crear` (`TurnstileVerifier`) | secreto vacío → pasa (dev/test); caída de Cloudflare → fail-open (quedan los limiters) |
+| Cloudflare Turnstile | `POST /redactar/crear` (`TurnstileVerifier`, compartido con login y registro) | secreto vacío → pasa (dev/test); caída de Cloudflare → fail-open (quedan los limiters) |
 | `anonymous_draft_create` | `POST /redactar/crear`, por IP | 5/hora |
 | Tope de sesión | `AnonymousDraftSessionStore::MAX_DRAFTS` | 3 borradores activos |
 | `anonymous_chat_turn` | chat SSE, por IP | 15/10 min |
@@ -98,7 +98,14 @@ Anti-abuso **volumétrico** (todos por IP salvo donde se indica):
 | `anonymous_moderation_strikes` | chat SSE + `crear`, por IP | 3/hora → corta IP |
 
 Las claves de Turnstile son `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY`
-(`.env`, vacías en dev).
+(`.env`, vacías en dev). Las mismas claves protegen el login y el registro —
+ver [architecture.md](architecture.md#configuración-e-infraestructura) — así
+que no se pueden activar solo para un flujo.
+
+Este flujo es el único que **no** usa el partial
+`_partials/turnstile.html.twig`: envía por `fetch`, así que mantiene su propio
+input oculto (`#turnstile-token`) y los callbacks
+`pideinfoTurnstileToken` / `pideinfoTurnstileExpired`.
 
 ## Guardrails de generación
 
