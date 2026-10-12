@@ -6,6 +6,10 @@
     <meta name="description" content="{{ publicBody.name }}: {{ cardStats.totalWithOutcome }} reclamaciones resueltas por los consejos de transparencia. En el {{ cardStats.successRate }}% de los casos, el consejo dio la razón al ciudadano.">
 {% endblock %}
 
+{% block canonical %}
+    <link rel="canonical" href="{{ url('app_resoluciones_reclamado', { slug: publicBody.slug }) }}">
+{% endblock %}
+
 {% block og %}
     <meta property="og:title" content="{{ publicBody.name }} - Resoluciones de Transparencia - PideInfo">
     <meta property="og:description" content="{{ publicBody.name }}: {{ cardStats.totalWithOutcome }} reclamaciones resueltas. {{ cardStats.successRate }}% estimadas a favor del ciudadano.">

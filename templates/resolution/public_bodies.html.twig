@@ -6,6 +6,10 @@
     <meta name="description" content="Listado de administraciones públicas reclamadas ante los consejos de transparencia españoles. Consulta las estadísticas de cada organismo.">
 {% endblock %}
 
+{% block canonical %}
+    <link rel="canonical" href="{{ url('app_resoluciones_reclamados') }}">
+{% endblock %}
+
 {% block og %}
     <meta property="og:title" content="Administraciones reclamadas - Resoluciones de Transparencia - PideInfo">
     <meta property="og:description" content="Listado de administraciones públicas reclamadas ante los consejos de transparencia españoles. Consulta las estadísticas de cada organismo.">

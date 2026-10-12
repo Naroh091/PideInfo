@@ -55,8 +55,22 @@ class Document
     #[ORM\JoinColumn(nullable: false)]
     private User $uploadedBy;
 
+    /**
+     * Short AI-generated summary of the document, written during ingestion by
+     * ProcessDocumentHandler/ProcessDocumentBatchHandler. Despite the name this
+     * is NOT the document's text — see {@see $fullText} for that.
+     */
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $extractedText = null;
+
+    /**
+     * Full text extracted from the file itself (PDF, plain text), cached for the
+     * MCP read tools. Deliberately a column of its own: reusing $extractedText
+     * as the cache made read_document hand back the AI summary while presenting
+     * it as the document's complete text.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $fullText = null;
 
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
@@ -215,6 +229,17 @@ class Document
     public function setExtractedText(?string $extractedText): static
     {
         $this->extractedText = $extractedText;
+        return $this;
+    }
+
+    public function getFullText(): ?string
+    {
+        return $this->fullText;
+    }
+
+    public function setFullText(?string $fullText): static
+    {
+        $this->fullText = $fullText;
         return $this;
     }
 

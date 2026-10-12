@@ -15,6 +15,14 @@ use League\Flysystem\FilesystemOperator;
  * Resolves a Document into a DocumentContent DTO for MCP, caching extracted
  * text on the entity. Shared by ReadDocumentTool and ReadRequestDocumentsTool.
  *
+ * The text cache is `Document.fullText`, a column of its own. It must never go
+ * back to `Document.extractedText`: that field holds the short AI summary the
+ * ingestion pipeline writes for every analysed document, so using it as the
+ * cache meant `mode=text` answered from it on the first call and returned a
+ * handful of model-written lines while claiming they were the document's text.
+ * When the real text cannot be extracted, the summary is still offered — but
+ * through DocumentContent::summary(), which labels it.
+ *
  * Does not validate ownership — callers must do it before invoking.
  */
 final class DocumentContentReader
@@ -45,7 +53,7 @@ final class DocumentContentReader
             return DocumentContent::url($document, $presignedUrl, $document->getFileSize());
         }
 
-        $cached = $document->getExtractedText();
+        $cached = $document->getFullText();
         if (null !== $cached && '' !== trim($cached)) {
             return DocumentContent::text($document, $cached, fromCache: true);
         }
@@ -53,33 +61,58 @@ final class DocumentContentReader
         $mimeType = $document->getMimeType();
 
         if ($mimeType === 'text/plain') {
-            $text = $this->documentsStorage->read($stored);
-            $document->setExtractedText($text);
-            $this->em->flush();
-
-            return DocumentContent::text($document, $text, fromCache: false);
+            return $this->cacheExtractedText($document, $this->documentsStorage->read($stored));
         }
 
         if ($mimeType === 'application/pdf') {
-            $bytes = $this->documentsStorage->read($stored);
-            $tmp = tempnam(sys_get_temp_dir(), 'mcp_pdf_');
-            if ($tmp === false) {
-                throw new \RuntimeException('Could not create temp file for PDF extraction.');
-            }
-            try {
-                file_put_contents($tmp, $bytes);
-                $text = $this->pdfTextExtractor->extractFullText($tmp);
-            } finally {
-                @unlink($tmp);
-            }
-
-            $document->setExtractedText($text);
-            $this->em->flush();
-
-            return DocumentContent::text($document, $text, fromCache: false);
+            return $this->cacheExtractedText($document, $this->extractPdfText($stored));
         }
 
-        return DocumentContent::unsupported($document, 'text', 'unsupported_mimetype');
+        return $this->summaryFallback($document, 'unsupported_mimetype');
+    }
+
+    private function extractPdfText(string $stored): string
+    {
+        $bytes = $this->documentsStorage->read($stored);
+        $tmp = tempnam(sys_get_temp_dir(), 'mcp_pdf_');
+        if ($tmp === false) {
+            throw new \RuntimeException('Could not create temp file for PDF extraction.');
+        }
+
+        try {
+            file_put_contents($tmp, $bytes);
+
+            return $this->pdfTextExtractor->extractFullText($tmp);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    /**
+     * Stores the extracted text in its own column and returns it. An empty
+     * extraction (a scanned, image-only PDF) is not cached and is never returned
+     * as "the text" — the caller gets the summary, explicitly flagged.
+     */
+    private function cacheExtractedText(Document $document, string $text): DocumentContent
+    {
+        if ('' === trim($text)) {
+            return $this->summaryFallback($document, 'no_text_extracted');
+        }
+
+        $document->setFullText($text);
+        $this->em->flush();
+
+        return DocumentContent::text($document, $text, fromCache: false);
+    }
+
+    private function summaryFallback(Document $document, string $reason): DocumentContent
+    {
+        $summary = $document->getExtractedText();
+        if (null !== $summary && '' !== trim($summary)) {
+            return DocumentContent::summary($document, $summary, $reason);
+        }
+
+        return DocumentContent::unsupported($document, 'text', $reason);
     }
 
     private function generatePresignedUrl(Document $document, string $stored): string

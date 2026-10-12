@@ -6,6 +6,16 @@
     <meta name="description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
 {% endblock %}
 
+{# Canónica sin filtros: las combinaciones de búsqueda y paginación son la misma
+   página listada de otra forma, no contenido distinto. #}
+{% block canonical %}
+    {% if activeOrganism is defined and activeOrganism %}
+        <link rel="canonical" href="{{ url('app_resoluciones_organismo', { slug: activeOrganism.slug }) }}">
+    {% else %}
+        <link rel="canonical" href="{{ url('app_resoluciones_index') }}">
+    {% endif %}
+{% endblock %}
+
 {% block og %}
     {% if activeOrganism is defined and activeOrganism %}
         <meta property="og:title" content="{{ activeOrganism.name }} - Resoluciones de Transparencia">
