@@ -1142,6 +1142,120 @@ class AccessRequest
         return $this->complaint?->getDaysUntilDeadline() ?? 0;
     }
 
+    /**
+     * Claimable resolutions with a ONE-MONTH deadline (inadmission, denial,
+     * partial grant). A full grant has its own "pending reception" banner
+     * without this deadline, and silence has an open-ended deadline.
+     */
+    public function isClaimableResolution(): bool
+    {
+        return in_array($this->resolutionResult, [
+            self::RESULT_DENIED,
+            self::RESULT_INADMITTED,
+            self::RESULT_PARTIALLY_GRANTED,
+        ], true);
+    }
+
+    /**
+     * Notification date of the resolution: best available proxy. Prefers the
+     * most recent Response/Notification document date (documentDate, falling
+     * back to createdAt) and falls back to resolvedAt when there is no
+     * document (manually recorded resolution).
+     */
+    public function getResolutionNotifiedAt(): ?\DateTimeImmutable
+    {
+        /** @var \DateTimeImmutable|null $latest */
+        $latest = null;
+        foreach ($this->documents as $document) {
+            if ($document->getType() !== DocumentType::Response
+                && $document->getType() !== DocumentType::Notification) {
+                continue;
+            }
+            $candidate = $document->getDocumentDate() ?? $document->getCreatedAt();
+            // createdAt is a datetime: normalize to midnight for day comparison.
+            $candidate = \DateTimeImmutable::createFromInterface($candidate)->setTime(0, 0);
+            if ($latest === null || $candidate > $latest) {
+                $latest = $candidate;
+            }
+        }
+
+        return $latest ?? $this->resolvedAt;
+    }
+
+    /**
+     * Claim deadline: ONE MONTH from notification, date-to-date
+     * (Ley 39/2015 art. 30.4 — counting starts the day after, so expiry falls
+     * on the same day number of the following month; the last day of the
+     * month when that day does not exist).
+     * Null when there is no claimable resolution or no known date.
+     */
+    public function getClaimDeadlineAt(): ?\DateTimeImmutable
+    {
+        if (!$this->isClaimableResolution()) {
+            return null;
+        }
+        $notifiedAt = $this->getResolutionNotifiedAt();
+        if ($notifiedAt === null) {
+            return null;
+        }
+
+        $year = (int) $notifiedAt->format('Y');
+        $month = (int) $notifiedAt->format('n');
+        $day = (int) $notifiedAt->format('j');
+        $month++;
+        if ($month > 12) {
+            $month = 1;
+            $year++;
+        }
+        $lastDay = (int) (new \DateTimeImmutable(sprintf('%04d-%02d-01', $year, $month)))->modify('last day of this month')->format('j');
+
+        return $notifiedAt->setDate($year, $month, min($day, $lastDay));
+    }
+
+    /**
+     * Calendar days until the claim deadline. Negative when expired.
+     * Null when the deadline cannot be computed (unknown notification date).
+     */
+    public function getDaysUntilClaimDeadline(): ?int
+    {
+        $deadline = $this->getClaimDeadlineAt();
+        if ($deadline === null) {
+            return null;
+        }
+        $today = new \DateTimeImmutable('today');
+        $interval = $today->diff($deadline);
+        return $interval->invert ? -$interval->days : $interval->days;
+    }
+
+    public function isClaimDeadlinePassed(): bool
+    {
+        $deadline = $this->getClaimDeadlineAt();
+        if ($deadline === null) {
+            return false;
+        }
+
+        return new \DateTimeImmutable('today') > $deadline;
+    }
+
+    /**
+     * Legal claim window open: claimable resolution, no complaint filed yet,
+     * deadline not expired. Shown when no date is known (we cannot let it lapse).
+     */
+    public function isClaimWindowOpen(): bool
+    {
+        if (!$this->isClaimableResolution()) {
+            return false;
+        }
+        if ($this->complaint !== null) {
+            return false;
+        }
+        if ($this->getResolutionNotifiedAt() === null) {
+            return true;
+        }
+
+        return !$this->isClaimDeadlinePassed();
+    }
+
     public function isComplianceDeadlinePassed(): bool
     {
         return $this->complaint?->isComplianceDeadlinePassed() ?? false;

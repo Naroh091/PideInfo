@@ -49,6 +49,32 @@
             </p>
         {% endif %}
 
+        {# Claim window — ONE MONTH from notification (inadmission, denial,
+           partial grant), art. 30.5 extension included. Shown even when expired
+           to explain why the claim banner is gone. #}
+        {% if request.claimableResolution and request.complaint is null and this.claimDeadline %}
+            {% set claimPassed = this.claimDeadlinePassed %}
+            {% set daysLeft = this.daysUntilClaimDeadline %}
+            <div class="ficha-fila">
+                <span class="ficha-clave">Plazo para reclamar</span>
+                <span class="ficha-valor {{ claimPassed ? 'rojo' : (daysLeft <= 7 ? 'ambar') }}">
+                    {{ this.claimDeadline|date('d/m/Y') }}
+                    {% if claimPassed %}
+                        <span class="ficha-tag is-passed">Vencido</span>
+                    {% else %}
+                        · {{ daysLeft }} día{{ daysLeft != 1 ? 's' : '' }}
+                    {% endif %}
+                </span>
+            </div>
+            {% if request.resolutionNotifiedAt %}
+                <p class="ficha-nota">
+                    Un mes desde la notificación ({{ request.resolutionNotifiedAt|date('d/m/Y') }}).
+                    Si cae en festivo local, se prorroga al siguiente hábil.
+                    Calendario: <a href="https://calendariosnacionales.com/es/api/" target="_blank" rel="noopener" class="underline">Calendarios Nacionales</a> · <a href="https://www.boe.es/" target="_blank" rel="noopener" class="underline">BOE</a>.
+                </p>
+            {% endif %}
+        {% endif %}
+
         {% if request.extensionCount > 0 %}
             <div class="ficha-fila">
                 <span class="ficha-clave">Prórroga</span>
