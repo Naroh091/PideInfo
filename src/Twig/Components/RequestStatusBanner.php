@@ -6,6 +6,7 @@ use App\Entity\AccessRequest;
 use App\Entity\Document;
 use App\Entity\Reminder;
 use App\Repository\ReminderRepository;
+use App\Service\Calendar\HolidayCalendar;
 use App\Service\TransparencyCouncilResolver;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
@@ -24,6 +25,7 @@ class RequestStatusBanner
         private readonly TransparencyCouncilResolver $councilResolver,
         private readonly ReminderRepository $reminderRepository,
         private readonly Security $security,
+        private readonly HolidayCalendar $holidayCalendar,
     ) {
     }
 
@@ -55,6 +57,50 @@ class RequestStatusBanner
     public function getComplaintDraftDocument(): ?Document
     {
         return $this->request->getComplaintDraftDocument();
+    }
+
+    /**
+     * Claim deadline with the art. 30.5 extension already applied (when the
+     * final day is a non-business day under the law or at the council seat,
+     * it moves to the next business day). The date-to-date base lives in the entity.
+     */
+    public function getClaimDeadline(): ?\DateTimeImmutable
+    {
+        return $this->holidayCalendar->claimDeadlineFor($this->request);
+    }
+
+    public function getDaysUntilClaimDeadline(): ?int
+    {
+        $deadline = $this->getClaimDeadline();
+        if ($deadline === null) {
+            return null;
+        }
+        $today = new \DateTimeImmutable('today');
+        $interval = $today->diff($deadline);
+
+        return $interval->invert ? -$interval->days : $interval->days;
+    }
+
+    public function isClaimDeadlinePassed(): bool
+    {
+        $deadline = $this->getClaimDeadline();
+        if ($deadline === null) {
+            return false;
+        }
+
+        return new \DateTimeImmutable('today') > $deadline;
+    }
+
+    public function isClaimWindowOpen(): bool
+    {
+        if (!$this->request->isClaimableResolution() || $this->request->getComplaint() !== null) {
+            return false;
+        }
+        if ($this->request->getResolutionNotifiedAt() === null) {
+            return true;
+        }
+
+        return !$this->isClaimDeadlinePassed();
     }
 
     public function getPendingReminder(): ?Reminder

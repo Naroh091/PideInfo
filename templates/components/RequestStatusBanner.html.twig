@@ -205,21 +205,37 @@
 {% endif %}
 
 {# Concesión parcial — la administración facilitó parte de lo solicitado.
-   Invita a reclamar la parte no facilitada (skip if a complaint already exists). #}
-{% if request.resolutionResult == 'partially_granted' and request.complaint is null %}
+   Invita a reclamar la parte no facilitada (skip if a complaint already exists).
+   Only inside the ONE-MONTH window from notification (date-to-date). #}
+{% if request.resolutionResult == 'partially_granted' and request.complaint is null and this.claimWindowOpen %}
     {% set council = this.transparencyCouncilName %}
+    {% set claimDeadline = this.claimDeadline %}
+    {% set notifiedAt = request.resolutionNotifiedAt %}
+    {% set daysLeft = this.daysUntilClaimDeadline %}
     <section class="paso3">
         <div class="paso3-cab">
             <span class="paso3-nombre">Concesión parcial</span>
             <span class="paso3-filete"></span>
-            <span class="paso3-plazo">puedes reclamar lo no facilitado</span>
+            <span class="paso3-plazo">
+                {% if claimDeadline %}
+                    hasta el <b>{{ claimDeadline|date('d/m/Y') }}</b>
+                    {% if daysLeft is not null %} · quedan {{ daysLeft }} día{{ daysLeft != 1 ? 's' : '' }}{% endif %}
+                {% else %}
+                    puedes reclamar lo no facilitado
+                {% endif %}
+            </span>
         </div>
         <p class="paso3-frase">
             La administración ha facilitado sólo parte de la información. Puedes reclamar a {{ council }} por lo restante.
         </p>
         <div class="paso3-texto">
             <p>
-                Si parte de lo que pediste no se ha entregado o se ha entregado de forma incompleta, tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que ordene su entrega. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                Si parte de lo que pediste no se ha entregado o se ha entregado de forma incompleta, tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que ordene su entrega.
+                {% if claimDeadline and notifiedAt %}
+                    El plazo es de un mes desde la notificación (notificada el {{ notifiedAt|date('d/m/Y') }}): termina el {{ claimDeadline|date('d/m/Y') }}.
+                {% else %}
+                    Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                {% endif %}
             </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
@@ -247,21 +263,36 @@
 
 {# Solicitud denegada — invita a reclamar (skip if a complaint already exists).
    Se mira resolutionResult (no status): la denegación es una decisión, la
-   posición es `finished`. #}
-{% if request.resolutionResult == 'denied' and request.complaint is null %}
+   posición es `finished`. Only inside the ONE-MONTH window from notification. #}
+{% if request.resolutionResult == 'denied' and request.complaint is null and this.claimWindowOpen %}
     {% set council = this.transparencyCouncilName %}
+    {% set claimDeadline = this.claimDeadline %}
+    {% set notifiedAt = request.resolutionNotifiedAt %}
+    {% set daysLeft = this.daysUntilClaimDeadline %}
     <section class="paso3 paso3--rojo">
         <div class="paso3-cab">
             <span class="paso3-nombre">Solicitud denegada</span>
             <span class="paso3-filete"></span>
-            <span class="paso3-plazo"><span class="rojo">procede reclamación</span></span>
+            <span class="paso3-plazo">
+                {% if claimDeadline %}
+                    hasta el <b>{{ claimDeadline|date('d/m/Y') }}</b>
+                    {% if daysLeft is not null %} · <span class="rojo">quedan {{ daysLeft }} día{{ daysLeft != 1 ? 's' : '' }}</span>{% endif %}
+                {% else %}
+                    <span class="rojo">procede reclamación</span>
+                {% endif %}
+            </span>
         </div>
         <p class="paso3-frase">
             La administración ha denegado tu solicitud. Ahora puedes reclamar a {{ council }}.
         </p>
         <div class="paso3-texto">
             <p>
-                Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la denegación.
+                {% if claimDeadline and notifiedAt %}
+                    El plazo es de un mes desde la notificación (notificada el {{ notifiedAt|date('d/m/Y') }}): termina el {{ claimDeadline|date('d/m/Y') }}.
+                {% else %}
+                    Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                {% endif %}
             </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
@@ -281,21 +312,37 @@
 {# Solicitud inadmitida a trámite — las causas del art. 18 son tasadas y de
    interpretación restrictiva; la inadmisión también se reclama (skip if a
    complaint already exists). Se mira resolutionResult y no status para que el
-   aviso sobreviva a transiciones posteriores del expediente. #}
-{% if request.resolutionResult == 'inadmitted' and request.complaint is null %}
+   aviso sobreviva a transiciones posteriores del expediente.
+   Only inside the ONE-MONTH window from notification. #}
+{% if request.resolutionResult == 'inadmitted' and request.complaint is null and this.claimWindowOpen %}
     {% set council = this.transparencyCouncilName %}
+    {% set claimDeadline = this.claimDeadline %}
+    {% set notifiedAt = request.resolutionNotifiedAt %}
+    {% set daysLeft = this.daysUntilClaimDeadline %}
     <section class="paso3 paso3--rojo">
         <div class="paso3-cab">
             <span class="paso3-nombre">Solicitud inadmitida</span>
             <span class="paso3-filete"></span>
-            <span class="paso3-plazo"><span class="rojo">procede reclamación</span></span>
+            <span class="paso3-plazo">
+                {% if claimDeadline %}
+                    hasta el <b>{{ claimDeadline|date('d/m/Y') }}</b>
+                    {% if daysLeft is not null %} · <span class="rojo">quedan {{ daysLeft }} día{{ daysLeft != 1 ? 's' : '' }}</span>{% endif %}
+                {% else %}
+                    <span class="rojo">procede reclamación</span>
+                {% endif %}
+            </span>
         </div>
         <p class="paso3-frase">
             La administración no ha admitido a trámite tu solicitud. Puedes reclamar a {{ council }}.
         </p>
         <div class="paso3-texto">
             <p>
-                Las causas de inadmisión del artículo 18 de la Ley 19/2013 son tasadas y de interpretación restrictiva: que la administración inadmita tu solicitud no significa que tenga razón. Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la inadmisión. Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                Las causas de inadmisión del artículo 18 de la Ley 19/2013 son tasadas y de interpretación restrictiva: que la administración inadmita tu solicitud no significa que tenga razón. Tienes derecho a presentar una reclamación gratuita ante {{ council }}, sin necesidad de abogado, para que revise la inadmisión.
+                {% if claimDeadline and notifiedAt %}
+                    El plazo es de un mes desde la notificación (notificada el {{ notifiedAt|date('d/m/Y') }}): termina el {{ claimDeadline|date('d/m/Y') }}.
+                {% else %}
+                    Conviene hacerlo dentro del plazo de un mes desde la notificación.
+                {% endif %}
             </p>
         </div>
         {% set draftDocument = this.complaintDraftDocument %}
