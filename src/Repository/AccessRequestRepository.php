@@ -160,6 +160,30 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
+     * Requests with a claimable express resolution (denial, inadmission,
+     * partial grant) and no complaint filed yet. The claim deadline itself is
+     * derived (notification date + one month, art. 30.4/30.5), so callers
+     * filter by proximity in PHP after computing it.
+     *
+     * @return AccessRequest[]
+     */
+    public function findWithClaimableResolutions(User $user): array
+    {
+        $qb = $this->createQueryBuilderForUser($user)
+            ->leftJoin('ar.complaint', 'c')
+            ->andWhere('ar.resolutionResult IN (:results)')
+            ->andWhere('c.id IS NULL')
+            ->setParameter('results', [
+                AccessRequest::RESULT_DENIED,
+                AccessRequest::RESULT_INADMITTED,
+                AccessRequest::RESULT_PARTIALLY_GRANTED,
+            ])
+            ->orderBy('ar.resolvedAt', 'ASC');
+
+        return $qb->getQuery()->getResult();
+    }
+
+    /**
      * @return AccessRequest[]
      */
     public function findExpiredRequests(\DateTimeImmutable $today): array

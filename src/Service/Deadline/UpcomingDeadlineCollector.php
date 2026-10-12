@@ -6,6 +6,7 @@ use App\Entity\User;
 use App\Repository\AccessRequestRepository;
 use App\Repository\CustomDeadlineRepository;
 use App\Repository\HearingProcessRepository;
+use App\Service\Calendar\HolidayCalendar;
 
 /**
  * Collects every upcoming (or just-passed) deadline of a user's cartera in a
@@ -22,7 +23,7 @@ use App\Repository\HearingProcessRepository;
  *     deadlineAt: \DateTimeInterface, daysUntil: int, isPassed: bool,
  *     type: string, message: string,
  *     isComplaint?: bool, isCompliance?: bool, isCustom?: bool,
- *     isHearing?: bool, customDescription?: string,
+ *     isHearing?: bool, isClaim?: bool, customDescription?: string,
  * }
  */
 final readonly class UpcomingDeadlineCollector
@@ -31,6 +32,7 @@ final readonly class UpcomingDeadlineCollector
         private AccessRequestRepository $repository,
         private CustomDeadlineRepository $customDeadlineRepository,
         private HearingProcessRepository $hearingProcessRepository,
+        private HolidayCalendar $holidayCalendar,
     ) {
     }
 
@@ -91,6 +93,35 @@ final readonly class UpcomingDeadlineCollector
                 'type' => $this->getAlertType($daysUntil, $isPassed),
                 'message' => $this->getComplianceAlertMessage($daysUntil, $isPassed),
                 'isCompliance' => true,
+            ];
+        }
+
+        // Claim window (one month from notification to complain, art. 24.2
+        // Ley 19/2013). The deadline is derived per request, so proximity
+        // filtering happens here in PHP rather than in the query.
+        foreach ($this->repository->findWithClaimableResolutions($user) as $request) {
+            $deadline = $this->holidayCalendar->claimDeadlineFor($request);
+            if ($deadline === null) {
+                continue;
+            }
+            $today = new \DateTimeImmutable('today');
+            $interval = $today->diff($deadline);
+            $daysUntil = $interval->invert ? -$interval->days : $interval->days;
+            $isPassed = $today > $deadline;
+            if (!$isPassed && $daysUntil > $daysThreshold) {
+                continue;
+            }
+
+            $alerts[] = [
+                'id' => (string) $request->getId(),
+                'title' => $request->getTitle(),
+                'publicBody' => $request->getPublicBody()->getName(),
+                'deadlineAt' => $deadline,
+                'daysUntil' => $daysUntil,
+                'isPassed' => $isPassed,
+                'type' => $this->getAlertType($daysUntil, $isPassed),
+                'message' => $this->getClaimAlertMessage($daysUntil, $isPassed),
+                'isClaim' => true,
             ];
         }
 
@@ -220,6 +251,20 @@ final readonly class UpcomingDeadlineCollector
             return 'El plazo de alegaciones vence mañana';
         }
         return sprintf('Quedan %d días para presentar alegaciones', $daysUntil);
+    }
+
+    private function getClaimAlertMessage(int $daysUntil, bool $isPassed): string
+    {
+        if ($isPassed) {
+            return 'Plazo para reclamar vencido';
+        }
+        if ($daysUntil === 0) {
+            return 'El plazo para reclamar vence hoy';
+        }
+        if ($daysUntil === 1) {
+            return 'El plazo para reclamar vence mañana';
+        }
+        return sprintf('Quedan %d días para reclamar', $daysUntil);
     }
 
     private function getCustomDeadlineMessage(int $daysUntil, bool $isPassed, string $description): string
