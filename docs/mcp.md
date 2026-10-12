@@ -78,7 +78,7 @@ Si se omite `grant_types`, el cliente se registra con `['authorization_code', 'r
 | `get_complaint_draft`        | mcp:read       | Devuelve la reclamación asociada a una solicitud (si existe).                    |
 | `list_complaints`            | mcp:read       | Lista paginada de reclamaciones del usuario, filtrable por estado.               |
 | `list_user_documents`        | mcp:read       | Lista documentos con URI MCP `pideinfo://document/{uuid}`.                       |
-| `read_document`              | mcp:documents  | Lee un documento: mode=text devuelve texto extraído (PDF → texto, plano → texto); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos). Cachea texto en `Document.extractedText`. |
+| `read_document`              | mcp:documents  | Lee un documento: mode=text devuelve el texto **completo** extraído (PDF → texto, plano → texto); mode=url devuelve una pre-signed URL de descarga (expira en 15 minutos). Cachea el texto en `Document.fullText`. |
 | `read_request_documents`     | mcp:documents  | Lee todos los documentos de una solicitud en una sola llamada. mode=text devuelve texto; mode=url devuelve pre-signed URLs de descarga. Sin límite de documentos. |
 | `create_access_request`      | mcp:write      | Registra una solicitud **ya enviada** (`status = sent`, calcula plazo según `ApplicableLaw`, deja traza de creación). |
 | `generate_access_request`    | mcp:write      | **Genera con IA** el borrador de una solicitud (distinto de crear). Crea `AccessRequest` en `status = pending`, texto redactado server-side (mismo prompt Langfuse que la web), con el `RegDestination` adjunto, lista para revisar y **enviar después** por REG. Si el organismo tiene canal REG exige `regDestinationId` (de `search_reg_destinations`); si no, genera borrador portal/email. Etiqueta `metadata.generated_via = mcp/{client_id}`. |
@@ -123,11 +123,30 @@ El importador `app:reg:import-destinations --embed` reindexa los destinos tocado
 |-------------------------------------------|------------------|--------------------------------------------|
 | `pideinfo://document/{uuid}`              | mcp:documents    | Bytes del documento (Flysystem S3) en base64. |
 
-> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama. Mientras tanto, **`read_document` y `read_request_documents`** son la vía operativa: devuelven texto extraído (cacheado en `Document.extractedText`) o una pre-signed URL de descarga con `mode=url`.
+> El soporte de Resource Templates en el SDK PHP aún es parcial. `ListUserDocumentsTool` ya genera URIs concretos por documento; el cliente puede pasarlos a `resources/read` cuando el SDK habilite la rama. Mientras tanto, **`read_document` y `read_request_documents`** son la vía operativa: devuelven texto extraído (cacheado en `Document.fullText`) o una pre-signed URL de descarga con `mode=url`.
+
+## Modo text — texto completo, nunca un resumen disfrazado
+
+`mode=text` devuelve el texto extraído del archivo y lo cachea en **`Document.fullText`**, una columna propia.
+
+No puede compartir caché con `Document.extractedText`: ese campo guarda el **resumen breve que escribe la IA** al ingerir el documento (`ProcessDocumentHandler` / `ProcessDocumentBatchHandler`). Como `DocumentContentReader` lo usaba como caché de texto completo, cualquier documento ya analizado —es decir, prácticamente todos— respondía con el resumen y lo presentaba como el contenido íntegro del PDF.
+
+La respuesta declara siempre qué se está devolviendo:
+
+| Campo         | Valor                                                                             |
+|---------------|-----------------------------------------------------------------------------------|
+| `contentType` | `full_text` (texto del archivo) o `summary` (solo hay resumen).                    |
+| `error`       | En `summary`, el motivo: `no_text_extracted` (PDF escaneado sin capa de texto) o `unsupported_mimetype`. |
+| `notice`      | En `summary`, aviso explícito de que no es el texto completo y de usar `mode=url`. |
+| `fromCache`   | El texto venía ya cacheado en `Document.fullText`.                                 |
+
+Un PDF escaneado del que no se extrae nada **no** cachea una cadena vacía: se devuelve el resumen etiquetado como tal.
 
 ## Modo url — descargas de archivos grandes
 
 Los documentos de gran tamaño (>1 MB) se sirven como pre-signed URLs de S3 en lugar de contenido binario para evitar truncamiento por límites del canal de comunicación MCP. La URL expira en 15 minutos.
+
+La clave S3 se construye en un único sitio, **`App\Mcp\Service\DocumentStorageKey::forStoredFilename()`**. `Document.storedFilename` es la ruta *relativa al storage* de Flysystem, y `documents.storage` añade el prefijo `documents` en cada lectura y escritura; quien firme contra el cliente S3 en crudo tiene que anteponerlo a mano. Los dos sitios que lo hacen (`DocumentContentReader` y `DocumentResourceProvider`) lo delegan ahí (ver #135), así que las URLs de `mode=url` apuntan a la clave real y no a una inexistente (HTTP 404).
 
 ```
 read_document(documentId: "uuid", mode: "url")

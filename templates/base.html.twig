@@ -6,6 +6,13 @@
     <title>{% block title %}PideInfo{% endblock %}</title>
 
     {% block meta %}{% endblock %}
+
+    {# Indexación centralizada: noindex por defecto (paneles, expedientes,
+       documentos, borradores anónimos…). Solo las rutas declaradas públicas en
+       App\Twig\SeoExtension se marcan indexables. #}
+    {% block robots %}<meta name="robots" content="{{ seo_robots() }}">{% endblock %}
+    {% block canonical %}{% endblock %}
+
     {% block og %}
     <meta property="og:site_name" content="PideInfo">
     <meta property="og:type" content="website">

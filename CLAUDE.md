@@ -17,6 +17,7 @@ El A/B testing server-side (GrowthBook; sin experimentos activos — el del hero
 La evaluación offline del retrieval (ground truth versionado + `app:retrieval:eval` + runs en Langfuse) está en docs/retrieval-eval.md
 La comparación de modelos del agente (teacher vs. modelo pequeño, `app:agent:compare`, pack ciego para LLM-as-judge) está en docs/agent-model-eval.md
 La mesa de resoluciones (/mesa-resoluciones, herramienta interna para el CTBG con puerta por contraseña `MESA_PASSWORDS`) está en docs/mesa-resoluciones.md
+La indexación (regla central de `noindex`, canónicas y JSON-LD de las páginas públicas) está en docs/seo.md
 
 
 # Development keys:

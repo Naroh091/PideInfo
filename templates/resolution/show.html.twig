@@ -6,6 +6,10 @@
     <meta name="description" content="{{ resolution.summary|u.truncate(160, '...') }}">
 {% endblock %}
 
+{% block canonical %}
+    <link rel="canonical" href="{{ url('app_resoluciones_show', { id: resolution.id }) }}">
+{% endblock %}
+
 {% block og %}
     <meta property="og:title" content="{{ resolution.subject|default(resolution.referenceNumber) }} - PideInfo">
     <meta property="og:description" content="{{ resolution.summary|u.truncate(200, '...') }}">
@@ -405,36 +409,77 @@
 
 {% include '_partials/public_footer.html.twig' %}
 
-{# JSON-LD Structured Data #}
-<script type="application/ld+json">
-{
-    "@context": "https://schema.org",
-    "@type": "Dataset",
-    "name": "Resolución {{ resolution.referenceNumber }} - {{ resolution.subject|default('')|e('js') }}",
-    "description": "{{ resolution.summary|u.truncate(300, '...')|e('js') }}",
-    {% if resolution.resolutionDate %}"datePublished": "{{ resolution.resolutionDate|date('Y-m-d') }}",{% endif %}
-    "url": "{{ url('app_resoluciones_show', { id: resolution.id }) }}",
-    {% if resolution.complaintOrganism %}
-    "creator": {
-        "@type": "Organization",
-        "name": "{{ resolution.complaintOrganism.name|e('js') }}"
-    },
-    {% endif %}
-    {% if resolution.sourceUrl %}
-    "distribution": {
-        "@type": "DataDownload",
-        "contentUrl": "{{ resolution.sourceUrl }}",
-        "encodingFormat": "application/pdf"
-    },
-    {% endif %}
-    "keywords": ["transparencia", "derecho de acceso", "información pública"{% if resolution.keywords %}{% for kw in resolution.keywords %}, "{{ kw|e('js') }}"{% endfor %}{% endif %}],
-    "isPartOf": {
-        "@type": "DataCatalog",
-        "name": "Resoluciones de Transparencia",
-        "url": "{{ url('app_resoluciones_index') }}"
+{# JSON-LD construido como mapas Twig y serializado con json_encode. Antes se
+   escribía el JSON a mano y cada campo opcional cargaba con su coma dentro del
+   {% if %}: una condición nueva mal colocada emite una coma sobrante y tira todo
+   el bloque, sin que se note (la página sigue pintándose; solo lo ve el
+   rastreador). Con |merge no hay comas que colocar y json_encode se encarga del
+   escapado — incluidas las barras, así que nada puede cerrar el <script>. #}
+{% set canonicalUrl = url('app_resoluciones_show', { id: resolution.id }) %}
+
+{% set dataset = {
+    '@context': 'https://schema.org',
+    '@type': 'Dataset',
+    'name': 'Resolución ' ~ resolution.referenceNumber ~ (resolution.subject ? ' - ' ~ resolution.subject : ''),
+    'description': '' ~ resolution.summary|u.truncate(300, '...'),
+    'url': canonicalUrl,
+    'inLanguage': 'es',
+    'isAccessibleForFree': true,
+    'license': 'https://creativecommons.org/licenses/by/4.0/',
+    'keywords': ['transparencia', 'derecho de acceso', 'información pública']|merge(resolution.keywords|default([])),
+    'isPartOf': {
+        '@type': 'DataCatalog',
+        'name': 'Resoluciones de Transparencia',
+        'url': url('app_resoluciones_index')
     }
-}
-</script>
+} %}
+{% if resolution.resolutionDate %}
+    {% set dataset = dataset|merge({ 'datePublished': resolution.resolutionDate|date('Y-m-d') }) %}
+{% endif %}
+{% if resolution.updatedAt %}
+    {% set dataset = dataset|merge({ 'dateModified': resolution.updatedAt|date('Y-m-d') }) %}
+{% endif %}
+{% if resolution.complaintOrganism %}
+    {% set dataset = dataset|merge({
+        'creator': { '@type': 'GovernmentOrganization', 'name': resolution.complaintOrganism.name }
+    }) %}
+{% endif %}
+{% if resolution.publicBodyName %}
+    {% set dataset = dataset|merge({
+        'about': { '@type': 'GovernmentOrganization', 'name': resolution.publicBodyName }
+    }) %}
+{% endif %}
+{% if resolution.sourceUrl %}
+    {% set dataset = dataset|merge({
+        'distribution': {
+            '@type': 'DataDownload',
+            'contentUrl': resolution.sourceUrl,
+            'encodingFormat': 'application/pdf'
+        }
+    }) %}
+{% endif %}
+<script type="application/ld+json">{{ dataset|json_encode|raw }}</script>
+
+{# BreadcrumbList: refleja exactamente las migas visibles de la cabecera. #}
+{% set crumbs = [
+    { '@type': 'ListItem', 'position': 1, 'name': 'Inicio', 'item': url('app_home') },
+    { '@type': 'ListItem', 'position': 2, 'name': 'Repositorio de resoluciones', 'item': url('app_resoluciones_index') }
+] %}
+{% if resolution.complaintOrganism and resolution.complaintOrganism.slug %}
+    {% set crumbs = crumbs|merge([{
+        '@type': 'ListItem',
+        'position': crumbs|length + 1,
+        'name': resolution.complaintOrganism.name,
+        'item': url('app_resoluciones_organismo', { slug: resolution.complaintOrganism.slug })
+    }]) %}
+{% endif %}
+{% set crumbs = crumbs|merge([{
+    '@type': 'ListItem',
+    'position': crumbs|length + 1,
+    'name': resolution.referenceNumber,
+    'item': canonicalUrl
+}]) %}
+<script type="application/ld+json">{{ { '@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': crumbs }|json_encode|raw }}</script>
 
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 {% endblock %}

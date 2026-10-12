@@ -7,12 +7,8 @@ namespace App\Tests\Mcp\Service;
 use App\Entity\Document;
 use App\Mcp\Dto\DocumentContent;
 use App\Mcp\Service\DocumentContentReader;
-use App\Repository\DocumentRepository;
 use App\Service\Document\PdfTextExtractor;
 use Aws\CommandInterface;
-use Aws\Credentials\Credentials;
-use Aws\MockHandler;
-use Aws\Result;
 use Aws\S3\S3Client;
 use Doctrine\ORM\EntityManagerInterface;
 use League\Flysystem\FilesystemOperator;
@@ -70,14 +66,17 @@ class DocumentContentReaderTest extends TestCase
 
         $this->assertSame('text', $result->mode);
         $this->assertSame('Extracted PDF text', $result->content);
+        $this->assertSame(DocumentContent::CONTENT_FULL_TEXT, $result->contentType);
         $this->assertFalse($result->fromCache);
         $this->assertNull($result->downloadUrl);
+        // Cached in its own column, not over the AI summary.
+        $this->assertSame('Extracted PDF text', $doc->getFullText());
     }
 
-    public function test_text_mode_uses_cache(): void
+    public function test_text_mode_uses_cached_full_text(): void
     {
         $doc = $this->createDocument('cached.pdf', 'application/pdf', 1024, 'cached.pdf');
-        $doc->setExtractedText('Already extracted');
+        $doc->setFullText('Already extracted');
 
         $this->storage->expects($this->once())
             ->method('fileExists')
@@ -98,7 +97,88 @@ class DocumentContentReaderTest extends TestCase
 
         $this->assertSame('text', $result->mode);
         $this->assertSame('Already extracted', $result->content);
+        $this->assertSame(DocumentContent::CONTENT_FULL_TEXT, $result->contentType);
         $this->assertTrue($result->fromCache);
+    }
+
+    /**
+     * Regression for #125. Every analysed document carries a short AI summary in
+     * `extractedText`; that must never short-circuit the extraction and be
+     * returned as if it were the document's text.
+     */
+    public function test_ai_summary_is_not_served_as_the_full_text(): void
+    {
+        $doc = $this->createDocument('resolucion.pdf', 'application/pdf', 900_000, 'resolucion.pdf');
+        $doc->setExtractedText('Resumen de la IA: el organismo deniega el acceso.');
+
+        $this->storage->expects($this->once())
+            ->method('fileExists')
+            ->willReturn(true);
+
+        $this->storage->expects($this->once())
+            ->method('read')
+            ->willReturn("\x25\x50\x44\x46");
+
+        $this->pdfExtractor->expects($this->once())
+            ->method('extractFullText')
+            ->willReturn('ANTECEDENTES DE HECHO. Primero. El interesado solicitó...');
+
+        $result = $this->reader->read($doc, 'text');
+
+        $this->assertSame('ANTECEDENTES DE HECHO. Primero. El interesado solicitó...', $result->content);
+        $this->assertSame(DocumentContent::CONTENT_FULL_TEXT, $result->contentType);
+        $this->assertFalse($result->fromCache);
+        // The summary is left untouched for the pipeline that owns it.
+        $this->assertSame('Resumen de la IA: el organismo deniega el acceso.', $doc->getExtractedText());
+    }
+
+    /**
+     * An image-only PDF extracts to nothing. The summary may still be offered,
+     * but only flagged as a summary — never as the document's text.
+     */
+    public function test_empty_extraction_falls_back_to_a_flagged_summary(): void
+    {
+        $doc = $this->createDocument('escaneado.pdf', 'application/pdf', 500_000, 'escaneado.pdf');
+        $doc->setExtractedText('Resumen de la IA del escaneo.');
+
+        $this->storage->expects($this->once())
+            ->method('fileExists')
+            ->willReturn(true);
+
+        $this->storage->expects($this->once())
+            ->method('read')
+            ->willReturn("\x25\x50\x44\x46");
+
+        $this->pdfExtractor->expects($this->once())
+            ->method('extractFullText')
+            ->willReturn("   \n  ");
+
+        $this->em->expects($this->never())
+            ->method('flush');
+
+        $result = $this->reader->read($doc, 'text');
+
+        $this->assertSame('Resumen de la IA del escaneo.', $result->content);
+        $this->assertSame(DocumentContent::CONTENT_SUMMARY, $result->contentType);
+        $this->assertSame('no_text_extracted', $result->error);
+        $this->assertNotNull($result->notice);
+        $this->assertNull($doc->getFullText());
+    }
+
+    public function test_unsupported_mimetype_falls_back_to_a_flagged_summary(): void
+    {
+        $doc = $this->createDocument('image.png', 'image/png', 4096, 'image.png');
+        $doc->setExtractedText('Resumen de la IA de la imagen.');
+
+        $this->storage->expects($this->once())
+            ->method('fileExists')
+            ->willReturn(true);
+
+        $result = $this->reader->read($doc, 'text');
+
+        $this->assertSame('Resumen de la IA de la imagen.', $result->content);
+        $this->assertSame(DocumentContent::CONTENT_SUMMARY, $result->contentType);
+        $this->assertSame('unsupported_mimetype', $result->error);
     }
 
     public function test_text_mode_plain_text(): void
@@ -124,23 +204,28 @@ class DocumentContentReaderTest extends TestCase
         $this->assertSame('Plain text content', $result->content);
     }
 
-    public function test_url_mode_returns_presigned_url(): void
+    /**
+     * Regression for #125: `storedFilename` is relative to the Flysystem
+     * storage, whose objects live under the `documents` prefix. Signing the bare
+     * name produced a URL for a key that does not exist — HTTP 404.
+     */
+    public function test_url_mode_presigns_the_prefixed_bucket_key(): void
     {
-        $doc = $this->createDocument('large.zip', 'application/zip', 5_242_880, 'large.zip');
+        $doc = $this->createDocument('large.zip', 'application/zip', 5_242_880, 'user-uuid/2026/09/large.zip');
 
         $this->storage->expects($this->once())
             ->method('fileExists')
-            ->with('large.zip')
+            ->with('user-uuid/2026/09/large.zip')
             ->willReturn(true);
 
-        $presignedUri = 'https://test-bucket.s3.eu-west-1.amazonaws.com/documents/large.zip?X-Amz-Signature=abc123';
+        $presignedUri = 'https://test-bucket.s3.eu-west-1.amazonaws.com/documents/user-uuid/2026/09/large.zip?X-Amz-Signature=abc123';
 
         $mockCommand = $this->createMock(CommandInterface::class);
         $this->s3Client->expects($this->once())
             ->method('getCommand')
             ->with('GetObject', [
                 'Bucket' => 'test-bucket',
-                'Key' => 'documents/large.zip',
+                'Key' => 'documents/user-uuid/2026/09/large.zip',
             ])
             ->willReturn($mockCommand);
 
@@ -184,7 +269,7 @@ class DocumentContentReaderTest extends TestCase
         $this->assertSame('blob_missing', $result->error);
     }
 
-    public function test_unsupported_mimetype_returns_unsupported(): void
+    public function test_unsupported_mimetype_without_summary_returns_unsupported(): void
     {
         $doc = $this->createDocument('image.png', 'image/png', 4096, 'image.png');
 
@@ -193,11 +278,11 @@ class DocumentContentReaderTest extends TestCase
             ->with('image.png')
             ->willReturn(true);
 
-        // For text mode, unsupported mime returns unsupported
         $result = $this->reader->read($doc, 'text');
 
         $this->assertSame('text', $result->mode);
         $this->assertNull($result->content);
+        $this->assertNull($result->contentType);
         $this->assertSame('unsupported_mimetype', $result->error);
     }
 
