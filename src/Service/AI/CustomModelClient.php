@@ -183,11 +183,17 @@ final class CustomModelClient
     }
 
     /**
-     * Non-streaming call with tool definitions. Returns either a text result or
+     * Tool-calling call with tool definitions. Returns either a text result or
      * a list of tool calls the model wants to invoke, depending on finish_reason.
      *
-     * Used by AgentChatOrchestrator for the tool-calling loop; non-streaming is
-     * required here so we can reliably detect `finish_reason: tool_calls`.
+     * Used by AgentChatOrchestrator for the tool-calling loop. Runs STREAMED
+     * (stream:true + include_usage) so bytes keep flowing while the model
+     * prefills a long prompt: an idle connection past ~100 s makes the edge
+     * proxy answer HTTP 524, whose HTML body used to kill the non-streamed
+     * call with an UnserializableResponse ("Syntax error"). Deltas are
+     * accumulated here — content appended, tool-call argument fragments
+     * concatenated per stream index — and finish_reason is tracked across
+     * chunks, so callers see exactly the same result shape as before.
      *
      * @param array<int, array<string, mixed>>                         $messages  OpenAI-style messages array.
      * @param array<int, array{type: string, function: array}>         $tools     OpenAI tool definitions.
@@ -208,37 +214,72 @@ final class CustomModelClient
     {
         $this->throttle();
         $params = [
-            'model'       => $this->model,
-            'messages'    => $messages,
-            'max_tokens'  => $this->maxTokens,
-            'tools'       => $tools,
-            'tool_choice' => $toolChoice,
+            'model'          => $this->model,
+            'messages'       => $messages,
+            'max_tokens'     => $this->maxTokens,
+            'tools'          => $tools,
+            'tool_choice'    => $toolChoice,
+            'stream'         => true,
+            'stream_options' => ['include_usage' => true],
         ];
         if ($this->temperature !== null) {
             $params['temperature'] = $this->temperature;
         }
 
-        $response = $this->getClient()->chat()->create($params);
-        $choice   = $response->choices[0];
-        $message  = $choice->message;
+        $content    = '';
+        $toolCalls  = []; // keyed by stream index: ['id' => ?string, 'name' => ?string, 'arguments' => string]
+        $finishReason     = null;
+        $promptTokens     = 0;
+        $completionTokens = 0;
 
-        $promptTokens     = $response->usage?->promptTokens ?? 0;
-        $completionTokens = $response->usage?->completionTokens ?? 0;
+        $stream = $this->getClient()->chat()->createStreamed($params);
+        foreach ($stream as $chunk) {
+            // Keep the assistant's SSE response alive while the model streams.
+            $this->heartbeat?->beat();
 
-        if (($choice->finishReason ?? '') === 'tool_calls' && !empty($message->toolCalls)) {
+            $choice = $chunk->choices[0] ?? null;
+            if ($choice !== null) {
+                $delta = $choice->delta;
+                if (is_string($delta->content) && $delta->content !== '') {
+                    $content .= $delta->content;
+                }
+                foreach ($delta->toolCalls as $tc) {
+                    $idx = $tc->index ?? 0;
+                    $slot = $toolCalls[$idx] ?? ['id' => null, 'name' => null, 'arguments' => ''];
+                    if ($tc->id !== null && $tc->id !== '') {
+                        $slot['id'] = $tc->id;
+                    }
+                    if ($tc->function->name !== null && $tc->function->name !== '') {
+                        $slot['name'] = $tc->function->name;
+                    }
+                    $slot['arguments'] .= $tc->function->arguments;
+                    $toolCalls[$idx] = $slot;
+                }
+                $finishReason = $choice->finishReason ?? $finishReason;
+            }
+
+            if ($chunk->usage !== null) {
+                $promptTokens = $chunk->usage->promptTokens ?? $promptTokens;
+                $completionTokens = $chunk->usage->completionTokens ?? $completionTokens;
+            }
+        }
+
+        ksort($toolCalls);
+
+        if ($finishReason === 'tool_calls' && $toolCalls !== []) {
             $calls = [];
             $toolCallsPayload = [];
-            foreach ($message->toolCalls as $tc) {
-                $arguments = [];
-                $raw = $tc->function->arguments ?? '{}';
-                if (is_string($raw)) {
-                    $arguments = json_decode($raw, true) ?? [];
+            foreach ($toolCalls as $slot) {
+                $raw = $slot['arguments'] !== '' ? $slot['arguments'] : '{}';
+                $arguments = json_decode($raw, true);
+                if (!is_array($arguments)) {
+                    $arguments = [];
                 }
-                $calls[] = ['id' => $tc->id, 'name' => $tc->function->name, 'arguments' => $arguments];
+                $calls[] = ['id' => (string) $slot['id'], 'name' => (string) $slot['name'], 'arguments' => $arguments];
                 $toolCallsPayload[] = [
-                    'id'       => $tc->id,
+                    'id'       => (string) $slot['id'],
                     'type'     => 'function',
-                    'function' => ['name' => $tc->function->name, 'arguments' => $raw],
+                    'function' => ['name' => (string) $slot['name'], 'arguments' => $raw],
                 ];
             }
 
@@ -251,7 +292,6 @@ final class CustomModelClient
             ];
         }
 
-        $content = $message->content ?? '';
         return [
             'type'              => 'text',
             'assistant_message' => ['role' => 'assistant', 'content' => $content],

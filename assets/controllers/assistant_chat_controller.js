@@ -461,6 +461,11 @@ export default class extends Controller {
             if (!progressShown) return;
             progressShown = false;
             if (progress) {
+                const cur = progress.querySelector('.chat-progress-current span:last-child');
+                if (cur && cur._idleTimer) {
+                    clearInterval(cur._idleTimer);
+                    cur._idleTimer = null;
+                }
                 if (completedSteps.length > 0) {
                     // Collapse completed steps into a <details> summary.
                     progress.innerHTML = `
@@ -535,7 +540,10 @@ export default class extends Controller {
             this._handleSseEvent('error', { message: 'Se ha perdido la conexión con el asistente. Recarga la página para ver si la respuesta llegó a completarse.' }, tokens, ctx);
             return;
         }
-        if (ctx.progressCurrent) ctx.progressCurrent.textContent = 'Se ha perdido la conexión. Recuperando la respuesta…';
+        if (ctx.progressCurrent) {
+            ctx.progressCurrent.textContent = 'Se ha perdido la conexión. Recuperando la respuesta…';
+            ctx.progressCurrent._gotStep = true;
+        }
 
         const deadline = Date.now() + 16 * 60 * 1000;
         while (Date.now() < deadline && this.element.isConnected) {
@@ -642,6 +650,14 @@ export default class extends Controller {
             case 'step': {
                 const msg = String(payload.message ?? '');
                 if (!msg) break;
+                // First real step: stop the "Pensando…" idle rotation.
+                if (progressCurrent) {
+                    progressCurrent._gotStep = true;
+                    if (progressCurrent._idleTimer) {
+                        clearInterval(progressCurrent._idleTimer);
+                        progressCurrent._idleTimer = null;
+                    }
+                }
                 // Move previous current step into the completed list.
                 if (progressCurrent && completedSteps && progressSteps) {
                     const prev = progressCurrent.textContent;
@@ -884,6 +900,23 @@ export default class extends Controller {
                 <span>Pensando…</span>
             </div>`;
         node.appendChild(progress);
+
+        // Idle rotation: if the backend stays silent (long prefill before the
+        // first step lands), never sit on "Pensando…" — cycle generic waiting
+        // lines until the first real step arrives. Stopped there (see the step
+        // case in _handleSseEvent) and on activateText.
+        const waitingSpan = progress.querySelector('.chat-progress-current span:last-child');
+        const waitingLines = ['Sigo analizando…', 'Consultando la documentación…', 'Esto tarda un poco más de lo habitual…'];
+        let waited = 0;
+        waitingSpan._idleTimer = setInterval(() => {
+            if (waitingSpan._gotStep || !node.isConnected) {
+                clearInterval(waitingSpan._idleTimer);
+                waitingSpan._idleTimer = null;
+                return;
+            }
+            waitingSpan.textContent = waitingLines[waited % waitingLines.length];
+            waited++;
+        }, 15000);
 
         // Text area — hidden initially, shown once chat_token arrives.
         const text = document.createElement('div');

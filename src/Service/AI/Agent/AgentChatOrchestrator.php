@@ -27,6 +27,7 @@ use App\Service\AI\Agent\Tool\VisitUrlTool;
 use App\Service\AI\Agent\Tool\WebSearchTool;
 use App\Service\AI\Chat\AssistantChatRequest;
 use App\Service\AI\Llm\ContentPart;
+use OpenAI\Exceptions\UnserializableResponse;
 use OpenTelemetry\API\Trace\SpanInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\AI\Agent\Toolbox\ToolFactory\ReflectionToolFactory;
@@ -37,8 +38,8 @@ use Symfony\Bundle\SecurityBundle\Security;
 
 /**
  * Agentic chat driver. Per turn:
- *  1. Tool-calling loop: sends messages + tool definitions (non-streaming),
- *     executes any tool calls, emits `step` SSE progress events.
+ *  1. Tool-calling loop: sends messages + tool definitions (streamed, deltas
+ *     accumulated), executes any tool calls, emits `step` SSE progress events.
  *  2. Final JSON call: single non-streaming call with structured output schema
  *     that returns {conversational_reply, action, draft?}.
  *  3. Emits the reply as chunked `chat_token` events, then the `decision` event.
@@ -518,6 +519,15 @@ TXT;
                 ? ['type' => 'function', 'function' => ['name' => 'read_request_documents']]
                 : 'auto';
 
+            // Phase progress BEFORE the long model call: the tool loop's LLM
+            // roundtrips are the longest silent stretches of the turn (a big
+            // prefill can take minutes before the first tool call lands), and
+            // without this the UI sits on "Pensando…" the whole time.
+            yield ['step', [
+                'message' => $toolIterations === 0 ? 'Analizando el expediente…' : 'Revisando los resultados…',
+                'tool'    => null,
+            ]];
+
             // Input REAL de la llamada, no un resumen: es lo que hace la traza
             // reconstruible (y reutilizable como material de entrenamiento).
             $observationInput = TracePayload::encode([
@@ -568,12 +578,21 @@ TXT;
                     },
                 );
             } catch (\Throwable $e) {
-                $this->logger->error('AgentChatOrchestrator tool-loop LLM failure', [
+                $context = [
                     'flow'      => $req->flow,
                     'entity'    => $req->entityId,
                     'iteration' => $toolIterations,
                     'error'     => $e->getMessage(),
-                ]);
+                    'exception' => $e::class,
+                ];
+                if ($e instanceof UnserializableResponse) {
+                    // Typically an edge-proto HTML error page (e.g. HTTP 524
+                    // after a long prefill): record what the proxy answered.
+                    $body = (string) $e->response->getBody();
+                    $context['http_status'] = $e->response->getStatusCode();
+                    $context['body_preview'] = mb_substr($body, 0, 500);
+                }
+                $this->logger->error('AgentChatOrchestrator tool-loop LLM failure', $context);
                 yield ['error', ['message' => 'No se ha podido contactar con el modelo. Reintenta en unos segundos.']];
                 return;
             }
@@ -581,7 +600,7 @@ TXT;
             if ($response['type'] !== 'tool_calls') {
                 // Model returned text. Check if it already contains a valid decision
                 // so we can skip the chatRaw() call below and avoid a double generation.
-                $candidate = json_decode((string) ($response['content'] ?? ''), true);
+                $candidate = json_decode(self::stripJsonFences((string) ($response['content'] ?? '')), true);
                 if (is_array($candidate) && isset($candidate['conversational_reply'], $candidate['action'])) {
                     $toolLoopDecision = $candidate;
                 }
@@ -733,7 +752,7 @@ TXT;
                 return;
             }
 
-            $data = json_decode($result->content, true);
+            $data = json_decode(self::stripJsonFences($result->content), true);
             if (!is_array($data)) {
                 $this->logger->warning('AgentChatOrchestrator: invalid JSON in final response', [
                     'preview' => mb_substr($result->content, 0, 300),
@@ -779,7 +798,7 @@ TXT;
                     maxRetries: 2,
                     maxOutputTokens: 16384,
                 );
-                $retry = json_decode($nudged->content, true);
+                $retry = json_decode(self::stripJsonFences($nudged->content), true);
                 if (is_array($retry) && isset($retry['action'])) {
                     $data = $retry;
                 }
@@ -1097,6 +1116,31 @@ TXT;
     }
 
     /**
+     * Strips a Markdown code fence (```json … ``` or ``` … ```) wrapping a
+     * model response before JSON-decoding it. Small models often wrap the
+     * decision object even when asked for raw JSON; without this the decode
+     * fails and the turn dies as "unexpected format".
+     */
+    public static function stripJsonFences(string $content): string
+    {
+        $text = trim($content);
+        if (!str_starts_with($text, '```')) {
+            return $text;
+        }
+        $newline = strpos($text, "\n");
+        if ($newline === false) {
+            return '';
+        }
+        $text = substr($text, $newline + 1);
+        $close = strrpos($text, '```');
+        if ($close !== false) {
+            $text = substr($text, 0, $close);
+        }
+
+        return trim($text);
+    }
+
+    /**
      * Builds a faithful trace preview of a decision-bearing model output.
      *
      * The model's text is normally the decision JSON: a `conversational_reply`
@@ -1111,8 +1155,9 @@ TXT;
         // Never truncate the trace: emit the FULL model output. When it parses
         // as the decision JSON, prepend a one-line header (action + draft size)
         // for readability, but keep the complete payload below it so nothing —
-        // neither the reply nor the draft — is ever cut.
-        $data = json_decode($content, true);
+        // neither the reply nor the draft — is ever cut. Fences are stripped
+        // first: fenced output still parses for the header either way.
+        $data = json_decode(self::stripJsonFences($content), true);
         if (is_array($data) && isset($data['conversational_reply'])) {
             $action = (string) ($data['action'] ?? '—');
             $draft  = $data['draft'] ?? null;
