@@ -21,14 +21,14 @@
 {% block body %}
 {% include '_partials/public_nav.html.twig' with { active_page: 'home' } %}
 
-{# ── Hero: preguntas ciudadanas en rotación ────────────────
-   Catálogo ÚNICO caso ↔ pregunta: cada caso lleva la solicitud que la hoja
-   teclea Y la pregunta que muestra el titular (hero.pre + hero.mark en
-   .rotulador + hero.post, entre guillemets de la plantilla). El servidor
-   pinta uno al azar (?caso=<n> lo fuerza, para QA de diseño) y el script de
-   la hoja rota el resto en tándem: titular y solicitud cuentan siempre lo
-   mismo. El test A/B del hero se retiró (decisión de producto, 2026-07-20);
-   la infra GrowthBook sigue disponible para otros experimentos. #}
+{# ── Hero: rotating citizen questions ────────────────
+   SINGLE catalogue case ↔ question: each case carries the request the sheet
+   types AND the question the headline shows (hero.pre + hero.mark in
+   .rotulador + hero.post, inside the template's guillemets). The server
+   paints one at random (?caso=<n> forces it, for design QA) and the sheet
+   script rotates the rest in tandem: headline and request always tell the
+   same story. The hero A/B test was removed (product decision, 2026-07-20);
+   the GrowthBook infra stays available for other experiments. #}
 {% set exponeEstatal = 'Que, al amparo del artículo 17 de la Ley 19/2013, de 9 de diciembre, de transparencia, acceso a la información pública y buen gobierno,' %}
 {% set casos = [
     { canal: 'Portal Transparencia', ley: 'Ley 19/2013', leyLarga: null, aa: 'Ministerio de Transportes y Movilidad Sostenible',
@@ -135,9 +135,9 @@
                 <p class="home-hero-nota"><i data-lucide="check"></i> Sin registro — al terminar descargas el PDF listo para presentar, o lo envías desde nuestra plataforma.</p>
             </div>
 
-            {# SSR con el MISMO caso que el hero (sin JS: hoja y titular ya
-               coherentes); el script promociona este índice al frente del
-               barajado para teclearlo primero. #}
+            {# SSR with the SAME case as the hero (no JS: sheet and headline
+               already consistent); the script promotes this index to the
+               front of the shuffle to type it first. #}
             <div class="home-hoja-marco" aria-hidden="true" data-caso-inicial="{{ casoInicial }}">
                 <div class="home-hoja">
                     <div class="home-hoja-meta">
@@ -216,7 +216,7 @@
     </div>
 </section>
 
-{# ── El problema: carrera de obstáculos ──────────────────── #}
+{# ── The problem: obstacle course ──────────────────── #}
 <section class="home-seccion">
     <div class="max-w-6xl mx-auto px-5 sm:px-8">
         <div class="home-obstaculos-grid">
@@ -244,7 +244,7 @@
     </div>
 </section>
 
-{# ── Cómo funciona: el expediente completo ───────────────── #}
+{# ── How it works: the complete record ───────────────── #}
 <section class="home-seccion home-seccion--alterna" id="como-funciona">
     <div class="max-w-6xl mx-auto px-5 sm:px-8">
         <div class="home-seccion-cabecera home-revela">
@@ -400,10 +400,37 @@
     </div>
 </section>
 
-{# ── Cierre ──────────────────────────────────────────────── #}
-<section class="home-cierre">
+{# ── Planes: ajustado a tus necesidades ──────────────────── #}
+<section class="home-seccion">
     <div class="max-w-6xl mx-auto px-5 sm:px-8">
-        <p>PideInfo nace para que ejercer el derecho de acceso a la información pública deje de ser cosa de especialistas. Gratuito durante la beta abierta.</p>
+        <div class="home-seccion-cabecera home-revela">
+            <h2 class="home-seccion-titulo">Ajustado a <span class="home-acento">tus necesidades</span></h2>
+            <p class="home-seccion-sub">Gestionar tus solicitudes siempre es gratis. Si envías a varios destinatarios o trabajas en equipo, hay un plan para ti.</p>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {% for mini in [
+                {'icon': 'user', 'name': 'Individual', 'price': '0 €', 'detail': 'gratis, sin límite'},
+                {'icon': 'briefcase', 'name': 'Profesional', 'price': '15 €/mes', 'detail': 'lotes de 25'},
+                {'icon': 'users', 'name': 'Equipo', 'price': '49 €/mes', 'detail': 'hasta 5 miembros'},
+                {'icon': 'building-2', 'name': 'Organización', 'price': 'desde 99 €/mes', 'detail': 'hasta 15 miembros'},
+                {'icon': 'server', 'name': 'Privado', 'price': 'A medida', 'detail': 'tu infraestructura'}
+            ] %}
+                <a href="{{ path('app_planes') }}" class="home-revela group bg-white rounded-2xl border border-slate-200 p-5 text-center hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100 transition-all">
+                    <span class="mx-auto mb-3 flex w-11 h-11 items-center justify-center rounded-xl bg-sky-50 text-sky-600 group-hover:bg-sky-100 transition-colors">
+                        <i data-lucide="{{ mini.icon }}" class="w-5 h-5"></i>
+                    </span>
+                    <span class="block text-sm font-semibold text-slate-900">{{ mini.name }}</span>
+                    <span class="block mt-1 text-lg font-semibold text-sky-700">{{ mini.price }}</span>
+                    <span class="block mt-1 text-xs text-slate-500">{{ mini.detail }}</span>
+                </a>
+            {% endfor %}
+        </div>
+        <div class="home-revela text-center mt-8">
+            <a href="{{ path('app_planes') }}" class="btn-editorial btn-editorial--primario">
+                <i data-lucide="tag"></i>
+                Ver planes
+            </a>
+        </div>
     </div>
 </section>
 

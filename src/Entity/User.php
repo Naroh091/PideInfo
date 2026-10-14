@@ -19,6 +19,11 @@ use Symfony\Component\Uid\Uuid;
 #[UniqueEntity(fields: ['email'], message: 'Ya existe una cuenta con este correo electrónico')]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    /** Roles inside an organization (spec §3.4; distinct from getRoles()). */
+    public const ORG_ROLE_OWNER = 'OWNER';
+    public const ORG_ROLE_ADMIN = 'ADMIN';
+    public const ORG_ROLE_MEMBER = 'MEMBER';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     private Uuid $id;
@@ -58,6 +63,14 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\JoinColumn(nullable: true)]
     private ?Organization $organization = null;
 
+    /**
+     * Role in the organization (OWNER/ADMIN/MEMBER, spec §3.4). Null = no role
+     * assigned (pre-billing members: treated as MEMBER except for the ADMIN
+     * backfill in the migration, so current management is preserved).
+     */
+    #[ORM\Column(length: 16, nullable: true)]
+    private ?string $organizationRole = null;
+
     /** @var Collection<int, AccessRequest> */
     #[ORM\OneToMany(targetEntity: AccessRequest::class, mappedBy: 'user')]
     private Collection $accessRequests;
@@ -76,6 +89,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $agentTokensInvalidatedAt = null;
+
+    /**
+     * API v1 tokens (resolutions, paid plans): same model as the agent ones —
+     * marked issuance and time-cutoff revocation.
+     */
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $apiTokenIssuedAt = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $apiTokensInvalidatedAt = null;
 
     /**
      * AI-generated 1-2 paragraph summary of the user's activity over the last 24 h.
@@ -121,11 +144,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(length: 2, nullable: true)]
     private ?string $addressCountry = null;
 
-    /** Provincia tal y como aparece en el desplegable del REG (sin código INE). */
+    /** Province as shown in the REG dropdown (no INE code). */
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $addressProvince = null;
 
-    /** Municipio tal y como aparece en el desplegable del REG (filtrado por provincia). */
+    /** Municipality as shown in the REG dropdown (filtered by province). */
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $addressMunicipality = null;
 
@@ -321,6 +344,28 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    public function getOrganizationRole(): ?string
+    {
+        return $this->organizationRole;
+    }
+
+    public function setOrganizationRole(?string $organizationRole): static
+    {
+        $this->organizationRole = $organizationRole;
+        return $this;
+    }
+
+    /** Puede gestionar miembros (invitar/expulsar/cambiar roles). */
+    public function canManageOrganization(): bool
+    {
+        return \in_array($this->organizationRole, [self::ORG_ROLE_OWNER, self::ORG_ROLE_ADMIN], true);
+    }
+
+    public function isOrganizationOwner(): bool
+    {
+        return $this->organizationRole === self::ORG_ROLE_OWNER;
+    }
+
     /** @return Collection<int, AccessRequest> */
     public function getAccessRequests(): Collection
     {
@@ -379,6 +424,34 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return null !== $this->agentTokenIssuedAt
             && (null === $this->agentTokensInvalidatedAt || $this->agentTokensInvalidatedAt < $this->agentTokenIssuedAt);
+    }
+
+    public function getApiTokenIssuedAt(): ?\DateTimeImmutable
+    {
+        return $this->apiTokenIssuedAt;
+    }
+
+    public function setApiTokenIssuedAt(?\DateTimeImmutable $apiTokenIssuedAt): static
+    {
+        $this->apiTokenIssuedAt = $apiTokenIssuedAt;
+        return $this;
+    }
+
+    public function getApiTokensInvalidatedAt(): ?\DateTimeImmutable
+    {
+        return $this->apiTokensInvalidatedAt;
+    }
+
+    public function setApiTokensInvalidatedAt(?\DateTimeImmutable $apiTokensInvalidatedAt): static
+    {
+        $this->apiTokensInvalidatedAt = $apiTokensInvalidatedAt;
+        return $this;
+    }
+
+    public function isApiConnected(): bool
+    {
+        return null !== $this->apiTokenIssuedAt
+            && (null === $this->apiTokensInvalidatedAt || $this->apiTokensInvalidatedAt < $this->apiTokenIssuedAt);
     }
 
     public function getActivitySummaryHtml(): ?string

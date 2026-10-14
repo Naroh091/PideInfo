@@ -28,12 +28,18 @@ framework:
             policy: sliding_window
             limit: 5
             interval: '10 minutes'
+        # Formulario de propuesta del plan Privado (/precios/privado).
+        # Keyed by client IP; el CAPTCHA Turnstile es la otra pata.
+        private_proposal:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
         mcp_call:
             policy: sliding_window
             limit: 120
             interval: '1 minute'
 
-        # Redacción pública sin registro (/redactar). Keyed by client IP.
+        # Public drafting without registration (/redactar). Keyed by client IP.
         anonymous_draft_create:
             policy: sliding_window
             limit: 5
@@ -59,3 +65,16 @@ framework:
             limit: '%env(int:ANON_GEN_DAILY_BUDGET)%'
             interval: '1 day'
             cache_pool: cache.app
+
+when@test:
+    # No Redis in test (the real pool fails open): the proposal limiter uses
+    # an in-memory ArrayAdapter so it stays verifiable.
+    # Identical semantics (sliding window 5/hour); only the backend changes.
+    services:
+        test.private_proposal_pool:
+            class: Symfony\Component\Cache\Adapter\ArrayAdapter
+
+    framework:
+        rate_limiter:
+            private_proposal:
+                cache_pool: test.private_proposal_pool

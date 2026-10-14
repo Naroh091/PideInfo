@@ -95,8 +95,8 @@ class AgentTaskApiController extends AbstractController
 
         $data = json_decode($request->getContent(), true) ?? [];
 
-        // El agente manda 'outcome' (done|failed|uncertain). Fallback al
-        // antiguo booleano 'success' para callers que aún no lo envían.
+        // The agent sends 'outcome' (done|failed|uncertain). Falls back to the
+        // legacy 'success' boolean for callers that do not send it yet.
         $valid = [AgentTask::STATUS_DONE, AgentTask::STATUS_FAILED, AgentTask::STATUS_UNCERTAIN];
         $outcome = $data['outcome'] ?? null;
         if (!in_array($outcome, $valid, true)) {
@@ -124,12 +124,12 @@ class AgentTaskApiController extends AbstractController
         ], true);
 
         if ($isSubmission) {
-            // El marcador del portal (idBorr) se guarda pase lo que pase, para
-            // que un reintento posterior pueda reconciliar.
+            // The portal marker (idBorr) is stored whatever happens, so a later
+            // retry can reconcile.
             $this->persistPortalMarkers($task, $result);
 
             if ($outcome === AgentTask::STATUS_DONE) {
-                // Un envío confirmado limpia cualquier incertidumbre previa.
+                // A confirmed submission clears any prior uncertainty.
                 $task->getAccessRequest()?->setMetadataValue('submission_uncertain', null);
                 if (in_array($task->getType(), [
                     AgentTask::TYPE_SUBMIT_REQUEST_PORTAL,
@@ -137,6 +137,9 @@ class AgentTaskApiController extends AbstractController
                 ], true)) {
                     $this->applySubmissionResult($task, $result);
                 }
+                // Per-recipient receipt (spec §5): captured reference
+                // + task + channel, independent of the rest of the batch.
+                $this->storeDispatchReceipt($task, $result);
             } elseif ($outcome === AgentTask::STATUS_UNCERTAIN) {
                 $this->flagUncertain($task);
             }
@@ -147,8 +150,8 @@ class AgentTaskApiController extends AbstractController
     }
 
     /**
-     * Guarda los marcadores del portal capturados por el agente
-     * (transparencia: idBorr) en AccessRequest.metadata['portal_markers'][type].
+     * Stores the portal markers captured by the agent
+     * (transparency: idBorr) in AccessRequest.metadata['portal_markers'][type].
      *
      * @param array<string,mixed> $result
      */
@@ -169,9 +172,37 @@ class AgentTaskApiController extends AbstractController
     }
 
     /**
-     * Marca la solicitud como 'incierta' en este canal: la firma se inició
-     * pero no se pudo confirmar. SubmissionGuard la usa para no re-enviar a
-     * ciegas.
+     * Submission receipt per recipient (spec §5): what the agent captured
+     * (registry/record number, csv, date) plus task and channel.
+     * The record shows it per recipient, not per batch.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function storeDispatchReceipt(AgentTask $task, array $result): void
+    {
+        $request = $task->getAccessRequest();
+        if ($request === null) {
+            return;
+        }
+        $receipt = [
+            'taskId' => $task->getId()->toRfc4122(),
+            'channel' => $task->getType(),
+            'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+        ];
+        foreach (['expediente', 'registro', 'csv', 'reference', 'receiptNumber', 'sentAt'] as $key) {
+            if (isset($result[$key]) && (\is_string($result[$key]) || \is_numeric($result[$key]))) {
+                $receipt[$key] = mb_substr((string) $result[$key], 0, 255);
+            }
+        }
+        if (isset($result['markers']) && \is_array($result['markers'])) {
+            $receipt['markers'] = $result['markers'];
+        }
+        $request->setMetadataValue('dispatch_receipt', $receipt);
+    }
+
+    /**
+     * Marks the request as 'uncertain' on this channel: signing started but
+     * could not be confirmed. SubmissionGuard uses it to avoid blind resends.
      */
     private function flagUncertain(AgentTask $task): void
     {

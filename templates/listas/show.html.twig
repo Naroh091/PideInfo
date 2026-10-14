@@ -440,6 +440,9 @@
     <div class="lista-items">
         {% for item in list.items %}
             {% set ar = item.accessRequest %}
+            {# Privacy (spec §3.5): a shared list never exposes record titles
+               the reader cannot see (per-record voter). #}
+            {% if is_granted('view', ar) %}
             <div class="lista-item" data-request-id="{{ ar.id }}">
                 <div class="lista-item-main">
                     <a href="{{ path('app_solicitudes_show', {id: ar.id}) }}" class="lista-item-title">{{ ar.title }}</a>
@@ -465,6 +468,7 @@
                     </button>
                 {% endif %}
             </div>
+            {% endif %}
         {% endfor %}
     </div>
 

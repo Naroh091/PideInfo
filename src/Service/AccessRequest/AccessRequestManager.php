@@ -35,7 +35,8 @@ class AccessRequestManager
     ): AccessRequest {
         $request = new AccessRequest();
         $request->setUser($user);
-        $request->setOrganization($user->getOrganization());
+        // Privacidad por defecto (spec §3.5): nace personal.
+        $request->setOrganization(null);
         $request->setTitle($title);
         $request->setDescription($description);
         $request->setPublicBody($publicBody);
@@ -66,7 +67,8 @@ class AccessRequestManager
     public function createRequest(AccessRequest $request, User $user): void
     {
         $request->setUser($user);
-        $request->setOrganization($user->getOrganization());
+        // Privacidad por defecto (spec §3.5): nace personal.
+        $request->setOrganization(null);
 
         $sentAt = $request->getSentAt() ?? new \DateTimeImmutable('today');
         $request->setSentAt($sentAt);
@@ -472,8 +474,8 @@ class AccessRequestManager
 
         // Validate the new status value
         $validStatuses = match ($statusType) {
-            // Solo las 6 posiciones vivas. La decisión (parcial/denegada/
-            // inadmitida) va por TYPE_RESOLUTION, no por aquí.
+            // Only the 6 live positions. The decision (partial/denied/
+            // inadmitted) goes through TYPE_RESOLUTION, not here.
             StatusHistory::TYPE_STATUS => AccessRequest::POSITIONS,
             StatusHistory::TYPE_COMPLAINT => [
                 AccessRequest::COMPLAINT_NONE,
@@ -561,10 +563,10 @@ class AccessRequestManager
         } elseif ($statusType === StatusHistory::TYPE_STATUS) {
             $request->setStatus($newStatus);
 
-            // Con el modelo de 6 posiciones solo dos posiciones implican por sí
-            // mismas una decisión: `granted` (concedida, pendiente de recibir) y
-            // `delayed` (silencio). El resto de decisiones (parcial/denegada/
-            // inadmitida) se fijan por TYPE_RESOLUTION; `finished` no infiere.
+            // Under the 6-position model only two positions imply a decision
+            // by themselves: `granted` (upheld, pending reception) and
+            // `delayed` (silence). Other decisions (partial/denied/
+            // inadmitted) are set via TYPE_RESOLUTION; `finished` infers none.
             if ($request->getResolutionResult() === null) {
                 $inferred = match ($newStatus) {
                     AccessRequest::STATUS_GRANTED => AccessRequest::RESULT_GRANTED,

@@ -7,3 +7,11 @@ framework:
 
     session:
         storage_factory_id: session.storage.factory.mock_file
+
+    # Rendering tests do not compile Tailwind: the `@import "tailwindcss"`
+    # in assets/styles/app.css does not resolve in this environment. Warning
+    # suffices in test (prod stays on the bundle default warn; dev/test use
+    # strict). Without this, EVERY test rendering a template fails, including
+    # the pre-existing ones (subscriptions spec §9: executable verification).
+    asset_mapper:
+        missing_import_mode: warn

@@ -731,6 +731,19 @@ php bin/console app:usage-hints:hide-expired
 
 ---
 
+### `app:billing:notify-readonly`
+
+Avisa una sola vez al titular (usuario, u OWNER si es de equipo) de cada suscripción entrada en solo-lectura (mora vencida, impago o cancelada sin periodo vigente). Pensado para ejecutarse a diario (`App\Schedule`, `30 8 * * *`). Idempotente: `Subscription.readonlyNotifiedAt` evita reavisos. El aviso al primer fallo de pago lo manda el webhook en caliente; este comando cubre la entrada en solo-lectura.
+
+```bash
+php bin/console app:billing:notify-readonly
+
+# Previsualizar sin enviar:
+php bin/console app:billing:notify-readonly --dry-run
+```
+
+---
+
 ## Public bodies y canales de envío
 
 ### `app:public-bodies:assign-portal-amb`

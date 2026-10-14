@@ -214,19 +214,20 @@ class ResolutionRepository extends ServiceEntityRepository
     }
 
     /**
-     * @return array{dateFrom: ?string, dateTo: ?string, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?float, favorablePct: int, partialPct: int, unfavorablePct: int}
+     * @return array{dateFrom: ?string, dateTo: ?string, ingestedTo: ?string, distinctPublicBodies: int, successRate: float, meanDaysToResolve: ?float, favorablePct: int, partialPct: int, unfavorablePct: int}
      */
     public function getGlobalStats(): array
     {
-        // La clave lleva versión: al añadir campos nuevos hay que invalidar
-        // las entradas cacheadas con la forma antigua.
-        return $this->cache->get('resolutions_global_stats_v2', function (): array {
+        // Versioned key: adding new fields must invalidate entries cached
+        // with the old shape.
+        return $this->cache->get('resolutions_global_stats_v3', function (): array {
             $conn = $this->getEntityManager()->getConnection();
             $result = $conn->fetchAssociative(
                 "SELECT
                     COUNT(id)::int AS total_count,
                     MIN(resolution_date) AS date_from,
                     MAX(resolution_date) AS date_to,
+                    MAX(created_at) AS ingested_to,
                     SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END)::int AS total_with_outcome,
                     COUNT(DISTINCT public_body_name) AS distinct_public_bodies,
                     SUM(CASE WHEN outcome IN ('favorable','partial','acuerdo_mediacion') THEN 1 ELSE 0 END)::int AS favorable_count,
@@ -240,8 +241,8 @@ class ResolutionRepository extends ServiceEntityRepository
             $partialCount = (int) $result['partial_count'];
             $decisiveTotal = $favorableCount + (int) $result['unfavorable_count'];
 
-            // Desglose estimadas/parciales/desestimadas sobre el total decisivo,
-            // forzado a sumar 100 para la barra de resultados del home.
+            // Upheld/partial/dismissed breakdown over the decisive total,
+            // forced to sum 100 for the home results bar.
             $favorablePct = $decisiveTotal > 0 ? (int) round(($favorableCount - $partialCount) / $decisiveTotal * 100) : 0;
             $partialPct = $decisiveTotal > 0 ? (int) round($partialCount / $decisiveTotal * 100) : 0;
 
@@ -249,6 +250,9 @@ class ResolutionRepository extends ServiceEntityRepository
                 'totalCount' => (int) $result['total_count'],
                 'dateFrom' => $result['date_from'],
                 'dateTo' => $result['date_to'],
+                // Latest real ingestion (DB insert), not the most recent
+                // resolution date: what the badge paints.
+                'ingestedTo' => $result['ingested_to'],
                 'totalWithOutcome' => (int) $result['total_with_outcome'],
                 'distinctPublicBodies' => (int) $result['distinct_public_bodies'],
                 'successRate' => $decisiveTotal > 0 ? round($favorableCount / $decisiveTotal * 100) : 0,
@@ -653,8 +657,8 @@ class ResolutionRepository extends ServiceEntityRepository
     }
 
     /**
-     * Totales por año para el histograma de la mesa de resoluciones, del corpus
-     * completo o del consejo indicado (UUID RFC 4122).
+     * Yearly totals for the resolutions-desk histogram, for the whole corpus
+     * or the given council (RFC 4122 UUID).
      *
      * @return list<array{year: int, total: int}>
      */

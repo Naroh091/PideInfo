@@ -1,0 +1,27 @@
+{% extends 'email/base.html.twig' %}
+
+{% block title %}Te han invitado al equipo {{ organizationName }} - PideInfo{% endblock %}
+
+{% block body %}
+    <p class="greeting">Hola,</p>
+
+    <p class="message">
+        {{ inviterName }} te ha invitado a unirte al equipo <strong>{{ organizationName }}</strong> en PideInfo
+        {% if role == 'ADMIN' %}como administrador{% elseif role == 'OWNER' %}como titular{% else %}como miembro{% endif %}.
+        Verás los expedientes que el equipo comparta contigo; los tuyos personales seguirán siendo solo tuyos hasta que decidas compartirlos.
+    </p>
+
+    <div class="button-container">
+        <a href="{{ acceptUrl }}" class="button" style="display:inline-block;padding:14px 32px;background-color:#0284c7;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;border-radius:12px;">Aceptar invitación</a>
+    </div>
+
+    <div class="divider"></div>
+
+    <p class="text-small text-muted text-center mb-16">
+        Este enlace caduca en 7 días. Si ya tienes cuenta, inicia sesión con este mismo correo para unirte.
+    </p>
+
+    <p class="text-small text-muted text-center mb-0">
+        Si no esperabas esta invitación, puedes ignorar este correo de forma segura.
+    </p>
+{% endblock %}

@@ -3995,3 +3995,105 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
   color: #ffffff;
 }
 .panel-dato--aviso b { color: #b45309; }
+
+/* ── Pricing: five plans in one row ──────────────────────────
+   Homepage editorial register (home-seccion-titulo, rotulador,
+   btn-editorial): this is acquisition, not management. A single row of
+   4–5 on desktop (≥1280px), 2 columns on tablet, 1 on mobile. */
+.precios-marco { max-width: 88rem; margin: 0 auto; padding: 0 1.25rem; }
+@media (min-width: 640px) { .precios-marco { padding: 0 2rem; } }
+.precios-cabecera { max-width: 44rem; margin: 0 auto; text-align: center; }
+.precios-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  margin-top: 3rem;
+}
+@media (min-width: 640px) { .precios-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .precios-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.precios-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+}
+.precios-card--destacada {
+  border: 2px solid var(--color-primary-200);
+  background: linear-gradient(180deg, var(--color-primary-50), #fff 55%);
+  box-shadow: 0 12px 32px -16px rgba(14, 165, 233, .35);
+}
+.precios-insignia {
+  align-self: flex-start;
+  font: 500 .6875rem/1 'DM Sans', sans-serif;
+  color: var(--color-primary-700);
+  background: var(--color-primary-100);
+  border: 1px solid var(--color-primary-200);
+  border-radius: 999px;
+  padding: .3125rem .625rem;
+  margin-bottom: .75rem;
+}
+.precios-nombre { font: 600 1rem/1.3 'DM Sans', sans-serif; color: #0f172a; margin: 0; }
+.precios-precio {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: "tnum";
+  font-weight: 600;
+  font-size: 1.625rem;
+  line-height: 1.2;
+  color: #0f172a;
+  margin: 0.75rem 0 0;
+  white-space: nowrap;
+}
+.precios-precio small { font-size: .875rem; font-weight: 400; color: #64748b; }
+.precios-nota { font-size: .8125rem; color: #64748b; margin: .25rem 0 0; min-height: 2.125rem; }
+.precios-lista { list-style: none; margin: 1rem 0 0; padding: 1rem 0 0; border-top: 1px solid #f1f5f9; display: grid; gap: .5rem; font-size: .8125rem; line-height: 1.5; color: #475569; flex: 1; }
+.precios-lista li { display: flex; gap: .5rem; align-items: flex-start; }
+.precios-lista svg { width: .9375rem; height: .9375rem; flex-shrink: 0; margin-top: .1875rem; color: var(--color-primary-600); }
+.precios-cta { margin-top: auto; padding-top: 1.5rem; display: grid; gap: .625rem; }
+.precios-card .btn-editorial { width: 100%; padding: .8rem .75rem; font-size: .9375rem; white-space: normal; text-wrap: balance; }
+.precios-donar { text-align: center; font-size: .8125rem; color: #64748b; text-decoration: underline; text-underline-offset: 2px; }
+.precios-donar:hover { color: #0f172a; }
+/* Estrellita amarilla del mes gratis del ciclo anual */
+.precios-estrella { display: inline-flex; align-items: center; gap: .25rem; color: #92400e; font-size: .75rem; font-weight: 500; white-space: nowrap; vertical-align: baseline; }
+.precios-estrella svg { width: .8125rem; height: .8125rem; color: #f59e0b; fill: #fbbf24; flex-shrink: 0; }
+/* Individual como tarjeta horizontal antes de los planes de pago */
+.precios-gratis {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  margin-top: 3rem;
+}
+@media (min-width: 768px) {
+  .precios-gratis { flex-direction: row; align-items: center; gap: 2rem; padding: 1.5rem 2rem; }
+  .precios-gratis-cta { margin-left: auto; flex-shrink: 0; display: grid; gap: .625rem; justify-items: end; }
+}
+.precios-gratis-nombre { font: 600 1rem/1.3 'DM Sans', sans-serif; color: #0f172a; margin: 0; }
+.precios-gratis-precio {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: "tnum";
+  font-weight: 600;
+  font-size: 1.625rem;
+  line-height: 1.2;
+  color: #0f172a;
+  margin: .5rem 0 0;
+  white-space: nowrap;
+}
+.precios-gratis-precio small { font-size: .875rem; font-weight: 400; color: #64748b; }
+.precios-gratis-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .8125rem; color: #475569; }
+.precios-gratis-lista li { display: flex; gap: .5rem; align-items: center; }
+.precios-gratis-lista svg { width: .9375rem; height: .9375rem; flex-shrink: 0; color: var(--color-primary-600); }
+/* The card grid closes the hero: tighten the air with the
+   comparison table (hero + section added up to ~11rem of gap). */
+.home-hero--precios { padding-bottom: 3rem; }
+@media (min-width: 1024px) { .home-hero--precios { padding-bottom: 3.5rem; } }
+.home-seccion--precios { padding-top: 3rem; padding-bottom: 3rem; }

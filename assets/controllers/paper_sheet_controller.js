@@ -1,23 +1,23 @@
 import { Controller } from '@hotwired/stimulus';
 
 /**
- * La "hoja de papel": el borrador como documento editable dentro de la
- * conversación del asistente. Sustituye a realizar-canvas y complaint-canvas
- * con una única superficie, parametrizada por `shape`:
+ * The "paper sheet": the draft as an editable document inside the assistant
+ * conversation. Replaces realizar-canvas and complaint-canvas with a single
+ * surface, parameterised by `shape`:
  *
- *   - shape=portal   → textareas asunto + descripción (autosave debounced).
- *   - shape=reg      → textareas asunto + EXPONE + SOLICITA (autosave).
- *   - shape=complaint→ un textarea de cuerpo (reclamación/alegaciones/consulta);
- *                      guardado explícito fuera. El usuario edita TEXTO PLANO
- *                      igual que la solicitud; el HTML solo se sintetiza en
- *                      `getHtml()` para los endpoints de guardado/PDF/presentar.
+ *   - shape=portal   → subject + description textareas (debounced autosave).
+ *   - shape=reg      → subject + EXPONE + SOLICITA textareas (autosave).
+ *   - shape=complaint→ one body textarea (complaint/allegations/consult);
+ *                      explicit save outside. The user edits PLAIN TEXT just
+ *                      like the request; HTML is only synthesized in
+ *                      `getHtml()` for the save/PDF/submit endpoints.
  *
- * Comportamiento común:
- *   - Evento `paper-sheet:settled` (600 ms sin cambios) para que la tarjeta
- *     RAG refresque resoluciones similares y probabilidad.
- *   - Método público `replaceContent(payload)` con animación de máquina de
- *     escribir en los textareas. Escape salta al final.
- *   - Indicador de estado en el pie de la hoja.
+ * Shared behaviour:
+ *   - `paper-sheet:settled` event (600 ms without changes) so the RAG card
+ *     refreshes similar resolutions and probability.
+ *   - Public `replaceContent(payload)` with a typewriter animation in the
+ *     textareas. Escape jumps to the end.
+ *   - Status indicator in the sheet footer.
  *
  * Targets: title, body, expone, solicita, htmlInput (prefill), status
  * Values:  shape, autosaveUrl
@@ -62,8 +62,8 @@ export default class extends Controller {
             el.addEventListener('input', this._onBodyInput);
             requestAnimationFrame(() => this._growBody(el));
         }
-        // Reclamación/consulta reabierta: el borrador guardado es HTML; se muestra
-        // como texto plano para editar (el HTML se re-sintetiza al guardar/PDF).
+        // Reopened complaint/consult: the saved draft is HTML; it shows as
+        // plain text for editing (HTML is re-synthesized on save/PDF).
         if (this._isHtmlDoc() && this.hasHtmlInputTarget && this.hasBodyTarget && this.htmlInputTarget.value) {
             this.bodyTarget.value = this._htmlToPlain(this.htmlInputTarget.value);
             requestAnimationFrame(() => this._growBody(this.bodyTarget));
@@ -90,19 +90,19 @@ export default class extends Controller {
     }
 
     /**
-     * shape=complaint marca los flujos cuyo documento se GUARDA como HTML
-     * (reclamación/alegaciones/consulta), pero el editor es un textarea de texto
-     * plano igual que la solicitud: el HTML se sintetiza en `getHtml()` solo al
-     * guardar/exportar. No hay editor enriquecido (Trix retirado).
+     * shape=complaint marks the flows whose document is SAVED as HTML
+     * (complaint/allegations/consult), but the editor is a plain-text textarea
+     * just like the request: HTML is synthesized in `getHtml()` only on
+     * save/export. No rich editor (Trix removed).
      */
     _isHtmlDoc() {
         return this.shapeValue === 'complaint';
     }
 
     /**
-     * Public: current draft as HTML. El usuario edita texto plano en el textarea;
-     * aquí lo envolvemos en párrafos para los endpoints (guardar/PDF/presentar)
-     * que esperan HTML, sin cambiar el backend.
+     * Public: current draft as HTML. The user edits plain text in the textarea;
+     * here we wrap it in paragraphs for the endpoints (save/PDF/submit)
+     * expecting HTML, without changing the backend.
      */
     getHtml() {
         if (this.hasBodyTarget) return this._plainToHtml(this.bodyTarget.value);
@@ -157,7 +157,7 @@ export default class extends Controller {
     }
 
     _onInput() {
-        if (this._frozen) return;   // instantánea de solo lectura: no autosave/settle
+        if (this._frozen) return;   // read-only snapshot: no autosave/settle
         if (this._typing) return; // suppress autosave/settle while we're typing programmatically
 
         this._markDirty();
@@ -243,7 +243,7 @@ export default class extends Controller {
             const internal = s.type === 'resolution';
             if (s.url) {
                 const cls = internal ? 'draft-source draft-source--interna' : 'draft-source';
-                // Todas las fuentes abren en nueva pestaña (no perder el borrador).
+                // Every source opens in a new tab (do not lose the draft).
                 const ext = internal ? '' : ' <i data-lucide="external-link" class="draft-source-ext"></i>';
                 return `<a href="${this._escapeHtml(s.url)}" class="${cls}" target="_blank" rel="noopener noreferrer"><i data-lucide="${icon}"></i> ${label}${ext}</a>`;
             }
@@ -260,7 +260,7 @@ export default class extends Controller {
         }[c]));
     }
 
-    /* ── Escritura programática (el asistente entrega un borrador) ─────── */
+    /* ── Programmatic writing (the assistant delivers a draft) ─────── */
 
     /**
      * Public — invoked by the chat controller after the assistant returns a
@@ -270,10 +270,10 @@ export default class extends Controller {
      * @param {{title?: string, bodyHtml?: string, expone?: string, solicita?: string}} payload
      */
     async replaceContent({ title = '', bodyHtml = '', expone = '', solicita = '', sources = [] } = {}) {
-        // Todos los flujos editan TEXTO PLANO en textareas (estilo solicitud);
-        // el HTML de reclamación/consulta se sintetiza solo en el borde de
-        // guardado/PDF (getHtml → _plainToHtml). El cuerpo entrante se pasa a
-        // texto plano y se teclea en el textarea `body`.
+        // Every flow edits PLAIN TEXT in textareas (request style); the
+        // complaint/consult HTML is synthesized only at the save/PDF edge
+        // (getHtml → _plainToHtml). The incoming body is converted to plain
+        // text and typed into the `body` textarea.
         const bodyCap = this._isHtmlDoc() ? 12000 : 3000;
         const plainBody = this._htmlToPlain(bodyHtml).slice(0, bodyCap);
         const safeTitle = String(title || '').slice(0, 255);
@@ -306,7 +306,7 @@ export default class extends Controller {
         });
 
         try {
-            // La caja «se genera»: punto → línea → rectángulo, y luego se teclea.
+            // The box "generates": dot → line → rectangle, then typing starts.
             this.element.classList.add('is-gen');
             if (!this._reduceMotion()) {
                 await new Promise((resolve) => setTimeout(resolve, 820));
@@ -327,10 +327,10 @@ export default class extends Controller {
             // Body / expone / solicita: ~3 s total each.
             const typeBlock = async (el, text) => {
                 if (text.length === 0 || aborted) return;
-                // Cada tick reescribe TODO el value y hace crecer el textarea (un
-                // reflow); demasiados ticks en un borrador largo escalan
-                // cuadráticamente. Acotamos a ~50 ticks → ~1 s sea cual sea la
-                // longitud, sin el efecto "se atasca" que se veía en EXPONE largos.
+                // Each tick rewrites the WHOLE value and grows the textarea (one
+                // reflow); too many ticks on a long draft scale quadratically.
+                // Cap at ~50 ticks → ~1 s whatever the length, without the
+                // "it stalls" effect seen on long EXPONE texts.
                 const ticks = Math.min(50, Math.max(10, Math.ceil(text.length / 40)));
                 const intervalMs = 20;
                 const chunk = Math.max(1, Math.ceil(text.length / ticks));
@@ -529,10 +529,10 @@ export default class extends Controller {
     }
 
     /**
-     * «Enviar» (flujo anónimo): navega a la página de envío. En la solicitud
-     * primero vuelca el autosave pendiente; en la reclamación (shape
-     * complaint, sin autosave) hace POST del HTML del editor al mirror de
-     * autoguardado para que la página de envío pueda generar el PDF por GET.
+     * "Send" (anonymous flow): navigates to the send page. On requests it
+     * first flushes the pending autosave; on complaints (shape complaint,
+     * no autosave) it POSTs the editor HTML to the autosave mirror so the
+     * send page can render the PDF via GET.
      */
     async goToSend(event) {
         event?.preventDefault();
@@ -581,7 +581,7 @@ export default class extends Controller {
         window.location.href = url;
     }
 
-    /* ── Acciones explícitas (shape=complaint) ─────────────────────────── */
+    /* ── Explicit actions (shape=complaint) ─────────────────────────── */
 
     /** "Guardar borrador": persists the Trix HTML as a Document. */
     async saveDraft(event) {
@@ -664,7 +664,7 @@ export default class extends Controller {
     /**
      * flow=consult: persist the current document into the expediente. Reads the
      * doc-type from the footer select (the agent pre-selected it). The dedicated
-     * types (reclamación / respuesta a alegaciones) route server-side into their
+     * types (complaint / allegation response) route server-side into their
      * official draft and may ask to confirm before overwriting an existing one.
      */
     async saveToDossier(event) {
@@ -777,6 +777,15 @@ export default class extends Controller {
         if (button?.dataset.dispatchInFlight === '1') return;
 
         if (!window.confirm('¿Enviar la solicitud al organismo? El agente local empezará a procesarla y no podrás editarla más.')) {
+            return;
+        }
+
+        // Explicit preview confirmation (spec §5): the checkbox `required`
+        // does not stop this fetch submit, so it is validated here
+        // (y el servidor la vuelve a exigir antes de crear tareas).
+        const review = form.querySelector('input[name="confirmReview"]');
+        if (review && !review.checked) {
+            window.alert('Marca la casilla de confirmación: debes revisar los destinatarios antes de enviar.');
             return;
         }
 
@@ -915,6 +924,16 @@ export default class extends Controller {
         if (!response.ok) {
             console.error('dispatch error', response.status, json);
             restoreButton();
+            // Errores de negocio con mensaje accionable (cupos, solo lectura).
+            if (response.status === 422 && json?.error === 'batch_quota_exceeded' && json?.upgradeUrl) {
+                window.alert(`Tu plan admite lotes de hasta ${json.max} destinatario(s). Has pedido ${json.requested}. Amplía tu plan para enviar más de una vez.`);
+                window.location.href = json.upgradeUrl;
+                return;
+            }
+            if (response.status === 403 && json?.error === 'subscription_read_only') {
+                window.alert('Tu suscripción está en mora: regulariza el pago para volver a enviar. Tus expedientes siguen a salvo.');
+                return;
+            }
             const errMsg = json?.error ? `Error: ${json.error}` : `Error HTTP ${response.status}`;
             window.alert(`No se ha podido enviar la solicitud. ${errMsg}`);
             return;

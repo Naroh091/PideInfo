@@ -1,0 +1,56 @@
+{% extends 'layouts/public_page.html.twig' %}
+{% block title %}Plan Privado - PideInfo{% endblock %}
+{% block content %}
+{# Formulario de propuesta del plan Privado: despliegue dedicado, a medida.
+   Sin afirmaciones de privacidad absoluta ni copy legal: la propuesta se
+   prepara caso a caso. #}
+
+<header class="max-w-2xl mx-auto text-center pt-10 pb-6">
+    <p class="home-hero-eyebrow">Plan Privado</p>
+    <h1 class="page-title mt-3">PideInfo en <em class="rotulador">tu infraestructura</em></h1>
+    <p class="page-sub mt-3">
+        Despliegue dedicado con los modelos que elijas y presupuesto a medida,
+        sin pasar por Stripe. Cuéntanos qué necesitas y preparamos una propuesta.
+    </p>
+</header>
+
+<section class="bg-white rounded-2xl border border-slate-200 p-6 max-w-2xl mx-auto">
+    <form action="{{ path('app_planes_privado_send') }}" method="post" class="space-y-4">
+        <input type="hidden" name="_token" value="{{ csrf_token('private-proposal') }}">
+
+        <div>
+            <label for="pp-name" class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+            <input id="pp-name" type="text" name="name" required maxlength="120" autocomplete="name"
+                   class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+        </div>
+
+        <div>
+            <label for="pp-org" class="block text-sm font-medium text-slate-700 mb-1">Organización <span class="font-normal text-slate-400">(opcional)</span></label>
+            <input id="pp-org" type="text" name="organization" maxlength="160" autocomplete="organization"
+                   class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+        </div>
+
+        <div>
+            <label for="pp-email" class="block text-sm font-medium text-slate-700 mb-1">Correo electrónico</label>
+            <input id="pp-email" type="email" name="email" required maxlength="180" autocomplete="email"
+                   class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+        </div>
+
+        <div>
+            <label for="pp-message" class="block text-sm font-medium text-slate-700 mb-1">Qué necesitas</label>
+            <textarea id="pp-message" name="message" required maxlength="2000" rows="5"
+                      placeholder="Volumen aproximado, modelos que usáis, plazos…"
+                      class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm"></textarea>
+        </div>
+
+        {% include '_partials/turnstile.html.twig' with {site_key: turnstileSiteKey, action: 'private-proposal'} %}
+
+        <button type="submit" class="btn-editorial btn-editorial--primario w-full">Solicitar propuesta</button>
+    </form>
+</section>
+
+<p class="text-xs text-slate-400 text-center mt-4 max-w-xl mx-auto">
+    Puedes consultar el tratamiento de datos en nuestra
+    <a href="{{ path('app_privacidad') }}" class="underline underline-offset-2">política de privacidad</a>.
+</p>
+{% endblock %}

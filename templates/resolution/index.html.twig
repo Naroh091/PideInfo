@@ -6,8 +6,8 @@
     <meta name="description" content="Consulta las resoluciones de los consejos de transparencia españoles. Busca por organismo, resultado, fecha o texto libre.">
 {% endblock %}
 
-{# Canónica sin filtros: las combinaciones de búsqueda y paginación son la misma
-   página listada de otra forma, no contenido distinto. #}
+{# Canonical without filters: search and pagination combinations are the same
+   listed page in another form, not different content. #}
 {% block canonical %}
     {% if activeOrganism is defined and activeOrganism %}
         <link rel="canonical" href="{{ url('app_resoluciones_organismo', { slug: activeOrganism.slug }) }}">
@@ -120,10 +120,10 @@
             <p class="text-sm text-slate-500 mt-1">Resoluciones sobre reclamaciones contra {{ activePublicBody.name }}</p>
         {% else %}
             <div class="animate-fade-in">
-                {% if globalStats.dateTo %}
+                {% if globalStats.ingestedTo|default(globalStats.dateTo) %}
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 mb-3">
                         <i data-lucide="calendar-check" class="w-3 h-3"></i>
-                        Actualizado {{ globalStats.dateTo|date('d/m/Y') }}
+                        Actualizado {{ globalStats.ingestedTo|default(globalStats.dateTo)|date('d/m/Y') }}
                     </span>
                 {% endif %}
                 <h1 class="repo-title text-4xl sm:text-5xl text-slate-800">Repositorio <span class="repo-title-accent">unificado</span><br>de resoluciones de transparencia</h1>

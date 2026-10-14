@@ -49,6 +49,13 @@ class AccessRequestController extends AbstractController
     private const CHAT_HISTORY_KEY = 'draft_chat_history';
     private const CHAT_HISTORY_CAP = 30;
 
+    /**
+     * Max dispatches per request (spec §4/§5): Organization batches (no
+     * commercial cap) process in chunks; the rest stays pending with a
+     * "continue" action. Never promise unbounded synchronous execution.
+     */
+    private const DISPATCH_CHUNK_SIZE = 50;
+
     public function __construct(
         private AccessRequestRepository $accessRequestRepository,
         private AccessRequestListRepository $accessRequestListRepository,
@@ -78,19 +85,19 @@ class AccessRequestController extends AbstractController
         $lists = $this->accessRequestListRepository->findVisibleToUser($this->getUser());
         $currentList = $listId ? $this->accessRequestListRepository->find($listId) : null;
 
-        // Índice de estados en el ESTADO INTERNO derivado (los 8): la
-        // clasificación única de AccessRequest::getInternalState(), coherente
-        // con el filtro del TableType y con el chart del panel.
+        // State index over the DERIVED internal state (the 8): the single
+        // classification from AccessRequest::getInternalState(), consistent
+        // with the TableType filter and the dashboard chart.
         $internalCounts = $this->accessRequestRepository->getInternalStateCounts($this->getUser());
         $totalCount = array_sum($internalCounts);
 
-        // Franja de la cabecera: «en curso» = borrador + enviada + en trámite.
+        // Header band: "in progress" = draft + sent + in progress.
         $activeCount = ($internalCounts[AccessRequest::INTERNAL_DRAFT] ?? 0)
             + ($internalCounts[AccessRequest::INTERNAL_SENT] ?? 0)
             + ($internalCounts[AccessRequest::INTERNAL_PROCESSING] ?? 0);
         $upcomingCount = count($this->deadlineCollector->collect($this->getUser(), 7));
 
-        // Colores del índice: fuente única en la entidad (colorForInternalState).
+        // Index colors: single source in the entity (colorForInternalState).
         $stateColors = [];
         foreach (AccessRequest::INTERNAL_STATES as $s) {
             $stateColors[$s] = AccessRequest::colorForInternalState($s);
@@ -328,9 +335,17 @@ class AccessRequestController extends AbstractController
         RegDestinationRepository $regDestinationRepository,
         ChannelResolver $channelResolver,
         ApplicableLawResolver $applicableLawResolver,
+        \App\Billing\BatchQuotaGuard $quotaGuard,
+        \App\Billing\SubscriptionReadOnlyGuard $readOnlyGuard,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
+
+        try {
+            $readOnlyGuard->assertWritable($user);
+        } catch (\App\Billing\SubscriptionReadOnlyException) {
+            return new JsonResponse(['error' => 'subscription_read_only'], Response::HTTP_FORBIDDEN);
+        }
 
         $payload = json_decode($request->getContent(), true) ?? [];
 
@@ -425,6 +440,20 @@ class AccessRequestController extends AbstractController
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        // Batch quota by effective plan (spec §4): the whole batch is rejected
+        // before creating anything — never partial drafts.
+        try {
+            $quotaGuard->assertWithinQuota($user, \count($resolved));
+        } catch (\App\Billing\QuotaExceededException $e) {
+            return new JsonResponse([
+                'error' => 'batch_quota_exceeded',
+                'max' => $e->getMax(),
+                'plan' => $e->getPlan(),
+                'requested' => $e->getRequested(),
+                'upgradeUrl' => $this->generateUrl('app_planes'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $batchId = Uuid::v7()->toRfc4122();
 
         $created = [];
@@ -439,7 +468,10 @@ class AccessRequestController extends AbstractController
 
                 $accessRequest = new AccessRequest();
                 $accessRequest->setUser($user);
-                $accessRequest->setOrganization($user->getOrganization());
+                // Default privacy (spec §3.5): drafts start personal. Sharing
+                // with the team requires the owner's explicit act
+                // ("Share with the team").
+                $accessRequest->setOrganization(null);
                 $accessRequest->setTitle('');
                 $accessRequest->setDescription('');
                 $accessRequest->setPublicBody($body);
@@ -664,13 +696,34 @@ class AccessRequestController extends AbstractController
         ChannelResolver $channelResolver,
         RegPayloadBuilder $regPayloadBuilder,
         \App\Service\AccessRequest\SubmissionGuard $submissionGuard,
+        \App\Billing\BatchQuotaGuard $quotaGuard,
+        \App\Billing\SubscriptionReadOnlyGuard $readOnlyGuard,
+        \App\Repository\AgentTaskRepository $agentTasks,
     ): Response {
         /** @var \App\Entity\User $user */
         $user = $this->getUser();
 
+        try {
+            $readOnlyGuard->assertWritable($user);
+        } catch (\App\Billing\SubscriptionReadOnlyException) {
+            return new JsonResponse(['error' => 'subscription_read_only'], Response::HTTP_FORBIDDEN);
+        }
+
         $drafts = $this->accessRequestRepository->findByDraftBatch($batchId, $user);
         if ($drafts === []) {
             throw $this->createNotFoundException('batch_not_found');
+        }
+
+        // Explicit preview confirmation (spec §5): without it no AgentTask is
+        // created. Accepts form (`confirmReview=1`) and JSON.
+        $jsonPayload = json_decode((string) $request->getContent(), true);
+        $confirmed = $request->request->getBoolean('confirmReview')
+            || (\is_array($jsonPayload) && (bool) ($jsonPayload['confirmReview'] ?? false));
+        if (!$confirmed) {
+            return new JsonResponse([
+                'error' => 'confirmation_required',
+                'message' => 'Revisa los destinatarios y confirma el envío de forma explícita.',
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         // Belt-and-braces: the sentinel «Organismo por determinar» (anonymous
@@ -816,9 +869,28 @@ class AccessRequestController extends AbstractController
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        // El front reenvía con confirmUncertain=1 cuando el usuario, tras
-        // comprobar el portal, confirma que quiere re-presentar una solicitud
-        // que quedó incierta en REG.
+        // Quota revalidation against the real batch (defense in depth: the
+        // plan may have changed between initiate and dispatch). Counts pending
+        // drafts, not already-created tasks.
+        $pendingCount = \count(array_filter(
+            $drafts,
+            static fn (AccessRequest $d) => $d->getStatus() === AccessRequest::STATUS_PENDING,
+        ));
+        try {
+            $quotaGuard->assertWithinQuota($user, max($pendingCount, 1));
+        } catch (\App\Billing\QuotaExceededException $e) {
+            return new JsonResponse([
+                'error' => 'batch_quota_exceeded',
+                'max' => $e->getMax(),
+                'plan' => $e->getPlan(),
+                'requested' => $pendingCount,
+                'upgradeUrl' => $this->generateUrl('app_planes'),
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // The front resends with confirmUncertain=1 when the user, after
+        // checking the portal, confirms they want to resubmit a request
+        // left uncertain in REG.
         $confirmUncertain = $request->request->getBoolean('confirmUncertain');
         $uncertainNeedsConfirm = [];
         $dispatched = 0;
@@ -858,7 +930,7 @@ class AccessRequestController extends AbstractController
                     if ($decision->reason === 'uncertain_needs_confirmation') {
                         $uncertainNeedsConfirm[] = $accessRequest->getId()->toRfc4122();
                     }
-                    // 'active_task' → ya hay un envío en vuelo: se omite en silencio.
+                    // 'active_task' → a submission is already in flight: silently skipped.
                     continue;
                 }
                 $task = new AgentTask($user, $channel);
@@ -879,16 +951,16 @@ class AccessRequestController extends AbstractController
                         'title' => $accessRequest->getTitle(),
                         'description' => $accessRequest->getDescription(),
                         'applicable_law' => $accessRequest->getApplicableLaw()->getId()->toRfc4122(),
-                        // Mínimo para que el wizard PT supere su validación de
-                        // contacto. El resto de campos (provincia, municipio,
-                        // CP, dirección) se rellenan a mano en el primer envío
-                        // y el perfil persistente de Firefox los recuerda.
+                        // Minimum for the PT wizard to pass its contact
+                        // validation. The remaining fields (province, city,
+                        // ZIP, address) are filled by hand on the first send
+                        // and Firefox's persistent profile remembers them.
                         'solicitante' => [
                             'email' => $user->getEmail(),
                         ],
                     ];
-                    // Reconciliación: si existe un borrador de un intento
-                    // anterior, el agente lo reutiliza en vez de acuñar otro.
+                    // Reconciliation: when a draft from a previous attempt
+                    // exists, the agent reuses it instead of minting another.
                     if ($decision->reconcileIdBorr !== null) {
                         $ptPayload['reconcile_idBorr'] = $decision->reconcileIdBorr;
                     }
@@ -900,8 +972,14 @@ class AccessRequestController extends AbstractController
                     'task' => $task,
                     'bodyName' => $accessRequest->getPublicBody()->getName(),
                 ];
-                // Un despacho nuevo supersede la incertidumbre anterior; se
-                // re-pondrá si este intento también queda incierto.
+                // Chunk: do not create more tasks in this request even if drafts
+                // remain (large Organization batches). The rest stays pending
+                // and continues with another send of the same batch.
+                if ($dispatched >= self::DISPATCH_CHUNK_SIZE) {
+                    break;
+                }
+                // A fresh dispatch supersedes prior uncertainty; it will
+                // re-flag if this attempt also ends uncertain.
                 $accessRequest->setMetadataValue('submission_uncertain', null);
             }
             if ($uncertainNeedsConfirm !== []) {
@@ -920,6 +998,18 @@ class AccessRequestController extends AbstractController
             throw $e;
         }
 
+        // Those still pending WITHOUT an attempt after this chunk count as
+        // remainder: the front offers "continue sending" while any remains. Those
+        // already with a task (dispatched now or in flight) do not count as remainder.
+        $remaining = 0;
+        foreach ($this->accessRequestRepository->findByDraftBatch($batchId, $user) as $left) {
+            if ($left->getStatus() === AccessRequest::STATUS_PENDING
+                && $agentTasks->findByRequest($left) === []
+            ) {
+                $remaining++;
+            }
+        }
+
         if ($request->isXmlHttpRequest() || str_contains((string) $request->headers->get('Accept'), 'application/json')) {
             $tasks = [];
             foreach ($createdTasks as $entry) {
@@ -934,16 +1024,26 @@ class AccessRequestController extends AbstractController
 
             return new JsonResponse([
                 'dispatched' => $dispatched,
+                'remaining' => $remaining,
+                'complete' => $remaining === 0,
                 'redirectUrl' => $this->generateUrl('app_solicitudes_index'),
                 'tasks' => $tasks,
             ]);
         }
 
-        $this->addFlash('success', sprintf(
-            'Estamos enviando tu solicitud a %d organismo%s. Te avisaremos cuando termine cada envío.',
-            $dispatched,
-            $dispatched === 1 ? '' : 's',
-        ));
+        if ($remaining > 0) {
+            $this->addFlash('success', sprintf(
+                'Primera tanda enviada (%d). Quedan %d por enviar: vuelve a pulsar Enviar para continuar.',
+                $dispatched,
+                $remaining,
+            ));
+        } else {
+            $this->addFlash('success', sprintf(
+                'Estamos enviando tu solicitud a %d organismo%s. Te avisaremos cuando termine cada envío.',
+                $dispatched,
+                $dispatched === 1 ? '' : 's',
+            ));
+        }
         return $this->redirectToRoute('app_solicitudes_index');
     }
 
@@ -974,8 +1074,8 @@ class AccessRequestController extends AbstractController
                 'title' => $ar->getTitle(),
                 'publicBody' => ['name' => $ar->getPublicBody()->getName()],
                 'externalId' => $ar->getExternalId(),
-                // Estado INTERNO derivado (los 8) — es lo que pintan la command
-                // palette y el desplegable de listas; mismas claves de siempre.
+                // DERIVED internal state (the 8) — what the command palette
+                // and the list dropdown paint; same keys as always.
                 'status' => $ar->getInternalState(),
                 'statusLabel' => $ar->getInternalStateLabel(),
                 'sentAt' => $ar->getSentAt()?->format('d/m/Y'),
@@ -993,8 +1093,8 @@ class AccessRequestController extends AbstractController
         \App\Service\AI\Chat\ChatHistoryStore $chatHistoryStore,
         \App\Service\AccessRequest\RequestStatusPicker $statusPicker,
     ): Response {
-        // Historial persistido del chat de consulta libre (tabla ai_chat_messages),
-        // para retomar la conversación al reabrir el chat.
+        // Persisted free-consult chat history (ai_chat_messages table),
+        // to resume the conversation when reopening the chat.
         $consultHistory = [];
         $user = $this->getUser();
         if ($user instanceof \App\Entity\User) {
@@ -1036,6 +1136,71 @@ class AccessRequestController extends AbstractController
             'Recordatorio creado para el %s.',
             $reminder->getRemindAt()->format('d/m/Y')
         ));
+
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    #[Route('/{id}/compartir', name: 'app_solicitudes_share', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function share(Request $request, AccessRequest $accessRequest): Response
+    {
+        if (!$this->isCsrfTokenValid('share-' . $accessRequest->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+
+        // Only the owner shares: a teammate with access to the record cannot
+        // share someone else's (spec §3.5 — owner's explicit act).
+        if ($accessRequest->getUser()?->getId()->equals($user->getId()) !== true) {
+            throw $this->createAccessDeniedException('Solo el titular puede compartir este expediente.');
+        }
+        if ($user->getOrganization() === null) {
+            $this->addFlash('warning', 'Para compartir necesitas pertenecer a un equipo u organización.');
+            return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+        }
+
+        $accessRequest->setOrganization($user->getOrganization());
+        $accessRequest->setSharedWithOrganization(true);
+        $accessRequest->setMetadataValue('sharing_log', array_merge(
+            $accessRequest->getMetadataValue('sharing_log') ?? [],
+            [['action' => 'shared', 'by' => $user->getEmail(), 'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]],
+        ));
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf(
+            'Expediente compartido con %s. Los miembros del equipo ya pueden verlo.',
+            $user->getOrganization()->getName(),
+        ));
+
+        return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
+    }
+
+    #[Route('/{id}/dejar-de-compartir', name: 'app_solicitudes_unshare', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function unshare(Request $request, AccessRequest $accessRequest): Response
+    {
+        if (!$this->isCsrfTokenValid('unshare-' . $accessRequest->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+
+        if ($accessRequest->getUser()?->getId()->equals($user->getId()) !== true) {
+            throw $this->createAccessDeniedException('Solo el titular puede dejar de compartir este expediente.');
+        }
+
+        $accessRequest->setOrganization(null);
+        $accessRequest->setSharedWithOrganization(false);
+        $accessRequest->setMetadataValue('sharing_log', array_merge(
+            $accessRequest->getMetadataValue('sharing_log') ?? [],
+            [['action' => 'unshared', 'by' => $user->getEmail(), 'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM)]],
+        ));
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'El expediente vuelve a ser personal: el equipo ya no puede verlo.');
 
         return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
     }

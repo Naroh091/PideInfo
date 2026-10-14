@@ -24,7 +24,9 @@ final class AgentJwtListener
     public function __invoke(JWTAuthenticatedEvent $event): void
     {
         $payload = $event->getPayload();
-        if (($payload['type'] ?? null) !== 'agent') {
+        $type = $payload['type'] ?? null;
+        // Agent and API v1 share the time-cutoff revocation model.
+        if ($type !== 'agent' && $type !== 'api') {
             return;
         }
 
@@ -33,14 +35,14 @@ final class AgentJwtListener
             return;
         }
 
-        $invalidatedAt = $user->getAgentTokensInvalidatedAt();
+        $invalidatedAt = $type === 'api' ? $user->getApiTokensInvalidatedAt() : $user->getAgentTokensInvalidatedAt();
         if (null === $invalidatedAt) {
             return;
         }
 
         $iat = $payload['iat'] ?? null;
         if (!is_int($iat) || $iat < $invalidatedAt->getTimestamp()) {
-            throw new AuthenticationException('Agent token has been revoked.');
+            throw new AuthenticationException($type === 'api' ? 'API token has been revoked.' : 'Agent token has been revoked.');
         }
     }
 }

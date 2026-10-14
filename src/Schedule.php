@@ -28,6 +28,8 @@ class Schedule implements ScheduleProviderInterface
             ->add(RecurringMessage::cron('0 7 * * *', new UpdateExpiredRequestsMessage()))
             ->add(RecurringMessage::cron('0 9 * * *', new RunCommandMessage('app:requests:notify-expiring')))
             ->add(RecurringMessage::cron('0 10 * * *', new RunCommandMessage('app:requests:notify-pending')))
+            // One-shot read-only notice for non-payment (dunning decision).
+            ->add(RecurringMessage::cron('30 8 * * *', new RunCommandMessage('app:billing:notify-readonly')))
             ->add(RecurringMessage::cron('0 0 * * *', new RunCommandMessage('app:usage-hints:hide-expired')))
             ->add(RecurringMessage::cron('30 5 * * *', new RunCommandMessage('app:anonymous-drafts:purge')))
             // Holiday calendars feed the art. 30.5 extension of the claim

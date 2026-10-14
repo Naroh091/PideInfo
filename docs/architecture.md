@@ -29,11 +29,33 @@ Su `user` es **nullable**: un `AccessRequest` sin dueño es un borrador anónimo
 - **Claves primarias UUID v7** en todas partes. Todas las entidades usan `Symfony\Component\Uid\Uuid::v7()` para identificadores únicos globalmente y ordenados en el tiempo.
 - **Fechas inmutables.** Todos los campos de fecha/hora usan `\DateTimeImmutable` para evitar mutaciones accidentales.
 - **Cascade persist/remove** en las colecciones propiedad del padre (documentos, historial, plazos personalizados). La eliminación de huérfanos está habilitada cuando procede.
-- **Propiedad blanda vía Organization.** Los usuarios pertenecen a una organización; las consultas devuelven tanto las solicitudes personales como las de toda la organización.
+- **Visibilidad en equipo por acto explícito.** Los usuarios pertenecen a una
+  organización (`User.organization` + `User.organizationRole`), pero las
+  consultas solo devuelven, además de las solicitudes propias, las de la
+  organización **compartidas explícitamente** (`AccessRequest.sharedWithOrganization`,
+  spec `docs/superpowers/specs/2026-10-13-suscripciones-equipos-design.md` §3.5).
+  Los borradores nacen personales (`organization = NULL`); "Compartir con el
+  equipo" (titular) fija organización + flag, y "Dejar de compartir" los limpia.
 
 ## Diseño de la capa de servicios
 
 La lógica de negocio vive en servicios, no en entidades ni en controladores. Los servicios clave:
+
+### Facturación y planes (`src/Billing/`, spec `docs/superpowers/specs/2026-10-13-suscripciones-equipos-design.md`)
+
+- **`PlanCatalog`** — fuente única de planes/precios/límites en código (Individual
+  gratis sin tope de expedientes; Profesional 15/165 €, 1 usuario, lotes de 25;
+  Equipo 49/539 €, 5 miembros, lotes de 50; Organización desde 99/1089 €,
+  15 miembros, lotes sin tope comercial por tandas; anual = 11 meses).
+- **`EffectivePlanResolver`** — plan efectivo (mejor entre suscripción personal y
+  la de la org; gracia de 14 días en `past_due`; `canceled` hasta fin de periodo).
+- **`BatchQuotaGuard` / `SubscriptionReadOnlyGuard`** — cupos por lote y
+  solo-lectura por impago, aplicados en `initiateDrafts`/`dispatchBatch`/equipo.
+- **Entidades `Subscription` + `ProcessedStripeEvent`** — la suscripción pertenece
+  a un usuario XOR una organización y no guarda tarjetas; el webhook de Stripe
+  (firma obligatoria, idempotente por `eventId`) aplica sus estados.
+- Sin claves Stripe, Checkout/Portal responden 503 (`billing_not_configured`):
+  imposible cobrar sin configuración explícita.
 
 ### AccessRequestManager
 

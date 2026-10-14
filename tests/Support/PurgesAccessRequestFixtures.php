@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Support;
 
 /**
- * La suite corre contra el corpus vivo (TEST_DB_SUFFIX= en .env.test.local),
- * así que cada test que siembra AccessRequest/User/PublicBody/ApplicableLaw
- * debe borrarlos al terminar o la BD de dev acumula fixtures en cada run.
+ * The suite runs against the live corpus (TEST_DB_SUFFIX= in .env.test.local),
+ * so every test seeding AccessRequest/User/PublicBody/ApplicableLaw
+ * must delete them on teardown or the dev DB accumulates fixtures each run.
  *
- * Uso: registrar los ids con trackFixture*() al crearlos; el tearDown los
- * purga con SQL directo (los dependientes primero) antes de apagar el kernel.
+ * Usage: register ids with trackFixture*() on creation; tearDown purges
+ * them with direct SQL (dependents first) before shutting the kernel down.
  */
 trait PurgesAccessRequestFixtures
 {
@@ -22,6 +22,13 @@ trait PurgesAccessRequestFixtures
     private array $fixtureBodyIds = [];
     /** @var list<string> */
     private array $fixtureLawIds = [];
+    /** @var list<string> */
+    private array $fixtureOrgIds = [];
+
+    private function trackFixtureOrg(string $id): void
+    {
+        $this->fixtureOrgIds[] = $id;
+    }
 
     private function trackFixtureRequest(string $id): void
     {
@@ -45,7 +52,7 @@ trait PurgesAccessRequestFixtures
 
     protected function tearDown(): void
     {
-        if ($this->fixtureRequestIds || $this->fixtureUserIds || $this->fixtureBodyIds || $this->fixtureLawIds) {
+        if ($this->fixtureRequestIds || $this->fixtureUserIds || $this->fixtureBodyIds || $this->fixtureLawIds || $this->fixtureOrgIds) {
             $conn = static::getContainer()->get('doctrine')->getConnection();
 
             if ($this->fixtureRequestIds) {
@@ -93,8 +100,15 @@ trait PurgesAccessRequestFixtures
                     ['ids' => \Doctrine\DBAL\ArrayParameterType::STRING],
                 );
             }
+            if ($this->fixtureOrgIds) {
+                $conn->executeStatement(
+                    'DELETE FROM organization WHERE id IN (:ids)',
+                    ['ids' => $this->fixtureOrgIds],
+                    ['ids' => \Doctrine\DBAL\ArrayParameterType::STRING],
+                );
+            }
 
-            $this->fixtureRequestIds = $this->fixtureUserIds = $this->fixtureBodyIds = $this->fixtureLawIds = [];
+            $this->fixtureRequestIds = $this->fixtureUserIds = $this->fixtureBodyIds = $this->fixtureLawIds = $this->fixtureOrgIds = [];
         }
 
         parent::tearDown();

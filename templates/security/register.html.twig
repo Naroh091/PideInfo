@@ -5,6 +5,16 @@
 {% block auth_content %}
     <h2 class="text-xl font-semibold text-slate-800 text-center mb-4">Crear cuenta</h2>
 
+    {% if pendingPlanName|default(null) %}
+        <div class="flex items-start gap-3 p-4 rounded-xl bg-sky-50 border border-sky-200 mb-6">
+            <i data-lucide="credit-card" class="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5"></i>
+            <div class="text-sm text-sky-800">
+                <p class="font-medium">Seguimos con el plan {{ pendingPlanName }}</p>
+                <p class="mt-1 text-sky-700">Después del registro podrás continuar con la selección del plan. Primero verifica tu correo.</p>
+            </div>
+        </div>
+    {% endif %}
+
     <div class="flex items-start gap-3 p-4 rounded-xl bg-emerald-50 border border-emerald-200 mb-6">
         <i data-lucide="sparkles" class="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5"></i>
         <div class="text-sm text-emerald-800">

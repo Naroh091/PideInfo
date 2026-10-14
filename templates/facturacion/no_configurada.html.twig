@@ -1,0 +1,17 @@
+{% extends 'layouts/app.html.twig' %}
+{% block title %}Suscripción - PideInfo{% endblock %}
+{% block content %}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Suscripción</h1>
+            <p class="page-sub">El pago se completa en la pasarela segura de Stripe.</p>
+        </div>
+    </header>
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+        <p class="text-sm text-slate-600 leading-relaxed">
+            La facturación aún no está configurada en este entorno. Si has llegado
+            aquí por error, vuelve a <a href="{{ path('app_planes') }}" class="underline">precios</a>
+            o escríbenos y lo resolvemos.
+        </p>
+    </section>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'layouts/app.html.twig' %}
+{% block title %}Cambiar de plan - PideInfo{% endblock %}
+{% block content %}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Tu plan {{ plan.name }}</h1>
+            <p class="page-sub">
+                {% if plan.maxBatchRecipients %}
+                    Lotes de hasta {{ plan.maxBatchRecipients }} destinatarios
+                    {% if plan.hasTeam %}· hasta {{ plan.maxMembers }} miembros{% else %}· 1 usuario{% endif %}.
+                {% else %}
+                    Sin límite comercial por lote, por tandas · hasta {{ plan.maxMembers }} miembros.
+                {% endif %}
+            </p>
+        </div>
+    </header>
+
+    {% if billingConfigured %}
+        <section class="max-w-2xl">
+            <form action="{{ path('app_billing_checkout') }}" method="post">
+                <input type="hidden" name="_token" value="{{ csrf_token('billing-checkout') }}">
+                <input type="hidden" name="plan" value="{{ plan.code }}">
+                {% if plan.hasTeam and app.user.organization is null %}
+                    <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+                        <label for="org-name" class="block text-sm font-medium text-slate-700 mb-1.5">Nombre de tu {{ plan.code == 'organization' ? 'organización' : 'equipo' }}</label>
+                        <input id="org-name" type="text" name="organization_name" maxlength="255" required
+                               placeholder="p. ej. Gabinete de prensa"
+                               class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+                        <p class="text-xs text-slate-500 mt-1.5">Serás su titular. Podrás invitar miembros después.</p>
+                    </div>
+                {% endif %}
+                <div class="grid sm:grid-cols-2 gap-4">
+                    <label class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col cursor-pointer has-checked:border-sky-500 has-checked:ring-1 has-checked:ring-sky-500">
+                        <input type="radio" name="interval" value="month" class="sr-only" {% if interval == 'month' %}checked{% endif %}>
+                        <p class="text-sm font-semibold text-slate-900">Mensual</p>
+                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ (plan.monthlyCents / 100)|number_format(2, ',', '.') }}&nbsp;€<span class="text-sm font-normal text-slate-500">/mes</span></p>
+                        <p class="text-xs text-slate-500 mt-1">{{ (plan.monthlyCents * 1.21 / 100)|number_format(2, ',', '.') }}&nbsp;€ IVA incl.</p>
+                        <p class="text-xs text-slate-500 mt-3 flex-1">Flexibilidad total, cancela cuando quieras.</p>
+                    </label>
+                    <label class="rounded-2xl border-2 p-5 flex flex-col relative cursor-pointer has-checked:border-sky-500 has-checked:ring-1 has-checked:ring-sky-500" style="border-color: var(--color-primary-200); background: linear-gradient(180deg, var(--color-primary-50), #fff 60%);">
+                        <input type="radio" name="interval" value="year" class="sr-only" {% if interval == 'year' %}checked{% endif %}>
+                        <span class="precios-estrella"><i data-lucide="star"></i>Un mes gratis</span>
+                        <p class="text-sm font-semibold text-slate-900 mt-2">Anual</p>
+                        <p class="mt-2 text-2xl font-semibold text-slate-900">{{ (plan.annualCents / 100)|number_format(2, ',', '.') }}&nbsp;€<span class="text-sm font-normal text-slate-500">/año</span></p>
+                        <p class="text-xs text-slate-500 mt-1">{{ (plan.annualCents * 1.21 / 100)|number_format(2, ',', '.') }}&nbsp;€ IVA incl.</p>
+                        <p class="text-xs text-slate-500 mt-3 flex-1">Un mes gratis. Puedes cancelar cuando quieras.</p>
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg mt-4">Continuar al pago</button>
+            </form>
+            <p class="text-xs text-slate-500 mt-4">El pago se completa en la pasarela segura de Stripe. PideInfo no ve ni guarda tu tarjeta.</p>
+        </section>
+    {% else %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+            <p class="text-sm text-slate-600 leading-relaxed">
+                La contratación en línea aún no está disponible. Escríbenos y activamos tu plan {{ plan.name }} manualmente.
+            </p>
+            <p class="mt-4">
+                <a href="{{ path('app_planes') }}" class="btn btn-secondary">Volver a planes</a>
+            </p>
+        </section>
+    {% endif %}
+{% endblock %}
