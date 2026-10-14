@@ -38,6 +38,7 @@
         "psr/http-client": "^1.0",
         "sentry/sentry-symfony": "^5.8",
         "smalot/pdfparser": "^2.12",
+        "stripe/stripe-php": "^22.0",
         "symfony/ai-agent": "^0.10",
         "symfony/ai-bundle": "^0.10",
         "symfony/ai-chat": "^0.10",

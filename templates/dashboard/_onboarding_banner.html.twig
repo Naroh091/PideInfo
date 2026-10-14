@@ -25,6 +25,18 @@
 
             <div class="space-y-4">
                 <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-slate-100">
+                    <span class="text-3xl flex-shrink-0">🤖</span>
+                    <div>
+                        <p class="font-semibold text-slate-800 text-sm">Automáticamente vía agente</p>
+                        <p class="text-xs text-slate-500 mt-1">
+                            Presenta tus solicitudes con tu certificado digital por vía segura;
+                            todo se hace en tu ordenador.
+                            <a href="{{ path('app_agente') }}" class="text-primary-600 font-medium hover:underline">Conecta tu agente</a>.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3 p-3 rounded-xl bg-white border border-slate-100">
                     <span class="text-3xl flex-shrink-0">📄</span>
                     <div>
                         <p class="font-semibold text-slate-800 text-sm">Sube los PDF a la barra lateral</p>
@@ -61,14 +73,13 @@
                 </div>
             </div>
 
-            <div class="mt-5 p-3 rounded-xl bg-amber-50 border border-amber-100">
-                <div class="flex items-start gap-2">
-                    <span class="text-xl flex-shrink-0">💡</span>
-                    <p class="text-xs text-amber-700">
-                        <strong>Tip:</strong> Estamos trabajando en implementar sincronización con el Portal de
-                        Transparencia y otros organismos. No nos lo ponen fácil, pero... ¡Te mantendremos informado! :)
-                    </p>
-                </div>
+            <hr class="my-5 border-slate-200">
+
+            <div class="text-center">
+                <p class="text-sm text-slate-600">
+                    ¿Trabajas con tu equipo o eres un profesional de la transparencia?
+                    <a href="{{ path('app_planes') }}" class="text-primary-600 font-medium hover:underline">Echa un vistazo a nuestros planes</a>.
+                </p>
             </div>
         </div>
     </div>

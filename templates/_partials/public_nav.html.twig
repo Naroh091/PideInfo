@@ -18,6 +18,11 @@
                     <i data-lucide="scale" class="w-4 h-4"></i>
                     Repositorio de resoluciones
                 </a>
+                <a href="{{ path('app_planes') }}"
+                   class="flex items-center gap-1.5 text-sm font-medium transition-colors {{ active_page|default('') == 'precios' ? 'text-primary-600' : 'text-slate-600 hover:text-primary-600' }}">
+                    <i data-lucide="tag" class="w-4 h-4"></i>
+                    Planes
+                </a>
                 </div>
             </div>
             <div class="flex items-center gap-3">

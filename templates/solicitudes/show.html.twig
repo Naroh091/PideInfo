@@ -4,9 +4,9 @@
 
 {% block title %}{{ request.title }} - PideInfo{% endblock %}
 
-{# Forzar carga completa: Turbo Drive + Alpine dejan muerto el efecto x-show del
-   modal `agentPresent` (Presentar con el agente) al llegar por navegación interna.
-   Ver docs/complaint-workflow.md → "Modal de progreso unificado". #}
+{# Force a full load: Turbo Drive + Alpine leave the x-show effect of the
+   `agentPresent` modal (Submit with the agent) dead on internal navigation.
+   See docs/complaint-workflow.md → "Modal de progreso unificado". #}
 {% block meta %}<meta name="turbo-visit-control" content="reload">{% endblock %}
 
 {% block stylesheets %}
@@ -739,8 +739,8 @@
 {% block content %}
 {% import '_macros/status_picker.html.twig' as picker %}
 {% set canEditStatus = is_granted('edit', request) %}
-{# Scope Alpine compartido por los tres badges editables: abre el menú
-   teletransportado calculando su posición fija desde el propio trigger. #}
+{# Alpine scope shared by the three editable badges: opens the teleported
+   menu computing its fixed position from the trigger itself. #}
 {% set pickerData = '{ open: false, mx: 0, my: 0, openMenu() { const r = $refs.trigger.getBoundingClientRect(); this.mx = Math.min(r.left, window.innerWidth - 232); this.my = r.bottom + 6; this.open = true; } }' %}
 {# ── Migas + editar ── #}
 <div class="flex items-center justify-between gap-3 mb-1 rise rise-1">
@@ -756,9 +756,9 @@
 </div>
 
 {#
-   Estado efectivo: con una reclamación activa (no archivada) manda la vía de
-   reclamación — AccessRequest::getEffectiveStatusLabel(). Los colores de badge
-   siguen el mismo criterio que el listado.
+   Effective state: with an active (non-archived) complaint the complaint track
+   wins — AccessRequest::getEffectiveStatusLabel(). Badge colors follow the
+   same rule as the listing.
 #}
 {% set statusBadge = {
     'pending': 'status-pending',
@@ -901,10 +901,10 @@
                         </template>
                     </span>
                 </span>
-                {# El badge muestra el ESTADO INTERNO derivado (los 8); el
-                   desplegable edita la POSICIÓN cruda (las 6). Cuando hay
-                   reclamación/judicial el interno manda («En proceso de…»)
-                   aunque la posición editable sea otra. #}
+                {# The badge shows the DERIVED internal state (the 8); the dropdown edits
+                   the raw POSITION (the 6). With a complaint/court case the
+                   internal one wins ("In … proceedings") even when the editable
+                   position is another. #}
                 {% set estadoBadge %}<span class="badge {{ internalStateBadge[request.internalState]|default('badge-secondary') }}">{{ request.internalStateLabel }}</span>{% endset %}
                 <span class="exp-meta-valor">
                     {% if canEditStatus %}
@@ -925,8 +925,8 @@
                     {% endif %}
                 </span>
             </div>
-            {# El silencio NO es una decisión de la administración: se muestra
-               como «Sin resolución» y no cuenta como resolución real. #}
+            {# Silence is NOT an administration decision: it shows as "No resolution"
+               and does not count as a real resolution. #}
             {% set hasRealResolution = request.resolutionResult and request.resolutionResult != 'silence' %}
             {% if canEditStatus or hasRealResolution %}
                 <div class="exp-meta-celda">
@@ -981,13 +981,13 @@
     </div>
 </header>
 
-{# ── Los pasos: qué toca hacer ahora ── #}
+{# ── Steps: what to do now ── #}
 <div class="rise rise-3">
     {{ component('RequestStatusBanner', {request: request}) }}
 </div>
 
-{# Trámite de audiencia activo: plazo abierto para presentar alegaciones.
-   Se oculta al vencer; el histórico queda en la cronología y en Plazos. #}
+{# Active hearing step: open window to submit allegations. Hidden once
+   expired; history stays in the timeline and under Deadlines. #}
 {% if request.complaint and request.complaint.activeHearingProcess %}
     {% set hearing = request.complaint.activeHearingProcess %}
     {% set hearingOrganism = request.applicableLaw.complaintOrganism
@@ -1034,9 +1034,9 @@
     </div>
 {% endif %}
 
-{# Visibilidad de los intentos de envío vía agente. Si la solicitud sigue
-   pendiente y hubo tareas fallidas o inciertas, lo avisamos junto a la
-   invitación de envío y ofrecemos un modal con el detalle de cada intento. #}
+{# Visibility of agent send attempts. When the request is still pending and
+   there were failed or uncertain tasks, we flag it next to the send invite
+   and offer a modal with each attempt's detail. #}
 {% if request.status == 'pending' and agentTasks|default([])|length > 0 %}
     {% set problemTasks = agentTasks|filter(t => t.status in ['failed', 'uncertain']) %}
     {% if problemTasks|length > 0 %}
@@ -1070,9 +1070,24 @@
                 </div>
             </section>
 
-            {# Modal — listado de intentos de envío del agente. x-teleport lo
-               saca al <body>: si no, el transform del contenedor .rise atrapa
-               el overlay fixed y no cubre el viewport ni queda bien apilado. #}
+            {# Send receipt (spec §5): reference captured by the agent for this
+               recipient, independent of the batch. #}
+            {% set receipt = request.getMetadataValue('dispatch_receipt') %}
+            {% if receipt is not empty %}
+                <section class="ficha-bloque">
+                    <p class="ficha-rotulo">Justificante de envío</p>
+                    <dl class="text-sm text-slate-600 space-y-1">
+                        {% if receipt.expediente is defined %}<div class="flex gap-2"><dt class="font-medium text-slate-800">Expediente:</dt><dd>{{ receipt.expediente }}</dd></div>{% endif %}
+                        {% if receipt.registro is defined %}<div class="flex gap-2"><dt class="font-medium text-slate-800">Registro:</dt><dd>{{ receipt.registro }}</dd></div>{% endif %}
+                        {% if receipt.csv is defined %}<div class="flex gap-2"><dt class="font-medium text-slate-800">CSV:</dt><dd class="break-all">{{ receipt.csv }}</dd></div>{% endif %}
+                        {% if receipt.at is defined %}<div class="flex gap-2"><dt class="font-medium text-slate-800">Fecha:</dt><dd>{{ receipt.at|date('d/m/Y H:i') }}</dd></div>{% endif %}
+                    </dl>
+                </section>
+            {% endif %}
+
+            {# Modal — agent send-attempt list. x-teleport moves it to <body>:
+               otherwise the .rise container transform traps the fixed overlay
+               and it neither covers the viewport nor stacks well. #}
             <template x-teleport="body">
             <div x-show="tasksModal" x-cloak class="modal-backdrop" style="display: none;"
                  @keydown.escape.window="tasksModal = false">
@@ -1175,7 +1190,7 @@
 
 <div class="grid lg:grid-cols-3 gap-8">
     <div class="lg:col-span-2 space-y-8 rise rise-4">
-        {# ── Actuaciones: el expediente en orden cronológico ── #}
+        {# ── Proceedings: the record in chronological order ── #}
         <section>
             <div class="exp-seccion">
                 <span class="exp-seccion-nombre">Actuaciones</span>
@@ -1184,7 +1199,7 @@
             </div>
 
             <div class="space-y-4">
-                {# Actuación inicial: la solicitud #}
+                {# Opening proceeding: the request #}
                 <article class="exp-hoja">
                     <div class="pieza-cab">
                         <span class="panel-icono panel-icono--curso"><i data-lucide="send"></i></span>
@@ -1261,7 +1276,7 @@
                         {% set complaintFiled = request.complaint is not null and request.complaint.filedAt is not null %}
                         {% set editRoute = (doc.aiMetadata.origin|default('ai')) == 'external' ? 'app_complaint_draft' : 'app_complaint_assistant' %}
                         {% if complaintFiled %}
-                            {# Reclamación ya presentada: el borrador deja de ser la pieza activa, se muestra como referencia secundaria. #}
+                            {# Complaint already filed: the draft stops being the active piece and shows as a secondary reference. #}
                             <div class="rounded-lg border border-slate-200 bg-slate-50/60 px-4 py-3 flex items-center gap-3">
                                 <i data-lucide="pen-line" class="w-4 h-4 text-slate-400 flex-shrink-0"></i>
                                 <div class="flex-1 min-w-0">
@@ -1385,9 +1400,9 @@
                                         <i data-lucide="pen-line" class="w-3.5 h-3.5"></i>
                                         Editar
                                     </a>
-                                    {# Modo modal — Alpine controlled. x-teleport al <body>: los
-                                       ancestros animados (.rise, fill both) son containing block
-                                       de position:fixed y atraparían el overlay. #}
+                                    {# Modal mode — Alpine controlled. x-teleport to <body>: animated
+                                       ancestors (.rise, fill both) are a containing block
+                                       for position:fixed and would trap the overlay. #}
                                     <template x-teleport="body">
                                     <div x-show="openAgentModal" x-cloak
                                          class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
@@ -1535,7 +1550,7 @@
                     {% endif %}
                 {% endfor %}
 
-                {# Pieza pendiente: tus alegaciones al trámite de audiencia #}
+                {# Pending piece: your allegations to the hearing step #}
                 {% if pendingHearingPiece %}
                     {% set hearing = request.complaint.activeHearingProcess %}
                     <article class="exp-hoja pieza--pendiente">
@@ -1624,7 +1639,7 @@
         </section>
     </div>
 
-    {# ── Lateral: la ficha registral y, debajo, la cronología ── #}
+    {# ── Sidebar: the registry card and, below, the timeline ── #}
     <div class="lg:col-span-1 rise rise-5 space-y-5">
         <aside class="exp-hoja">
             <div class="ficha-bloque ficha-bloque--primero">
@@ -1704,6 +1719,31 @@
                     <i data-lucide="download" class="w-3.5 h-3.5"></i>
                     Exportar historial
                 </a>
+                {# Sharing with the team (spec §3.5): owner's explicit act. Only the
+                   owner with an organization sees these actions. #}
+                {% if request.user and request.user == app.user and app.user.organization %}
+                    {% if request.sharedWithOrganization %}
+                        <form action="{{ path('app_solicitudes_unshare', {id: request.id}) }}"
+                              method="post"
+                              class="ficha-accion-form">
+                            <input type="hidden" name="_token" value="{{ csrf_token('unshare-' ~ request.id) }}">
+                            <button type="submit" class="ficha-enlace">
+                                <i data-lucide="eye-off" class="w-3.5 h-3.5"></i>
+                                Dejar de compartir (personal)
+                            </button>
+                        </form>
+                    {% else %}
+                        <form action="{{ path('app_solicitudes_share', {id: request.id}) }}"
+                              method="post"
+                              class="ficha-accion-form">
+                            <input type="hidden" name="_token" value="{{ csrf_token('share-' ~ request.id) }}">
+                            <button type="submit" class="ficha-enlace">
+                                <i data-lucide="users" class="w-3.5 h-3.5"></i>
+                                Compartir con {{ app.user.organization.name }}
+                            </button>
+                        </form>
+                    {% endif %}
+                {% endif %}
                 <form action="{{ path('app_solicitudes_delete', {id: request.id}) }}"
                       method="post"
                       class="ficha-accion-form"
@@ -1965,9 +2005,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </script>
 
-{# ── Chat de consulta libre: FAB flotante + diálogo maximizable ─────────────
-   Alpine sólo gobierna la carcasa (visibilidad/tamaño); dentro vive el
-   controlador Stimulus `assistant-chat` (sólo streaming). Estados disjuntos. #}
+{# ── Free-consult chat: floating FAB + maximizable dialog ─────────────
+   Alpine only governs the shell (visibility/size); inside lives the
+   Stimulus `assistant-chat` controller (streaming only). Disjoint states. #}
 <div class="consult-fab-shell" x-data="{ open: false, maximized: false }" @keydown.escape.window="open = false">
     <button type="button" class="consult-fab" @click="open = true" x-show="!open" x-cloak
             title="Consulta libre y redacción de escritos" aria-label="Abrir chat de consulta">

@@ -1,0 +1,37 @@
+{% extends 'layouts/app.html.twig' %}
+{% block title %}Pago recibido - PideInfo{% endblock %}
+{% block content %}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">¡Gracias!</h1>
+            <p class="page-sub">Tu pago se está confirmando.</p>
+        </div>
+    </header>
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+        {% if state|default('pending') == 'active' %}
+            <p class="text-sm text-slate-600 leading-relaxed">
+                Pago confirmado: tu plan ya está activo. Ya puedes enviar lotes
+                y gestionar tu equipo.
+            </p>
+        {% elseif state|default('pending') == 'failed' %}
+            <p class="text-sm text-slate-600 leading-relaxed">
+                El pago no se completó. Vuelve a intentarlo o elige otro plan;
+                no se ha activado nada.
+            </p>
+            <p class="mt-4">
+                <a href="{{ path('app_planes') }}" class="btn btn-primary">Volver a precios</a>
+            </p>
+        {% else %}
+            <p class="text-sm text-slate-600 leading-relaxed">
+                Hemos recibido tu pago y lo estamos confirmando con la pasarela.
+                En unos segundos tu plan estará activo; si tardara más, escríbenos
+                y lo revisamos. No necesitas hacer nada más.
+            </p>
+        {% endif %}
+        {% if state|default('pending') != 'failed' %}
+            <p class="mt-4">
+                <a href="{{ path('app_dashboard') }}" class="btn btn-primary">Ir a mi panel</a>
+            </p>
+        {% endif %}
+    </section>
+{% endblock %}

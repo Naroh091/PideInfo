@@ -69,6 +69,7 @@ class DashboardController extends AbstractDashboardController
 
         yield MenuItem::section('Sistema');
         yield MenuItem::linkToRoute('Messenger Monitor', 'fa fa-cogs', 'zenstruck_messenger_monitor_dashboard');
+        yield MenuItem::linkToRoute('Regalar plan', 'fa fa-gift', 'admin_gift_plan');
 
         yield MenuItem::section('');
         yield MenuItem::linkToRoute('Volver a la aplicación', 'fa fa-arrow-left', 'app_dashboard');

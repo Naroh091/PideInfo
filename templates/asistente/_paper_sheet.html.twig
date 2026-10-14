@@ -1,8 +1,8 @@
-{# La "hoja de papel": el borrador como documento editable dentro del chat.
-   Se renderiza en dos contextos:
-     - directamente en la conversación cuando ya existe borrador (prefill=true);
-     - dentro de un <template> para que assistant-chat la clone al vuelo.
-   Variables: flow ('request'|'complaint'), prefill (bool) y las del flujo:
+{# The "paper sheet": the draft as an editable document inside the chat.
+   Renders in two contexts:
+     - directly in the conversation when a draft already exists (prefill=true);
+     - inside a <template> for assistant-chat to clone on the fly.
+   Variables: flow ('request'|'complaint'), prefill (bool) and per-flow ones:
      request  → request, isRegDraft, batchId, isMultiOrganism, siblings
      complaint→ request, mode, isAlegation, currentDraft, currentBodyHtml #}
 {% set prefill = prefill|default(false) %}
@@ -95,6 +95,24 @@
                         <form method="post"
                               action="{{ path('app_solicitudes_realizar_dispatch', {batchId: batchId}) }}"
                               data-action="submit->paper-sheet#dispatchSubmit">
+                            {# Explicit preview confirmation (spec §5):
+                               the server requires it (confirmReview) before creating tasks. #}
+                            <label class="flex items-start gap-2 mt-3 text-sm text-slate-600 leading-relaxed">
+                                <input type="checkbox" name="confirmReview" value="1" required class="mt-1">
+                                <span>
+                                    {% if isMultiOrganism %}
+                                        He revisado los {{ siblings|length }} destinatarios y confirmo el envío
+                                    {% else %}
+                                        He revisado el destinatario y confirmo el envío
+                                    {% endif %}
+                                </span>
+                            </label>
+                            {% if isMultiOrganism and siblings|length > 5 %}
+                                <p class="text-xs text-slate-500 leading-relaxed mt-2">
+                                    Consejo: para lotes grandes, envía primero a un destinatario como piloto
+                                    y comprueba que todo sale bien antes de lanzar el resto.
+                                </p>
+                            {% endif %}
                             <button type="submit" class="btn btn-primary">
                                 <i data-lucide="send" class="w-4 h-4 mr-2"></i>
                                 {% if isMultiOrganism %}
@@ -115,10 +133,10 @@
             </footer>
         </article>
     {% elseif flow == 'consult' %}
-        {# Consulta libre: documento HTML (Trix, shape=complaint) con footer propio
-           — selector de tipo (DocumentType::consultSavable), Descargar PDF y
-           Guardar en el expediente. Sin autosave ni "presentar". El id del input
-           se reescribe a uno único por hoja en assistant-chat#_createSheet. #}
+        {# Free consult: HTML document (Trix, shape=complaint) with its own footer
+           — type selector (DocumentType::consultSavable), Download PDF and
+           Save to the record. No autosave, no "submit". The input id is
+           rewritten to one unique per sheet in assistant-chat#_createSheet. #}
         <article class="paper-sheet paper-sheet--consult"
                  data-controller="paper-sheet"
                  data-paper-sheet-shape-value="complaint"
@@ -132,8 +150,8 @@
                 {% endif %}
             </div>
 
-            {# Título del escrito + editor de texto plano (mismo formato que la
-               solicitud). El HTML se sintetiza solo al descargar/guardar
+            {# Filing title + plain-text editor (same format as the
+               request). HTML is synthesized only on download/save
                (getHtml → _plainToHtml). #}
             <textarea class="draft-title-input"
                       placeholder="Título del escrito…"
@@ -171,9 +189,9 @@
             </footer>
         </article>
     {% else %}
-        {# `is defined` y no `default()`: un saveUrl/presentUrl definido como
-           null significa "acción no disponible" (flujo anónimo) y default()
-           lo pisaría con la ruta autenticada. #}
+        {# `is defined` and not `default()`: a saveUrl/presentUrl defined as
+           null means "action unavailable" (anonymous flow) and default()
+           would overwrite it with the authenticated route. #}
         {% set complaintSaveUrl = saveUrl is defined ? saveUrl : path('app_complaint_redactar_save', {id: request.id}) %}
         {% set complaintPdfUrl = sheetPdfUrl|default(path('app_complaint_download_pdf', {id: request.id})) %}
         {% set complaintPresentUrl = presentUrl is defined ? presentUrl : path('app_complaint_present_via_agent', {id: request.id}) %}
@@ -197,10 +215,10 @@
                 {% endif %}
             </div>
 
-            {# Editor de texto plano (estilo solicitud). El borrador guardado es
-               HTML: se pasa por el hidden htmlInput y paper-sheet#connect lo
-               convierte a texto plano para editar; al guardar/exportar se
-               re-sintetiza el HTML (getHtml → _plainToHtml). #}
+            {# Plain-text editor (request style). The saved draft is HTML:
+               it passes through the hidden htmlInput and paper-sheet#connect
+               converts it to plain text for editing; on save/export the HTML
+               is re-synthesized (getHtml → _plainToHtml). #}
             <input type="hidden" data-paper-sheet-target="htmlInput" value="{{ prefill ? currentBodyHtml : '' }}">
             <textarea class="draft-body-input"
                       data-paper-sheet-target="body"

@@ -1,19 +1,19 @@
 import { Controller } from '@hotwired/stimulus';
 
 /**
- * Picker para "Realizar solicitud".
+ * Picker for "Realizar solicitud".
  *
- * Reemplaza la antigua cascada (nivel → ámbito → organismo → unidad) por un
- * modal de BÚSQUEDA UNIFICADA de destino:
- *   - un único buscador contra /solicitudes/nueva/realizar/destinos.json que
- *     casa por nombre Y código DIR3, mezcla unidades REG y cuerpos Portal/AGE,
- *     filtra por nivel/comunidad/provincia y pagina por offset (carga más al
- *     hacer scroll, con IntersectionObserver + botón de respaldo).
- *   - cada resultado seleccionado se acumula como destinatario a la derecha.
- *   - "Continuar" hace POST a /iniciar con `targets:[{publicBodyId, regDestinationId?}]`.
+ * Replaces the old cascade (level → scope → body → unit) with a UNIFIED
+ * destination SEARCH modal:
+ *   - a single search against /solicitudes/nueva/realizar/destinos.json matching
+ *     by name AND DIR3 code, mixing REG units and Portal/AGE bodies, filtering
+ *     by level/region/province and paginating by offset (loads more on scroll,
+ *     with IntersectionObserver + fallback button).
+ *   - each selected result accumulates as a recipient on the right.
+ *   - "Continuar" POSTs to /iniciar with `targets:[{publicBodyId, regDestinationId?}]`.
  *
- * El gate de datos personales REG (needs_profile) y el modo draft-only se
- * conservan sin cambios respecto a la versión en cascada.
+ * The REG personal-data gate (needs_profile) and draft-only mode stay
+ * unchanged from the cascade version.
  */
 export default class extends Controller {
     static targets = ['addButton', 'continueButton', 'preview'];
@@ -22,16 +22,16 @@ export default class extends Controller {
         destinationFacetsUrl: String,
         initiateUrl: String,
         csrfToken: String,
-        // Cuando es true el picker crea solicitudes solo-borrador: el POST lleva
-        // `draftOnly: true` y el copy dice "redactaremos" en vez de "enviaremos".
+        // When true the picker creates draft-only requests: the POST carries
+        // `draftOnly: true` and the copy says "redactaremos" instead of "enviaremos".
         draftOnly: Boolean,
-        // Tope de destinatarios (0 = sin límite). Con maxTargets=1 elegir un
-        // nuevo destino sustituye al anterior en vez de acumularse — es el
-        // modo del flujo público /redactar, que crea UN borrador por vez.
+        // Recipient cap (0 = no limit). With maxTargets=1 picking a new
+        // destination replaces the previous one instead of accumulating — the
+        // public /redactar flow mode, creating ONE draft at a time.
         maxTargets: { type: Number, default: 0 },
-        // Selector CSS de inputs cuyo name/value se añade al JSON del POST de
-        // inicio (p. ej. flow, resolutionResult o el token de Turnstile del
-        // flujo público). Se leen en el momento del submit.
+        // CSS selector of inputs whose name/value joins the initiate-POST JSON
+        // (e.g. flow, resolutionResult or the public flow's Turnstile token).
+        // Read at submit time.
         extraFieldsSelector: { type: String, default: '' },
     };
 
@@ -50,7 +50,7 @@ export default class extends Controller {
     }
 
     // ─────────────────────────────────────────────────────────────
-    //  Modal de búsqueda de destino
+    //  Destination search modal
     // ─────────────────────────────────────────────────────────────
     openDestinationModal() {
         if (this._modal) return;
@@ -116,7 +116,7 @@ export default class extends Controller {
         this._onKeydown = (ev) => { if (ev.key === 'Escape') this._closeDestinationModal(); };
         document.addEventListener('keydown', this._onKeydown);
 
-        // Búsqueda.
+        // Search.
         this._modal.q.addEventListener('input', () => {
             clearTimeout(this._debounce);
             this._debounce = setTimeout(() => this._search(true), this.constructor.DEBOUNCE_MS);
@@ -126,7 +126,7 @@ export default class extends Controller {
         this._modal.provincia.addEventListener('change', () => this._search(true));
         this._modal.more.addEventListener('click', () => this._search(false));
 
-        // Selección por delegación.
+        // Delegated selection.
         this._modal.list.addEventListener('click', (ev) => {
             const li = ev.target.closest('[data-candidate]');
             if (li) this._selectCandidate(JSON.parse(li.dataset.candidate));
@@ -168,7 +168,7 @@ export default class extends Controller {
                 .then((r) => r.json());
             if (!this._modal) return;
 
-            // Nivel (solo la primera vez, para no perder la selección).
+            // Level (only the first time, so the selection is not lost).
             if (this._modal.nivel.options.length === 0) {
                 const nivels = json.nivels || {};
                 this._modal.nivel.innerHTML = '<option value="">Todos los niveles</option>'
@@ -176,7 +176,7 @@ export default class extends Controller {
             }
             this._fillSelect(this._modal.comunidad, json.comunidades || [], 'Todas las comunidades', this._modal.comunidad.value);
             this._fillSelect(this._modal.provincia, json.provincias || [], 'Todas las provincias', this._modal.provincia.value);
-        } catch (_e) { /* facetas opcionales: si fallan, la búsqueda libre sigue funcionando */ }
+        } catch (_e) { /* optional facets: when they fail, free search keeps working */ }
     }
 
     _fillSelect(select, options, allLabel, keep) {
@@ -210,7 +210,7 @@ export default class extends Controller {
         try {
             const json = await fetch(`${this.destinationsUrlValue}?${params.toString()}`, { credentials: 'same-origin' })
                 .then((r) => r.json());
-            // Stale guard: ignora respuestas de búsquedas ya superadas.
+            // Stale guard: ignores responses from superseded searches.
             if (!this._modal || seq !== this._searchSeq) return;
 
             const items = json.items || [];
@@ -351,8 +351,8 @@ export default class extends Controller {
             </li>`;
         }).join('');
 
-        // Con un único destino (maxTargets=1, flujo /redactar) el panel se
-        // muestra en singular y sin la nota de "una por destinatario".
+        // With a single destination (maxTargets=1, /redactar flow) the panel
+        // shows in singular without the "one per recipient" note.
         const single = this.maxTargetsValue === 1;
         const head = single
             ? 'Destinatario'
@@ -374,7 +374,7 @@ export default class extends Controller {
     }
 
     // ─────────────────────────────────────────────────────────────
-    //  Envío (sin cambios respecto a la cascada)
+    //  Submit (unchanged from the cascade)
     // ─────────────────────────────────────────────────────────────
     async submit(event) {
         event.preventDefault();
@@ -398,11 +398,85 @@ export default class extends Controller {
                 await this._handleNeedsProfile(err.profileFormUrl, targets);
                 return;
             }
+            if (err && err.code === 'batch_quota_exceeded') {
+                await this._handleQuotaExceeded(err, targets);
+                return;
+            }
             console.error(err);
             this.continueButtonTarget.disabled = false;
             this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
             alert(err.userMessage || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
         }
+    }
+
+    /**
+     * Individual plan with more than one recipient: popup explaining the plan
+     * must be upgraded, with a graceful exit — continue with a single recipient
+     * (one request per body, as before).
+     */
+    async _handleQuotaExceeded(err, targets) {
+        const restoreButton = () => {
+            this.continueButtonTarget.disabled = false;
+            this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
+        };
+        const choice = await this._openQuotaModal(err);
+        if (choice === 'single' && targets.length > 0) {
+            try {
+                this.continueButtonTarget.innerHTML = 'Preparando borrador…';
+                const json = await this._postInitiate(targets.slice(0, 1));
+                window.location.href = json.firstDraftUrl;
+                return;
+            } catch (retryErr) {
+                console.error(retryErr);
+            }
+        }
+        restoreButton();
+    }
+
+    _openQuotaModal(err) {
+        const max = Number(err.max || 1);
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+            <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="quota-modal-title">
+                <header class="profile-modal-head">
+                    <div>
+                        <p class="profile-modal-eyebrow">Límite de tu plan</p>
+                        <h2 class="profile-modal-title" id="quota-modal-title">Un destinatario por solicitud</h2>
+                        <p class="profile-modal-sub">Tu plan admite lotes de hasta ${max} destinatario${max === 1 ? '' : 's'}.
+                        Para enviar a varios organismos de una vez necesitas ampliar tu plan.
+                        Si prefieres no hacerlo, puedes seguir haciendo las solicitudes a distintos órganos una por una.</p>
+                    </div>
+                    <button type="button" class="profile-modal-close" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </header>
+                <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
+                    <a href="/planes" class="btn-editorial btn-editorial--primario">Ver planes</a>
+                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-single>Seguir con un destinatario</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+
+        let resolveChoice;
+        const choice = new Promise((resolve) => { resolveChoice = resolve; });
+        const close = (value) => {
+            document.body.style.overflow = '';
+            overlay.remove();
+            resolveChoice(value);
+        };
+
+        overlay.querySelector('.profile-modal-close').addEventListener('click', () => close(false));
+        overlay.querySelector('[data-quota-single]').addEventListener('click', () => close('single'));
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+
+        return choice;
     }
 
     async _postInitiate(targets) {

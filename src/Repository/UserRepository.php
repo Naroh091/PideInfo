@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Organization;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -38,5 +39,15 @@ class UserRepository extends ServiceEntityRepository implements PasswordUpgrader
     public function findByVirtualEmail(string $virtualEmail): ?User
     {
         return $this->findOneBy(['virtualEmail' => $virtualEmail]);
+    }
+
+    public function countByOrganization(Organization $organization): int
+    {
+        return (int) $this->createQueryBuilder('u')
+            ->select('COUNT(u.id)')
+            ->andWhere('u.organization = :organization')
+            ->setParameter('organization', $organization)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 }

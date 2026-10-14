@@ -1,0 +1,52 @@
+{% extends 'layouts/public_page.html.twig' %}
+{% block title %}Invitación de equipo - PideInfo{% endblock %}
+{% block content %}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Te han invitado a {{ invitation.organization.name }}</h1>
+            <p class="page-sub">Únete como {{ invitation.role }}. Este enlace caduca el {{ invitation.expiresAt|date('d/m/Y') }}.</p>
+        </div>
+    </header>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+        {% if app.user %}
+            {% if app.user.email|lower == invitation.email|lower %}
+                <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                    Has iniciado sesión con {{ app.user.email }}. Al unirte verás los expedientes
+                    que el equipo comparta contigo.
+                </p>
+                <form action="{{ path('app_invitation_accept_post', {token: invitation.token}) }}" method="post">
+                    <input type="hidden" name="_token" value="{{ csrf_token('invitation-accept-' ~ invitation.token) }}">
+                    <button type="submit" class="btn btn-primary">Unirme al equipo</button>
+                </form>
+            {% else %}
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    Has iniciado sesión con otra dirección. Sal e inicia sesión con {{ invitation.email }}
+                    para usar esta invitación.
+                </p>
+            {% endif %}
+        {% else %}
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Crea tu contraseña para unirte. Tu correo queda verificado con este enlace.
+            </p>
+            <form action="{{ path('app_invitation_accept_post', {token: invitation.token}) }}" method="post" class="space-y-4">
+                <input type="hidden" name="_token" value="{{ csrf_token('invitation-accept-' ~ invitation.token) }}">
+                <div>
+                    <label for="inv-name" class="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
+                    <input id="inv-name" type="text" name="firstName" required maxlength="255"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+                </div>
+                <div>
+                    <label for="inv-pass" class="block text-sm font-medium text-slate-700 mb-1">Contraseña (mínimo 8 caracteres)</label>
+                    <input id="inv-pass" type="password" name="password" required minlength="8"
+                           class="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm">
+                </div>
+                <button type="submit" class="btn btn-primary">Crear cuenta y unirme</button>
+            </form>
+            <p class="text-sm text-slate-500 mt-4">
+                ¿Ya tienes cuenta con {{ invitation.email }}?
+                <a href="{{ path('app_login') }}" class="underline">Inicia sesión</a> y vuelve a este enlace.
+            </p>
+        {% endif %}
+    </section>
+{% endblock %}

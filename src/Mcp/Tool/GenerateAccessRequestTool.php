@@ -50,10 +50,10 @@ final class GenerateAccessRequestTool
     }
 
     /**
-     * @param string      $publicBodyId    UUID del organismo destinatario (submissionTargetId de search_reg_destinations).
-     * @param string      $prompt          Qué información quiere pedir el usuario, en lenguaje natural.
-     * @param string|null $regDestinationId UUID de la unidad REG (id de search_reg_destinations). Obligatorio si el organismo tiene canal REG.
-     * @param string|null $applicableLawId  UUID de la ApplicableLaw; si null se resuelve automáticamente.
+     * @param string      $publicBodyId    UUID of the recipient body (submissionTargetId from search_reg_destinations).
+     * @param string      $prompt          What information the user wants to request, in natural language.
+     * @param string|null $regDestinationId UUID of the REG unit (search_reg_destinations id). Required when the body has a REG channel.
+     * @param string|null $applicableLawId  UUID of the ApplicableLaw; when null it resolves automatically.
      */
     public function __invoke(
         string $publicBodyId,
@@ -91,7 +91,9 @@ final class GenerateAccessRequestTool
         // once the AI actually produces a draft.
         $request = new AccessRequest();
         $request->setUser($user);
-        $request->setOrganization($user->getOrganization());
+        // Default privacy (spec §3.5): starts personal; sharing requires the
+        // owner's explicit act on the web.
+        $request->setOrganization(null);
         $request->setTitle('');
         $request->setDescription('');
         $request->setPublicBody($publicBody);

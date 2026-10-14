@@ -1,0 +1,122 @@
+{% extends 'layouts/app.html.twig' %}
+{% block title %}Mi equipo - PideInfo{% endblock %}
+{% block content %}
+    <header class="page-header">
+        <div class="min-w-0">
+            <h1 class="page-title">Mi equipo</h1>
+            <p class="page-sub">
+                {% if organization %}
+                    {{ organization.name }} · {{ members|length }} de {{ maxMembers }} miembros según tu plan.
+                {% else %}
+                    Trabaja tus expedientes con otras personas compartiendo solo lo que decidas.
+                {% endif %}
+            </p>
+        </div>
+    </header>
+
+    {% if organization is null %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+            <h2 class="text-base font-semibold text-slate-900 mb-2">Crear un equipo</h2>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Serás su titular. Tus solicitudes seguirán siendo personales hasta que
+                compartas cada expediente de forma explícita.
+            </p>
+            <form action="{{ path('app_equipo_create') }}" method="post" class="flex gap-2">
+                <input type="hidden" name="_token" value="{{ csrf_token('team-create') }}">
+                <input type="text" name="name" maxlength="255" required placeholder="Nombre del equipo"
+                       class="flex-1 rounded-full border border-slate-200 px-4 py-2 text-sm">
+                <button type="submit" class="btn btn-primary">Crear equipo</button>
+            </form>
+        </section>
+    {% else %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 class="text-base font-semibold text-slate-900 mb-1">{{ organization.name }}</h2>
+            <p class="text-sm text-slate-500 mb-4">{{ members|length }} de {{ maxMembers }} miembros.</p>
+
+            <ul class="divide-y divide-slate-100">
+                {% for member in members %}
+                    <li class="py-3 flex items-center gap-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-slate-900">{{ member.fullName }}</p>
+                            <p class="text-xs text-slate-500">{{ member.email }}</p>
+                        </div>
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full border
+                            {% if member.organizationRole == 'OWNER' %}bg-sky-50 text-sky-700 border-sky-200
+                            {% elseif member.organizationRole == 'ADMIN' %}bg-slate-100 text-slate-700 border-slate-200
+                            {% else %}bg-white text-slate-500 border-slate-200{% endif %}">
+                            {{ member.organizationRole ?? 'MEMBER' }}
+                        </span>
+                        {% if canManage and member != app.user %}
+                            <form action="{{ path('app_equipo_change_role', {id: member.id}) }}" method="post" class="flex gap-1">
+                                <input type="hidden" name="_token" value="{{ csrf_token('team-role-' ~ member.id) }}">
+                                <select name="role" class="text-xs rounded-full border border-slate-200 px-2 py-1">
+                                    <option value="ADMIN" {% if member.organizationRole == 'ADMIN' %}selected{% endif %}>ADMIN</option>
+                                    <option value="MEMBER" {% if member.organizationRole != 'ADMIN' and member.organizationRole != 'OWNER' %}selected{% endif %}>MEMBER</option>
+                                    {% if app.user.organizationRole == 'OWNER' %}
+                                        <option value="OWNER" {% if member.organizationRole == 'OWNER' %}selected{% endif %}>OWNER</option>
+                                    {% endif %}
+                                </select>
+                                <button type="submit" class="btn btn-ghost btn-sm">Guardar</button>
+                            </form>
+                            <form action="{{ path('app_equipo_remove_member', {id: member.id}) }}" method="post">
+                                <input type="hidden" name="_token" value="{{ csrf_token('team-remove-' ~ member.id) }}">
+                                <button type="submit" class="btn btn-ghost btn-sm"
+                                        onclick="return confirm('¿Expulsar a {{ member.email }}? Sus expedientes personales no se tocan.');">
+                                    Expulsar
+                                </button>
+                            </form>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            {% if canManage %}
+                <form action="{{ path('app_equipo_invite') }}" method="post" class="mt-4 pt-4 border-t border-slate-100 flex flex-wrap gap-2">
+                    <input type="hidden" name="_token" value="{{ csrf_token('team-invite') }}">
+                    <input type="email" name="email" required placeholder="correo@ejemplo.es"
+                           class="flex-1 min-w-52 rounded-full border border-slate-200 px-4 py-2 text-sm">
+                    <select name="role" class="text-sm rounded-full border border-slate-200 px-3 py-2">
+                        <option value="MEMBER">Miembro</option>
+                        <option value="ADMIN">Admin</option>
+                        {% if app.user.organizationRole == 'OWNER' %}
+                            <option value="OWNER">Titular</option>
+                        {% endif %}
+                    </select>
+                    <button type="submit" class="btn btn-secondary">Invitar</button>
+                </form>
+                <p class="text-xs text-slate-500 mt-2">Si no tiene cuenta, recibe un correo para crearla y unirse. Caduca en 7 días.</p>
+
+                {% if invitations %}
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <p class="text-sm font-medium text-slate-700 mb-2">Invitaciones pendientes ({{ invitations|length }})</p>
+                        <ul class="space-y-2">
+                            {% for invitation in invitations %}
+                                <li class="py-2 flex items-center gap-3 text-sm">
+                                    <div class="min-w-0 flex-1">
+                                        <p class="font-medium text-slate-900">{{ invitation.email }}</p>
+                                        <p class="text-xs text-slate-500">
+                                            {{ invitation.role }} · caduca el {{ invitation.expiresAt|date('d/m/Y') }}
+                                            {% if invitation.expiresAt < date() %}<span class="text-red-600 font-medium">· caducada</span>{% endif %}
+                                        </p>
+                                    </div>
+                                    <form action="{{ path('app_equipo_revoke_invite', {id: invitation.id}) }}" method="post">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('team-revoke-' ~ invitation.id) }}">
+                                        <button type="submit" class="btn btn-ghost btn-sm">Revocar</button>
+                                    </form>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            <form action="{{ path('app_equipo_leave') }}" method="post" class="mt-4">
+                <input type="hidden" name="_token" value="{{ csrf_token('team-leave') }}">
+                <button type="submit" class="btn btn-ghost btn-sm"
+                        onclick="return confirm('¿Salir del equipo? Lo que compartiste volverá a ser personal.');">
+                    Salir del equipo
+                </button>
+            </form>
+        </section>
+    {% endif %}
+{% endblock %}

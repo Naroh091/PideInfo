@@ -1,0 +1,192 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Planes - PideInfo{% endblock %}
+
+{% block body_class %}bg-white min-h-screen flex flex-col{% endblock %}
+
+{% block body %}
+{% include '_partials/public_nav.html.twig' with { active_page: 'precios' } %}
+
+{# Pricing landing (spec §7): comparison, CTAs and clear VAT. Editorial
+   register of the front page (home-seccion-titulo, rotulador, btn-editorial):
+   acquisition, not management. Five cards in one row on desktop. #}
+
+<header class="home-hero home-hero--precios">
+    <div class="precios-marco">
+        <div class="precios-cabecera home-revela">
+            <h1 class="home-seccion-titulo">Empieza gratis, crece <em class="rotulador">cuando lo necesites</em></h1>
+            <p class="home-seccion-sub">
+                Gestionar solicitudes de transparencia siempre es gratis y sin límite de expedientes.
+                Operar PideInfo tiene costes de infraestructura e inteligencia artificial:
+                estos planes ayudan a mantener el proyecto.
+                Los planes de pago añaden envíos a varios destinatarios y trabajo en equipo.
+            </p>
+        </div>
+
+        <div class="precios-grid" data-testid="precios-grid">
+            {# ── Individual: horizontal card ahead of the paid plans ── #}
+            <section class="precios-gratis home-revela" data-testid="precios-gratis">
+                <div>
+                    <h2 class="precios-gratis-nombre">Individual</h2>
+                    <p class="precios-gratis-precio">0&nbsp;€ <small>gratis, para siempre</small></p>
+                </div>
+                <ul class="precios-gratis-lista">
+                    <li><i data-lucide="check"></i>Expedientes propios sin límite</li>
+                    <li><i data-lucide="check"></i>Solicitudes de 1 destinatario</li>
+                    <li><i data-lucide="check"></i>Seguimiento de plazos y avisos</li>
+                    <li><i data-lucide="check"></i>Reclamaciones ante el consejo</li>
+                </ul>
+                <div class="precios-gratis-cta">
+                    <a href="{{ path('app_public_redactar') }}" class="btn-editorial btn-editorial--secundario">
+                        Gestionar solicitudes gratis
+                    </a>
+                    {% set donateUrl = footer_links.buymeacoffee|default(footer_links.patreon|default('')) %}
+                    {% if donateUrl %}
+                        <a href="{{ donateUrl }}" target="_blank" rel="noopener noreferrer" class="precios-donar">
+                            Donar para apoyar el proyecto
+                        </a>
+                    {% endif %}
+                </div>
+            </section>
+
+            {# ── Professional ── #}
+            <section class="precios-card home-revela" data-testid="precios-tarjeta">
+                <h2 class="precios-nombre">Profesional</h2>
+                <p class="precios-precio">15&nbsp;€ <small>/mes</small></p>
+                <p class="precios-nota">o 165&nbsp;€/año <span class="precios-estrella"><i data-lucide="star"></i>Un mes gratis</span><br><span class="text-slate-400">199,65&nbsp;€ IVA incl.</span></p>
+                <ul class="precios-lista">
+                    <li><i data-lucide="check"></i>Todo lo del plan Individual</li>
+                    <li><i data-lucide="check"></i>1 usuario</li>
+                    <li><i data-lucide="check"></i>Lotes de hasta 25 destinatarios</li>
+                    <li><i data-lucide="check"></i>Vista previa y justificante por destinatario</li>
+                </ul>
+                <div class="precios-cta">
+                    <a href="{{ path('app_billing_choose', {plan: 'professional', interval: 'month'}) }}" class="btn-editorial btn-editorial--primario">Elegir Profesional</a>
+                </div>
+            </section>
+
+            {# ── Team (featured) ── #}
+            <section class="precios-card precios-card--destacada home-revela" data-testid="precios-tarjeta">
+                <span class="precios-insignia">Recomendado</span>
+                <h2 class="precios-nombre">Equipo</h2>
+                <p class="precios-precio">49&nbsp;€ <small>/mes</small></p>
+                <p class="precios-nota">o 539&nbsp;€/año <span class="precios-estrella"><i data-lucide="star"></i>Un mes gratis</span><br><span class="text-slate-400">652,19&nbsp;€ IVA incl.</span></p>
+                <ul class="precios-lista">
+                    <li><i data-lucide="check"></i>Todo lo del plan Profesional</li>
+                    <li><i data-lucide="check"></i>Hasta 5 miembros con roles</li>
+                    <li><i data-lucide="check"></i>Lotes de hasta 50 destinatarios</li>
+                    <li><i data-lucide="check"></i>Expedientes compartidos entre miembros del equipo</li>
+                </ul>
+                <div class="precios-cta">
+                    <a href="{{ path('app_billing_choose', {plan: 'team', interval: 'month'}) }}" class="btn-editorial btn-editorial--primario">Crear un equipo</a>
+                </div>
+            </section>
+
+            {# ── Organization ── #}
+            <section class="precios-card home-revela" data-testid="precios-tarjeta">
+                <h2 class="precios-nombre">Organización</h2>
+                <p class="precios-precio">desde 99&nbsp;€ <small>/mes</small></p>
+                <p class="precios-nota">o desde 1089&nbsp;€/año <span class="precios-estrella"><i data-lucide="star"></i>Un mes gratis</span><br><span class="text-slate-400">1317,69&nbsp;€ IVA incl.</span></p>
+                <ul class="precios-lista">
+                    <li><i data-lucide="check"></i>Todo lo del plan Equipo</li>
+                    <li><i data-lucide="check"></i>Hasta 15 miembros</li>
+                    <li><i data-lucide="check"></i>Lotes sin límite comercial, por tandas</li>
+                    <li><i data-lucide="check"></i>Soporte prioritario</li>
+                </ul>
+                <div class="precios-cta">
+                    <a href="{{ path('app_billing_choose', {plan: 'organization', interval: 'month'}) }}" class="btn-editorial btn-editorial--primario">Crear organización</a>
+                    {% if contactEmail %}
+                        <a href="mailto:{{ contactEmail }}?subject=Plan%20Organizaci%C3%B3n%20PideInfo" class="precios-donar">
+                            ¿Dudas? Contáctanos
+                        </a>
+                    {% endif %}
+                </div>
+            </section>
+
+            {# ── Private ── #}
+            <section class="precios-card home-revela" data-testid="precios-tarjeta">
+                <h2 class="precios-nombre">Privado</h2>
+                <p class="precios-precio">A medida</p>
+                <p class="precios-nota">despliegue dedicado</p>
+                <ul class="precios-lista">
+                    <li><i data-lucide="check"></i>PideInfo en tu propia infraestructura</li>
+                    <li><i data-lucide="check"></i>Con los modelos que elijas</li>
+                    <li><i data-lucide="check"></i>Condiciones y alcance a convenir</li>
+                </ul>
+                <div class="precios-cta">
+                    <a href="{{ path('app_planes_privado') }}" class="btn-editorial btn-editorial--primario">Solicitar propuesta</a>
+                </div>
+            </section>
+        </div>
+    </div>
+</header>
+
+{# ── Comparison ── #}
+<section class="home-seccion home-seccion--alterna home-seccion--precios">
+    <div class="precios-marco">
+        <div class="home-seccion-cabecera home-revela">
+            <h2 class="home-seccion-titulo">Comparativa de <span class="home-acento">planes</span></h2>
+        </div>
+        <div class="home-revela overflow-x-auto bg-white rounded-2xl border border-slate-200 p-6">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-700">
+                        <th class="py-2 pr-4 font-medium"></th>
+                        <th class="py-2 pr-4 font-bold">Individual</th>
+                        <th class="py-2 pr-4 font-bold">Profesional</th>
+                        <th class="py-2 pr-4 font-bold">Equipo</th>
+                        <th class="py-2 pr-4 font-bold">Organización</th>
+                        <th class="py-2 font-bold">Privado</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-700 divide-y divide-slate-100">
+                    <tr><td class="py-2 pr-4">Precio mensual</td><td>0&nbsp;€</td><td>15&nbsp;€</td><td>49&nbsp;€</td><td>desde 99&nbsp;€</td><td>A medida</td></tr>
+                    <tr><td class="py-2 pr-4">Precio anual <span class="precios-estrella"><i data-lucide="star"></i>Un mes gratis</span></td><td>—</td><td>165&nbsp;€</td><td>539&nbsp;€</td><td>desde 1089&nbsp;€</td><td>—</td></tr>
+                    <tr><td class="py-2 pr-4">Expedientes propios</td><td>Sin límite</td><td>Sin límite</td><td>Sin límite</td><td>Sin límite</td><td>Sin límite</td></tr>
+                    <tr><td class="py-2 pr-4">Destinatarios por lote</td><td>1</td><td>hasta 25</td><td>hasta 50</td><td>sin límite comercial (tandas)</td><td>a convenir</td></tr>
+                    <tr><td class="py-2 pr-4">Miembros</td><td>1</td><td>1</td><td>hasta 5</td><td>hasta 15</td><td>a convenir</td></tr>
+                    <tr><td class="py-2 pr-4">Modelos IA</td><td>Predefinidos</td><td>Predefinidos</td><td>Predefinidos</td><td>Predefinidos</td><td>Personalizable</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+{# ── VAT and terms ── #}
+<section class="home-seccion home-seccion--precios">
+    <div class="precios-marco">
+        <div class="home-seccion-cabecera home-revela">
+            <h2 class="home-seccion-titulo">IVA y <span class="home-acento">condiciones</span></h2>
+        </div>
+        <ul class="home-revela max-w-3xl mx-auto list-disc pl-5 space-y-2 text-slate-600 leading-relaxed">
+            <li>Precios sin IVA. A las cifras mostradas se añade el IVA correspondiente (21&nbsp;% en España): 15&nbsp;€/mes son 18,15&nbsp;€ IVA incluido.</li>
+            <li>El ciclo anual incluye <span class="precios-estrella"><i data-lucide="star"></i>un mes gratis</span> frente al pago mes a mes.</li>
+            <li>El pago se procesa en la pasarela segura de Stripe. PideInfo no ve ni guarda tu tarjeta.</li>
+            <li>Si un pago falla, tienes 14 días de gracia con acceso completo; después, tu cuenta pasa a solo lectura (ver y descargar, sin nuevos envíos) hasta regularizar. Nunca borramos tus expedientes.</li>
+            <li>Puedes cancelar cuando quieras: mantienes el plan hasta el fin del periodo pagado.</li>
+            <li>Tus solicitudes personales nunca se comparten por entrar en un equipo: compartir cada expediente requiere tu acto explícito.</li>
+            <li>Plan Privado: despliegue dedicado en tu infraestructura con presupuesto a medida (sin Stripe ni pagos en esta web). Pide propuesta y la preparamos caso a caso.</li>
+        </ul>
+    </div>
+</section>
+
+{% include '_partials/public_footer.html.twig' %}
+
+<script>
+    // Reveals discretos (mismo patrón que la portada).
+    (function () {
+        const nodos = document.querySelectorAll('.home-revela');
+        if (!('IntersectionObserver' in window)) {
+            nodos.forEach(n => n.classList.add('visible'));
+            return;
+        }
+        const io = new IntersectionObserver((entries) => {
+            entries.forEach(e => {
+                if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
+            });
+        }, { threshold: 0.15 });
+        nodos.forEach(n => io.observe(n));
+    })();
+</script>
+
+{% endblock %}

@@ -56,10 +56,14 @@ class AccessRequestVoter extends Voter
             return true;
         }
 
-        // User belongs to same organization
+        // Team visibility (spec §3.5): the same organization is NOT enough —
+        // the owner must have explicitly shared the record.
         $userOrg = $user->getOrganization();
         $requestOrg = $accessRequest->getOrganization();
-        if ($userOrg !== null && $requestOrg !== null && $userOrg->getId()->equals($requestOrg->getId())) {
+        if ($userOrg !== null && $requestOrg !== null
+            && $userOrg->getId()->equals($requestOrg->getId())
+            && $accessRequest->isSharedWithOrganization()
+        ) {
             return true;
         }
 

@@ -202,36 +202,35 @@ class AccessRequestRepository extends ServiceEntityRepository
     }
 
     /**
-     * Solicitudes que siguen en estado "Pendiente" (registradas pero sin
-     * confirmar como enviadas) y que se registraron hace $days días.
+     * Requests still in "Pending" state (registered but not confirmed as
+     * sent) registered $days days ago.
      *
-     * Como `pending` es el estado inicial y el workflow no permite volver a él
-     * (solo pending → sent), el tiempo en pending equivale al tiempo desde
-     * `createdAt` mientras el estado siga siendo `pending`.
+     * Since `pending` is the initial state and the workflow never returns to
+     * it (only pending → sent), time in pending equals time since `createdAt`
+     * while the state is still `pending`.
      *
-     * - Por defecto hace match EXACTO al día (createdAt dentro del día natural
-     *   que cae hace $days días), de modo que cada solicitud dispara el aviso
-     *   una sola vez.
-     * - Con $atLeast = true incluye todas las de $days o más días (pensado para
-     *   la primera ejecución, que debe capturar el backlog).
+     * - By default matches the EXACT day (createdAt within the calendar day
+     *   falling $days days ago), so each request triggers the notice once.
+     * - With $atLeast = true includes all $days-or-older ones (meant for the
+     *   first run, which must catch the backlog).
      *
      * @return AccessRequest[]
      */
     public function findPendingRegisteredDaysAgo(int $days, bool $atLeast = false): array
     {
         $today = new \DateTimeImmutable('today');
-        $upper = $today->modify(sprintf('-%d days', $days - 1)); // inicio del día (hoy - (N-1))
+        $upper = $today->modify(sprintf('-%d days', $days - 1)); // start of day (today - (N-1))
 
         $qb = $this->createQueryBuilder('ar')
             ->where('ar.status = :pending')
             ->andWhere('ar.createdAt < :upper')
-            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
+            ->andWhere('ar.user IS NOT NULL') // anonymous drafts have nobody to notify
             ->setParameter('pending', AccessRequest::STATUS_PENDING)
             ->setParameter('upper', $upper)
             ->orderBy('ar.createdAt', 'ASC');
 
         if (!$atLeast) {
-            $lower = $today->modify(sprintf('-%d days', $days)); // inicio del día (hoy - N)
+            $lower = $today->modify(sprintf('-%d days', $days)); // start of day (today - N)
             $qb->andWhere('ar.createdAt >= :lower')
                 ->setParameter('lower', $lower);
         }
@@ -252,7 +251,7 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->andWhere('ar.deadlineAt < :tomorrow')
             ->andWhere('ar.status IN (:activeStatuses)')
             ->andWhere('ar.deadlineSuspendedAt IS NULL')
-            ->andWhere('ar.user IS NOT NULL') // los borradores anónimos no tienen a quién avisar
+            ->andWhere('ar.user IS NOT NULL') // anonymous drafts have nobody to notify
             ->setParameter('today', $today)
             ->setParameter('tomorrow', $tomorrow)
             ->setParameter('activeStatuses', [
@@ -764,6 +763,28 @@ class AccessRequestRepository extends ServiceEntityRepository
         return $qb->getQuery()->getResult();
     }
 
+    /**
+     * Records the user shared with their team (to revoke on leaving).
+     *
+     * @return AccessRequest[]
+     */
+    public function findSharedByUser(User $user): array
+    {
+        if ($user->getOrganization() === null) {
+            return [];
+        }
+
+        return $this->createQueryBuilder('ar')
+            ->andWhere('ar.user = :user')
+            ->andWhere('ar.organization = :organization')
+            ->andWhere('ar.sharedWithOrganization = :shared')
+            ->setParameter('user', $user)
+            ->setParameter('organization', $user->getOrganization())
+            ->setParameter('shared', true)
+            ->getQuery()
+            ->getResult();
+    }
+
     private function createQueryBuilderForUser(User $user): QueryBuilder
     {
         $qb = $this->createQueryBuilder('ar')
@@ -771,10 +792,13 @@ class AccessRequestRepository extends ServiceEntityRepository
             ->where('u.email = :email')
             ->setParameter('email', $user->getEmail());
 
-        // Also include organization's requests if user belongs to one
+        // Team visibility (spec §3.5): the organization alone is NOT enough —
+        // only explicitly shared records (shared). Personal ones
+        // (NULL organization or unshared) are never exposed to the org.
         if ($user->getOrganization() !== null) {
-            $qb->orWhere('ar.organization = :organization')
-               ->setParameter('organization', $user->getOrganization());
+            $qb->orWhere('ar.organization = :organization AND ar.sharedWithOrganization = :shared')
+               ->setParameter('organization', $user->getOrganization())
+               ->setParameter('shared', true);
         }
 
         return $qb;

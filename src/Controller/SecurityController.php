@@ -33,6 +33,8 @@ class SecurityController extends AbstractController
         #[Autowire('%mail_from_name%')] private string $mailFromName,
         #[Autowire(env: 'bool:USER_NEEDS_MANUAL_ACTIVATION')] private bool $needsManualActivation,
         #[Autowire(env: 'TURNSTILE_SITE_KEY')] private string $turnstileSiteKey = '',
+        private \App\Service\Billing\PlanIntentSessionStore $planIntent,
+        private \App\Billing\PlanCatalog $planCatalog,
     ) {
     }
 
@@ -140,6 +142,11 @@ class SecurityController extends AbstractController
         return $this->render('security/register.html.twig', [
             'registrationForm' => $form,
             'turnstileSiteKey' => $this->turnstileSiteKey,
+            // If it comes from a paid CTA, warn that signup will resume
+            // contracting afterwards (without consuming it).
+            'pendingPlanName' => ($intent = $this->planIntent->peek()) !== null
+                ? $this->planCatalog->get($intent['plan'])->name
+                : null,
         ]);
     }
 

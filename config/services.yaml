@@ -26,8 +26,35 @@ services:
     App\:
         resource: '../src/'
 
-    # add more service definitions when explicit configuration is needed
-    # please note that last definitions always *replace* previous ones
+    # Stripe billing: the key travels via env; empty = disabled (A5).
+    # The remaining billing vars (Price ID, contact) are read by the services
+    # that need them via explicit %env()% in their definitions.
+    App\Billing\StripeClientFactory:
+        arguments:
+            $secretKey: '%env(default::STRIPE_SECRET_KEY)%'
+
+    App\Billing\StripeWebhookVerifier:
+        arguments:
+            $webhookSecret: '%env(default::STRIPE_WEBHOOK_SECRET)%'
+
+    # Stripe Price ID per (plan, interval). Empty = plan not purchasable
+    # (checkout degrades to contact). Never hardcode Price IDs in code.
+    App\Controller\BillingController:
+        arguments:
+            $prices:
+                professional_month: '%env(default::STRIPE_PRICE_PRO_MONTH)%'
+                professional_year: '%env(default::STRIPE_PRICE_PRO_YEAR)%'
+                team_month: '%env(default::STRIPE_PRICE_TEAM_MONTH)%'
+                team_year: '%env(default::STRIPE_PRICE_TEAM_YEAR)%'
+                organization_month: '%env(default::STRIPE_PRICE_ORG_MONTH)%'
+                organization_year: '%env(default::STRIPE_PRICE_ORG_YEAR)%'
+
+    App\Controller\PricingController:
+        arguments:
+            $billingContactEmail: '%env(default::BILLING_CONTACT_EMAIL)%'
+
+    # Effective-plan resolution: Doctrine by default (tests use a stub).
+    App\Billing\ActiveSubscriptionProvider: '@App\Billing\DoctrineSubscriptionProvider'
 
     # AWS S3 Client for Flysystem
     aws_s3_client:
@@ -82,7 +109,7 @@ services:
 
     App\Search\LegislationSearchInterface: '@App\Search\FallbackLegislationSearch'
 
-    # Mesa de resoluciones: la puerta lee las contraseñas compartidas de la env.
+    # Resolutions desk: the gate reads the shared passwords from the env.
     App\Service\Mesa\MesaAccessGate:
         arguments:
             $passwords: '%env(MESA_PASSWORDS)%'
@@ -103,12 +130,12 @@ services:
             $endpoint: '%env(CRAWL4AI_ENDPOINT)%'
             $apiToken: '%env(CRAWL4AI_API_TOKEN)%'
 
-    # Segunda instancia del cliente OpenAI-compatible apuntando al modelo TEACHER.
-    # Solo la usa AgentModelRouter para servir turnos con el teacher durante la
-    # recogida de trazas de destilación. La conexión se abre de forma perezosa, así
-    # que con TEACHER_MODEL_ENDPOINT vacío este servicio no contacta con nadie.
-    # Comparte el limitador `llm_api` a propósito: si el teacher se sirve desde el
-    # mismo endpoint self-hosted, el presupuesto global tiene que seguir siendo uno.
+    # Second OpenAI-compatible client instance pointing at the TEACHER model.
+    # Only used by AgentModelRouter to serve turns with the teacher while
+    # collecting distillation traces. The connection opens lazily, so with an
+    # empty TEACHER_MODEL_ENDPOINT this service contacts nobody.
+    # Shares the `llm_api` limiter on purpose: when the teacher is served from
+    # the same self-hosted endpoint, the global budget must stay one.
     app.custom_model_client.teacher:
         class: App\Service\AI\CustomModelClient
         arguments:
@@ -116,8 +143,8 @@ services:
             $endpoint: '%env(TEACHER_MODEL_ENDPOINT)%'
             $apiKey: '%env(TEACHER_MODEL_API_KEY)%'
             $maxTokens: '%env(int:TEACHER_MODEL_MAX_TOKENS)%'
-            # Sin `float:` a propósito: vacío significa "no fijada" y CustomModelClient
-            # lo trata como tal, omitiendo `temperature` de la petición en vez de mandar 0.0.
+            # No `float:` on purpose: empty means "unset" and CustomModelClient
+            # treats it as such, omitting `temperature` from the request instead of sending 0.0.
             $temperature: '%env(TEACHER_MODEL_TEMP)%'
             $logger: '@logger'
             $llmApiLimiter: '@limiter.llm_api'

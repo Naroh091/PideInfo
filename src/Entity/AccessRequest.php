@@ -24,12 +24,12 @@ class AccessRequest
     // delayed. The three "decision" values below are DEPRECATED as positions
     // (migrated to `finished` + resolutionResult) and kept only so historical
     // StatusHistory rows and the timeline still resolve their labels.
-    public const STATUS_PENDING = 'pending';               // Borrador
-    public const STATUS_SENT = 'sent';                     // Enviada
-    public const STATUS_PROCESSING = 'processing';         // En trámite
-    public const STATUS_GRANTED = 'granted';               // Pendiente de recepción
-    public const STATUS_FINISHED = 'finished';             // Finalizada (terminal; decisión en resolutionResult)
-    public const STATUS_DELAYED = 'delayed';               // Silencio administrativo
+    public const STATUS_PENDING = 'pending';               // Draft
+    public const STATUS_SENT = 'sent';                     // Sent
+    public const STATUS_PROCESSING = 'processing';         // In progress
+    public const STATUS_GRANTED = 'granted';               // Pending reception
+    public const STATUS_FINISHED = 'finished';             // Final (terminal; decision in resolutionResult)
+    public const STATUS_DELAYED = 'delayed';               // Administrative silence
 
     /** The six live workflow positions, in lifecycle order. */
     public const POSITIONS = [
@@ -54,14 +54,14 @@ class AccessRequest
     // is this expediente", collapsing position + resolution + complaint + court
     // into one of eight values. This is the single classifier; UI must read it,
     // never re-derive the precedence.
-    public const INTERNAL_DRAFT = 'draft';                   // Borrador (pending)
-    public const INTERNAL_SENT = 'sent';                     // Enviada
-    public const INTERNAL_PROCESSING = 'processing';         // En trámite
-    public const INTERNAL_PENDING_RECEPTION = 'pending_reception'; // Pendiente de recepción (granted)
-    public const INTERNAL_FINISHED = 'finished';             // Finalizada
-    public const INTERNAL_SILENCE = 'silence';               // Silencio administrativo (delayed)
-    public const INTERNAL_IN_COMPLAINT = 'in_complaint';     // En proceso de reclamación
-    public const INTERNAL_IN_COURT = 'in_court';             // En proceso judicial
+    public const INTERNAL_DRAFT = 'draft';                   // Draft (pending)
+    public const INTERNAL_SENT = 'sent';                     // Sent
+    public const INTERNAL_PROCESSING = 'processing';         // In progress
+    public const INTERNAL_PENDING_RECEPTION = 'pending_reception'; // Pending reception (granted)
+    public const INTERNAL_FINISHED = 'finished';             // Final
+    public const INTERNAL_SILENCE = 'silence';               // Administrative silence (delayed)
+    public const INTERNAL_IN_COMPLAINT = 'in_complaint';     // In complaint proceedings
+    public const INTERNAL_IN_COURT = 'in_court';             // In court proceedings
 
     // Resolution result — what the administration actually decided.
     // Orthogonal to $status (which tracks where we are in the workflow). NULL until resolved.
@@ -156,6 +156,15 @@ class AccessRequest
     #[ORM\ManyToOne(targetEntity: Organization::class, inversedBy: 'accessRequests')]
     #[ORM\JoinColumn(nullable: true)]
     private ?Organization $organization = null;
+
+    /**
+     * Team visibility gate (spec §3.5): belonging to the same organization is
+     * NOT enough — the owner must share the record with an explicit act.
+     * Drafts start personal (`organization = NULL`, `shared = false`); only
+     * "Share with the team" sets both.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $sharedWithOrganization = false;
 
     #[ORM\ManyToOne(targetEntity: PublicBody::class)]
     #[ORM\JoinColumn(nullable: false)]
@@ -517,13 +526,13 @@ class AccessRequest
 
     /**
      * Semantic color of a request status — THE place to pick these (dots,
-     * chart bars, índice de /solicitudes…). Same family as the pill table in
-     * design/README.md: sky=en curso, emerald=éxito, amber=atención, red=fallo.
+     * chart bars, index of /solicitudes…). Same family as the pill table in
+     * design/README.md: sky=in progress, emerald=success, amber=attention, red=failure.
      */
     public static function statusColor(string $status): string
     {
         return match ($status) {
-            self::STATUS_PENDING => '#94a3b8',          // slate — borrador
+            self::STATUS_PENDING => '#94a3b8',          // slate — draft
             self::STATUS_SENT => '#7dd3fc',
             self::STATUS_PROCESSING => '#38bdf8',
             self::STATUS_GRANTED => '#34d399',
@@ -549,7 +558,7 @@ class AccessRequest
      * (position, resolution, complaint, court) into one of eight values.
      *
      * Precedence (approved product rule):
-     *   judicial > reclamación abierta > reclamación resuelta (→Finalizada) > posición
+     *   judicial > open complaint > resolved complaint (→Final) > position
      *
      * Any UI showing one combined state MUST read this — never re-derive the
      * precedence in Twig or in a repository query.
@@ -573,7 +582,7 @@ class AccessRequest
             if ($complaintStatus === AccessRequestComplaint::STATUS_RECLAIMED) {
                 return self::INTERNAL_IN_COMPLAINT;
             }
-            // Reclamación resuelta (estimada/desestimada/archivada) → Finalizada.
+            // Resolved complaint (upheld/dismissed/archived) → Final.
             return self::INTERNAL_FINISHED;
         }
 
@@ -636,11 +645,11 @@ class AccessRequest
             self::INTERNAL_DRAFT => '#94a3b8',            // slate
             self::INTERNAL_SENT => '#7dd3fc',             // sky
             self::INTERNAL_PROCESSING => '#38bdf8',       // sky
-            self::INTERNAL_PENDING_RECEPTION => '#34d399',// emerald claro
+            self::INTERNAL_PENDING_RECEPTION => '#34d399',// light emerald
             self::INTERNAL_FINISHED => '#10b981',         // emerald
             self::INTERNAL_SILENCE => '#f59e0b',          // amber
-            self::INTERNAL_IN_COMPLAINT => '#f59e0b',     // amber (vía reclamación)
-            self::INTERNAL_IN_COURT => '#8b5cf6',         // violet (vía judicial)
+            self::INTERNAL_IN_COMPLAINT => '#f59e0b',     // amber (complaint track)
+            self::INTERNAL_IN_COURT => '#8b5cf6',         // violet (court track)
             default => '#94a3b8',
         };
     }
@@ -772,6 +781,17 @@ class AccessRequest
     public function setOrganization(?Organization $organization): static
     {
         $this->organization = $organization;
+        return $this;
+    }
+
+    public function isSharedWithOrganization(): bool
+    {
+        return $this->sharedWithOrganization;
+    }
+
+    public function setSharedWithOrganization(bool $sharedWithOrganization): static
+    {
+        $this->sharedWithOrganization = $sharedWithOrganization;
         return $this;
     }
 

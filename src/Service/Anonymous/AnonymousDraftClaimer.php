@@ -43,8 +43,8 @@ final class AnonymousDraftClaimer
     /** Size cap (chars) for the persisted anonymous complaint HTML. */
     public const COMPLAINT_HTML_MAX_CHARS = 200000;
 
-    // La decisión (denegada/inadmitida/parcial) es la posición `finished`; el
-    // silencio es su propia posición.
+    // The decision (denied/inadmitted/partial) maps to position `finished`;
+    // silence is its own position.
     private const RESULT_TO_STATUS = [
         AccessRequest::RESULT_DENIED => AccessRequest::STATUS_FINISHED,
         AccessRequest::RESULT_INADMITTED => AccessRequest::STATUS_FINISHED,
@@ -83,7 +83,9 @@ final class AnonymousDraftClaimer
             $flow = is_array($anonymousMeta) ? ($anonymousMeta['flow'] ?? 'request') : 'request';
 
             $draft->setUser($user);
-            $draft->setOrganization($user->getOrganization());
+            // Default privacy (spec §3.5): claimed items start personal even
+            // when the user belongs to an organization.
+            $draft->setOrganization(null);
             $draft->setMetadataValue('anonymous', null);
             $this->entityManager->flush();
 

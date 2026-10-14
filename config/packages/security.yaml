@@ -60,17 +60,23 @@ security:
         - { path: ^/verificar, roles: PUBLIC_ACCESS }
         - { path: ^/recuperar-password, roles: PUBLIC_ACCESS }
         - { path: ^/webhook/, roles: PUBLIC_ACCESS }
+        # Paid-CTA gate: anonymous visitors leave an intent and go to registration.
+        - { path: ^/facturacion/elegir, roles: PUBLIC_ACCESS }
+        # Team-invitation acceptance (email link).
+        - { path: ^/invitacion/, roles: PUBLIC_ACCESS }
         - { path: ^/guias/privacidad, roles: PUBLIC_ACCESS }
         - { path: ^/resoluciones, roles: PUBLIC_ACCESS }
-        # Mesa de resoluciones (herramienta interna CTBG): puerta propia por
-        # contraseña compartida (MesaAccessGate), no cuentas de PideInfo.
+        # Plans landing (and billing): public for anonymous users, new and legacy URL.
+        - { path: ^/(planes|precios), roles: PUBLIC_ACCESS }
+        # Resolutions desk (internal CTBG tool): own gate via shared
+        # password (MesaAccessGate), not PideInfo accounts.
         - { path: ^/mesa-resoluciones, roles: PUBLIC_ACCESS }
         - { path: ^/\.well-known/(oauth-|jwks), roles: PUBLIC_ACCESS }
         - { path: ^/oauth2/(token|register)$, roles: PUBLIC_ACCESS }
         - { path: ^/oauth2/authorize, roles: ROLE_USER }
-        # Redacción pública sin registro: /redactar y el chat SSE compartido.
-        # El acceso real por entidad lo decide AccessRequestVoter (dueño, o
-        # sesión anónima que creó el borrador).
+        # Public drafting without registration: /redactar and the shared SSE chat.
+        # Real per-entity access is decided by AccessRequestVoter (owner, or
+        # the anonymous session that created the draft).
         - { path: ^/redactar, roles: PUBLIC_ACCESS }
         - { path: ^/asistente/, roles: PUBLIC_ACCESS }
         - { path: ^/mcp, roles: ROLE_USER }
