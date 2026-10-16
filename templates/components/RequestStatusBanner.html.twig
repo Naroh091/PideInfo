@@ -4,6 +4,52 @@
    itálica + filete + dato en mono a la derecha). El tono cambia la tinta
    del rótulo, no la hoja. #}
 
+{# Reclamación en trámite — el Consejo tiene la palabra. #}
+{% if request.complaint and request.complaint.status == 'reclaimed' %}
+    {% set council = this.transparencyCouncilName %}
+    {% set complaintDeadline = this.complaintDeadline %}
+    {% set daysLeft = this.daysUntilComplaintDeadline %}
+    {% set overdue = this.complaintOverdue %}
+    {% set hasLateResponse = this.postComplaintResponse %}
+    <section class="paso3 paso3--cielo">
+        <div class="paso3-cab">
+            <span class="paso3-nombre">{{ hasLateResponse ? 'Llegó respuesta posterior' : 'Reclamación en trámite' }}</span>
+            <span class="paso3-filete"></span>
+            <span class="paso3-plazo">
+                {% if complaintDeadline %}
+                    hasta el <b>{{ complaintDeadline|date('d/m/Y') }}</b>
+                    {% if daysLeft is not null %}
+                        {% if overdue %} · <span class="rojo">venció hace {{ daysLeft|abs }} día{{ daysLeft|abs != 1 ? 's' : '' }}</span>
+                        {% else %} · quedan {{ daysLeft }} día{{ daysLeft != 1 ? 's' : '' }}{% endif %}
+                    {% endif %}
+                {% else %}
+                    presentada{% if request.complaint.externalId %} · {{ request.complaint.externalId }}{% endif %}
+                {% endif %}
+            </span>
+        </div>
+        <p class="paso3-frase">
+            Has reclamado ante el {{ council }}. Tiene hasta el {{ complaintDeadline ? complaintDeadline|date('d/m/Y') : '—' }} para resolver.
+        </p>
+        <div class="paso3-texto">
+            {% if hasLateResponse %}
+                <p>La administración respondió después de reclamar. Amplía para que el Consejo tenga en cuenta la resolución posterior.</p>
+            {% else %}
+                <p>Reclamación presentada{% if request.complaint.filedAt %} el {{ request.complaint.filedAt|date('d/m/Y') }}{% endif %}{% if request.complaint.externalId %} con nº {{ request.complaint.externalId }}{% endif %}.</p>
+            {% endif %}
+        </div>
+        <div class="paso3-acciones">
+            <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}" class="btn btn-accent btn-sm">
+                <i data-lucide="file-plus-2" class="w-4 h-4 mr-1.5"></i>
+                Ampliar reclamación
+            </a>
+            <a href="{{ path('app_complaint_pdf', {id: request.id}) }}" class="btn btn-secondary btn-sm">
+                <i data-lucide="file-down" class="w-4 h-4 mr-1.5"></i>
+                Ver reclamación
+            </a>
+        </div>
+    </section>
+{% endif %}
+
 {# Pending portal notifications (agent reported, auto-accept is off) #}
 {% if request.hasPendingPortalNotifications %}
     {% set pending = request.pendingPortalNotifications %}
