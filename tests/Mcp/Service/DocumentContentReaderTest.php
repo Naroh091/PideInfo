@@ -108,7 +108,7 @@ class DocumentContentReaderTest extends TestCase
      */
     public function test_ai_summary_is_not_served_as_the_full_text(): void
     {
-        $doc = $this->createDocument('resolucion.pdf', 'application/pdf', 900_000, 'resolucion.pdf');
+        $doc = $this->createDocument('resolucion.pdf', 'application/pdf', 2048, 'resolucion.pdf');
         $doc->setExtractedText('Resumen de la IA: el organismo deniega el acceso.');
 
         $this->storage->expects($this->once())
@@ -315,5 +315,43 @@ class DocumentContentReaderTest extends TestCase
         $constructor->invoke($doc);
 
         return $doc;
+    }
+
+    /**
+     * Regression: the 16/10/2026 Justicia resolution cached 478 chars of
+     * signature boilerplate from a 509KB PDF. A stale short cache must never
+     * be served — it triggers live re-extraction instead.
+     */
+    public function test_stale_short_cache_triggers_live_reextraction(): void
+    {
+        $doc = $this->createDocument('respuesta.pdf', 'application/pdf', 509459, 'respuesta.pdf');
+        $doc->setFullText('Código Seguro de verificación: PF:Qquw');
+
+        $this->storage->expects($this->once())
+            ->method('fileExists')
+            ->with('respuesta.pdf')
+            ->willReturn(true);
+
+        $this->storage->expects($this->once())
+            ->method('read')
+            ->with('respuesta.pdf')
+            ->willReturn("\x00\x01\x02\x03");
+
+        $this->pdfExtractor->expects($this->once())
+            ->method('extractFullText')
+            ->willReturn(str_repeat('Cuerpo real de la resolución. ', 100));
+
+        $this->pdfExtractor->method('getLastBackend')
+            ->willReturn(PdfTextExtractor::BACKEND_POPPLER);
+
+        $this->em->expects($this->once())
+            ->method('flush');
+
+        $result = $this->reader->read($doc, 'text');
+
+        $this->assertSame('text', $result->mode);
+        $this->assertStringStartsWith('Cuerpo real', $result->content);
+        $this->assertFalse($result->fromCache);
+        $this->assertSame(PdfTextExtractor::BACKEND_POPPLER, $doc->getFullTextBackend());
     }
 }

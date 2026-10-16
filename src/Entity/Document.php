@@ -72,6 +72,13 @@ class Document
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $fullText = null;
 
+    /**
+     * Which backend produced fullText (poppler|smalot|plain). Audit aid for
+     * truncated extractions: signature-only stubs came from the Smalot fallback.
+     */
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $fullTextBackend = null;
+
     /** @var array<string, mixed>|null */
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $aiMetadata = null;
@@ -240,6 +247,17 @@ class Document
     public function setFullText(?string $fullText): static
     {
         $this->fullText = $fullText;
+        return $this;
+    }
+
+    public function getFullTextBackend(): ?string
+    {
+        return $this->fullTextBackend;
+    }
+
+    public function setFullTextBackend(?string $fullTextBackend): static
+    {
+        $this->fullTextBackend = $fullTextBackend;
         return $this;
     }
 

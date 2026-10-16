@@ -43,4 +43,14 @@ final class PdfTextExtractorTest extends TestCase
             self::assertStringNotContainsString($cipher, $joined);
         }
     }
+
+    public function testShortTextFromABigFileIsSuspicious(): void
+    {
+        // The 16/10/2026 Justicia resolution: 478 chars cached from a 509KB PDF.
+        $this->assertTrue(\App\Service\Document\PdfTextExtractor::looksSuspiciouslyShort(str_repeat('x', 478), 509459));
+        $this->assertFalse(\App\Service\Document\PdfTextExtractor::looksSuspiciouslyShort(str_repeat('x', 100), 2048));
+        $this->assertFalse(\App\Service\Document\PdfTextExtractor::looksSuspiciouslyShort(str_repeat('x', 6000), 509459));
+        $this->assertFalse(\App\Service\Document\PdfTextExtractor::looksSuspiciouslyShort('', 509459));
+        $this->assertFalse(\App\Service\Document\PdfTextExtractor::looksSuspiciouslyShort('   ', 509459));
+    }
 }
