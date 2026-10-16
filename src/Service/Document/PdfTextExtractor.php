@@ -30,6 +30,14 @@ class PdfTextExtractor
     private const MIN_LETTERS_TO_JUDGE = 60;
     private const PDFTOTEXT_TIMEOUT = 60;
 
+    public const BACKEND_POPPLER = 'poppler';
+    public const BACKEND_SMALOT = 'smalot';
+
+    /** Below this many chars, output from a big file is a stub, not a short doc. */
+    public const MIN_CHARS_FOR_BIG_FILE = 500;
+    /** Files bigger than this with tiny output are almost surely truncated. */
+    public const BIG_FILE_BYTES = 100000;
+
     private Parser $parser;
     private ?bool $popplerAvailable = null;
 
@@ -39,6 +47,33 @@ class PdfTextExtractor
     {
         $this->parser = new Parser();
         $this->logger = $logger ?? new NullLogger();
+    }
+
+    private ?string $lastBackend = null;
+
+    /**
+     * Which backend produced the most recent extraction (poppler|smalot|null).
+     * Audit aid: signature-only stubs (e.g. the 16/10/2026 Justicia resolution,
+     * 478 chars from a 509KB PDF) came from the Smalot fallback while poppler
+     * reads the same file fine.
+     */
+    public function getLastBackend(): ?string
+    {
+        return $this->lastBackend;
+    }
+
+    /**
+     * A big file yielding a handful of chars is a truncated extraction, not a
+     * short document. Never cache that as the document's text.
+     */
+    public static function looksSuspiciouslyShort(string $text, int $fileSizeBytes): bool
+    {
+        if ('' === trim($text)) {
+            return false;
+        }
+
+        return $fileSizeBytes >= self::BIG_FILE_BYTES
+            && mb_strlen(trim($text)) < self::MIN_CHARS_FOR_BIG_FILE;
     }
 
     /**
@@ -123,6 +158,7 @@ class PdfTextExtractor
 
         $pdf = $this->parser->parseContent($pdfBytes);
         $text = $pdf->getText();
+        $this->lastBackend = self::BACKEND_SMALOT;
         return $this->cleanText($text);
     }
 
@@ -172,12 +208,18 @@ class PdfTextExtractor
     public function extractPageTexts(string $filePath): array
     {
         $pages = null;
+        $usedSmalot = false;
 
         if ($this->isPopplerAvailable()) {
             $pages = $this->extractWithPoppler($filePath);
         }
 
-        $pages ??= $this->extractWithSmalot($filePath);
+        if ($pages === null) {
+            $usedSmalot = true;
+            $pages = $this->extractWithSmalot($filePath);
+        }
+
+        $this->lastBackend = $usedSmalot ? self::BACKEND_SMALOT : self::BACKEND_POPPLER;
 
         foreach ($pages as $number => $text) {
             // Only judge pages with enough letters to judge: a sparse cover page is not gibberish,
@@ -202,18 +244,23 @@ class PdfTextExtractor
         if ($this->isPopplerAvailable()) {
             $pages = $this->extractWithPoppler($filePath);
             if ($pages !== null && $this->looksReadable(implode(' ', $pages))) {
+                $this->lastBackend = self::BACKEND_POPPLER;
                 return $pages;
             }
+            $this->logger->warning('PdfTextExtractor: poppler output unreadable, trying smalot', ['file' => basename($filePath)]);
         }
 
         // Fallback to smalot. Same readability check at the end.
         $smalotPages = $this->extractWithSmalot($filePath);
         if ($smalotPages !== [] && $this->looksReadable(implode(' ', $smalotPages))) {
+            $this->lastBackend = self::BACKEND_SMALOT;
+            $this->logger->warning('PdfTextExtractor: using smalot fallback', ['file' => basename($filePath)]);
             return $smalotPages;
         }
 
         // Both backends produced unreadable output → return nothing so the
         // caller skips the file (better than vectorizing glyph-id garbage).
+        $this->lastBackend = null;
         return [];
     }
 

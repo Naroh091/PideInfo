@@ -54,18 +54,25 @@ final class DocumentContentReader
         }
 
         $cached = $document->getFullText();
-        if (null !== $cached && '' !== trim($cached)) {
+        if (null !== $cached && '' !== trim($cached)
+            && !PdfTextExtractor::looksSuspiciouslyShort($cached, (int) ($document->getFileSize() ?? 0))
+        ) {
             return DocumentContent::text($document, $cached, fromCache: true);
         }
+        // A stale short cache (e.g. a signature-only stub cached from a big
+        // PDF) is ignored so the text is re-extracted live below instead of
+        // served forever. An empty cache falls through the same way.
+
 
         $mimeType = $document->getMimeType();
 
         if ($mimeType === 'text/plain') {
-            return $this->cacheExtractedText($document, $this->documentsStorage->read($stored));
+            return $this->cacheExtractedText($document, $this->documentsStorage->read($stored), 'plain');
         }
 
         if ($mimeType === 'application/pdf') {
-            return $this->cacheExtractedText($document, $this->extractPdfText($stored));
+            $text = $this->extractPdfText($stored);
+            return $this->cacheExtractedText($document, $text, $this->pdfTextExtractor->getLastBackend());
         }
 
         return $this->summaryFallback($document, 'unsupported_mimetype');
@@ -93,13 +100,18 @@ final class DocumentContentReader
      * extraction (a scanned, image-only PDF) is not cached and is never returned
      * as "the text" — the caller gets the summary, explicitly flagged.
      */
-    private function cacheExtractedText(Document $document, string $text): DocumentContent
+    private function cacheExtractedText(Document $document, string $text, ?string $backend): DocumentContent
     {
         if ('' === trim($text)) {
             return $this->summaryFallback($document, 'no_text_extracted');
         }
 
+        if (PdfTextExtractor::looksSuspiciouslyShort($text, (int) ($document->getFileSize() ?? 0))) {
+            return $this->summaryFallback($document, 'short_text_extracted');
+        }
+
         $document->setFullText($text);
+        $document->setFullTextBackend($backend);
         $this->em->flush();
 
         return DocumentContent::text($document, $text, fromCache: false);
