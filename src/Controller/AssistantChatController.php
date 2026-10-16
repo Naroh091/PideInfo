@@ -192,7 +192,7 @@ final class AssistantChatController extends AbstractController
     public function complaint(Request $request, AccessRequest $accessRequest): Response
     {
         $mode = (string) $request->request->get('mode', '');
-        if (!in_array($mode, [ComplaintDraftGenerator::MODE_COMPLAINT, ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE], true)) {
+        if (!in_array($mode, [ComplaintDraftGenerator::MODE_COMPLAINT, ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE, ComplaintDraftGenerator::MODE_AMPLIATION], true)) {
             return new JsonResponse(['error' => 'invalid_mode'], Response::HTTP_BAD_REQUEST);
         }
 
@@ -204,8 +204,10 @@ final class AssistantChatController extends AbstractController
 
         $eligible = $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
             ? $this->complaintGenerator->canGenerateAlegationResponse($accessRequest)
-            : ($this->complaintGenerator->canGenerateComplaint($accessRequest)
-                || $accessRequest->getComplaintDraftDocument() !== null);
+            : ($mode === ComplaintDraftGenerator::MODE_AMPLIATION
+                ? $this->complaintGenerator->canGenerateAmpliation($accessRequest)
+                : ($this->complaintGenerator->canGenerateComplaint($accessRequest)
+                    || $accessRequest->getComplaintDraftDocument() !== null));
         if (!$eligible) {
             return new JsonResponse(['error' => 'mode_not_allowed'], Response::HTTP_CONFLICT);
         }
@@ -236,7 +238,9 @@ final class AssistantChatController extends AbstractController
 
         $traceName = $mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
             ? 'AlegationGenerationStream'
-            : 'ComplaintGenerationStream';
+            : ($mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_AMPLIATION
+                ? 'AmpliationGenerationStream'
+                : 'ComplaintGenerationStream');
 
         $turn = new AssistantChatTurn(
             flow: 'complaint',
@@ -336,15 +340,19 @@ final class AssistantChatController extends AbstractController
         // prompt general de consulta. Se mantiene el historial y la UI de consulta.
         $intent = $this->consultIntentClassifier->classify($userMessage, $this->recentHistoryContext($history));
 
-        if ($intent === ComplaintDraftGenerator::MODE_COMPLAINT || $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
+        if ($intent === ComplaintDraftGenerator::MODE_COMPLAINT || $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE || $intent === ComplaintDraftGenerator::MODE_AMPLIATION) {
             $composedPrompt = $this->complaintPromptComposer->compose($accessRequest, $intent, $currentBodyHtml, []);
             $flow = 'complaint';
             $forcedDocType = $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
                 ? DocumentType::AlegationResponse
-                : DocumentType::Complaint;
+                : ($intent === ComplaintDraftGenerator::MODE_AMPLIATION
+                    ? DocumentType::ComplaintExtension
+                    : DocumentType::Complaint);
             $traceName = $intent === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
                 ? 'ConsultAlegationHandoff'
-                : 'ConsultComplaintHandoff';
+                : ($intent === ComplaintDraftGenerator::MODE_AMPLIATION
+                    ? 'ConsultAmpliationHandoff'
+                    : 'ConsultComplaintHandoff');
         } else {
             $composedPrompt = $this->consultPromptComposer->compose($accessRequest, $currentBodyHtml);
             $flow = 'consult';
@@ -463,7 +471,7 @@ final class AssistantChatController extends AbstractController
     {
         return match ($flow) {
             'request' => self::CHAT_HISTORY_KEY_REQUEST,
-            'complaint' => in_array($mode, [ComplaintDraftGenerator::MODE_COMPLAINT, ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE], true)
+            'complaint' => in_array($mode, [ComplaintDraftGenerator::MODE_COMPLAINT, ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE, ComplaintDraftGenerator::MODE_AMPLIATION], true)
                 ? self::CHAT_HISTORY_KEY_COMPLAINT_PREFIX . $mode
                 : null,
             'consult' => $this->getUser() !== null ? self::CHAT_HISTORY_KEY_CONSULT : null,

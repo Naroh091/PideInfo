@@ -17,4 +17,5 @@ final class ComplaintDraftGenerator
 {
     public const MODE_COMPLAINT = 'complaint';
     public const MODE_ALEGATION_RESPONSE = 'alegation_response';
+    public const MODE_AMPLIATION = 'ampliation';
 }

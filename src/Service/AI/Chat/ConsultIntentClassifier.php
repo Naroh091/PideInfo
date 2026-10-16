@@ -30,8 +30,8 @@ final class ConsultIntentClassifier
         'properties'           => [
             'intent' => [
                 'type'        => 'string',
-                'enum'        => ['complaint', 'alegation_response', 'other'],
-                'description' => 'complaint = redactar/ajustar una reclamación; alegation_response = redactar/ajustar una respuesta a las alegaciones de la Administración; other = cualquier otra cosa (duda, otro escrito, comentario).',
+                'enum'        => ['complaint', 'alegation_response', 'ampliation', 'other'],
+                'description' => 'complaint = redactar/ajustar una reclamación; alegation_response = redactar/ajustar una respuesta a las alegaciones de la Administración; ampliation = ampliar una reclamación ya presentada por una resolución posterior de la Administración; other = cualquier otra cosa (duda, otro escrito, comentario).',
             ],
         ],
     ];
@@ -41,12 +41,14 @@ Eres un clasificador de intención dentro de un chat de asistencia sobre un expe
 
 - `complaint`: redactar (o seguir ajustando/confirmar) una **reclamación** ante el consejo de transparencia.
 - `alegation_response`: redactar (o seguir ajustando/confirmar) una **respuesta a las alegaciones** de la Administración en una reclamación.
+- `ampliation`: redactar (o seguir ajustando/confirmar) una **ampliación de la reclamación** porque la Administración ha dictado una resolución posterior a la reclamación.
 - `other`: cualquier otra cosa — una duda, otro tipo de escrito (subsanación, recordatorio, doc a medida), o un comentario.
 
 Fíjate en la INTENCIÓN de redactar ese escrito concreto, no en el mero tema:
 - "¿cómo hago una reclamación?" / "¿me conviene reclamar?" → `other` (es una duda).
 - "hazme la reclamación" / "redacta la reclamación" / "reclama por el silencio" → `complaint`.
 - "responde a las alegaciones" / "rebate lo que alegan" → `alegation_response`.
+- "amplía la reclamación" / "ha llegado una resolución después de reclamar" → `ampliation`.
 - Si en los turnos previos ya se estaba redactando/planificando una reclamación o una respuesta a alegaciones y el usuario confirma ("sí", "adelante", "perfecto") o pide un ajuste, MANTÉN esa intención (`complaint` o `alegation_response`).
 
 Responde SOLO con el JSON de la clasificación.
@@ -88,6 +90,7 @@ TXT;
         return match ($intent) {
             'complaint'          => ComplaintDraftGenerator::MODE_COMPLAINT,
             'alegation_response' => ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE,
+            'ampliation'         => ComplaintDraftGenerator::MODE_AMPLIATION,
             default              => 'other',
         };
     }

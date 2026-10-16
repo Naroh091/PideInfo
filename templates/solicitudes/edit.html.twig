@@ -43,6 +43,7 @@
                             {{ form_label(form.description) }}
                         </label>
                         {{ form_widget(form.description, {'attr': {'class': 'input min-h-[120px]'}}) }}
+                        <p class="text-xs text-slate-500 mt-1">Puedes usar formato: <code>**negrita**</code>, <code>*cursiva*</code> y <code>[texto del enlace](https://ejemplo.es)</code>.</p>
                         {{ form_errors(form.description) }}
                     </div>
 

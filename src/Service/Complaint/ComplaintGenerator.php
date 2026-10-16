@@ -49,6 +49,30 @@ final class ComplaintGenerator
     }
 
     /**
+     * Appended to the system prompt for the single automatic retry when the
+     * model used RAG sources in its reasoning but cited none of them.
+     */
+    public const CITATION_RETRY_APPEND = 'No has citado ninguna de las resoluciones/criterios proporcionados. Reescribe incluyendo sus referencias exactas donde fundamenten cada argumento.';
+
+    /**
+     * Whether a generation warrants the single citation retry: sources were
+     * fed into the prompt but the extractor found no literal citation.
+     *
+     * @param array<int, array<string, mixed>> $criteria
+     * @param array<int, array<string, mixed>> $resolutions
+     * @param array<int, CitedResolution> $citedResolutions
+     * @param array<int, string> $citedCriteria
+     */
+    public function needsCitationRetry(array $criteria, array $resolutions, array $citedResolutions, array $citedCriteria): bool
+    {
+        if ($criteria === [] && $resolutions === []) {
+            return false;
+        }
+
+        return $citedResolutions === [] && $citedCriteria === [];
+    }
+
+    /**
      * Vuelca una generación one-shot (la vía NO agéntica de reclamaciones y
      * respuestas a alegaciones, {@see \App\Controller\ComplaintController}) como
      * traza de destilación.
@@ -133,7 +157,11 @@ final class ComplaintGenerator
         // / `<uuid>:alegation`): sobre un expediente puede haber varias
         // conversaciones distintas, pero TODO lo que produce la reclamación —da
         // igual por qué camino— pertenece a la misma.
-        $task = str_starts_with($kind, 'alegaciones') ? 'alegation' : 'complaint';
+        // La ampliación tiene sesión propia (`<uuid>:ampliation`): es un
+        // escrito distinto de la reclamación y de la respuesta a alegaciones.
+        $task = str_starts_with($kind, 'alegaciones')
+            ? 'alegation'
+            : (str_starts_with($kind, 'ampliacion') ? 'ampliation' : 'complaint');
 
         return [
             AttributeKeys::LANGFUSE_USER_ID => $accessRequest->getUser()?->getEmail(),
@@ -274,7 +302,7 @@ final class ComplaintGenerator
             yield $delta;
         }
 
-        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content, $this->extractAllowedUrls($systemPrompt));
         $this->captureOneShot($accessRequest, 'complaint-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
@@ -288,6 +316,70 @@ final class ComplaintGenerator
             citedCriteria: $citedCriteria,
             successAnalysis: $successAnalysis,
         );
+    }
+
+    /**
+     * One LLM call with a single automatic citation retry: when RAG sources
+     * were fed into the prompt but the extractor finds no literal citation in
+     * the first attempt, the system prompt is extended with
+     * {@see self::CITATION_RETRY_APPEND} and the model rewrites once. If the
+     * second attempt still cites nothing, its output is returned anyway — the
+     * retry must never block the user.
+     *
+     * @param ChatMessage[] $conversationHistory
+     * @param array<int, array<string, mixed>> $criteria
+     * @param array<int, array<string, mixed>> $resolutions
+     * @return array{content: string, citedResolutions: array<int, CitedResolution>, citedCriteria: array<int, string>}
+     */
+    private function chatWithCitationRetry(
+        string $systemPrompt,
+        array $conversationHistory,
+        ?CompiledPrompt $prompt,
+        string $label,
+        bool $preferTeacher,
+        array $criteria,
+        array $resolutions,
+    ): array {
+        $allowedUrls = $this->extractAllowedUrls($systemPrompt);
+
+        $content = $this->sanitizeHtmlResponse(
+            $this->llmClient->chat(new ChatRequest(
+                systemPrompt: $systemPrompt,
+                messages: $conversationHistory,
+                temperature: 1.0,
+                maxOutputTokens: 8192,
+                label: $label,
+                promptRef: $prompt,
+                preferTeacher: $preferTeacher,
+            ))->content,
+            $allowedUrls,
+        );
+
+        $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
+        $citedCriteria = $this->extractCitedCriteria($content, $criteria);
+
+        if (!$this->needsCitationRetry($criteria, $resolutions, $citedResolutions, $citedCriteria)) {
+            return ['content' => $content, 'citedResolutions' => $citedResolutions, 'citedCriteria' => $citedCriteria];
+        }
+
+        $retryContent = $this->sanitizeHtmlResponse(
+            $this->llmClient->chat(new ChatRequest(
+                systemPrompt: $systemPrompt . "\n\n" . self::CITATION_RETRY_APPEND,
+                messages: $conversationHistory,
+                temperature: 1.0,
+                maxOutputTokens: 8192,
+                label: $label . '.citation-retry',
+                promptRef: $prompt,
+                preferTeacher: $preferTeacher,
+            ))->content,
+            $allowedUrls,
+        );
+
+        return [
+            'content' => $retryContent,
+            'citedResolutions' => $this->extractCitedResolutions($retryContent, $resolutions),
+            'citedCriteria' => $this->extractCitedCriteria($retryContent, $criteria),
+        ];
     }
 
     /**
@@ -327,20 +419,20 @@ final class ComplaintGenerator
         }
 
         $model = $this->modelRouter->pick(ModelRouter::FEATURE_COMPLAINT);
-        $content = $this->llmClient->chat(new ChatRequest(
-            systemPrompt: $systemPrompt,
-            messages: $conversationHistory,
-            temperature: 1.0,
-            maxOutputTokens: 8192,
-            promptRef: $prompt,
-            preferTeacher: $model->isTeacher(),
-        ))->content;
-
-        $content = $this->sanitizeHtmlResponse($content);
+        $result = $this->chatWithCitationRetry(
+            $systemPrompt,
+            $conversationHistory,
+            $prompt,
+            'complaint.generate',
+            $model->isTeacher(),
+            $criteria,
+            $resolutions,
+        );
+        $content = $result['content'];
         $this->captureOneShot($accessRequest, 'complaint-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
-        $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
-        $citedCriteria = $this->extractCitedCriteria($content, $criteria);
+        $citedResolutions = $result['citedResolutions'];
+        $citedCriteria = $result['citedCriteria'];
 
         return new ComplaintDraft(
             content: $content,
@@ -513,6 +605,15 @@ final class ComplaintGenerator
                 $applicableLawName,
                 $alegacionesContent,
                 $alegationPoints,
+                $documentContents,
+            );
+        }
+
+        if ($mode === \App\Service\Complaint\ComplaintDraftGenerator::MODE_AMPLIATION) {
+            return $this->buildAmpliationChatPrompt(
+                $accessRequest,
+                $transparencyCouncil,
+                $applicableLawName,
                 $documentContents,
             );
         }
@@ -881,6 +982,94 @@ GRANTED_PENDING;
     }
 
     /**
+     * Ampliación por resolución expresa posterior: la reclamación sigue en
+     * curso (`reclaimed`) y la Administración ha dictado una respuesta con
+     * fecha posterior a la presentación de la reclamación. Espejo de
+     * {@see \App\Twig\Components\RequestStatusBanner::hasPostComplaintResponse()}.
+     */
+    public function canGenerateAmpliation(AccessRequest $accessRequest): bool
+    {
+        $complaint = $accessRequest->getComplaint();
+        if ($complaint === null || $complaint->getStatus() !== AccessRequestComplaint::STATUS_RECLAIMED) {
+            return false;
+        }
+
+        return $this->hasPostComplaintResponse($accessRequest);
+    }
+
+    private function hasPostComplaintResponse(AccessRequest $accessRequest): bool
+    {
+        return $this->postComplaintResponses($accessRequest) !== [];
+    }
+
+    /**
+     * @return list<Document>
+     */
+    private function postComplaintResponses(AccessRequest $accessRequest): array
+    {
+        $filedAt = $accessRequest->getComplaint()?->getFiledAt();
+        if ($filedAt === null) {
+            return [];
+        }
+
+        $late = [];
+        foreach ($accessRequest->getDocuments() as $document) {
+            if ($document->getType() !== DocumentType::Response) {
+                continue;
+            }
+            $docDate = $document->getDocumentDate() ?? $document->getCreatedAt();
+            if ($docDate > $filedAt) {
+                $late[] = $document;
+            }
+        }
+
+        return $late;
+    }
+
+    /**
+     * Texto de las respuestas posteriores a la reclamación para el prompt de
+     * ampliación. Solo se vuelcan los documentos textuales; los binarios
+     * (PDF escaneado, etc.) se anuncian para que el modelo los busque en el
+     * bloque de documentos del expediente.
+     */
+    private function getPostComplaintResponseContents(AccessRequest $accessRequest): string
+    {
+        $responses = $this->postComplaintResponses($accessRequest);
+        if ($responses === []) {
+            return '(no se pudo extraer el contenido de la resolución posterior; consulta los documentos del expediente)';
+        }
+
+        $parts = [];
+        foreach ($responses as $document) {
+            $docDate = ($document->getDocumentDate() ?? $document->getCreatedAt())->format('d/m/Y');
+            $mime = (string) $document->getMimeType();
+            if (!str_starts_with($mime, 'text/')) {
+                $parts[] = sprintf(
+                    "### Resolución posterior (%s): %s\n\n[documento no textual; consulta su contenido en los documentos del expediente]",
+                    $docDate,
+                    $document->getOriginalFilename(),
+                );
+                continue;
+            }
+            try {
+                $body = $this->documentsStorage->read($document->getStoredFilename());
+            } catch (\Throwable) {
+                continue;
+            }
+            $parts[] = sprintf(
+                "### Resolución posterior (%s): %s\n\n%s",
+                $docDate,
+                $document->getOriginalFilename(),
+                mb_substr(trim($body), 0, 6000),
+            );
+        }
+
+        return $parts === []
+            ? '(no se pudo extraer el contenido de la resolución posterior; consulta los documentos del expediente)'
+            : implode("\n\n---\n\n", $parts);
+    }
+
+    /**
      * @param ChatMessage[] $conversationHistory
      * @param array<array{name: string, type: string, content: string}> $documentContents
      */
@@ -972,7 +1161,7 @@ GRANTED_PENDING;
             yield $delta;
         }
 
-        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content);
+        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content, $this->extractAllowedUrls($systemPrompt));
         $this->captureOneShot($accessRequest, 'alegation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
@@ -1027,17 +1216,123 @@ GRANTED_PENDING;
         }
 
         $model = $this->modelRouter->pick(ModelRouter::FEATURE_ALEGATION);
-        $content = $this->llmClient->chat(new ChatRequest(
+        $result = $this->chatWithCitationRetry(
+            $systemPrompt,
+            $conversationHistory,
+            $prompt,
+            'complaint.alegation_response',
+            $model->isTeacher(),
+            $criteria,
+            $resolutions,
+        );
+        $content = $result['content'];
+        $this->captureOneShot($accessRequest, 'alegation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
+
+        $citedResolutions = $result['citedResolutions'];
+        $citedCriteria = $result['citedCriteria'];
+
+        return new ComplaintDraft(
+            content: $content,
+            transparencyCouncil: $transparencyCouncil,
+            applicableLaw: $applicableLawName,
+            citedResolutions: $citedResolutions,
+            citedCriteria: $citedCriteria,
+            successAnalysis: $successAnalysis,
+        );
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    public function generateAmpliation(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): ComplaintDraft
+    {
+        return $this->tracer->traceRoot(
+            name: 'complaint.ampliation',
+            attributes: $this->rootAttributes($accessRequest, 'ampliacion'),
+            fn: fn () => $this->doGenerateAmpliation($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * Streaming variant of generateAmpliation(): yields HTML deltas as they
+     * arrive; the Generator's return value is the final ComplaintDraft.
+     *
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    public function generateAmpliationStream(AccessRequest $accessRequest, array $conversationHistory = [], ?string $userDirections = null, array $documentContents = []): \Generator
+    {
+        return yield from $this->tracer->traceRootStream(
+            name: 'complaint.ampliation.stream',
+            attributes: $this->rootAttributes($accessRequest, 'ampliacion'),
+            gen: $this->doGenerateAmpliationStream($accessRequest, $conversationHistory, $userDirections, $documentContents),
+            captureOutput: function (ComplaintDraft $draft, SpanInterface $span): void {
+                $span->setAttribute(AttributeKeys::LANGFUSE_TRACE_OUTPUT, $draft->content);
+            },
+            traceInput: $this->buildTraceInput($accessRequest, $conversationHistory, $userDirections, $documentContents),
+        );
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     * @return \Generator<int, string, void, ComplaintDraft>
+     */
+    private function doGenerateAmpliationStream(AccessRequest $accessRequest, array $conversationHistory, ?string $userDirections, array $documentContents): \Generator
+    {
+        if (!$this->canGenerateAmpliation($accessRequest)) {
+            throw new \InvalidArgumentException(
+                'Cannot generate ampliation. Complaint status must be reclaimed with a post-complaint response.'
+            );
+        }
+
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
+
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
+
+        $prompt = $this->buildAmpliationPrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $documentContents
+        );
+
+        $systemPrompt = $prompt->text;
+        if ($userDirections) {
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        // La vía streaming muestra el primer intento en directo: no hay
+        // reintento de citas aquí (ya se habría pintado el texto sin citas).
+        // La vía no-streaming sí reintenta (ver doGenerateAmpliation).
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_AMPLIATION);
+        $stream = $this->llmClient->chatStream(new ChatRequest(
             systemPrompt: $systemPrompt,
             messages: $conversationHistory,
             temperature: 1.0,
             maxOutputTokens: 8192,
+            label: 'complaint.ampliation',
             promptRef: $prompt,
             preferTeacher: $model->isTeacher(),
-        ))->content;
+        ));
 
-        $content = $this->sanitizeHtmlResponse($content);
-        $this->captureOneShot($accessRequest, 'alegation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
+        foreach ($stream as $delta) {
+            yield $delta;
+        }
+
+        $content = $this->sanitizeHtmlResponse($stream->getReturn()->content, $this->extractAllowedUrls($systemPrompt));
+        $this->captureOneShot($accessRequest, 'ampliation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $content);
 
         $citedResolutions = $this->extractCitedResolutions($content, $resolutions);
         $citedCriteria = $this->extractCitedCriteria($content, $criteria);
@@ -1050,6 +1345,102 @@ GRANTED_PENDING;
             citedCriteria: $citedCriteria,
             successAnalysis: $successAnalysis,
         );
+    }
+
+    /**
+     * @param ChatMessage[] $conversationHistory
+     * @param array<array{name: string, type: string, content: string}> $documentContents
+     */
+    private function doGenerateAmpliation(AccessRequest $accessRequest, array $conversationHistory, ?string $userDirections, array $documentContents): ComplaintDraft
+    {
+        if (!$this->canGenerateAmpliation($accessRequest)) {
+            throw new \InvalidArgumentException(
+                'Cannot generate ampliation. Complaint status must be reclaimed with a post-complaint response.'
+            );
+        }
+
+        $successAnalysis = $this->successAnalyzer->analyzeCached($accessRequest);
+
+        $transparencyCouncil = $this->getTransparencyCouncil($accessRequest->getApplicableLaw());
+        $applicableLawName = $accessRequest->getApplicableLaw()->getName();
+
+        [$criteria, $resolutions] = $this->retrieveCriteriaAndResolutions($accessRequest);
+
+        $prompt = $this->buildAmpliationPrompt(
+            $accessRequest,
+            $transparencyCouncil,
+            $applicableLawName,
+            $criteria,
+            $resolutions,
+            $documentContents
+        );
+
+        $systemPrompt = $prompt->text;
+        if ($userDirections) {
+            $systemPrompt .= "\n\n## INDICACIONES DEL USUARIO\n\nEl usuario ha dado las siguientes indicaciones específicas para la redacción:\n" . $userDirections;
+        }
+
+        $model = $this->modelRouter->pick(ModelRouter::FEATURE_AMPLIATION);
+        $result = $this->chatWithCitationRetry(
+            $systemPrompt,
+            $conversationHistory,
+            $prompt,
+            'complaint.ampliation',
+            $model->isTeacher(),
+            $criteria,
+            $resolutions,
+        );
+
+        $this->captureOneShot($accessRequest, 'ampliation-oneshot', $model, $systemPrompt, $conversationHistory, $prompt, $result['content']);
+
+        return new ComplaintDraft(
+            content: $result['content'],
+            transparencyCouncil: $transparencyCouncil,
+            applicableLaw: $applicableLawName,
+            citedResolutions: $result['citedResolutions'],
+            citedCriteria: $result['citedCriteria'],
+            successAnalysis: $successAnalysis,
+        );
+    }
+
+    public function saveAmpliation(AccessRequest $accessRequest, ComplaintDraft $draft): Document
+    {
+        if ($accessRequest->getUser() === null) {
+            throw new \LogicException('Anonymous drafts cannot persist ampliation documents; claim the request first.');
+        }
+
+        $filename = sprintf(
+            'ampliacion_reclamacion_%s_%s.html',
+            $accessRequest->getId()->toRfc4122(),
+            (new \DateTime())->format('Y-m-d_H-i-s')
+        );
+
+        $this->documentsStorage->write($filename, $draft->content);
+
+        $document = new Document();
+        $document->setOriginalFilename('Ampliación de reclamación.html');
+        $document->setStoredFilename($filename);
+        $document->setMimeType('text/html');
+        $document->setFileSize(strlen($draft->content));
+        $document->setContentHash(hash('sha256', $draft->content));
+        $document->setType(DocumentType::ComplaintExtension);
+        $document->setAccessRequest($accessRequest);
+        $document->setUploadedBy($accessRequest->getUser());
+        $document->setProcessed(true);
+        $document->setAiMetadata([
+            'origin' => 'ai',
+            'transparencyCouncil' => $draft->transparencyCouncil,
+            'applicableLaw' => $draft->applicableLaw,
+            'citedResolutions' => array_map(fn($r) => $r->toArray(), $draft->citedResolutions),
+            'citedCriteria' => $draft->citedCriteria,
+            'successAnalysis' => $draft->successAnalysis?->toArray(),
+            'generatedAt' => (new \DateTime())->format('c'),
+        ]);
+
+        $this->entityManager->persist($document);
+        $this->entityManager->flush();
+
+        return $document;
     }
 
     public function saveAlegationResponse(AccessRequest $accessRequest, ComplaintDraft $draft): Document
@@ -1171,6 +1562,68 @@ GRANTED_PENDING;
         ]);
     }
 
+    private function buildAmpliationChatPrompt(
+        AccessRequest $accessRequest,
+        string $transparencyCouncil,
+        string $applicableLawName,
+        array $documentContents = [],
+    ): CompiledPrompt {
+        [$complaintFiledAt, $complaintExternalId] = $this->complaintFilingLabels($accessRequest);
+
+        return $this->promptStore->compile('pideinfo-complaint-generate-ampliation-chat', [
+            'transparency_council'  => $transparencyCouncil,
+            'public_body_name'      => $accessRequest->getPublicBody()?->getName() ?? '',
+            'request_title'         => (string) $accessRequest->getTitle(),
+            'request_description'   => (string) $accessRequest->getDescription(),
+            'applicable_law_name'   => $applicableLawName,
+            'complaint_filed_at'    => $complaintFiledAt,
+            'complaint_external_id' => $complaintExternalId,
+            'post_response_text'    => $this->getPostComplaintResponseContents($accessRequest),
+            'documents_block'       => $this->formatDocumentContents($documentContents),
+        ]);
+    }
+
+    private function buildAmpliationPrompt(
+        AccessRequest $accessRequest,
+        string $transparencyCouncil,
+        string $applicableLawName,
+        array $criteria,
+        array $resolutions,
+        array $documentContents = []
+    ): CompiledPrompt {
+        $criteriaText = $this->criteriaRetriever->formatForPrompt($criteria);
+        $resolutionsText = $this->resolutionRetriever->formatForPrompt($resolutions);
+        [$complaintFiledAt, $complaintExternalId] = $this->complaintFilingLabels($accessRequest);
+
+        return $this->promptStore->compile('pideinfo-complaint-generate-ampliation', [
+            'transparency_council' => $transparencyCouncil,
+            'public_body_name' => $accessRequest->getPublicBody()?->getName() ?? '',
+            'request_title' => (string) $accessRequest->getTitle(),
+            'request_description' => (string) $accessRequest->getDescription(),
+            'applicable_law_name' => $applicableLawName,
+            'complaint_filed_at' => $complaintFiledAt,
+            'complaint_external_id' => $complaintExternalId,
+            'post_response_text' => $this->getPostComplaintResponseContents($accessRequest),
+            'documents_block' => $this->formatDocumentContents($documentContents),
+            'criteria_text' => $criteriaText,
+            'resolutions_text' => $resolutionsText,
+        ]);
+    }
+
+    /**
+     * @return array{0: string, 1: string} Fecha de presentación y sufijo con el
+     *                                     nº de reclamación ('' cuando no consta).
+     */
+    private function complaintFilingLabels(AccessRequest $accessRequest): array
+    {
+        $complaint = $accessRequest->getComplaint();
+        $filedAt = $complaint?->getFiledAt()?->format('d/m/Y') ?? 'fecha no consta';
+        $externalId = $complaint?->getExternalId();
+        $suffix = $externalId !== null && $externalId !== '' ? ' con nº ' . $externalId : '';
+
+        return [$filedAt, $suffix];
+    }
+
     private function buildAlegationPointsText(array $alegationPoints): string
     {
         if (empty($alegationPoints)) {
@@ -1185,9 +1638,14 @@ GRANTED_PENDING;
 
 
     /**
-     * Strip markdown code fences and any model chatter around the HTML body.
+     * Strip markdown code fences and any model chatter around the HTML body,
+     * then enforce the tag whitelist the prompts require. `<a>` keeps its
+     * `href` only when it points at a URL present in the prompt context
+     * (nothing invented); every other attribute is dropped.
+     *
+     * @param list<string> $allowedUrls http(s) URLs seen in the prompt context
      */
-    private function sanitizeHtmlResponse(string $content): string
+    private function sanitizeHtmlResponse(string $content, array $allowedUrls = []): string
     {
         $content = trim($content);
 
@@ -1201,7 +1659,104 @@ GRANTED_PENDING;
             $content = trim($content ?? '');
         }
 
-        return $content;
+        // Drop active content entirely: strip_tags() would keep the inner
+        // text of <script>/<style>, which must never reach the document.
+        $content = preg_replace('#<(script|style|iframe|object|embed|form|input|button)[^>]*>.*?</\1>#is', '', $content) ?? $content;
+        $content = preg_replace('#<(script|style|iframe|object|embed|form|input|button)[^>]*/?>#i', '', $content) ?? $content;
+
+        $content = strip_tags($content, '<h1><p><strong><em><ol><ul><li><blockquote><br><a>');
+
+        return $this->scrubAttributes($content, $allowedUrls);
+    }
+
+    /**
+     * Collect the http(s) URLs visible in the prompt context. Used as the
+     * allowlist for `<a href>`: the model may only link what it was given.
+     *
+     * @return list<string>
+     */
+    private function extractAllowedUrls(string $systemPrompt): array
+    {
+        if (!preg_match_all('#https?://[^\s"<>\]]+#u', $systemPrompt, $matches)) {
+            return [];
+        }
+
+        $urls = [];
+        foreach ($matches[0] as $url) {
+            $url = rtrim($url, '.,;:!?)');
+            if ($url !== '' && !in_array($url, $urls, true)) {
+                $urls[] = $url;
+            }
+        }
+
+        return $urls;
+    }
+
+    /**
+     * Remove every attribute except a vetted `<a href>`. Unknown schemes
+     * (`javascript:`, `data:`, …) and URLs absent from the prompt context are
+     * dropped, keeping the link text.
+     *
+     * @param list<string> $allowedUrls
+     */
+    private function scrubAttributes(string $html, array $allowedUrls): string
+    {
+        if (trim($html) === '' || !str_contains($html, '<')) {
+            return $html;
+        }
+
+        try {
+            $doc = new \DOMDocument('1.0', 'UTF-8');
+            libxml_use_internal_errors(true);
+            $loaded = $doc->loadHTML(
+                '<?xml encoding="utf-8"><div>' . $html . '</div>',
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD,
+            );
+            libxml_clear_errors();
+            if (!$loaded) {
+                throw new \RuntimeException('HTML parse failed');
+            }
+
+            $xpath = new \DOMXPath($doc);
+            foreach ($xpath->query('//*') as $node) {
+                if (!$node instanceof \DOMElement) {
+                    continue;
+                }
+                if (strtolower($node->tagName) === 'a') {
+                    $href = $node->getAttribute('href');
+                    while ($node->attributes->length > 0) {
+                        $attr = $node->attributes->item(0);
+                        if ($attr !== null) {
+                            $node->removeAttribute($attr->name);
+                        }
+                    }
+                    if ($href !== '' && preg_match('#^https?://#i', $href) && in_array($href, $allowedUrls, true)) {
+                        $node->setAttribute('href', $href);
+                    }
+                    continue;
+                }
+                while ($node->attributes->length > 0) {
+                    $attr = $node->attributes->item(0);
+                    if ($attr !== null) {
+                        $node->removeAttribute($attr->name);
+                    }
+                }
+            }
+
+            $div = $doc->getElementsByTagName('div')->item(0);
+            if ($div === null) {
+                throw new \RuntimeException('Wrapper div missing');
+            }
+            $out = '';
+            foreach ($div->childNodes as $child) {
+                $out .= $doc->saveHTML($child);
+            }
+
+            return $out;
+        } catch (\Throwable) {
+            // Best-effort fallback when the DOM path fails: neutralise links.
+            return (string) preg_replace('/<a\s[^>]*>/i', '<a>', $html);
+        }
     }
 
     /**
@@ -1214,7 +1769,7 @@ GRANTED_PENDING;
      *
      * @return array<int, CitedResolution>
      */
-    private function extractCitedResolutions(string $content, array $resolutions): array
+    public function extractCitedResolutions(string $content, array $resolutions): array
     {
         $plain = strip_tags($content);
         $cited = [];
@@ -1248,7 +1803,7 @@ GRANTED_PENDING;
      *
      * @return array<int, string>
      */
-    private function extractCitedCriteria(string $content, array $criteria): array
+    public function extractCitedCriteria(string $content, array $criteria): array
     {
         $plain = strip_tags($content);
         $cited = [];

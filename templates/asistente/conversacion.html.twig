@@ -40,6 +40,7 @@
     {% set isMultiOrganism = (siblings|length) > 1 %}
     {% set isRegDraft = request.regDestination is not null %}
     {% set isAlegation = false %}
+    {% set isAmpliation = false %}
     {% set hasDraft = request.title is not empty
         or request.description is not empty
         or request.expone is not empty
@@ -47,10 +48,11 @@
     {% set pageTitle = 'Redactar solicitud · PideInfo' %}
 {% else %}
     {% set isAlegation = mode == 'alegation_response' %}
+    {% set isAmpliation = mode == 'ampliation' %}
     {% set isMultiOrganism = false %}
     {% set isRegDraft = false %}
     {% set hasDraft = currentBodyHtml is not empty %}
-    {% set pageTitle = (isAlegation ? 'Respuesta a alegaciones' : 'Reclamación') ~ ' - ' ~ request.title ~ ' - PideInfo' %}
+    {% set pageTitle = (isAlegation ? 'Respuesta a alegaciones' : (isAmpliation ? 'Ampliación de reclamación' : 'Reclamación')) ~ ' - ' ~ request.title ~ ' - PideInfo' %}
 {% endif %}
 
 {% block title %}{{ pageTitle }}{% endblock %}
@@ -96,7 +98,7 @@
                 {{ request.title|u.truncate(28) }}
             </a>
             <span class="text-slate-300">/</span>
-            <span class="text-slate-800 font-medium">{{ isAlegation ? 'RESPUESTA A ALEGACIONES' : 'RECLAMACIÓN' }}</span>
+            <span class="text-slate-800 font-medium">{{ isAlegation ? 'RESPUESTA A ALEGACIONES' : (isAmpliation ? 'AMPLIACIÓN DE RECLAMACIÓN' : 'RECLAMACIÓN') }}</span>
         {% endif %}
     </nav>
     {% endif %}
@@ -108,6 +110,8 @@
                     Redacta tu solicitud para
                 {% elseif isAlegation %}
                     Responde a las alegaciones de
+                {% elseif isAmpliation %}
+                    Amplía la reclamación frente a
                 {% else %}
                     Reclama frente a
                 {% endif %}
@@ -143,16 +147,16 @@
         </nav>
     {% endif %}
 
-    {% if not isRequest and isAlegation and existingDrafts|default([])|length > 0 %}
-        <nav class="draft-tabs" aria-label="Borradores de respuesta a alegaciones">
+    {% if not isRequest and (isAlegation or isAmpliation) and existingDrafts|default([])|length > 0 %}
+        <nav class="draft-tabs" aria-label="{% if isAmpliation %}Borradores de ampliación de reclamación{% else %}Borradores de respuesta a alegaciones{% endif %}">
             {% for draft in existingDrafts %}
-                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response', draft: draft.id}) }}"
+                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: mode, draft: draft.id}) }}"
                    class="draft-tab{% if currentDraft and currentDraft.id == draft.id %} is-current{% endif %}">
                     <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                     {{ draft.originalFilename|default('Borrador')|u.truncate(30) }}
                 </a>
             {% endfor %}
-            <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}"
+            <a href="{{ path('app_complaint_redactar', {id: request.id, mode: mode}) }}"
                class="draft-tab">
                 <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nuevo borrador
             </a>

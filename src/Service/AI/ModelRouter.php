@@ -31,6 +31,7 @@ final class ModelRouter
     public const FEATURE_REQUEST = 'request';
     public const FEATURE_COMPLAINT = 'complaint';
     public const FEATURE_ALEGATION = 'alegation';
+    public const FEATURE_AMPLIATION = 'ampliation';
 
     public function __construct(
         private readonly CustomModelClient $studentClient,
@@ -62,7 +63,7 @@ final class ModelRouter
         return match ($feature) {
             self::FEATURE_REQUEST => $this->enabledForRequests,
             self::FEATURE_COMPLAINT => $this->enabledForComplaints,
-            self::FEATURE_ALEGATION => $this->enabledForAlegations,
+            self::FEATURE_ALEGATION, self::FEATURE_AMPLIATION => $this->enabledForAlegations,
             default => false,
         };
     }
