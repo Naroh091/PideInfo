@@ -37,13 +37,14 @@ final class ComplaintPromptComposer
     public function compose(AccessRequest $ar, string $mode, string $currentBodyHtml, array $documentContents = []): CompiledPrompt
     {
         $isAlegation = $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE;
+        $isAmpliation = $mode === ComplaintDraftGenerator::MODE_AMPLIATION;
         $scaffolding = $this->complaintGenerator->composeChatScaffolding($ar, $mode, $documentContents);
 
         $hasDraft = trim(strip_tags($currentBodyHtml)) !== '';
         $state = $hasDraft
             ? 'YA EXISTE un borrador en el canvas.'
             : 'Aún NO hay borrador → salvo que el historial muestre un plan ya confirmado por el usuario, tu acción DEBE ser `reply` (FASE 1).';
-        $verb = $isAlegation ? 'la respuesta a las alegaciones' : 'la reclamación';
+        $verb = $isAlegation ? 'la respuesta a las alegaciones' : ($isAmpliation ? 'la ampliación de la reclamación' : 'la reclamación');
 
         // The two-phase block is framed differently for each mode: a complaint
         // dismantles the Administration's denial; an alegation-response rebuts the
@@ -76,7 +77,22 @@ Estás redactando la RESPUESTA A LAS ALEGACIONES de la Administración: el ciuda
 SOLO cuando, en un turno ANTERIOR, ya hayas hecho la FASE 1 y el usuario haya confirmado el plan (p. ej. "ok", "adelante", "perfecto", "genera", o proponiéndote ajustes concretos): para cada alegación confirmada busca con `search_resolutions` resoluciones que la contradigan (y `search_criteria` si la alegación reitera una causa de inadmisión o un límite con doctrina interpretativa), y emite el escrito completo de RESPUESTA rebatiendo las alegaciones punto por punto.
 TXT;
 
-        $twoPhase = $isAlegation ? $twoPhaseAlegation : $twoPhaseComplaint;
+        $twoPhaseAmpliation = <<<TXT
+## Protocolo OBLIGATORIO en dos fases (cuando AÚN NO hay borrador)
+
+Estás redactando la AMPLIACIÓN DE LA RECLAMACIÓN: el ciudadano YA reclamó y, DESPUÉS de reclamar, la Administración ha dictado una RESOLUCIÓN EXPRESA posterior. Tu trabajo es poner esa resolución posterior en conocimiento del Consejo, REBATIR su fundamentación motivo por motivo y pedir que se estime la reclamación ya presentada. NO es una respuesta a alegaciones (no hubo trámite de alegaciones) y NO es una reclamación nueva: NO reproduzcas la reclamación original desde cero.
+
+**FASE 1 — Identificar los motivos de la resolución posterior y proponer un plan de ampliación (action = `reply`).**
+1. Lee con `read_request_documents` la RESOLUCIÓN POSTERIOR de la Administración (el documento de tipo respuesta con fecha posterior a la reclamación: es el documento CLAVE) y la reclamación original del ciudadano.
+2. Identifica TODOS y CADA UNO de los motivos concretos que la resolución posterior invoca (p. ej. causa de inadmisión del art. 18.1.c, límite del art. 14, etc.). No te dejes ninguno.
+3. Responde al usuario (action = `reply`, SIN `draft`) así: en `conversational_reply` una introducción BREVE (p. ej. "He leído la resolución posterior de la Administración. Estos son sus motivos y así los rebatiré para ampliar la reclamación:") y, al final, la pregunta de confirmación ("¿Te parece bien este enfoque o quieres que ajuste algo antes de redactar?"). El detalle va en el campo `plan`: un elemento por cada motivo, con `argument` (qué sostiene la resolución posterior) y `strategy` (cómo lo rebates). El cliente mostrará cada elemento como una tarjeta, así que NO repitas el listado dentro de `conversational_reply`.
+4. En FASE 1 **NO llames a `search_resolutions`** todavía y **NO escribas el borrador**. Solo lee la resolución posterior, identifícala y propón el plan de ampliación.
+
+**FASE 2 — Redactar la ampliación (action = `generate`).**
+SOLO cuando, en un turno ANTERIOR, ya hayas hecho la FASE 1 y el usuario haya confirmado el plan (p. ej. "ok", "adelante", "perfecto", "genera", o proponiéndote ajustes concretos): para cada motivo confirmado busca con `search_resolutions` resoluciones que lo contradigan (y `search_criteria` si el motivo es una causa de inadmisión o un límite con doctrina interpretativa), y emite el escrito completo de AMPLIACIÓN rebatiendo la resolución posterior motivo por motivo.
+TXT;
+
+        $twoPhase = $isAlegation ? $twoPhaseAlegation : ($isAmpliation ? $twoPhaseAmpliation : $twoPhaseComplaint);
 
         $policy = <<<TXT
 # IMPORTANTE: protocolo de salida del chat asistente

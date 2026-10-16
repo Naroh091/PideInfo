@@ -79,6 +79,7 @@ enum DocumentType: string
         return [
             self::Complaint,
             self::AlegationResponse,
+            self::ComplaintExtension,
             self::SubsanacionResponse,
             self::Other,
         ];

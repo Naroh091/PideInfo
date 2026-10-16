@@ -1152,6 +1152,8 @@
         {% set summaryBlocks = summaryBlocks|merge([doc]) %}
     {% elseif doc.type.value == 'alegation_response' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
         {% set summaryBlocks = summaryBlocks|merge([doc]) %}
+    {% elseif doc.type.value == 'complaint_extension' and (hasContent or (doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0)) %}
+        {% set summaryBlocks = summaryBlocks|merge([doc]) %}
     {% elseif doc.type.value == 'complaint_resolution' and hasContent %}
         {% set summaryBlocks = summaryBlocks|merge([doc]) %}
     {% endif %}
@@ -1482,6 +1484,50 @@
                             <div class="pieza-cuerpo">
                                 {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
                                     <p class="pieza-intro">Contraargumentos principales:</p>
+                                    <ol class="exp-puntos exp-puntos--curso">
+                                        {% for point in doc.aiMetadata.keyPoints %}
+                                            <li><span class="n">{{ loop.index }}</span> {{ point }}</li>
+                                        {% endfor %}
+                                    </ol>
+                                {% elseif doc.aiMetadata.summary is defined and doc.aiMetadata.summary %}
+                                    <p class="text-sm text-slate-600">{{ doc.aiMetadata.summary }}</p>
+                                {% endif %}
+                                {% if doc.aiMetadata.citedResolutions is defined and doc.aiMetadata.citedResolutions|length > 0 %}
+                                    <div class="mt-3">
+                                        <p class="text-sm font-medium text-slate-700 mb-2">Resoluciones citadas:</p>
+                                        <ul class="space-y-2">
+                                            {% for res in doc.aiMetadata.citedResolutions %}
+                                                <li class="text-sm text-slate-600 flex items-start gap-2">
+                                                    <i data-lucide="bookmark" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5"></i>
+                                                    <span>
+                                                        <strong>{{ res.reference }}</strong>
+                                                        {% if res.date %}<span class="text-slate-400 ml-1">({{ res.date }})</span>{% endif %}
+                                                        {% if res.excerpt %}<br><span class="text-slate-500">{{ res.excerpt }}</span>{% endif %}
+                                                    </span>
+                                                </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                {% endif %}
+                                <a href="{{ path('app_document_download', {id: doc.id}) }}" class="pieza-doc">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+                                    {{ doc.originalFilename }}
+                                </a>
+                            </div>
+                        </article>
+
+                    {% elseif doc.type.value == 'complaint_extension' %}
+                        <article class="exp-hoja">
+                            <div class="pieza-cab">
+                                <span class="panel-icono panel-icono--curso"><i data-lucide="file-plus-2"></i></span>
+                                <div class="min-w-0 flex-1">
+                                    <h2 class="pieza-titulo">Ampliación de la reclamación</h2>
+                                    <p class="pieza-fecha">{{ docDate|date('d/m/Y') }}</p>
+                                </div>
+                            </div>
+                            <div class="pieza-cuerpo">
+                                {% if doc.aiMetadata.keyPoints is defined and doc.aiMetadata.keyPoints %}
+                                    <p class="pieza-intro">Motivos de la ampliación:</p>
                                     <ol class="exp-puntos exp-puntos--curso">
                                         {% for point in doc.aiMetadata.keyPoints %}
                                             <li><span class="n">{{ loop.index }}</span> {{ point }}</li>

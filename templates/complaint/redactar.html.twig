@@ -1,9 +1,10 @@
 {% extends 'layouts/app.html.twig' %}
 
 {% set isAlegation = mode == 'alegation_response' %}
+{% set isAmpliation = mode == 'ampliation' %}
 {% set pageTitle = mode is null
     ? 'Redactar escrito'
-    : (isAlegation ? 'Respuesta a Alegaciones' : 'Reclamación') %}
+    : (isAlegation ? 'Respuesta a Alegaciones' : (isAmpliation ? 'Ampliación de reclamación' : 'Reclamación')) %}
 
 {% block title %}{{ pageTitle }} - {{ request.title }} - PideInfo{% endblock %}
 
@@ -76,6 +77,18 @@
                     <span class="text-xs" style="color:#64748b;font-family:'DM Sans',sans-serif;">No disponible: aún no hay reclamación con alegaciones.</span>
                 {% endif %}
             </a>
+            <a href="{{ canAmpliation|default(false) ? path('app_complaint_redactar', {id: request.id, mode: 'ampliation'}) : '#' }}"
+               class="mode-card {{ canAmpliation|default(false) ? '' : 'is-disabled' }}"
+               {% if not canAmpliation|default(false) %}aria-disabled="true" onclick="event.preventDefault()"{% endif %}>
+                <span class="mode-icon"><i data-lucide="file-plus-2" class="w-5 h-5"></i></span>
+                <h2 class="mode-title">Ampliación de reclamación</h2>
+                <p class="mode-desc">Amplía la reclamación ya presentada cuando la administración dicte una resolución expresa posterior a ella.</p>
+                {% if canAmpliation|default(false) %}
+                    <span class="mode-cta">Empezar →</span>
+                {% else %}
+                    <span class="text-xs" style="color:#64748b;font-family:'DM Sans',sans-serif;">No disponible: aún no hay resolución posterior a la reclamación.</span>
+                {% endif %}
+            </a>
         </div>
 
         <script>
@@ -86,12 +99,14 @@
         <header class="draft-band">
             <div class="draft-eyebrow">
                 <span class="dot"></span>
-                {% if isAlegation %}Respuesta a alegaciones{% else %}Reclamación{% endif %}
+                {% if isAlegation %}Respuesta a alegaciones{% elseif isAmpliation %}Ampliación de reclamación{% else %}Reclamación{% endif %}
             </div>
             <div class="draft-band-row">
                 <h1 class="draft-band-title">
                     {% if isAlegation %}
                         Responde a las alegaciones de
+                    {% elseif isAmpliation %}
+                        Amplía la reclamación frente a
                     {% else %}
                         Reclama frente a
                     {% endif %}
@@ -107,16 +122,16 @@
             </div>
         </header>
 
-        {% if isAlegation and existingDrafts|length > 0 %}
-            <nav class="draft-tabs" aria-label="Borradores de respuesta a alegaciones">
+        {% if (isAlegation or isAmpliation) and existingDrafts|length > 0 %}
+            <nav class="draft-tabs" aria-label="{% if isAmpliation %}Borradores de ampliación de reclamación{% else %}Borradores de respuesta a alegaciones{% endif %}">
                 {% for draft in existingDrafts %}
-                    <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response', draft: draft.id}) }}"
+                    <a href="{{ path('app_complaint_redactar', {id: request.id, mode: mode, draft: draft.id}) }}"
                        class="draft-tab{% if currentDraft and currentDraft.id == draft.id %} is-current{% endif %}">
                         <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
                         {{ draft.originalFilename|default('Borrador')|u.truncate(30) }}
                     </a>
                 {% endfor %}
-                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: 'alegation_response'}) }}"
+                <a href="{{ path('app_complaint_redactar', {id: request.id, mode: mode}) }}"
                    class="draft-tab">
                     <i data-lucide="plus" class="w-3.5 h-3.5"></i> Nuevo borrador
                 </a>
@@ -129,7 +144,7 @@
             <article class="draft-card">
                 <div class="draft-meta-row">
                     <span class="meta-pill meta-pill-portal">
-                        {% if isAlegation %}Consejo de Transparencia{% else %}Reclamación{% endif %}
+                        {% if isAlegation %}Consejo de Transparencia{% elseif isAmpliation %}Ampliación{% else %}Reclamación{% endif %}
                     </span>
                     <span class="meta-pill">{{ request.publicBody.getLevelLabel() }}</span>
                     {% if request.applicableLaw %}
@@ -150,7 +165,7 @@
                         <input id="redactar-html-input" type="hidden" value="">
                         <trix-editor input="redactar-html-input"
                                      data-complaint-canvas-target="editor"
-                                     placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o abre el asistente en la zona inferior derecha para comenzar a redactar la respuesta utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% else %}Escribe la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la reclamación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% endif %}"
+                                     placeholder="{% if isAlegation %}Escribe la respuesta a las alegaciones, o abre el asistente en la zona inferior derecha para comenzar a redactar la respuesta utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% elseif isAmpliation %}Escribe la ampliación de la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la ampliación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% else %}Escribe la reclamación, o abre el asistente en la zona inferior derecha para comenzar a redactar la reclamación utilizando inteligencia artificial y resoluciones históricas de los Consejos…{% endif %}"
                                      @trix-change="documentEdited = true; persistedAt = null; charCount = ($event.target.editor.getDocument().toString() || '').length"></trix-editor>
                     </div>
 
@@ -158,7 +173,7 @@
 
                 <div class="draft-counters" x-show="editorReady" x-cloak>
                     <span x-text="`${charCount.toLocaleString('es-ES')} caracteres`">0 caracteres</span>
-                    <span>{% if isAlegation %}Respuesta a alegaciones · escrito estructurado{% else %}Reclamación · escrito estructurado{% endif %}</span>
+                    <span>{% if isAlegation %}Respuesta a alegaciones · escrito estructurado{% elseif isAmpliation %}Ampliación de reclamación · escrito estructurado{% else %}Reclamación · escrito estructurado{% endif %}</span>
                 </div>
 
                 <div class="draft-cta-row">
@@ -287,7 +302,7 @@
                         <i data-lucide="sparkles" class="w-4 h-4"></i>
                         <div>
                             Asistente de redacción
-                            <small>{% if isAlegation %}Pídeme redactar la respuesta o adjunta archivos{% else %}Pídeme redactar la reclamación o adjunta archivos{% endif %}</small>
+                            <small>{% if isAlegation %}Pídeme redactar la respuesta o adjunta archivos{% elseif isAmpliation %}Pídeme redactar la ampliación o adjunta archivos{% else %}Pídeme redactar la reclamación o adjunta archivos{% endif %}</small>
                         </div>
                     </div>
                     <button type="button"

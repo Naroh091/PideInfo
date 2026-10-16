@@ -51,6 +51,7 @@ class ComplaintRedactController extends AbstractController
 {
     private const SCRATCH_KEY_COMPLAINT = 'complaint_scratch_chat';
     private const SCRATCH_KEY_ALEGATION = 'alegation_response_scratch_chat';
+    private const SCRATCH_KEY_AMPLIATION = 'ampliation_scratch_chat';
     private const CHAT_HISTORY_CAP = 30;
 
     public function __construct(
@@ -77,6 +78,7 @@ class ComplaintRedactController extends AbstractController
                 'mode' => null,
                 'canComplaint' => $this->complaintGenerator->canGenerateComplaint($accessRequest),
                 'canAlegation' => $this->complaintGenerator->canGenerateAlegationResponse($accessRequest),
+                'canAmpliation' => $this->complaintGenerator->canGenerateAmpliation($accessRequest),
                 'existingDrafts' => [],
                 'currentDraft' => null,
                 'currentBodyHtml' => '',
@@ -90,7 +92,9 @@ class ComplaintRedactController extends AbstractController
                 'error',
                 $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
                     ? 'Solo se pueden generar respuestas a alegaciones cuando hay una reclamación en curso.'
-                    : 'Solo se pueden redactar reclamaciones para solicitudes denegadas o sin respuesta.',
+                    : ($mode === ComplaintDraftGenerator::MODE_AMPLIATION
+                        ? 'Solo se puede ampliar la reclamación cuando hay una resolución posterior a ella.'
+                        : 'Solo se pueden redactar reclamaciones para solicitudes denegadas o sin respuesta.'),
             );
             return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
         }
@@ -109,11 +113,17 @@ class ComplaintRedactController extends AbstractController
             $currentDraft = $accessRequest->getComplaintDraftDocument();
         }
 
-        // For alegation mode, list every saved draft so the header selector can switch.
+        // For alegation/ampliation modes, list every saved draft so the header selector can switch.
         $existingDrafts = [];
         if ($mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
             foreach ($accessRequest->getDocuments() as $doc) {
                 if ($doc->getType() === DocumentType::AlegationResponse) {
+                    $existingDrafts[] = $doc;
+                }
+            }
+        } elseif ($mode === ComplaintDraftGenerator::MODE_AMPLIATION) {
+            foreach ($accessRequest->getDocuments() as $doc) {
+                if ($doc->getType() === DocumentType::ComplaintExtension) {
                     $existingDrafts[] = $doc;
                 }
             }
@@ -144,6 +154,7 @@ class ComplaintRedactController extends AbstractController
             'mode' => $mode,
             'canComplaint' => $this->complaintGenerator->canGenerateComplaint($accessRequest),
             'canAlegation' => $this->complaintGenerator->canGenerateAlegationResponse($accessRequest),
+            'canAmpliation' => $this->complaintGenerator->canGenerateAmpliation($accessRequest),
             'existingDrafts' => $existingDrafts,
             'currentDraft' => $currentDraft,
             'currentBodyHtml' => $currentBodyHtml,
@@ -186,6 +197,8 @@ class ComplaintRedactController extends AbstractController
 
         if ($mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
             $document = $this->complaintGenerator->saveAlegationResponse($accessRequest, $draft);
+        } elseif ($mode === ComplaintDraftGenerator::MODE_AMPLIATION) {
+            $document = $this->complaintGenerator->saveAmpliation($accessRequest, $draft);
         } else {
             $document = $this->complaintGenerator->saveComplaint($accessRequest, $draft, ['origin' => 'external']);
         }
@@ -218,7 +231,8 @@ class ComplaintRedactController extends AbstractController
     private function normalizeMode(mixed $raw): ?string
     {
         if ($raw === ComplaintDraftGenerator::MODE_COMPLAINT
-            || $raw === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
+            || $raw === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
+            || $raw === ComplaintDraftGenerator::MODE_AMPLIATION) {
             return $raw;
         }
         return null;
@@ -229,10 +243,26 @@ class ComplaintRedactController extends AbstractController
         if ($mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE) {
             return $this->complaintGenerator->canGenerateAlegationResponse($ar);
         }
+        if ($mode === ComplaintDraftGenerator::MODE_AMPLIATION) {
+            // Como en complaint: basta con poder generarla o con tener ya una
+            // ampliación guardada para poder reeditarla.
+            return $this->complaintGenerator->canGenerateAmpliation($ar)
+                || $this->hasAmpliationDraft($ar);
+        }
         // For complaint mode, accept either canGenerate (no draft yet) OR
         // the existence of a saved draft (so the user can re-enter to edit).
         return $this->complaintGenerator->canGenerateComplaint($ar)
             || $ar->getComplaintDraftDocument() !== null;
+    }
+
+    private function hasAmpliationDraft(AccessRequest $ar): bool
+    {
+        foreach ($ar->getDocuments() as $doc) {
+            if ($doc->getType() === DocumentType::ComplaintExtension) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function findDraftDocument(AccessRequest $ar, string $mode, string $draftId): ?Document
@@ -244,7 +274,9 @@ class ComplaintRedactController extends AbstractController
         }
         $expectedType = $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
             ? DocumentType::AlegationResponse
-            : DocumentType::Complaint;
+            : ($mode === ComplaintDraftGenerator::MODE_AMPLIATION
+                ? DocumentType::ComplaintExtension
+                : DocumentType::Complaint);
         foreach ($ar->getDocuments() as $doc) {
             if ($doc->getType() === $expectedType && (string) $doc->getId() === (string) $uuid) {
                 return $doc;
@@ -287,9 +319,11 @@ class ComplaintRedactController extends AbstractController
 
     private function scratchKey(string $mode): string
     {
-        return $mode === ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE
-            ? self::SCRATCH_KEY_ALEGATION
-            : self::SCRATCH_KEY_COMPLAINT;
+        return match ($mode) {
+            ComplaintDraftGenerator::MODE_ALEGATION_RESPONSE => self::SCRATCH_KEY_ALEGATION,
+            ComplaintDraftGenerator::MODE_AMPLIATION => self::SCRATCH_KEY_AMPLIATION,
+            default => self::SCRATCH_KEY_COMPLAINT,
+        };
     }
 
     /**

@@ -30,9 +30,11 @@ final class PromptCatalog
             ['name' => 'pideinfo-complaint-generate-complaint', 'commitMessage' => 'Draft a transparency complaint (reclamacion)'],
             ['name' => 'pideinfo-complaint-generate-complaint-silence', 'commitMessage' => 'Compact prompt for silencio administrativo (positive or negative)'],
             ['name' => 'pideinfo-complaint-generate-alegation-response', 'commitMessage' => 'Draft a response to administration alegaciones'],
+            ['name' => 'pideinfo-complaint-generate-ampliation', 'commitMessage' => 'Draft an ampliation of the complaint after a late express resolution'],
             // Chat-specific variants (no pre-injected RAG; model uses search_resolutions tool per argument)
             ['name' => 'pideinfo-complaint-generate-complaint-chat', 'commitMessage' => 'Chat scaffold: draft complaint (agent uses search_resolutions per argument)'],
             ['name' => 'pideinfo-complaint-generate-alegation-response-chat', 'commitMessage' => 'Chat scaffold: response to alegaciones (agent uses search_resolutions per argument)'],
+            ['name' => 'pideinfo-complaint-generate-ampliation-chat', 'commitMessage' => 'Chat scaffold: ampliation after late resolution (agent uses search_resolutions per argument)'],
             ['name' => 'pideinfo-request-generate-request-chat', 'commitMessage' => 'Chat scaffold: draft access request'],
             ['name' => 'pideinfo-consult-generate-doc-chat', 'commitMessage' => 'Chat scaffold: free consultation + inline document generation'],
             ['name' => 'pideinfo-activity-summary-24h', 'commitMessage' => '24-hour AI activity summary shown on the home dashboard'],
