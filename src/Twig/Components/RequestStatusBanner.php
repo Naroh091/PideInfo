@@ -103,6 +103,51 @@ class RequestStatusBanner
         return !$this->isClaimDeadlinePassed();
     }
 
+    public function getComplaintDeadline(): ?\DateTimeImmutable
+    {
+        return $this->request->getComplaint()?->getDeadlineAt();
+    }
+
+    public function getDaysUntilComplaintDeadline(): ?int
+    {
+        $complaint = $this->request->getComplaint();
+        if ($complaint === null || $complaint->getDeadlineAt() === null) {
+            return null;
+        }
+
+        return $complaint->getDaysUntilDeadline();
+    }
+
+    public function isComplaintOverdue(): bool
+    {
+        $complaint = $this->request->getComplaint();
+        if ($complaint === null) {
+            return false;
+        }
+
+        return $complaint->isDeadlinePassed();
+    }
+
+    public function hasPostComplaintResponse(): bool
+    {
+        $complaint = $this->request->getComplaint();
+        if ($complaint === null || $complaint->getFiledAt() === null) {
+            return false;
+        }
+        $filedAt = $complaint->getFiledAt();
+        foreach ($this->request->getDocuments() as $document) {
+            if ($document->getType() !== \App\Enum\DocumentType::Response) {
+                continue;
+            }
+            $docDate = $document->getDocumentDate() ?? $document->getCreatedAt();
+            if ($docDate > $filedAt) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function getPendingReminder(): ?Reminder
     {
         $user = $this->security->getUser();
