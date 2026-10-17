@@ -36,4 +36,13 @@ final class AttributeKeys
     // Both name + version (integer) are required for Langfuse to link a generation to a managed prompt.
     public const LANGFUSE_OBSERVATION_PROMPT_NAME = 'langfuse.observation.prompt.name';
     public const LANGFUSE_OBSERVATION_PROMPT_VERSION = 'langfuse.observation.prompt.version';
+
+    // Agent tool self-reported counters (set by the tool itself on its own
+    // `agent.tool.<name>` span via Tracer::annotate()).
+    public const AGENT_CACHE_HIT = 'agent.cache_hit';
+    public const AGENT_DOCS_TOTAL = 'agent.docs_total';
+    public const AGENT_DOCS_ANALYZED = 'agent.docs_analyzed';
+    public const AGENT_DOCS_REUSED = 'agent.docs_reused';
+    public const AGENT_DOCS_SUMMARY = 'agent.docs_summary';
+    public const AGENT_LLM_BATCHES = 'agent.llm_batches';
 }

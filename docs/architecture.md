@@ -253,7 +253,7 @@ El asistente de redacción (solicitudes, reclamaciones, alegaciones) usa un mode
 | `AgentChatOrchestrator` | Orquesta el turno completo: tool loop + respuesta final JSON |
 | `SearchResolutionsTool` | RAG de dos etapas: screening por keypoints + revisión de texto completo |
 | `SearchResolutionsFilteredTool` | Búsqueda estructurada por filtros exactos vía Elasticsearch (`ResolutionFilteredLookup`); totales y desglose por resultado. Complementa a la semántica, no la sustituye |
-| `ReadRequestDocumentsTool` | Lee documentos de la solicitud con sub-llamada LLM por documento |
+| `ReadRequestDocumentsTool` | Lee documentos de la solicitud: caché por documento, resumen de ingesta para el trámite (rangos 2-4), y extracción LLM en lote (1 llamada por ~60k caracteres, lotes concurrentes) para resolución + alegaciones (rangos 0-1) |
 | `EditRequestDraftTool` | Edita título/cuerpo del borrador de la solicitud de la conversación (solo chat de consulta + `STATUS_PENDING`; gate duro por UUID vía `AgentRequestContext`) |
 | `GetUserPreferencesTool` | Devuelve las preferencias de redacción del usuario |
 | `SaveUserPreferenceTool` | Persiste una preferencia de estilo generalizable aprendida del usuario |

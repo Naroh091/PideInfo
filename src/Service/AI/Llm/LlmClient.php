@@ -54,6 +54,68 @@ class LlmClient
     }
 
     /**
+     * Concurrent variant of chatJson(): dispatches several JSON requests in
+     * parallel and decodes each response. All-or-nothing — throws on the first
+     * failed slot so callers can fall back to sequential chatJson().
+     *
+     * Single attempt per request (no JSON retry loop): a malformed batch is
+     * cheaper to redo sequentially per item than to resend whole batches.
+     *
+     * @param list<ChatRequest> $requests
+     * @return list<array<string, mixed>> in input order
+     */
+    public function chatJsonConcurrent(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        // Respect teacher routing per request (usually all share one client).
+        $groups = [];
+        foreach ($requests as $i => $req) {
+            $client = $this->clientFor($req);
+            $key = spl_object_id($client);
+            $groups[$key]['client'] ??= $client;
+            $groups[$key]['indices'][] = $i;
+        }
+
+        $decoded = array_fill(0, count($requests), null);
+        foreach ($groups as $group) {
+            $indices = $group['indices'];
+            $subset = array_map(static fn (int $i) => $requests[$i], $indices);
+            $results = $group['client']->callConcurrent($subset);
+
+            foreach ($results as $j => $result) {
+                $i = $indices[$j];
+                $req = $requests[$i];
+                $content = $this->stripCodeFences($result->content);
+                $data = json_decode($content, true);
+                if (json_last_error() !== JSON_ERROR_NONE || !is_array($data)) {
+                    throw new \RuntimeException(sprintf(
+                        'Invalid JSON from LLM (concurrent slot %d, label %s): %s',
+                        $i,
+                        $req->label ?? '—',
+                        json_last_error_msg(),
+                    ));
+                }
+                if ($req->requiredJsonKeys !== null) {
+                    $missing = array_diff($req->requiredJsonKeys, array_keys($data));
+                    if ($missing !== []) {
+                        throw new \RuntimeException(sprintf(
+                            'LLM response missing required keys (concurrent slot %d): %s',
+                            $i,
+                            implode(', ', $missing),
+                        ));
+                    }
+                }
+                $decoded[$i] = $data;
+            }
+        }
+
+        return $decoded;
+    }
+
+    /**
      * Chat call expecting a JSON response. Strips markdown fences, decodes JSON,
      * optionally validates required keys, and retries on parse / key-validation failures.
      *
