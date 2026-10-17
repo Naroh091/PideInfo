@@ -112,6 +112,42 @@ final class TracingLlmClient extends LlmClient
     }
 
     /**
+     * Concurrent counterpart of chatJson(): one `llm.chat …` generation span per
+     * request, nested around the single concurrent dispatch. The spans overlap in
+     * time (they all cover the same multiplexed window) — each carries its own
+     * input so every batch stays reconstructible from the trace, and its own
+     * output (its decoded JSON slot) once the round completes.
+     *
+     * @param list<ChatRequest> $requests
+     * @return list<array<string, mixed>>
+     */
+    public function chatJsonConcurrent(array $requests): array
+    {
+        $run = fn (): array => $this->inner->chatJsonConcurrent($requests);
+
+        foreach ($requests as $i => $req) {
+            $prev = $run;
+            $run = fn (): array => $this->tracer->generation(
+                name: 'llm.chat' . ($req->label !== null ? ' ' . $req->label : ''),
+                attributes: array_merge(
+                    $this->buildRequestAttributes($req),
+                    [AttributeKeys::GEN_AI_REQUEST_ATTEMPT => 1],
+                ),
+                fn: $prev,
+                captureOutput: static function (array $all, SpanInterface $span) use ($i): void {
+                    $slot = $all[$i] ?? null;
+                    $span->setAttribute(
+                        AttributeKeys::LANGFUSE_OBSERVATION_OUTPUT,
+                        json_encode($slot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PARTIAL_OUTPUT_ON_ERROR) ?: '',
+                    );
+                },
+            );
+        }
+
+        return $run();
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function buildRequestAttributes(ChatRequest $req): array

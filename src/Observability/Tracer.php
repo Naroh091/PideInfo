@@ -4,6 +4,7 @@ namespace App\Observability;
 
 use OpenTelemetry\API\Trace\SpanInterface;
 use OpenTelemetry\API\Trace\SpanKind;
+use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\API\Trace\TracerInterface;
 use OpenTelemetry\API\Trace\TracerProviderInterface;
@@ -239,6 +240,31 @@ final class Tracer
     public function forceFlush(): void
     {
         $this->safeForceFlush();
+    }
+
+    /**
+     * Sets attributes on the CURRENT span, whatever it is, if there is one.
+     * Lets code running inside a span (e.g. an agent tool executing within its
+     * own `agent.tool.<name>` observation) enrich that observation — cache-hit
+     * counters, reuse stats — without owning the span lifecycle.
+     *
+     * Never throws: observability must not break the call it measures.
+     *
+     * @param array<string, mixed> $attributes
+     */
+    public function annotate(array $attributes): void
+    {
+        try {
+            $span = Span::getCurrent();
+            foreach ($attributes as $key => $value) {
+                if ($value === null) {
+                    continue;
+                }
+                $span->setAttribute($key, $value);
+            }
+        } catch (\Throwable) {
+            // swallow
+        }
     }
 
     /**

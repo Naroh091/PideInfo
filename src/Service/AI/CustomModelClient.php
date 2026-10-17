@@ -15,8 +15,11 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpClient\CurlHttpClient;
+use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\HttpClient\Psr18Client;
 use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
+use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * Shared OpenAI-compatible client for calling a self-hosted / custom chat model
@@ -63,6 +66,11 @@ final class CustomModelClient
         // Keeps the assistant's SSE response alive while this client waits on the
         // model; a no-op outside a stream (see StreamHeartbeat).
         private readonly ?StreamHeartbeat $heartbeat = null,
+        // Transport for callConcurrent(). Nullable (tests inject a mock); when
+        // null a dedicated client with the same 600 s budget as the other
+        // paths is created lazily. NOT the shared `http_client` service: this
+        // needs the long timeout, and per-call options beat global defaults.
+        private readonly ?HttpClientInterface $concurrentHttp = null,
     ) {
         $this->temperature = $temperature === '' ? null : (float) $temperature;
     }
@@ -116,6 +124,147 @@ final class CustomModelClient
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
         return yield from $this->dispatchStream($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+    }
+
+    /**
+     * Dispatches several chat requests CONCURRENTLY: one streamed POST per
+     * request, chunks interleaved through Symfony HttpClient::stream() so all
+     * responses advance together instead of one after another.
+     *
+     * Wire format matches dispatch() (stream:true + include_usage), so the edge
+     * proxy keeps seeing bytes flowing and long prefills don't die as HTTP 524.
+     *
+     * All-or-nothing: throws on the first failed slot so callers can fall back
+     * to sequential dispatch. Latency only improves when the backend actually
+     * serves requests in parallel — if it serialises them, timing degrades to
+     * sequential (measure per backend; see ReadRequestDocumentsTool).
+     *
+     * @param list<ChatRequest> $requests
+     * @return list<ChatResult> in input order
+     */
+    public function callConcurrent(array $requests): array
+    {
+        if ($requests === []) {
+            return [];
+        }
+
+        foreach ($requests as $req) {
+            $this->throttle();
+        }
+
+        $http = $this->concurrentHttp ?? HttpClient::create(['timeout' => 600, 'max_duration' => 600]);
+        $url = rtrim($this->endpoint, '/') . '/chat/completions';
+        $headers = [
+            'Authorization' => 'Bearer ' . ($this->apiKey !== '' ? $this->apiKey : 'no-key'),
+            'Content-Type' => 'application/json',
+            'Accept' => 'text/event-stream',
+        ];
+
+        $responses = [];
+        foreach ($requests as $i => $req) {
+            ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
+            $body = [
+                'model' => $this->model,
+                'messages' => $messages,
+                'max_tokens' => $req->maxOutputTokens,
+                'stream' => true,
+                'stream_options' => ['include_usage' => true],
+            ];
+            if ($this->temperature !== null) {
+                $body['temperature'] = $this->temperature;
+            }
+            if ($responseFormat !== null) {
+                $body['response_format'] = $responseFormat;
+            }
+            $responses[$i] = $http->request('POST', $url, ['headers' => $headers, 'json' => $body]);
+        }
+
+        $slotOf = [];
+        foreach ($responses as $i => $response) {
+            $slotOf[spl_object_id($response)] = $i;
+        }
+        $count = count($requests);
+        $contents = array_fill(0, $count, '');
+        $buffers = array_fill(0, $count, '');
+        $promptTokens = array_fill(0, $count, null);
+        $completionTokens = array_fill(0, $count, null);
+        $modelIds = array_fill(0, $count, null);
+        $finishReasons = array_fill(0, $count, null);
+        $statusChecked = array_fill(0, $count, false);
+
+        // SSE line feeder: buffers per-slot text, parses complete lines, keeps
+        // the tail fragment (stream chunks can split mid-line).
+        $feed = function (int $i, string $text) use (&$buffers, &$contents, &$promptTokens, &$completionTokens, &$modelIds, &$finishReasons): void {
+            $buffers[$i] .= $text;
+            $lines = explode("\n", $buffers[$i]);
+            $buffers[$i] = (string) array_pop($lines);
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (!str_starts_with($line, 'data:')) {
+                    continue;
+                }
+                $payload = trim(substr($line, 5));
+                if ($payload === '' || $payload === '[DONE]') {
+                    continue;
+                }
+                $data = json_decode($payload, true);
+                if (!is_array($data)) {
+                    continue; // tolerant: a garbled line must not kill sibling slots
+                }
+                $choice = $data['choices'][0] ?? null;
+                if (is_array($choice)) {
+                    $delta = $choice['delta']['content'] ?? null;
+                    if (is_string($delta) && $delta !== '') {
+                        $contents[$i] .= $delta;
+                    }
+                    $finishReasons[$i] = $choice['finish_reason'] ?? $finishReasons[$i];
+                }
+                $modelIds[$i] = $data['model'] ?? $modelIds[$i];
+                if (isset($data['usage']) && is_array($data['usage'])) {
+                    $promptTokens[$i] = $data['usage']['prompt_tokens'] ?? $promptTokens[$i];
+                    $completionTokens[$i] = $data['usage']['completion_tokens'] ?? $completionTokens[$i];
+                }
+            }
+        };
+
+        try {
+            foreach ($http->stream($responses) as $response => $chunk) {
+                $i = $slotOf[spl_object_id($response)];
+                $this->heartbeat?->beat();
+
+                if (!$statusChecked[$i] && $chunk->isFirst()) {
+                    $statusChecked[$i] = true;
+                    $status = $response->getStatusCode();
+                    if ($status < 200 || $status >= 300) {
+                        $preview = mb_substr($response->getContent(false), 0, 500);
+                        throw new \RuntimeException(sprintf('Custom model concurrent call failed (HTTP %d): %s', $status, $preview));
+                    }
+                }
+
+                if ($chunk->isTimeout()) {
+                    throw new \RuntimeException('Custom model concurrent call timed out waiting for stream data.');
+                }
+
+                $feed($i, $chunk->getContent());
+            }
+        } catch (TransportExceptionInterface $e) {
+            throw new \RuntimeException('Custom model concurrent transport error: ' . $e->getMessage(), 0, $e);
+        }
+
+        // Flush any tail fragment left without a trailing newline.
+        for ($i = 0; $i < $count; $i++) {
+            $feed($i, "\n");
+        }
+
+        $results = [];
+        foreach ($requests as $i => $req) {
+            if (strlen(trim($contents[$i])) < 5) {
+                throw new \RuntimeException(sprintf('Empty response from custom model (concurrent slot %d).', $i));
+            }
+            $results[$i] = new ChatResult($contents[$i], $promptTokens[$i], $completionTokens[$i], $modelIds[$i], $finishReasons[$i]);
+        }
+
+        return $results;
     }
 
     /**
