@@ -492,20 +492,23 @@ export default class extends Controller {
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload),
         });
-        if (response.status === 422) {
+        // The body can only be read once: parse it here and branch on the
+        // error code, so a 422 that is NOT needs_profile (e.g.
+        // batch_quota_exceeded) keeps its code for the caller instead of
+        // falling through to the generic message with an empty payload.
+        if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            if (data && data.error === 'needs_profile') {
+            if (response.status === 422 && data && data.error === 'needs_profile') {
                 const e = new Error('needs_profile');
                 e.code = 'needs_profile';
                 e.profileFormUrl = data.profileFormUrl;
                 throw e;
             }
-        }
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
             const e = new Error(data.message || `HTTP ${response.status}`);
-            e.code = data.error || null;
-            e.userMessage = data.message || null;
+            e.code = (data && data.error) || null;
+            e.userMessage = (data && data.message) || null;
+            e.max = (data && data.max) || null;
+            e.upgradeUrl = (data && data.upgradeUrl) || null;
             throw e;
         }
         return response.json();
