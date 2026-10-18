@@ -966,7 +966,7 @@ export default class extends Controller {
                     </button>
                 </header>
                 <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
-                    <a href="${err.upgradeUrl}" class="btn-editorial btn-editorial--primario">Ver planes</a>
+                    <a href="${err.upgradeUrl}" target="_blank" rel="noopener" class="btn-editorial btn-editorial--primario">Ver planes</a>
                     <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-close>Cerrar</button>
                 </div>
             </div>`;

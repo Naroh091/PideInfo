@@ -427,7 +427,11 @@ export default class extends Controller {
                 window.location.href = json.firstDraftUrl;
                 return;
             } catch (retryErr) {
+                // El reintento también puede fallar (cupo, red, validación del
+                // servidor): no tragarlo en silencio como antes — avisar igual
+                // que en el envío normal para que no parezca que "no hace nada".
                 console.error(retryErr);
+                alert((retryErr && retryErr.userMessage) || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
             }
         }
         restoreButton();
@@ -452,7 +456,7 @@ export default class extends Controller {
                     </button>
                 </header>
                 <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
-                    <a href="/planes" class="btn-editorial btn-editorial--primario">Ver planes</a>
+                    <a href="/planes" target="_blank" rel="noopener" class="btn-editorial btn-editorial--primario">Ver planes</a>
                     <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-single>Seguir con un destinatario</button>
                 </div>
             </div>`;
