@@ -79,6 +79,22 @@
             color: #475569;
             line-height: 1.45;
         }
+        .choice-agent-note {
+            font-size: .82rem;
+            color: #475569;
+            margin-top: .6rem;
+            line-height: 1.5;
+        }
+        .choice-agent-note a {
+            color: #0284c7;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .choice-agent-note a:hover { text-decoration: underline; }
+        .choice-card[role="link"]:focus-visible {
+            outline: 2px solid #0284c7;
+            outline-offset: 2px;
+        }
         .choice-card .choice-cta {
             margin-top: auto;
             padding-top: 1rem;
@@ -111,13 +127,14 @@
     </div>
 
     <div class="grid md:grid-cols-7 gap-4 items-stretch">
-        <a href="{{ path('app_solicitudes_submit_form') }}" class="choice-card choice-submit md:col-span-3">
+        <div class="choice-card choice-submit md:col-span-3" data-href="{{ path('app_solicitudes_submit_form') }}" role="link" tabindex="0" style="cursor:pointer;" aria-label="Redactar y enviar">
             <div class="choice-icon"><i data-lucide="send" class="w-5 h-5"></i></div>
             <span class="choice-badge"><span aria-hidden="true">🤖</span> Requiere el Agente de PideInfo</span>
             <h3>Quiero redactarla con asistencia de IA y que PideInfo la envíe por mí</h3>
             <p>Redactas la solicitud y eliges a qué organismos enviarla. PideInfo se la entrega al Portal de Transparencia o al REG en tu nombre, usando tu certificado digital.</p>
+            <p class="choice-agent-note">Requiere el agente de PideInfo, que hará la presentación por ti. <a href="{{ path('app_agente') }}" target="_blank" rel="noopener">Más información ›</a></p>
             <span class="choice-cta">Redactar y enviar <i data-lucide="arrow-right" class="w-4 h-4"></i></span>
-        </a>
+        </div>
 
         <a href="{{ path('app_solicitudes_draft_only') }}" class="choice-card choice-draft md:col-span-2">
             <div class="choice-icon"><i data-lucide="pen-line" class="w-5 h-5"></i></div>
@@ -310,4 +327,24 @@
         Para "Redactar y enviar" necesitas tener el agente local de PideInfo conectado, ya que es quien firma con tu certificado.
     </p>
 </div>
+
+<script>
+    // La tarjeta "Redactar y enviar" es un div navegable (no un <a>): así
+    // puede contener el enlace real "Más información" a la página del agente.
+    // Los clics en el enlace interno no navegan la tarjeta (nueva pestaña).
+    (function () {
+        document.querySelectorAll('.choice-card[data-href]').forEach(function (card) {
+            card.addEventListener('click', function (ev) {
+                if (ev.target.closest('a')) return;
+                window.location.href = card.dataset.href;
+            });
+            card.addEventListener('keydown', function (ev) {
+                if ((ev.key === 'Enter' || ev.key === ' ') && !ev.target.closest('a')) {
+                    ev.preventDefault();
+                    window.location.href = card.dataset.href;
+                }
+            });
+        });
+    })();
+</script>
 {% endblock %}
