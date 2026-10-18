@@ -2622,6 +2622,265 @@ body {
 }
 .draft-tab .draft-tab-state { font-size: .62rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
 
+/* ── Lote con varios destinatarios: plantilla común + versiones ───────────
+   (templates/asistente/_batch_nav, _template_sheet, _template_sidebar;
+   controlador batch-versions). Estados: sky = desde la plantilla / en curso,
+   esmeralda = enviada, ámbar = atención (plantilla cambiada, sin adaptar),
+   slate = sin redactar o redactada aparte. */
+.batch-nav {
+  background: #fff;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 1rem;
+  padding: 1rem 1.1rem .9rem;
+  margin: 0 0 1.25rem;
+}
+.batch-nav-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.batch-nav-title {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font-weight: 600; color: rgb(15 23 42); font-size: .95rem; margin: 0;
+}
+/* Corona del plan: mismo ámbar que la del menú de usuario (UserMenu). */
+.batch-plan {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .74rem; font-weight: 500; color: var(--color-accent-700);
+  background: var(--color-accent-50); border: 1px solid var(--color-accent-200);
+  border-radius: 999px; padding: .15rem .6rem; margin-left: .25rem;
+  text-decoration: none;
+}
+.batch-plan:hover { border-color: var(--color-accent-500); }
+.batch-plan svg, .batch-plan i { color: var(--color-accent-500); }
+.batch-nav-title { flex-wrap: wrap; }
+.batch-nav-progress { font-size: .78rem; color: rgb(100 116 139); margin: 0; }
+.batch-nav-progress .tnum { font-family: 'Inter', sans-serif; font-feature-settings: "tnum"; font-weight: 600; color: rgb(15 23 42); }
+.batch-nav-progress .batch-nav-progress-warn { color: var(--color-accent-700); }
+
+.batch-steps {
+  list-style: none; padding: 0; margin: .85rem 0 .9rem;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem;
+}
+@media (max-width: 900px) { .batch-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .batch-steps { grid-template-columns: 1fr; } }
+.batch-step {
+  display: flex; gap: .55rem; align-items: flex-start;
+  font-size: .78rem; line-height: 1.3; color: rgb(71 85 105);
+  padding: .55rem .65rem; border-radius: .65rem;
+  border: 1px solid rgb(241 245 249); background: rgb(248 250 252);
+}
+.batch-step strong { color: rgb(30 41 59); font-weight: 600; }
+.batch-step-sub { color: rgb(100 116 139); font-size: .72rem; }
+.batch-step-num {
+  flex: none; width: 1.35rem; height: 1.35rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: 'Inter', sans-serif; font-feature-settings: "tnum"; font-size: .7rem; font-weight: 700;
+  background: #fff; border: 1px solid rgb(203 213 225); color: rgb(71 85 105);
+}
+.batch-step.is-current { border-color: var(--color-primary-200); background: var(--color-primary-50); }
+.batch-step.is-current .batch-step-num { background: var(--color-primary-500); border-color: var(--color-primary-500); color: #fff; }
+.batch-step.is-done .batch-step-num { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+
+.batch-tabs { align-items: center; margin-bottom: .75rem; }
+.batch-tabs-sep { color: rgb(203 213 225); display: inline-flex; }
+/* La pestaña de la plantilla (no confundir con el estado `--template` de una versión). */
+.batch-tab-plantilla { font-weight: 600; }
+.batch-tab-plantilla:not(.is-current) { border-style: dashed; }
+.batch-tab .batch-tab-icon { opacity: .75; }
+.batch-tab.batch-tab--sent .batch-tab-icon { color: #059669; opacity: 1; }
+.batch-tab.batch-tab--adjusted .batch-tab-icon,
+.batch-tab.batch-tab--template .batch-tab-icon { color: var(--color-primary-600); opacity: 1; }
+.batch-tab.batch-tab--empty { color: rgb(100 116 139); }
+
+.batch-flag {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .62rem; font-weight: 600; padding: .05rem .4rem; border-radius: 999px; white-space: nowrap;
+}
+.batch-flag--warn { background: var(--color-accent-50); color: var(--color-accent-700); border: 1px solid var(--color-accent-200); }
+.batch-flag--busy { background: var(--color-primary-50); color: var(--color-primary-700); border: 1px solid var(--color-primary-200); }
+.batch-dot-pulse {
+  width: .45rem; height: .45rem; border-radius: 999px; background: var(--color-primary-500);
+  display: inline-block; animation: batch-pulse 1.2s ease-in-out infinite;
+}
+@keyframes batch-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .batch-dot-pulse { animation: none; } }
+
+.batch-context {
+  display: flex; gap: .5rem; align-items: flex-start;
+  font-size: .82rem; color: rgb(51 65 85); margin: 0 0 .6rem;
+}
+.batch-context > i, .batch-context > svg { flex: none; margin-top: .15rem; color: var(--color-primary-600); }
+.batch-context a { color: var(--color-primary-700); text-decoration: underline; text-underline-offset: 2px; }
+.batch-alert {
+  display: flex; gap: .6rem; align-items: flex-start;
+  font-size: .82rem; color: rgb(120 53 15);
+  background: var(--color-accent-50); border: 1px solid var(--color-accent-200);
+  border-radius: .75rem; padding: .7rem .85rem; margin: 0 0 .6rem;
+}
+.batch-alert > i, .batch-alert > svg { flex: none; margin-top: .15rem; color: var(--color-accent-700); }
+.batch-alert p { margin: 0; }
+
+.batch-help { font-size: .8rem; color: rgb(71 85 105); }
+.batch-help summary {
+  cursor: pointer; display: inline-flex; align-items: center; gap: .35rem;
+  color: var(--color-primary-700); font-weight: 500; list-style: none;
+}
+.batch-help summary::-webkit-details-marker { display: none; }
+.batch-help summary::marker { content: ''; }
+.batch-help-chevron { display: inline-flex; transition: transform .15s ease; }
+.batch-help[open] .batch-help-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .batch-help-chevron { transition: none; } }
+.batch-help ul { margin: .6rem 0 .2rem; padding-left: 1.1rem; list-style: disc; display: grid; gap: .35rem; }
+.batch-help code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .72rem;
+  background: rgb(241 245 249); border-radius: .3rem; padding: .02rem .3rem; color: rgb(15 23 42);
+}
+
+/* Hoja de la plantilla común: misma hoja, con filete punteado que la distingue de una solicitud */
+.paper-sheet--template { outline: 2px dashed var(--color-primary-200); outline-offset: 4px; }
+.meta-pill-template {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: var(--color-primary-50); color: var(--color-primary-700); border-color: var(--color-primary-200);
+  font-weight: 600;
+}
+.template-markers { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: .9rem 0 0; }
+.template-markers:empty { display: none; }
+.template-markers-label { font-size: .72rem; font-weight: 600; color: rgb(100 116 139); margin-right: .15rem; }
+.template-marker {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .72rem; color: rgb(51 65 85);
+}
+.template-marker > span { color: rgb(100 116 139); }
+.template-markers-empty { font-size: .75rem; color: rgb(100 116 139); margin: 0; }
+
+/* Marcadores como badges (ayuda, intro, leyenda, sidebar). Colores = las
+   píldoras de la hoja: organismo sky (canal), unidad slate (unidad DIR3), ley
+   ámbar (ley); desconocido rojo punteado (no se sustituirá). Dentro de los
+   textareas el marcador queda como texto plano. */
+.marker-badge {
+  --mk-bg: var(--color-primary-100, #e0f2fe);
+  --mk-fg: var(--color-primary-800, #075985);
+  --mk-ring: var(--color-primary-200);
+  display: inline-block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: .7rem; font-weight: 600; line-height: 1.35; letter-spacing: 0;
+  color: var(--mk-fg);
+  background: var(--mk-bg);
+  border-radius: .3em;
+  padding: .05rem .4rem;
+  box-shadow: inset 0 0 0 1px var(--mk-ring);
+  white-space: nowrap; vertical-align: baseline;
+}
+.marker-badge--unidad { --mk-bg: rgb(226 232 240); --mk-fg: rgb(51 65 85); --mk-ring: rgb(203 213 225); }
+.marker-badge--ley-aplicable { --mk-bg: var(--color-accent-100, #fef3c7); --mk-fg: var(--color-accent-800, #92400e); --mk-ring: var(--color-accent-200); }
+.marker-badge--unknown { --mk-bg: #fef2f2; --mk-fg: #b91c1c; --mk-ring: #fca5a5; box-shadow: none; outline: 1px dashed var(--mk-ring); outline-offset: -1px; }
+
+/* Hito «Versiones generadas desde la plantilla» en el timeline del chat:
+   un chip por organismo (enlace a su versión), no el texto entero. Punto del
+   chip = estado: sky desde la plantilla/ajustada, ámbar plantilla cambiada o
+   sin adaptar, esmeralda enviada. */
+.chat-event--versions { display: grid; gap: .4rem; }
+.version-chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.version-chip {
+  display: inline-flex; align-items: center; gap: .4rem;
+  font-size: .74rem; color: rgb(30 41 59); text-decoration: none;
+  background: #fff; border: 1px solid rgb(226 232 240); border-radius: 999px;
+  padding: .2rem .6rem .2rem .45rem;
+  transition: border-color .12s ease;
+}
+.version-chip:hover { border-color: var(--color-primary-300, #7dd3fc); }
+.version-chip-dot { width: .45rem; height: .45rem; border-radius: 999px; background: var(--color-primary-500); flex: none; }
+.version-chip-state { font-size: .64rem; color: rgb(100 116 139); }
+.version-chip--outdated .version-chip-dot,
+.version-chip--warn .version-chip-dot { background: var(--color-accent-500); }
+.version-chip--outdated .version-chip-state,
+.version-chip--warn .version-chip-state { color: var(--color-accent-700); }
+.version-chip--sent .version-chip-dot { background: #10b981; }
+/* Mientras se genera: punto del hilo latiendo, barra con brillo y chips en curso. */
+.chat-event--versions.is-generating::before {
+  border-color: var(--color-primary-500); background: var(--color-primary-100, #e0f2fe);
+  animation: batch-pulse 1.2s ease-in-out infinite;
+}
+.version-progress {
+  position: relative; overflow: hidden;
+  width: min(22rem, 100%); height: .3rem; border-radius: 999px;
+  background: rgb(226 232 240);
+}
+.version-progress-fill {
+  position: absolute; inset: 0 auto 0 0; width: 6%;
+  border-radius: inherit; background: var(--color-primary-500);
+  transition: width .4s ease;
+}
+.version-progress::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent);
+  transform: translateX(-100%);
+  animation: version-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes version-shimmer { to { transform: translateX(100%); } }
+.version-chip--busy { cursor: progress; border-style: dashed; color: rgb(71 85 105); }
+.version-chip--busy .version-chip-dot { animation: batch-pulse 1.2s ease-in-out infinite; }
+.version-chip--error .version-chip-dot { background: #ef4444; }
+.version-chip--error .version-chip-state { color: #b91c1c; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-event--versions.is-generating::before,
+  .version-chip--busy .version-chip-dot,
+  .version-progress::after { animation: none; }
+  .version-progress-fill { transition: none; }
+}
+.version-chip.is-new { animation: version-chip-in .35s ease-out both; }
+@keyframes version-chip-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .version-chip.is-new { animation: none; } }
+
+/* Alternativa terciaria del intro (p. ej. «Redactar cada organismo por
+   separado»): ghost con borde del mismo color que su texto. */
+.chat-intro-bordered { border: 1px solid currentColor; }
+
+/* Sidebar de la plantilla */
+.batch-panel-sub { font-size: .76rem; color: rgb(100 116 139); margin: 0 0 .7rem; line-height: 1.4; }
+.batch-versions-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.batch-version {
+  display: grid; gap: .25rem;
+  padding: .5rem .6rem; border-radius: .6rem; border: 1px solid rgb(241 245 249); background: rgb(248 250 252);
+}
+.batch-version-name { font-size: .8rem; font-weight: 500; color: rgb(15 23 42); line-height: 1.25; }
+.batch-version-name:hover { color: var(--color-primary-700); text-decoration: underline; }
+.batch-version-meta { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; }
+.batch-version-state {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .66rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px;
+  background: #fff; color: rgb(100 116 139); border: 1px solid rgb(226 232 240);
+}
+.batch-version-state--template,
+.batch-version-state--adjusted,
+.batch-version-state--busy { background: var(--color-primary-50); color: var(--color-primary-700); border-color: var(--color-primary-200); }
+.batch-version-state--sent,
+.batch-version-state--ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.batch-version-state--warn { background: var(--color-accent-50); color: var(--color-accent-700); border-color: var(--color-accent-200); }
+.batch-version-state--error { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.batch-version-channel { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: .62rem; color: rgb(148 163 184); }
+.batch-overwrite { display: flex; gap: .5rem; align-items: flex-start; font-size: .76rem; color: rgb(71 85 105); margin: .8rem 0 0; line-height: 1.4; }
+.batch-overwrite input { margin-top: .15rem; }
+.batch-panel-result { font-size: .78rem; margin: .8rem 0 0; padding: .6rem .7rem; border-radius: .6rem; line-height: 1.4; }
+.batch-panel-result--ok { background: #ecfdf5; color: #065f46; }
+.batch-panel-result--warn { background: var(--color-accent-50); color: rgb(120 53 15); }
+.batch-panel-result--busy { background: var(--color-primary-50); color: var(--color-primary-700); }
+.batch-panel-result-link { font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.batch-marker { border-top: 1px solid rgb(241 245 249); padding: .45rem 0; font-size: .76rem; }
+.batch-marker summary { cursor: pointer; display: flex; gap: .4rem; align-items: baseline; color: rgb(51 65 85); }
+.batch-marker summary span { color: rgb(100 116 139); font-size: .72rem; }
+.batch-marker ul { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; gap: .3rem; }
+.batch-marker li { display: grid; gap: .05rem; }
+.batch-marker-org { font-size: .68rem; color: rgb(100 116 139); }
+.batch-marker-value { color: rgb(15 23 42); }
+
+/* Aviso previo al envío del lote, en la hoja de cada organismo */
+.batch-send-check {
+  margin-top: .8rem; padding: .6rem .75rem; border-radius: .6rem;
+  background: var(--color-accent-50); border: 1px solid var(--color-accent-200);
+  font-size: .78rem; color: rgb(120 53 15); display: grid; gap: .35rem;
+}
+.batch-send-check p { margin: 0; display: flex; gap: .4rem; align-items: flex-start; }
+.batch-send-check p > i, .batch-send-check p > svg { flex: none; margin-top: .15rem; }
+.batch-send-check a { text-decoration: underline; text-underline-offset: 2px; }
+
 /* Maquetación vieja 2/3 + 1/3 (desaparece con el editor clásico) */
 .draft-grid {
   display: grid;
@@ -2791,21 +3050,6 @@ body {
 }
 .draft-cta-row .btn { min-width: 10rem; justify-content: center; }
 
-/* Nota junto al envío: el agente hace la presentación por ti. */
-.draft-agent-note {
-  font-family: 'DM Sans', sans-serif;
-  font-size: .8rem;
-  color: rgb(100 116 139);
-  margin: .6rem 0 0;
-  line-height: 1.5;
-}
-.draft-agent-note a {
-  color: var(--color-primary-700, #0369a1);
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.draft-agent-note a:hover { text-decoration: underline; }
 
 /* Cuerpo Trix (reclamaciones: HTML estructurado, tipografía editorial) */
 .draft-body {

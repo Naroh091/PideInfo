@@ -362,6 +362,53 @@ castellano.
 
 ---
 
+### Lote con varios destinatarios (plantilla común)
+
+Cuando una solicitud va a varios organismos, la página de redacción lleva
+encima de la conversación la **navegación del lote**
+(`asistente/_batch_nav.html.twig`, clases `.batch-*` en `app.css`). Es un caso
+avanzado, así que la interfaz explica el flujo en vez de suponerlo:
+
+- **Cuatro pasos numerados** (`.batch-steps`): plantilla común → una versión por
+  organismo → ajusta las que quieras → envía. El paso actual va en sky, los
+  hechos con el número en esmeralda.
+- **Pestañas** (`.draft-tabs` + `.batch-tab`): la primera es la plantilla
+  (`.batch-tab-plantilla`, borde punteado cuando no es la actual), separada por un
+  chevron de una pestaña por organismo. Cada pestaña lleva su estado en texto
+  (Sin redactar / Desde la plantilla / Ajustada a mano / Redactada aparte /
+  Enviada) y los flags «plantilla cambiada» (ámbar, `.batch-flag--warn`) y
+  «asistente trabajando» (sky con punto pulsante, `.batch-flag--busy`). Los
+  estados salen de `DraftBatchOverview`; no los recalcules en la plantilla.
+- **Una línea de contexto** (`.batch-context`) que dice siempre dónde estás y a
+  qué afecta lo que hagas («cambia solo esta solicitud» / «no toca las versiones
+  hasta que pulses Generar»), y un aviso ámbar (`.batch-alert`) cuando la versión
+  se generó con una plantilla anterior.
+- **«¿Cómo funciona…?»** (`<details class="batch-help">`), siempre colapsado de
+  entrada, con un chevron (`.batch-help-chevron`) que gira al abrirlo.
+- **Corona del plan** (`.batch-plan`, Lucide `crown` en ámbar como la del menú de
+  usuario) junto al título: «Puedes enviar solicitudes múltiples porque tienes el
+  plan X», enlazando a la página del plan. El nombre sale del plan efectivo
+  (`DraftBatchOverview::navigation()['planName']`).
+
+La hoja de la plantilla es una `paper-sheet` con filete punteado sky
+(`.paper-sheet--template`) para no confundirla con una solicitud enviable, con la
+leyenda viva de marcadores (`.template-marker`). Los marcadores se pintan
+siempre como badges (`.marker-badge`, macro `asistente/_markers.html.twig`) con
+los colores de las píldoras de la hoja: `[[ORGANISMO]]` sky, `[[UNIDAD]]` slate,
+`[[LEY_APLICABLE]]` ámbar y un marcador desconocido en rojo punteado. Dentro de
+los textareas de la hoja el marcador se queda como texto plano (se probó una capa
+de resaltado y se descartó por cómo quedaba)
+y una sola acción primaria: «Generar las versiones por organismo». La sidebar
+sustituye al informe preliminar por «Versiones por organismo» (estado fila a
+fila durante la generación) y «Partes variables» (qué valdrá cada marcador en
+cada organismo). Al generar, el timeline del chat suma el hito «Versiones
+generadas desde la plantilla» (`.chat-event--versions`) con un chip por
+organismo (`.version-chip`: punto sky, ámbar si la plantilla cambió o no se pudo
+adaptar, esmeralda si ya se envió, rojo si falló) que enlaza a su versión: nunca
+el texto entero. Mientras se genera lleva `.is-generating`: punto del hilo
+latiendo, barra `.version-progress` (avance real + brillo) y chips
+`.version-chip--busy` punteados; todo se para con `prefers-reduced-motion`.
+
 ## Interactividad
 
 **Alpine.js** para todo lo local: desplegables, modales, copiar al

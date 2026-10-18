@@ -1,0 +1,77 @@
+{# Hoja de papel de la PLANTILLA COMÚN de un lote con varios destinatarios.
+   Misma hoja que la solicitud REG (asunto + EXPONE + SOLICITA, autosave), pero
+   guarda en DraftBatchTemplateStore y su pie no envía: genera las versiones
+   por organismo (controlador batch-versions, montado en la raíz de la página).
+   Variables: batch, prefill (bool). #}
+{% import 'asistente/_markers.html.twig' as markers %}
+{% set prefill = prefill|default(false) %}
+{% set tpl = batch.template %}
+
+<div class="chat-turn-sheet">
+    <article class="paper-sheet paper-sheet--template"
+             data-controller="paper-sheet"
+             data-paper-sheet-shape-value="reg"
+             data-paper-sheet-autosave-url-value="{{ path('app_solicitudes_batch_template_autosave', {batchId: batch.id}) }}">
+
+        <div class="draft-meta-row">
+            <span class="meta-pill meta-pill-template"><i data-lucide="layers" class="w-3 h-3"></i> Plantilla común</span>
+            <span class="meta-pill">{{ batch.total }} destinatarios</span>
+            <span class="meta-pill">Partes variables marcadas como {{ markers.badge('ORGANISMO') }}</span>
+        </div>
+
+        {# El asunto cabe en el límite más estricto (REG, 80) para servir a todos los canales. #}
+        <textarea class="draft-title-input"
+                  placeholder="Asunto común de la solicitud…"
+                  maxlength="80"
+                  rows="1"
+                  data-paper-sheet-target="title">{{ prefill ? tpl.title : '' }}</textarea>
+
+        <label class="draft-section-label">
+            <span>EXPONE</span><span class="draft-section-hint">Hechos y motivación, comunes a todos · máx. 4.000 caracteres</span>
+        </label>
+        <textarea class="draft-body-input"
+                  placeholder="Hechos, contexto y motivación. Escribe [[ORGANISMO]] donde iría el nombre del organismo."
+                  maxlength="4000"
+                  data-paper-sheet-target="expone">{{ prefill ? tpl.expone : '' }}</textarea>
+
+        <label class="draft-section-label">
+            <span>SOLICITA</span><span class="draft-section-hint">Petición concreta · máx. 4.000 caracteres</span>
+        </label>
+        <textarea class="draft-body-input"
+                  placeholder="Petición concreta, al amparo de [[LEY_APLICABLE]]."
+                  maxlength="4000"
+                  data-paper-sheet-target="solicita">{{ prefill ? tpl.solicita : '' }}</textarea>
+
+        <div class="draft-sources" data-paper-sheet-target="sources"{{ (prefill and tpl.sources|length) ? '' : ' hidden' }}>
+            <span class="draft-sources-label"><i data-lucide="link" class="w-3.5 h-3.5"></i> Fuentes utilizadas</span>
+            <div class="draft-sources-pills" data-paper-sheet-target="sourcesPills">
+                {% if prefill %}{% for s in tpl.sources %}
+                    {% set internal = (s.type|default('')) == 'resolution' %}
+                    {% set sicon = {'resolution': 'scale', 'criterion': 'book-open', 'judgment': 'gavel'}[s.type|default('')]|default('file-text') %}
+                    {% if s.url|default('') %}
+                        <a href="{{ s.url }}" class="draft-source{{ internal ? ' draft-source--interna' : '' }}" target="_blank" rel="noopener noreferrer"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}{% if not internal %} <i data-lucide="external-link" class="draft-source-ext"></i>{% endif %}</a>
+                    {% else %}
+                        <span class="draft-source"><i data-lucide="{{ sicon }}" class="w-3.5 h-3.5"></i> {{ s.label|default(s.reference) }}</span>
+                    {% endif %}
+                {% endfor %}{% endif %}
+            </div>
+        </div>
+
+        <div class="template-markers" data-batch-versions-target="markers" aria-live="polite"></div>
+
+        <footer class="paper-sheet-foot">
+            <span data-paper-sheet-target="status" class="draft-status" style="text-align:left;"></span>
+            <div class="draft-cta-group">
+                <button type="button" class="btn btn-secondary"
+                        data-action="paper-sheet#saveNow">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
+                </button>
+                <button type="button" class="btn btn-primary"
+                        data-action="batch-versions#generate"
+                        data-batch-versions-target="generateButton">
+                    <i data-lucide="split" class="w-4 h-4 mr-2"></i> Generar las versiones por organismo
+                </button>
+            </div>
+        </footer>
+    </article>
+</div>

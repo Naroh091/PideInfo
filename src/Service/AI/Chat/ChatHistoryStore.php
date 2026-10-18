@@ -20,6 +20,7 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
  * Thread ID convention:
  *   request:{uuid}             — access-request draft chat
  *   complaint:{uuid}:{mode}    — complaint / alegation draft chat
+ *   batch:{batchId}            — unified template chat of a multi-recipient batch
  *
  * Fallback: when the dedicated table has no entry yet, load() reads the legacy
  * history from AccessRequest::metadata so existing sessions migrate seamlessly.
@@ -27,6 +28,9 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
  */
 final class ChatHistoryStore
 {
+    /** Metadata-style key of the batch template thread (no metadata fallback: it never lived there). */
+    public const BATCH_TEMPLATE_KEY = 'batch_template_chat_history';
+
     public function __construct(
         private readonly Connection $connection,
     ) {
@@ -44,6 +48,11 @@ final class ChatHistoryStore
         return 'complaint:' . $ar->getId()->toRfc4122() . ':' . $mode;
     }
 
+    public static function threadIdForBatch(string $batchId): string
+    {
+        return 'batch:' . $batchId;
+    }
+
     /**
      * Maps the legacy metadata key used by the controller to a thread ID.
      * Kept so the controller change is minimal.
@@ -52,6 +61,11 @@ final class ChatHistoryStore
     {
         if ($metadataKey === 'draft_chat_history') {
             return self::threadIdForRequest($ar);
+        }
+        // The batch template thread is anchored on the batch, not on the
+        // AccessRequest that hosts its turn record (the batch's first draft).
+        if ($metadataKey === self::BATCH_TEMPLATE_KEY) {
+            return self::threadIdForBatch((string) $ar->getMetadataValue('draft_batch_id'));
         }
         // complaint_chat_history_{mode} → complaint:{uuid}:{mode}
         $mode = str_replace('complaint_chat_history_', '', $metadataKey);

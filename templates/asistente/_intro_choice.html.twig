@@ -1,23 +1,51 @@
 {# Turno de introducción escriptado (sin backend): el asistente pregunta qué
    prefiere hacer el usuario. assistant-chat lo clona en connect() cuando la
    conversación está vacía y no hay borrador; se retira al elegir o al
-   escribir directamente. #}
+   escribir directamente.
+   En un lote con varios destinatarios (`batch`), la plantilla común explica el
+   flujo y ofrece redactar cada organismo por separado; la versión de un
+   organismo sin plantilla ofrece volver a la plantilla común. #}
 <div class="chat-turn chat-turn-assistant" data-intro-choice>
     {# Ojo: .chat-bubble-text es white-space:pre-wrap — el texto debe ir en
        una sola línea o los saltos de la plantilla se pintan literalmente. #}
-    {% set docLabel = flow == 'request' ? 'tu solicitud de acceso a información pública' : (isAlegation ? 'tu respuesta a las alegaciones' : 'tu reclamación') %}
-    {% set anonNote = anonymous|default(false) ? ' No necesitas cuenta: al terminar podrás descargar el PDF.' : '' %}
-    <div class="chat-bubble-text">{{ 'Hola 👋 Soy el asistente de redacción de PideInfo. Puedo redactar ' ~ docLabel ~ ' apoyándome en la ley aplicable y en resoluciones reales de los Consejos de Transparencia — o puedes escribirla tú y pedirme ayuda solo cuando la necesites.' ~ anonNote }}
+    {% set batch = batch|default(null) %}
+    {% set templateMode = templateMode|default(false) %}
+    {% if templateMode %}
+        {% import 'asistente/_markers.html.twig' as markers %}
+        <div class="chat-bubble-text">Hola 👋 Vas a pedir lo mismo a {{ batch.total }} organismos. Te propongo redactar primero una plantilla común: escribo el texto una vez, marco con {{ markers.badge('ORGANISMO') }} y {{ markers.badge('LEY_APLICABLE') }} lo que cambia en cada uno y, cuando te guste, genero una versión adaptada para cada organismo. Luego puedes ajustar cualquiera en su pestaña sin afectar a las demás.
+
+<strong>¿Cómo quieres empezar?</strong></div>
+    {% else %}
+        {% set docLabel = flow == 'request' ? 'tu solicitud de acceso a información pública' : (isAlegation ? 'tu respuesta a las alegaciones' : 'tu reclamación') %}
+        {% set anonNote = anonymous|default(false) ? ' No necesitas cuenta: al terminar podrás descargar el PDF.' : '' %}
+        <div class="chat-bubble-text">{{ 'Hola 👋 Soy el asistente de redacción de PideInfo. Puedo redactar ' ~ docLabel ~ ' apoyándome en la ley aplicable y en resoluciones reales de los Consejos de Transparencia — o puedes escribirla tú y pedirme ayuda solo cuando la necesites.' ~ anonNote }}
 
 <strong>¿Qué prefieres hacer?</strong></div>
+    {% endif %}
     <div class="chat-intro-actions">
         <button type="button" class="btn btn-primary"
                 data-action="assistant-chat#chooseAi">
-            <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> Redactar borrador con IA
+            <i data-lucide="sparkles" class="w-4 h-4 mr-2"></i> {{ templateMode ? 'Redactar la plantilla con IA' : 'Redactar borrador con IA' }}
         </button>
         <button type="button" class="btn btn-outline"
                 data-action="assistant-chat#chooseManual">
-            <i data-lucide="pen-line" class="w-4 h-4 mr-2"></i> Prefiero redactar manualmente
+            <i data-lucide="pen-line" class="w-4 h-4 mr-2"></i> {{ templateMode ? 'Escribir la plantilla yo' : 'Prefiero redactar manualmente' }}
         </button>
+        {% if templateMode %}
+            <a href="{{ path('app_solicitudes_realizar_draft', {id: batch.rows[0].request.id}) }}" class="btn btn-ghost chat-intro-bordered">
+                <i data-lucide="list" class="w-4 h-4 mr-2"></i> Redactar cada organismo por separado
+            </a>
+        {% elseif batch and batch.template.isEmpty() %}
+            <a href="{{ path('app_solicitudes_batch_template', {batchId: batch.id}) }}" class="btn btn-ghost">
+                <i data-lucide="layers" class="w-4 h-4 mr-2"></i> Usar una plantilla común para los {{ batch.total }}
+            </a>
+        {% elseif batch %}
+            <button type="button" class="btn btn-ghost"
+                    data-action="batch-versions#regenerateOne"
+                    data-batch-versions-url-param="{{ path('app_solicitudes_batch_version_generate', {batchId: batch.id, id: request.id}) }}"
+                    data-batch-versions-overwrite-param="false">
+                <i data-lucide="layers" class="w-4 h-4 mr-2"></i> Generar desde la plantilla común
+            </button>
+        {% endif %}
     </div>
 </div>

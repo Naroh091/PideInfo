@@ -49,6 +49,9 @@ export default class extends Controller {
         // Hilo de trámite: marcas de tiempo reales del borrador (ISO 8601).
         createdAt: { type: String, default: '' },
         updatedAt: { type: String, default: '' },
+        // Noun of the document in the system bubbles («✦ Borrador generado.»);
+        // the batch template page uses «Plantilla».
+        draftNoun: { type: String, default: 'Borrador' },
     };
 
     connect() {
@@ -738,8 +741,9 @@ export default class extends Controller {
             }
         }
 
-        const verb = action === 'generate' ? 'generado' : 'reescrito';
-        const bubble = this._appendSystemBubble(`✦ Borrador ${verb}.`);
+        const feminine = this.draftNounValue === 'Plantilla';
+        const verb = action === 'generate' ? (feminine ? 'generada' : 'generado') : (feminine ? 'reescrita' : 'reescrito');
+        const bubble = this._appendSystemBubble(`✦ ${this.draftNounValue} ${verb}.`);
         if (previous) {
             const button = document.createElement('button');
             button.type = 'button';

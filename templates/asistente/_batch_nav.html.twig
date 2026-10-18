@@ -1,0 +1,125 @@
+{# Navegación de un lote con varios destinatarios: los cuatro pasos del flujo
+   de plantilla común, una pestaña por organismo con su estado, y la
+   explicación de cómo encajan. Se pinta igual en la plantilla y en cada versión.
+
+   Variables:
+     batch        — DraftBatchOverview::navigation() (id, template, rows, total,
+                    ready, generated, outdated)
+     request      — la solicitud de la página (en la plantilla, la primera del lote)
+     templateMode — true en la página de la plantilla común
+
+   Los estados salen SIEMPRE de DraftBatchOverview: no los re-derives aquí. #}
+{% import 'asistente/_markers.html.twig' as markers %}
+{% set templateMode = templateMode|default(false) %}
+{% set hasTemplate = not batch.template.isEmpty() %}
+{% set allGenerated = batch.generated == batch.total %}
+{% set stateIcon = {sent: 'send', empty: 'circle-dashed', template: 'layers', adjusted: 'pencil', independent: 'pen-line'} %}
+
+<section class="batch-nav" aria-label="Solicitud a varios organismos">
+    <div class="batch-nav-head">
+        <p class="batch-nav-title">
+            <i data-lucide="split" class="w-4 h-4"></i>
+            Misma solicitud a {{ batch.total }} organismos
+            {% if batch.planName|default(null) %}
+                <a href="{{ path('app_equipo_index') }}" class="batch-plan" title="Ver tu plan">
+                    <i data-lucide="crown" class="w-3.5 h-3.5"></i>
+                    Puedes enviar solicitudes múltiples porque tienes el plan {{ batch.planName }}
+                </a>
+            {% endif %}
+        </p>
+        <p class="batch-nav-progress">
+            <span class="tnum">{{ batch.ready }}/{{ batch.total }}</span> listas para enviar
+            {% if batch.outdated > 0 %}
+                · <span class="batch-nav-progress-warn tnum">{{ batch.outdated }}</span> con la plantilla cambiada
+            {% endif %}
+        </p>
+    </div>
+
+    <ol class="batch-steps">
+        <li class="batch-step{{ hasTemplate ? ' is-done' : '' }}{{ templateMode and not hasTemplate ? ' is-current' : '' }}">
+            <span class="batch-step-num">1</span>
+            <span><strong>Plantilla común</strong><br><span class="batch-step-sub">El texto que comparten todas, con las partes variables marcadas</span></span>
+        </li>
+        <li class="batch-step{{ allGenerated ? ' is-done' : '' }}{{ templateMode and hasTemplate and not allGenerated ? ' is-current' : '' }}">
+            <span class="batch-step-num">2</span>
+            <span><strong>Una versión por organismo</strong><br><span class="batch-step-sub">Se rellenan las partes variables y se adapta la ley de cada uno</span></span>
+        </li>
+        <li class="batch-step{{ not templateMode ? ' is-current' : '' }}">
+            <span class="batch-step-num">3</span>
+            <span><strong>Ajusta las que quieras</strong><br><span class="batch-step-sub">Cada pestaña tiene su propia conversación (opcional)</span></span>
+        </li>
+        <li class="batch-step">
+            <span class="batch-step-num">4</span>
+            <span><strong>Envía el lote</strong><br><span class="batch-step-sub">Desde la pestaña de cualquier organismo</span></span>
+        </li>
+    </ol>
+
+    <nav class="draft-tabs batch-tabs" aria-label="Plantilla y versiones del envío">
+        <a href="{{ path('app_solicitudes_batch_template', {batchId: batch.id}) }}"
+           class="draft-tab batch-tab batch-tab-plantilla{{ templateMode ? ' is-current' : '' }}"
+           {% if templateMode %}aria-current="page"{% endif %}>
+            <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+            Plantilla común
+            {% if not hasTemplate %}<span class="draft-tab-state">vacía</span>{% endif %}
+        </a>
+        <span class="batch-tabs-sep" aria-hidden="true"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></span>
+        {% for row in batch.rows %}
+            {% set sib = row.request %}
+            {% set isCurrent = not templateMode and sib.id == request.id %}
+            <a href="{{ sib.status == 'pending' ? path('app_solicitudes_realizar_draft', {id: sib.id}) : path('app_solicitudes_show', {id: sib.id}) }}"
+               class="draft-tab batch-tab batch-tab--{{ row.state }}{{ isCurrent ? ' is-current' : '' }}"
+               data-batch-tab="{{ sib.id }}"
+               {% if isCurrent %}aria-current="page"{% endif %}
+               title="{{ sib.publicBody.name }} · {{ row.label }}{{ row.outdated ? ' · la plantilla cambió después de generarla' : '' }}">
+                <i data-lucide="{{ stateIcon[row.state] }}" class="w-3.5 h-3.5 batch-tab-icon"></i>
+                {{ sib.publicBody.name|u.truncate(34, '…') }}
+                <span class="draft-tab-state" data-batch-tab-label>{{ row.label }}</span>
+                {% if row.outdated %}<span class="batch-flag batch-flag--warn" data-batch-tab-outdated>plantilla cambiada</span>{% endif %}
+                {% if row.working %}<span class="batch-flag batch-flag--busy"><span class="batch-dot-pulse"></span>asistente trabajando</span>{% endif %}
+            </a>
+        {% endfor %}
+    </nav>
+
+    {% if templateMode %}
+        <p class="batch-context">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>Estás editando la <strong>plantilla común</strong>. Lo que cambies aquí no toca las versiones ya generadas hasta que pulses <em>Generar versiones</em>.</span>
+        </p>
+    {% else %}
+        {% set current = batch.rows|filter(r => r.request.id == request.id)|first %}
+        <p class="batch-context">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>Estás en la versión para <strong>{{ request.publicBody.name }}</strong>. Lo que pidas al asistente o edites aquí cambia <strong>solo esta solicitud</strong>; para cambiar todas, edita la <a href="{{ path('app_solicitudes_batch_template', {batchId: batch.id}) }}">plantilla común</a>.</span>
+        </p>
+        {% if current and current.outdated %}
+            <div class="batch-alert">
+                <i data-lucide="triangle-alert" class="w-4 h-4"></i>
+                <div>
+                    <p><strong>La plantilla común cambió después de generar esta versión.</strong>
+                        {% if current.state == 'adjusted' %}Si la regeneras, perderás los ajustes que hiciste aquí.{% else %}Puedes regenerarla para incorporar los cambios.{% endif %}</p>
+                    <button type="button" class="btn btn-sm btn-outline mt-2"
+                            data-action="batch-versions#regenerateOne"
+                            data-batch-versions-url-param="{{ path('app_solicitudes_batch_version_generate', {batchId: batch.id, id: request.id}) }}"
+                            data-batch-versions-overwrite-param="{{ current.state == 'adjusted' ? 'true' : 'false' }}">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 mr-1.5"></i> Regenerar desde la plantilla
+                    </button>
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
+
+    <details class="batch-help">
+        <summary>
+            <i data-lucide="circle-help" class="w-3.5 h-3.5"></i>
+            ¿Cómo funciona el envío a varios organismos?
+            <span class="batch-help-chevron" aria-hidden="true"><i data-lucide="chevron-down" class="w-3.5 h-3.5"></i></span>
+        </summary>
+        <ul>
+            <li><strong>La plantilla común</strong> es un único texto para todos. Lo que cambia de un organismo a otro se escribe con marcadores: {{ markers.badge('ORGANISMO') }}, {{ markers.badge('UNIDAD') }} y {{ markers.badge('LEY_APLICABLE') }}. El asistente los pone por ti.</li>
+            <li><strong>Generar versiones</strong> crea una solicitud por organismo: sustituye los marcadores y adapta las referencias a la ley de cada uno (estatal o autonómica) y al formato de su canal.</li>
+            <li><strong>Cada pestaña tiene su propia conversación.</strong> Puedes saltar entre la plantilla y los organismos cuando quieras: nada se pierde, aunque el asistente esté trabajando — al volver verás su respuesta.</li>
+            <li><strong>Si cambias la plantilla después</strong>, las versiones ya generadas no se tocan: se marcan como <em>plantilla cambiada</em> y decides si regenerarlas. Las que ajustaste a mano solo se sobrescriben si lo pides expresamente.</li>
+            <li>¿Prefieres no usar plantilla? Abre cualquier organismo y redáctalo directamente; la plantilla es opcional.</li>
+        </ul>
+    </details>
+</section>

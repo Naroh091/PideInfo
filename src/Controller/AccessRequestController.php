@@ -504,19 +504,26 @@ class AccessRequestController extends AbstractController
             throw $e;
         }
 
+        // Several recipients land on the common template ("plantilla común"),
+        // which offers drafting each one separately as the alternative.
+        $firstDraftUrl = count($created) > 1
+            ? $this->generateUrl('app_solicitudes_batch_template', ['batchId' => $batchId])
+            : $this->generateUrl('app_solicitudes_realizar_draft', ['id' => (string) $created[0]->getId()]);
+
         return new JsonResponse([
             'batchId' => $batchId,
-            'firstDraftUrl' => $this->generateUrl('app_solicitudes_realizar_draft', [
-                'id' => (string) $created[0]->getId(),
-            ]),
+            'firstDraftUrl' => $firstDraftUrl,
             'draftCount' => count($created),
         ]);
     }
 
     #[Route('/nueva/realizar/redactar/{id}', name: 'app_solicitudes_realizar_draft', methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
-    public function draft(AccessRequest $accessRequest): Response
-    {
+    public function draft(
+        AccessRequest $accessRequest,
+        \App\Service\AI\Chat\ChatHistoryStore $chatHistoryStore,
+        \App\Service\AccessRequest\Batch\DraftBatchOverview $batchOverview,
+    ): Response {
         if ($accessRequest->getStatus() !== AccessRequest::STATUS_PENDING) {
             $this->addFlash('warning', 'Esta solicitud ya no es un borrador.');
             return $this->redirectToRoute('app_solicitudes_show', ['id' => $accessRequest->getId()]);
@@ -533,18 +540,33 @@ class AccessRequestController extends AbstractController
             $this->entityManager->flush();
         }
 
-        $siblings = $this->accessRequestRepository->findByDraftBatch($batchId, $this->getUser());
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+        $siblings = $this->accessRequestRepository->findByDraftBatch($batchId, $user);
 
-        $history = $accessRequest->getMetadataValue(self::CHAT_HISTORY_KEY);
-        if (!is_array($history)) {
-            $history = [];
-        }
+        // The assistant persists each draft's thread in ai_chat_messages
+        // (ChatHistoryStore), keyed by THIS draft — read it from there, with the
+        // legacy metadata as fallback. Reading only the metadata made the
+        // conversation vanish when the user switched tabs and came back.
+        $history = $chatHistoryStore->load(
+            \App\Service\AI\Chat\ChatHistoryStore::threadIdForRequest($accessRequest),
+            $user,
+            $accessRequest,
+            self::CHAT_HISTORY_KEY,
+        );
+
+        // Multi-recipient batch: tabs with each version's state and the entry to
+        // the common template. Only over the drafts the user owns.
+        $batch = $accessRequest->getUser()?->getId()->equals($user->getId()) === true
+            ? $batchOverview->navigation($batchId, $batchOverview->ownedSiblings($batchId, $user), $user)
+            : null;
 
         return $this->render('asistente/conversacion.html.twig', [
             'flow' => 'request',
             'request' => $accessRequest,
             'siblings' => $siblings,
             'batchId' => $batchId,
+            'batch' => $batch,
             'chatHistory' => $history,
         ]);
     }
@@ -916,6 +938,7 @@ class AccessRequestController extends AbstractController
                     return new JsonResponse([
                         'error' => 'incomplete_draft',
                         'accessRequestId' => $accessRequest->getId()->toRfc4122(),
+                        'bodyName' => $accessRequest->getPublicBody()->getName(),
                     ], Response::HTTP_BAD_REQUEST);
                 }
 
