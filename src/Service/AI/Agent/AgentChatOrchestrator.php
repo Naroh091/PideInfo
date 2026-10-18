@@ -1036,6 +1036,15 @@ TXT;
             $systemPrompt .= "\n\n**ID de la solicitud (para herramientas):** {$req->entityId}";
         }
 
+        // Current date on EVERY turn (the prompt is rebuilt per turn): without
+        // it the model has no "today" for deadlines, elapsed-time reasoning or
+        // dating the draft. Appended at the very end so prefix-cached prompts
+        // only differ in this tail when the day changes.
+        $systemPrompt .= sprintf(
+            "\n\n**Fecha actual:** %s (Europa/Madrid). Úsala como referencia para «hoy», los plazos y cualquier fecha relativa.",
+            self::todayEs(),
+        );
+
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
 
         foreach ($req->history as $m) {
@@ -1068,6 +1077,24 @@ TXT;
         }
 
         return $messages;
+    }
+
+    /**
+     * Today's date in Spanish ("sábado, 18 de octubre de 2026"), Europe/Madrid.
+     */
+    private static function todayEs(): string
+    {
+        $formatter = new \IntlDateFormatter(
+            'es_ES',
+            \IntlDateFormatter::FULL,
+            \IntlDateFormatter::NONE,
+            'Europe/Madrid',
+        );
+        $formatted = $formatter->format(new \DateTimeImmutable());
+
+        return $formatted !== false
+            ? $formatted
+            : (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Madrid')))->format('Y-m-d');
     }
 
     /**
