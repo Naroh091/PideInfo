@@ -29,6 +29,11 @@ export default class extends Controller {
         // destination replaces the previous one instead of accumulating — the
         // public /redactar flow mode, creating ONE draft at a time.
         maxTargets: { type: Number, default: 0 },
+        // When true, hitting maxTargets does NOT replace the oldest: the
+        // pending destination stays unselected and the quota modal opens so
+        // the user picks which recipients to keep (plan upsell). Used by the
+        // authenticated pickers, whose cap is the plan's batch limit.
+        quotaModal: { type: Boolean, default: false },
         // CSS selector of inputs whose name/value joins the initiate-POST JSON
         // (e.g. flow, resolutionResult or the public flow's Turnstile token).
         // Read at submit time.
@@ -285,13 +290,24 @@ export default class extends Controller {
         }
         const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
             && (t.regDestinationId || null) === (entry.regDestinationId || null));
-        if (!dup) {
-            if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
-                this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
-            }
-            this.selectedTargets.push(entry);
+        if (dup) {
+            this._closeDestinationModal();
+            this._renderTargets();
+            this._updateContinueButton();
+            return;
         }
-
+        if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
+            if (this.quotaModalValue) {
+                // Over the plan limit: don't select it — open the quota modal
+                // so the user chooses which recipients to keep.
+                this._closeDestinationModal();
+                this._pickWithinQuota(entry);
+                return;
+            }
+            // Legacy single-target mode (anonymous): the new pick replaces.
+            this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
+        }
+        this.selectedTargets.push(entry);
         this._closeDestinationModal();
         this._renderTargets();
         this._updateContinueButton();
@@ -419,45 +435,113 @@ export default class extends Controller {
             this.continueButtonTarget.disabled = false;
             this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
         };
-        const choice = await this._openQuotaModal(err);
-        if (choice === 'single' && targets.length > 0) {
-            try {
-                this.continueButtonTarget.innerHTML = 'Preparando borrador…';
-                const json = await this._postInitiate(targets.slice(0, 1));
-                window.location.href = json.firstDraftUrl;
-                return;
-            } catch (retryErr) {
-                // El reintento también puede fallar (cupo, red, validación del
-                // servidor): no tragarlo en silencio como antes — avisar igual
-                // que en el envío normal para que no parezca que "no hace nada".
-                console.error(retryErr);
-                alert((retryErr && retryErr.userMessage) || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
-            }
+        // Same set the user picked (with display names), so the modal can let
+        // them choose which recipients to keep instead of just the first one.
+        const full = this.selectedTargets.filter((t) => targets.some((u) => u.publicBodyId === t.publicBodyId
+            && (u.regDestinationId || null) === (t.regDestinationId || null)));
+        const candidates = full.length > 0 ? full : targets;
+        const max = Number(err.max || this.maxTargetsValue || 1);
+        const chosen = await this._openQuotaModal({
+            max,
+            requested: targets.length,
+            candidates,
+            preselected: candidates.slice(0, max).map((t) => this._targetKey(t)),
+        });
+        if (chosen === null || chosen.length === 0) {
+            restoreButton();
+            return;
+        }
+        try {
+            this.continueButtonTarget.innerHTML = 'Preparando borrador…';
+            const json = await this._postInitiate(chosen.map((t) => this._toPayload(t)));
+            window.location.href = json.firstDraftUrl;
+            return;
+        } catch (retryErr) {
+            console.error(retryErr);
+            alert((retryErr && retryErr.userMessage) || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
         }
         restoreButton();
     }
 
-    _openQuotaModal(err) {
-        const max = Number(err.max || 1);
+    /**
+     * Over the plan limit while picking: the pending destination is NOT
+     * selected — the quota modal opens so the user chooses which recipients
+     * to keep (up to their limit).
+     */
+    async _pickWithinQuota(pending) {
+        const candidates = [...this.selectedTargets, pending];
+        const chosen = await this._openQuotaModal({
+            max: this.maxTargetsValue,
+            requested: candidates.length,
+            candidates,
+            preselected: this.selectedTargets.map((t) => this._targetKey(t)),
+        });
+        if (chosen === null) {
+            return;
+        }
+        this.selectedTargets = chosen;
+        this._renderTargets();
+        this._updateContinueButton();
+    }
+
+    _targetKey(t) {
+        return `${t.publicBodyId || ''}|${t.regDestinationId || ''}`;
+    }
+
+    _toPayload(t) {
+        const target = { publicBodyId: t.publicBodyId };
+        if (t.regDestinationId) target.regDestinationId = t.regDestinationId;
+        return target;
+    }
+
+    _displayName(t) {
+        const base = t.unitLabel || t.name || t.publicBodyId || '';
+        return t.channelLabel ? `${base} · ${t.channelLabel}` : base;
+    }
+
+    /**
+     * Quota modal with multi-pick: rows highlight when selected, a zone lists
+     * the current selection, and Continuar (capped at max) / Cancelar decide.
+     * Resolves the chosen entries (in list order) or null on dismiss.
+     */
+    _openQuotaModal({ max, requested, candidates, preselected }) {
+        const validMax = Number(max) > 0 ? Number(max) : 1;
+        const ids = candidates.map((t) => this._targetKey(t));
+        const selected = new Set((preselected || []).filter((id) => ids.includes(id)).slice(0, validMax));
         const overlay = document.createElement('div');
         overlay.className = 'profile-modal-overlay';
+        const title = validMax === 1 ? 'Un destinatario por solicitud' : 'Elige con cuáles seguir';
+        const sub = validMax === 1
+            ? `Tu plan admite lotes de hasta 1 destinatario.
+               Para enviar a varios organismos de una vez necesitas ampliar tu plan.
+               Si prefieres no hacerlo, puedes seguir haciendo las solicitudes una por una.`
+            : `Tu plan admite lotes de hasta ${validMax} destinatarios. Has elegido ${requested}.
+               Selecciona con cuáles seguir (máximo ${validMax}).`;
         overlay.innerHTML = `
             <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="quota-modal-title">
                 <header class="profile-modal-head">
                     <div>
                         <p class="profile-modal-eyebrow">Límite de tu plan</p>
-                        <h2 class="profile-modal-title" id="quota-modal-title">Un destinatario por solicitud</h2>
-                        <p class="profile-modal-sub">Tu plan admite lotes de hasta ${max} destinatario${max === 1 ? '' : 's'}.
-                        Para enviar a varios organismos de una vez necesitas ampliar tu plan.
-                        Si prefieres no hacerlo, puedes seguir haciendo las solicitudes a distintos órganos una por una.</p>
+                        <h2 class="profile-modal-title" id="quota-modal-title">${title}</h2>
+                        <p class="profile-modal-sub">${sub}</p>
                     </div>
                     <button type="button" class="profile-modal-close" aria-label="Cerrar">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </header>
+                <div class="quota-pick-list" data-role="pick-list">
+                    ${candidates.map((t, i) => `
+                        <button type="button" class="quota-pick${selected.has(ids[i]) ? ' is-selected' : ''}" data-idx="${i}" aria-pressed="${selected.has(ids[i]) ? 'true' : 'false'}">
+                            <span class="quota-pick-check" aria-hidden="true"><i data-lucide="check" class="w-4 h-4"></i></span>
+                            <span class="quota-pick-name">${this._escape(this._displayName(t))}</span>
+                        </button>`).join('')}
+                </div>
+                <p class="quota-pick-count" data-role="pick-count"></p>
                 <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
-                    <a href="/planes" target="_blank" rel="noopener" class="btn-editorial btn-editorial--primario">Ver planes</a>
-                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-single>Seguir con un destinatario</button>
+                    <a href="/planes" target="_blank" rel="noopener" class="btn-editorial btn-editorial--secundario">Ver planes</a>
+                    <span style="flex: 1 1 auto;"></span>
+                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-cancel>Cancelar</button>
+                    <button type="button" class="btn-editorial btn-editorial--primario" data-quota-continue>Continuar</button>
                 </div>
             </div>`;
 
@@ -476,9 +560,42 @@ export default class extends Controller {
             resolveChoice(value);
         };
 
-        overlay.querySelector('.profile-modal-close').addEventListener('click', () => close(false));
-        overlay.querySelector('[data-quota-single]').addEventListener('click', () => close('single'));
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+        const list = overlay.querySelector('[data-role="pick-list"]');
+        const count = overlay.querySelector('[data-role="pick-count"]');
+        const continueBtn = overlay.querySelector('[data-quota-continue]');
+        const renderCount = () => {
+            const names = candidates
+                .filter((t, i) => selected.has(ids[i]))
+                .map((t) => this._displayName(t));
+            count.textContent = names.length === 0
+                ? 'No has seleccionado ninguno todavía.'
+                : `Seguirás con ${names.length} de ${validMax}: ${names.join(' · ')}`;
+            continueBtn.disabled = names.length === 0;
+            continueBtn.textContent = names.length > 0 ? `Continuar con ${names.length}` : 'Continuar';
+        };
+        list.addEventListener('click', (ev) => {
+            const row = ev.target.closest('[data-idx]');
+            if (!row) return;
+            const id = ids[Number(row.dataset.idx)];
+            if (selected.has(id)) {
+                selected.delete(id);
+            } else if (selected.size < validMax) {
+                selected.add(id);
+            } else {
+                return;
+            }
+            row.classList.toggle('is-selected', selected.has(id));
+            row.setAttribute('aria-pressed', selected.has(id) ? 'true' : 'false');
+            renderCount();
+        });
+        renderCount();
+
+        overlay.querySelector('.profile-modal-close').addEventListener('click', () => close(null));
+        overlay.querySelector('[data-quota-cancel]').addEventListener('click', () => close(null));
+        overlay.querySelector('[data-quota-continue]').addEventListener('click', () => {
+            close(candidates.filter((t, i) => selected.has(ids[i])));
+        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
 
         return choice;
     }

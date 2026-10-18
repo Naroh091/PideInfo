@@ -151,22 +151,32 @@ class AccessRequestController extends AbstractController
     }
 
     #[Route('/nueva/realizar', name: 'app_solicitudes_submit_form', methods: ['GET'])]
-    public function pickOrganism(): Response
+    public function pickOrganism(\App\Billing\BatchQuotaGuard $quotaGuard): Response
     {
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+
         return $this->render('solicitudes/realizar/picker.html.twig', [
             'reg_levels' => RegAdministrationLevel::choices(),
+            // Plan cap for the picker: selecting past this opens the quota
+            // modal instead of accumulating (0 = unlimited, e.g. Organización).
+            'maxTargets' => $quotaGuard->maxRecipientsFor($user) ?? 0,
         ]);
     }
 
     #[Route('/nueva/redactar', name: 'app_solicitudes_draft_only', methods: ['GET'])]
-    public function draftOnlyPicker(): Response
+    public function draftOnlyPicker(\App\Billing\BatchQuotaGuard $quotaGuard): Response
     {
         // Same cascade picker as "Realizar" (Nivel → Ámbito → Organismo →
         // Unidad REG). It POSTs to the shared initiate endpoint with
         // `draftOnly: true`, so the requests are flagged as drafts and the REG
         // personal-data gate is deferred to the "Enviar" action.
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+
         return $this->render('solicitudes/draft-only-picker.html.twig', [
             'reg_levels' => RegAdministrationLevel::choices(),
+            'maxTargets' => $quotaGuard->maxRecipientsFor($user) ?? 0,
         ]);
     }
 

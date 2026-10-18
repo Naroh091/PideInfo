@@ -4159,6 +4159,65 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
     font-family: 'DM Sans', sans-serif;
     font-size: .88rem;
 }
+
+/* ── Quota modal multi-pick (plan limit): rows highlight when selected,
+   plus a zone enumerating the current selection. ── */
+.quota-pick-list {
+    display: grid;
+    gap: .5rem;
+    margin: 1rem 0 .25rem;
+    max-height: 38vh;
+    overflow-y: auto;
+}
+.quota-pick {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    text-align: left;
+    padding: .6rem .8rem;
+    border: 1px solid rgb(226 232 240);
+    border-radius: .65rem;
+    background: #fff;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: .9rem;
+    color: rgb(15 23 42);
+    transition: background-color .12s, border-color .12s;
+}
+.quota-pick:hover {
+    border-color: rgb(186 230 253);
+    background: rgb(240 249 255);
+}
+.quota-pick.is-selected {
+    background: rgb(224 242 254);
+    border-color: var(--color-primary-500, #0ea5e9);
+}
+.quota-pick-check {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: var(--color-primary-600, #0284c7);
+    color: #fff;
+}
+.quota-pick-check svg { width: .8rem; height: .8rem; }
+.quota-pick.is-selected .quota-pick-check { display: inline-flex; }
+.quota-pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.quota-pick-count {
+    font-family: 'DM Sans', sans-serif;
+    font-size: .85rem;
+    color: rgb(100 116 139);
+    margin: .5rem 0 0;
+}
+.btn-editorial:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+}
 /* The card grid closes the hero: tighten the air with the
    comparison table (hero + section added up to ~11rem of gap). */
 .home-hero--precios { padding-bottom: 3rem; }

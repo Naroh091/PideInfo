@@ -27,5 +27,5 @@
     </p>
 </header>
 
-{% include '_partials/organism_picker.html.twig' with {'reg_levels': reg_levels, 'draft_only': false} %}
+{% include '_partials/organism_picker.html.twig' with {'reg_levels': reg_levels, 'draft_only': false, 'max_targets': maxTargets|default(0), 'quota_modal': true} %}
 {% endblock %}
