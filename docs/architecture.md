@@ -51,6 +51,11 @@ La lógica de negocio vive en servicios, no en entidades ni en controladores. Lo
   la de la org; gracia de 14 días en `past_due`; `canceled` hasta fin de periodo).
 - **`BatchQuotaGuard` / `SubscriptionReadOnlyGuard`** — cupos por lote y
   solo-lectura por impago, aplicados en `initiateDrafts`/`dispatchBatch`/equipo.
+- **Equipo (`TeamController`, `/equipo`)** — página única de plan y equipo. El
+  titular o un ADMIN pueden renombrar el equipo/organización en línea
+  (`POST /equipo/nombre`, `app_equipo_rename`, CSRF `team-rename`, misma puerta
+  `TeamService::assertCanManage()` que la gestión de miembros); un MEMBER no ve
+  el formulario y el POST directo da 403.
 - **Entidades `Subscription` + `ProcessedStripeEvent`** — la suscripción pertenece
   a un usuario XOR una organización y no guarda tarjetas; el webhook de Stripe
   (firma obligatoria, idempotente por `eventId`) aplica sus estados.

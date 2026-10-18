@@ -95,6 +95,9 @@ class TeamController extends AbstractController
             $this->addFlash('warning', 'Ya perteneces a un equipo.');
             return $this->redirectToRoute('app_equipo_index');
         }
+        if (!$this->catalog->get($this->plans->forUser($user))->hasTeam) {
+            throw $this->createAccessDeniedException('Crear un equipo requiere un plan de Equipo u Organización.');
+        }
 
         $name = trim((string) $request->request->get('name', ''));
         if ($name === '') {
@@ -109,6 +112,45 @@ class TeamController extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', sprintf('Equipo «%s» creado. Eres su titular.', $organization->getName()));
+
+        return $this->redirectToRoute('app_equipo_index');
+    }
+
+    /**
+     * Rename the team/organization. OWNER or ADMIN only, same gate as managing
+     * members ({@see TeamService::assertCanManage()}).
+     */
+    #[Route('/nombre', name: 'app_equipo_rename', methods: ['POST'])]
+    public function rename(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $organization = $user->getOrganization();
+        if ($organization === null) {
+            throw $this->createAccessDeniedException('No perteneces a ningún equipo.');
+        }
+        if (!$this->isCsrfTokenValid('team-rename', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+        try {
+            $this->teams->assertCanManage($user, $organization);
+        } catch (\LogicException $e) {
+            throw $this->createAccessDeniedException($e->getMessage());
+        }
+
+        $name = trim((string) $request->request->get('name', ''));
+        if ($name === '') {
+            $this->addFlash('error', 'El equipo necesita un nombre.');
+            return $this->redirectToRoute('app_equipo_index');
+        }
+        $name = mb_substr($name, 0, 255);
+        if ($name === $organization->getName()) {
+            return $this->redirectToRoute('app_equipo_index');
+        }
+
+        $organization->setName($name);
+        $this->entityManager->flush();
+        $this->addFlash('success', sprintf('El equipo ahora se llama «%s».', $name));
 
         return $this->redirectToRoute('app_equipo_index');
     }

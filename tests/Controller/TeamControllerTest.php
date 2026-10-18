@@ -24,19 +24,46 @@ final class TeamControllerTest extends WebTestCase
         $em = static::getContainer()->get('doctrine')->getManager();
 
         $alice = $this->makeUser($em, 'boss-create@example.com');
+        $sub = (new Subscription())
+            ->setUser($em->getRepository(User::class)->find($alice->getId()))
+            ->setPlan('team')
+            ->setInterval(Subscription::INTERVAL_MONTH)
+            ->setStatus(Subscription::STATUS_ACTIVE);
+        $em->persist($sub);
         $em->flush();
 
-        $client->loginUser($alice);
-        $client->request('GET', '/equipo');
-        self::assertResponseIsSuccessful();
-        $client->submitForm('Crear equipo', ['name' => 'Gabinete Prensa']);
+        try {
+            $client->loginUser($alice);
+            $client->request('GET', '/equipo');
+            self::assertResponseIsSuccessful();
+            $client->submitForm('Crear equipo', ['name' => 'Gabinete Prensa']);
 
-        self::assertResponseRedirects('/equipo');
+            self::assertResponseRedirects('/equipo');
+            $em->clear();
+            $fresh = $em->getRepository(User::class)->find($alice->getId());
+            self::assertNotNull($fresh->getOrganization());
+            self::assertSame(User::ORG_ROLE_OWNER, $fresh->getOrganizationRole());
+            $this->trackFixtureOrg($fresh->getOrganization()->getId()->toRfc4122());
+        } finally {
+            $em->remove($em->getRepository(Subscription::class)->find($sub->getId()));
+            $em->flush();
+        }
+    }
+
+    public function testCreateTeamWithoutTeamPlanIsForbidden(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $user = $this->makeUser($em, 'plain-create@example.com');
+        $em->flush();
+
+        $client->loginUser($user);
+        $this->postWithSession($client, '/equipo/crear', 'team-create', ['name' => 'Equipo Prohibido']);
+        self::assertResponseStatusCodeSame(403);
+
         $em->clear();
-        $fresh = $em->getRepository(User::class)->find($alice->getId());
-        self::assertNotNull($fresh->getOrganization());
-        self::assertSame(User::ORG_ROLE_OWNER, $fresh->getOrganizationRole());
-        $this->trackFixtureOrg($fresh->getOrganization()->getId()->toRfc4122());
+        self::assertNull($em->getRepository(User::class)->find($user->getId())->getOrganization());
     }
 
     public function testMemberCannotAddOthers(): void
@@ -56,6 +83,47 @@ final class TeamControllerTest extends WebTestCase
         // Sin formulario de alta para MEMBER: POST directo → 403.
         $this->postWithSession($client, '/equipo/miembros', 'team-add', ['email' => $outsider->getEmail()]);
         self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testOwnerCanRenameTheTeam(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $org = $this->makeOrg($em);
+        $owner = $this->makeUser($em, 'rename-owner@example.com', $org, User::ORG_ROLE_OWNER);
+        $em->flush();
+
+        $client->loginUser($owner);
+        $client->request('GET', '/equipo');
+        self::assertResponseIsSuccessful();
+        $client->submitForm('Guardar nombre', ['name' => '  Redacción Datos  ']);
+
+        self::assertResponseRedirects('/equipo');
+        $em->clear();
+        self::assertSame('Redacción Datos', $em->getRepository(Organization::class)->find($org->getId())->getName());
+    }
+
+    public function testMemberCannotRenameTheTeam(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $org = $this->makeOrg($em);
+        $originalName = $org->getName();
+        $member = $this->makeUser($em, 'rename-member@example.com', $org, User::ORG_ROLE_MEMBER);
+        $em->flush();
+
+        $client->loginUser($member);
+        $client->request('GET', '/equipo');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorNotExists('form[action$="/equipo/nombre"]', 'MEMBER no ve el formulario');
+
+        $this->postWithSession($client, '/equipo/nombre', 'team-rename', ['name' => 'Golpe de mano']);
+        self::assertResponseStatusCodeSame(403);
+
+        $em->clear();
+        self::assertSame($originalName, $em->getRepository(Organization::class)->find($org->getId())->getName());
     }
 
     public function testAddBlockedWithoutSubscriptionUntilTeamPlan(): void
@@ -122,7 +190,7 @@ final class TeamControllerTest extends WebTestCase
             self::assertResponseIsSuccessful();
             self::assertSelectorTextContains('section', 'Plan Equipo');
             self::assertSelectorTextContains('section', '49 €/mes');
-            self::assertSelectorTextContains('section', 'Activa');
+            self::assertSelectorTextContains('section', 'Activo');
             self::assertSelectorExists('form[action="/facturacion/portal"]');
         } finally {
             $em->remove($em->getRepository(Subscription::class)->find($sub->getId()));
@@ -149,6 +217,21 @@ final class TeamControllerTest extends WebTestCase
         self::assertSelectorNotExists('form[action="/facturacion/cambiar"]');
     }
 
+    public function testIndividualWithoutOrgSeesTeamUpsellInsteadOfCreateForm(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $user = $this->makeUser($em, 'solo-plan@example.com');
+        $em->flush();
+
+        $client->loginUser($user);
+        $client->request('GET', '/equipo');
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('requiere un plan de Equipo u Organización', $client->getResponse()->getContent());
+        self::assertSelectorNotExists('form[action="/equipo/crear"]');
+    }
+
     public function testProfessionalPageShowsPlanAndUpgrade(): void
     {
         $client = static::createClient();
@@ -170,7 +253,7 @@ final class TeamControllerTest extends WebTestCase
             self::assertResponseIsSuccessful();
             self::assertSelectorTextContains('section', 'Plan Profesional');
             self::assertSelectorTextContains('section', '15 €/mes');
-            self::assertSelectorTextContains('section', 'Activa');
+            self::assertSelectorTextContains('section', 'Activo');
             self::assertSelectorTextContains('a[href="/planes"]', 'Ampliar plan');
             self::assertSelectorNotExists('form[action="/facturacion/cambiar"]');
             self::assertSelectorTextNotContains('body', 'Facturas');

@@ -37,11 +37,11 @@
                 <p class="text-sm text-slate-500 mt-1">
                     {{ {
                         'trialing': 'En periodo de prueba',
-                        'active': 'Activa',
+                        'active': 'Activo',
                         'past_due': 'En mora: periodo de gracia de 14 días',
-                        'canceled': 'Cancelada: mantienes el plan hasta el fin del periodo pagado',
+                        'canceled': 'Cancelado: mantienes el plan hasta el fin del periodo pagado',
                         'incomplete': 'Pendiente de pago',
-                        'unpaid': 'Impagada'
+                        'unpaid': 'Impagado'
                     }[subscription.status] ?? subscription.status }}
                     {% if subscription.currentPeriodEnd %} · hasta el {{ subscription.currentPeriodEnd|date('d/m/Y') }}{% endif %}
                 </p>
@@ -116,6 +116,7 @@
     {% endif %}
 
     {% if organization is null %}
+        {% if planInfo.hasTeam %}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
             <h2 class="text-base font-semibold text-slate-900 mb-2">Crear un equipo</h2>
             <p class="text-sm text-slate-600 leading-relaxed mb-4">
@@ -129,9 +130,44 @@
                 <button type="submit" class="btn btn-primary">Crear equipo</button>
             </form>
         </section>
+        {% else %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+            <h2 class="text-base font-semibold text-slate-900 mb-2">Trabaja en equipo</h2>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Crear un equipo y compartir expedientes requiere un plan de Equipo u Organización.
+            </p>
+            <a href="{{ path('app_planes') }}" class="btn btn-primary">Ver planes</a>
+        </section>
+        {% endif %}
     {% else %}
         <section id="equipo" class="bg-white rounded-2xl border border-slate-200 p-5">
-            <h2 class="text-base font-semibold text-slate-900 mb-1">{{ organization.name }}</h2>
+            {% if canManage %}
+                {# Rename inline (OWNER/ADMIN). Alpine: x-show + style="display:none",
+                   the app layout has no x-cloak rule. #}
+                <div x-data="{ editing: false }" class="mb-1">
+                    <div x-show="!editing" class="flex items-center gap-2 flex-wrap">
+                        <h2 class="text-base font-semibold text-slate-900">{{ organization.name }}</h2>
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                @click="editing = true; $nextTick(() => $refs.teamName.select())">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i> Cambiar nombre
+                        </button>
+                    </div>
+                    <form x-show="editing" style="display: none;"
+                          action="{{ path('app_equipo_rename') }}" method="post"
+                          class="flex gap-2 flex-wrap items-center"
+                          @keydown.escape="editing = false">
+                        <input type="hidden" name="_token" value="{{ csrf_token('team-rename') }}">
+                        <label for="team-name" class="sr-only">Nombre del equipo</label>
+                        <input type="text" id="team-name" name="name" maxlength="255" required
+                               value="{{ organization.name }}" x-ref="teamName"
+                               class="flex-1 min-w-[14rem] rounded-full border border-slate-200 px-4 py-2 text-sm">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar nombre</button>
+                        <button type="button" class="btn btn-ghost btn-sm" @click="editing = false">Cancelar</button>
+                    </form>
+                </div>
+            {% else %}
+                <h2 class="text-base font-semibold text-slate-900 mb-1">{{ organization.name }}</h2>
+            {% endif %}
             <p class="text-sm text-slate-500 mb-4">{{ members|length }} de {{ maxMembers }} miembros.</p>
 
             <ul class="divide-y divide-slate-100">
