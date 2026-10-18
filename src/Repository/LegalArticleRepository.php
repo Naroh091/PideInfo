@@ -9,6 +9,7 @@ use App\Entity\LegalNorm;
 use App\Service\Legal\ArticleRef;
 use App\Service\Legal\ParsedArticle;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\DBAL\ParameterType;
 use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\Uid\Uuid;
 
@@ -161,6 +162,14 @@ class LegalArticleRepository extends ServiceEntityRepository
             'boe_ids' => '{' . implode(',', array_map(static fn (string $id): string => '"' . $id . '"', $boeIds)) . '}',
             'include_repealed' => $includeRepealed,
             'limit' => $limit,
+        ], [
+            // Sin tipos explícitos DBAL liga todo como string y un `false`
+            // llega a Postgres como '' — `''::bool` revienta con 22P02.
+            'q' => ParameterType::STRING,
+            'all_norms' => ParameterType::BOOLEAN,
+            'boe_ids' => ParameterType::STRING,
+            'include_repealed' => ParameterType::BOOLEAN,
+            'limit' => ParameterType::INTEGER,
         ])->fetchFirstColumn();
 
         $byId = $this->findByIds($ids);
