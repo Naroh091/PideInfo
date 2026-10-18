@@ -4066,6 +4066,7 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
 }
 .precios-precio small { font-size: .875rem; font-weight: 400; color: #64748b; }
 .precios-nota { font-size: .8125rem; color: #64748b; margin: .25rem 0 0; min-height: 2.125rem; }
+.precios-iva { font-size: .8125rem; color: #64748b; margin: .1rem 0 0; }
 .precios-lista { list-style: none; margin: 1rem 0 0; padding: 1rem 0 0; border-top: 1px solid #f1f5f9; display: grid; gap: .5rem; font-size: .8125rem; line-height: 1.5; color: #475569; flex: 1; }
 .precios-lista li { display: flex; gap: .5rem; align-items: flex-start; }
 .precios-lista svg { width: .9375rem; height: .9375rem; flex-shrink: 0; margin-top: .1875rem; color: var(--color-primary-600); }
