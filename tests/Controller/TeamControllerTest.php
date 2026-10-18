@@ -142,8 +142,72 @@ final class TeamControllerTest extends WebTestCase
         $client->loginUser($member);
         $client->request('GET', '/equipo');
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('section', 'Sin suscripción activa');
+        self::assertSelectorTextContains('section', 'Plan Individual');
+        self::assertSelectorTextContains('section', 'gratis');
+        self::assertSelectorExists('a[href="/planes"]');
         self::assertSelectorNotExists('form[action="/facturacion/portal"]');
+        self::assertSelectorNotExists('form[action="/facturacion/cambiar"]');
+    }
+
+    public function testProfessionalPageShowsPlanAndUpgrade(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $user = $this->makeUser($em, 'pro-plan@example.com');
+        $sub = (new Subscription())
+            ->setUser($em->getRepository(User::class)->find($user->getId()))
+            ->setPlan('professional')
+            ->setInterval(Subscription::INTERVAL_MONTH)
+            ->setStatus(Subscription::STATUS_ACTIVE)
+            ->setCurrentPeriodEnd(new \DateTimeImmutable('+30 days'));
+        $em->persist($sub);
+        $em->flush();
+
+        try {
+            $client->loginUser($user);
+            $client->request('GET', '/equipo');
+            self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('section', 'Plan Profesional');
+            self::assertSelectorTextContains('section', '15 €/mes');
+            self::assertSelectorTextContains('section', 'Activa');
+            self::assertSelectorTextContains('a[href="/planes"]', 'Ampliar plan');
+            self::assertSelectorNotExists('form[action="/facturacion/cambiar"]');
+            self::assertSelectorTextNotContains('body', 'Facturas');
+        } finally {
+            $em->remove($em->getRepository(Subscription::class)->find($sub->getId()));
+            $em->flush();
+        }
+    }
+
+    public function testTeamOwnerSeesChangeFormAndEmptyInvoices(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $org = $this->makeOrg($em);
+        $owner = $this->makeUser($em, 'owner-change@example.com', $org, User::ORG_ROLE_OWNER);
+        $sub = (new Subscription())
+            ->setOrganization($em->getRepository(Organization::class)->find($org->getId()))
+            ->setPlan('team')
+            ->setInterval(Subscription::INTERVAL_MONTH)
+            ->setStatus(Subscription::STATUS_ACTIVE)
+            ->setStripeCustomerId('cus_test_change')
+            ->setStripeSubscriptionId('sub_test_change');
+        $em->persist($sub);
+        $em->flush();
+
+        try {
+            $client->loginUser($owner);
+            $client->request('GET', '/equipo');
+            self::assertResponseIsSuccessful();
+            self::assertSelectorExists('form[action="/facturacion/cambiar"]');
+            self::assertSelectorTextContains('#facturas', 'Facturas');
+            self::assertSelectorTextContains('#facturas', 'Aún no hay facturas emitidas');
+        } finally {
+            $em->remove($em->getRepository(Subscription::class)->find($sub->getId()));
+            $em->flush();
+        }
     }
 
     private function postWithSession($client, string $uri, string $tokenId, array $params): void

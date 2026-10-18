@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Billing\Plan;
 use App\Entity\Organization;
 use App\Entity\User;
 use App\Repository\SubscriptionRepository;
@@ -35,6 +36,7 @@ class TeamController extends AbstractController
         private readonly \App\Billing\EffectivePlanResolver $plans,
         private readonly \App\Billing\PlanCatalog $catalog,
         private readonly SubscriptionRepository $subscriptions,
+        private readonly \App\Billing\CustomerInvoices $invoices,
     ) {
     }
 
@@ -45,21 +47,26 @@ class TeamController extends AbstractController
         $user = $this->getUser();
         $organization = $user->getOrganization();
 
-        // Subscription shown on the page: the organization's effective plan
-        // (what caps members) plus the billable subscription behind it, so the
-        // titular sees what they're paying and can open the Stripe portal.
-        $planInfo = null;
-        $subscription = null;
-        $isBillingOwner = false;
-        if ($organization !== null) {
-            $orgPlan = $this->plans->forOrganization($organization);
-            if ($orgPlan !== \App\Billing\Plan::INDIVIDUAL) {
-                $planInfo = $this->catalog->get($orgPlan);
-            }
-            $subscription = $this->subscriptions->findForUser($user)
-                ?? $this->subscriptions->findForOrganization($organization);
-            $isBillingOwner = $subscription !== null && $this->isBillingOwner($user, $subscription);
-        }
+        // Unified plan + team control page. The plan shown is the user's
+        // effective plan; the subscription behind it is the billable one
+        // (personal, else the organization's), so its titular sees what they
+        // pay, their invoices, and can open the Stripe portal.
+        $planCode = $this->plans->forUser($user);
+        $planInfo = $this->catalog->get($planCode);
+        $subscription = $this->subscriptions->findForUser($user)
+            ?? ($organization !== null ? $this->subscriptions->findForOrganization($organization) : null);
+        $isBillingOwner = $subscription !== null && $this->isBillingOwner($user, $subscription);
+        $canManageBilling = $isBillingOwner && $subscription?->getStripeCustomerId() !== null;
+        $invoices = $canManageBilling && $subscription !== null
+            ? $this->invoices->forCustomer($subscription->getStripeCustomerId())
+            : [];
+
+        // Inline plan change is offered exactly where app_billing_change
+        // accepts it: team <-> organization on an organization subscription.
+        $canChangePlan = $isBillingOwner
+            && $subscription?->getOrganization() !== null
+            && $subscription->getStripeSubscriptionId() !== null
+            && \in_array($planCode, [Plan::TEAM, Plan::ORGANIZATION], true);
 
         return $this->render('equipo/index.html.twig', [
             'organization' => $organization,
@@ -67,9 +74,12 @@ class TeamController extends AbstractController
             'maxMembers' => $organization ? $this->teams->maxMembersFor($organization) : 0,
             'canManage' => $organization && $user->canManageOrganization(),
             'invitations' => $organization ? $this->invitationRepository->findPendingForOrganization($organization) : [],
+            'planCode' => $planCode,
             'planInfo' => $planInfo,
             'subscription' => $subscription,
-            'canManageBilling' => $isBillingOwner && $subscription?->getStripeCustomerId() !== null,
+            'canManageBilling' => $canManageBilling,
+            'invoices' => $invoices,
+            'canChangePlan' => $canChangePlan,
         ]);
     }
 

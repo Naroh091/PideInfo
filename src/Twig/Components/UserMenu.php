@@ -64,18 +64,20 @@ final class UserMenu extends AbstractController
     }
 
     /**
-     * Team/organization management entry ("Gestionar equipo" /
-     * "Gestionar organización") for team and organization plans, null
-     * otherwise. Points at the team page, where the org's titular (the user
-     * who created it) administers members.
+     * Row label linking to the unified plan control page
+     * (plan detail, invoices, team for team/organization plans).
+     * Always set for authenticated users — Individual included, as the
+     * upgrade entry point.
      */
-    public function getManageTeamLabel(): ?string
+    public function getPlanPageLabel(): ?string
     {
-        return match ($this->effectivePlanCode()) {
-            Plan::TEAM => 'Gestionar equipo',
-            Plan::ORGANIZATION => 'Gestionar organización',
-            default => null,
-        };
+        /** @var User|null $user */
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        return 'Plan ' . $this->planCatalog->get($this->planResolver->forUser($user))->name;
     }
 
     private function effectivePlanCode(): ?string

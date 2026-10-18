@@ -2,7 +2,7 @@
     {% set unread = this.unreadCount %}
     {% set user = this.user %}
     {% set planName = this.planName %}
-    {% set manageTeamLabel = this.manageTeamLabel %}
+    {% set planPageLabel = this.planPageLabel %}
 
     <div class="relative" x-data="{ open: false }">
         <button @click="open = !open"
@@ -36,17 +36,16 @@
              class="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50"
              style="display: none;">
 
-            {# Paid plan, first and non-actionable: crown + plan name. #}
-            {% if planName %}
-                <div class="px-4 py-2 border-b border-slate-100 flex items-center gap-2 cursor-default" aria-current="true">
-                    <i data-lucide="crown" class="w-4 h-4 text-amber-500"></i>
-                    <p class="text-sm font-semibold text-slate-900">Plan {{ planName }}</p>
-                </div>
-            {% endif %}
-            {% if manageTeamLabel %}
+            {# Plan row: links to the unified plan control page. #}
+            {% if planPageLabel %}
                 <a href="{{ path('app_equipo_index') }}" class="user-menu-item">
-                    <i data-lucide="users" class="w-4 h-4"></i>
-                    <span>{{ manageTeamLabel }}</span>
+                    {% if planName %}
+                        <i data-lucide="crown" class="w-4 h-4 text-amber-500"></i>
+                    {% else %}
+                        <i data-lucide="tag" class="w-4 h-4 text-slate-400"></i>
+                    {% endif %}
+                    <span class="flex-1">{{ planPageLabel }}</span>
+                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
                 </a>
             {% endif %}
 

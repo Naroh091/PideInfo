@@ -60,12 +60,21 @@ final class UserMenuTest extends TestCase
         self::assertNull($menu->getPlanName());
     }
 
+    public function testPlanPageLabelCoversEveryPlan(): void
+    {
+        $free = $this->menu(new User(), null, null);
+        $pro = $this->menu(new User(), new SubscriptionStatus(Plan::PROFESSIONAL, 'active', null, null), null);
+
+        self::assertSame('Plan Individual', $free->getPlanPageLabel());
+        self::assertSame('Plan Profesional', $pro->getPlanPageLabel());
+    }
+
     public function testTeamPlanShowsManageTeam(): void
     {
         $user = (new User())->setOrganization((new Organization())->setName('Org'));
         $menu = $this->menu($user, null, new SubscriptionStatus(Plan::TEAM, 'active', null, null));
 
-        self::assertSame('Gestionar equipo', $menu->getManageTeamLabel());
+        self::assertSame('Plan Equipo', $menu->getPlanPageLabel());
     }
 
     public function testOrganizationPlanShowsManageOrganization(): void
@@ -73,16 +82,14 @@ final class UserMenuTest extends TestCase
         $user = (new User())->setOrganization((new Organization())->setName('Org'));
         $menu = $this->menu($user, null, new SubscriptionStatus(Plan::ORGANIZATION, 'active', null, null));
 
-        self::assertSame('Gestionar organización', $menu->getManageTeamLabel());
+        self::assertSame('Plan Organización', $menu->getPlanPageLabel());
     }
 
-    public function testProfessionalAndIndividualShowNoManageEntry(): void
+    public function testAnonymousHasNoPlanPage(): void
     {
-        $pro = $this->menu(new User(), new SubscriptionStatus(Plan::PROFESSIONAL, 'active', null, null), null);
-        $free = $this->menu(new User(), null, null);
+        $menu = $this->menu(user: null, personal: null, organization: null);
 
-        self::assertNull($pro->getManageTeamLabel());
-        self::assertNull($free->getManageTeamLabel());
+        self::assertNull($menu->getPlanPageLabel());
     }
 
     private function menu(?User $user, ?SubscriptionStatus $personal, ?SubscriptionStatus $organization): UserMenu
