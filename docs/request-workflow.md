@@ -207,7 +207,100 @@ el plan del modal unificado. Los endpoints antiguos `organismos.json` / `facetas
 `initiateDrafts` marca cada solicitud con la metadata `draft_only` y **omite la comprobación de
 datos personales REG** (se difiere al momento de "Enviar" desde el lienzo, ya que el borrador no
 se despacha todavía). Ambos flujos aterrizan en el mismo lienzo de redacción
-(`app_solicitudes_realizar_draft`).
+(`app_solicitudes_realizar_draft`) — salvo con **varios destinatarios**, que
+aterrizan en la plantilla común (ver abajo).
+
+#### Solicitud unificada para varios organismos (plantilla común)
+
+Cuando un lote (`metadata.draft_batch_id`) tiene **dos o más** destinatarios,
+`initiateDrafts` devuelve como `firstDraftUrl` la **plantilla común**
+(`GET /solicitudes/nueva/realizar/lote/{batchId}/plantilla`,
+`app_solicitudes_batch_template`, `DraftBatchController`) en vez del primer
+borrador. La plantilla es opcional: su intro ofrece «Redactar cada organismo por
+separado», y desde cualquier pestaña se puede redactar un organismo a mano.
+
+Flujo (los cuatro pasos se pintan en la cabecera, `asistente/_batch_nav.html.twig`):
+
+1. **Plantilla común.** Un único texto (asunto ≤80 + EXPONE + SOLICITA, sea cual
+   sea el canal de cada destinatario) con **marcadores** para lo que varía:
+   `[[ORGANISMO]]`, `[[UNIDAD]]` y `[[LEY_APLICABLE]]`. El catálogo es cerrado y
+   vive en `BatchPlaceholders` (lo leen el prompt, el panel «Partes variables» y
+   el relleno determinista). Se guarda en la tabla `draft_batch_template`
+   (`DraftBatchTemplateStore`, DBAL, siempre filtrado por `user_id`; autosave en
+   `.../plantilla/autoguardar`). Su chat es **otro hilo**:
+   `POST /asistente/plantilla/{id}` (`app_assistant_chat_batch_template`), hilo
+   `batch:{batchId}` en `ai_chat_messages`. `{id}` es la primera solicitud del
+   lote y **solo** aloja el registro de turnos (`ai_assistant_turn`, thread key
+   `batch_template_chat_history`, recuperable con `flow=batch`): ni su borrador ni
+   su hilo se tocan. Prompt gestionado `pideinfo-request-generate-batch-template-chat`
+   (fallback `config/prompts/request/generate-batch-template-chat.md`,
+   `BatchTemplatePromptComposer`): lista los destinatarios con su ley y canal, y
+   **no** inyecta texto legal literal ni admite números de artículo — los
+   destinatarios pueden regirse por leyes distintas; los artículos se añaden por
+   versión.
+2. **Una versión por organismo.** `POST .../lote/{batchId}/versiones/{id}`
+   (`app_solicitudes_batch_version_generate`) genera la de UN destinatario: la
+   página lo llama por cada fila (dos a la vez) para mostrar el progreso fila a
+   fila. `BatchVersionGenerator` hace una llamada `LlmClient::chatJson()` con el
+   prompt propio de esa solicitud (`RequestPromptComposer`: organismo, canal,
+   texto literal de su ley — de ahí salen los artículos, nunca de memoria) y la
+   plantilla como instrucción (sustituir marcadores, adaptar la ley y el formato
+   del canal sin cambiar el fondo). Si el modelo falla, pregunta en vez de
+   redactar o deja algún `[[…]]`, cae al **relleno determinista** de marcadores
+   (y lo dice: «Revisar: sin adaptar»). El modelo devuelve SIEMPRE `expone` y
+   `solicita` por separado, conservando párrafos, saltos de línea y listas de la
+   plantilla; en los canales de cuerpo único (portal/correo) el cuerpo lo compone
+   `BatchVersionGenerator::portalBody()` como `EXPONE:\n…\n\nSOLICITA:\n…` (el
+   mismo formato que REG refleja en `description`). Pedirle al modelo que los
+   fusionara en un «texto corrido» aplanaba párrafos y listas en un solo bloque.
+   Aplica el borrador por
+   `RequestDraftGenerator::applyDraft()` (el mismo camino que el chat), copia las
+   fuentes de la plantilla y guarda en `metadata.batch_version`
+   `{template_fingerprint, content_fingerprint, generated_at, fallback}`.
+   En el timeline del chat de la plantilla, debajo de la hoja, aparece el hito
+   «Versiones generadas desde la plantilla · n/N» con un chip por organismo que
+   enlaza a su versión (no el texto). Mientras se genera, el hito muestra el
+   progreso («Generando versiones · 1/3…», barra con brillo, punto latiendo y un
+   chip «generando…» por organismo en curso); `batch-versions` resuelve cada chip
+   en cuanto termina su organismo; al recargar lo pinta `asistente/_versions_event.html.twig`
+   desde `metadata.batch_version`.
+3. **Cada versión tiene su propio hilo.** Al generarla se añade a SU hilo
+   (`request:{id}`) un turno del asistente explicando que viene de la plantilla
+   común, así el asistente de esa pestaña sabe que ajusta una adaptación y el
+   usuario lo ve. Lo que se pida o edite ahí cambia solo ese organismo.
+4. **Envío.** «Enviar a los N organismos» desde cualquier pestaña
+   (`dispatchBatch`). No hay casilla «He revisado los N destinatarios»: la
+   confirmación explícita (`confirmReview`, que el servidor sigue exigiendo) la
+   añade `paper-sheet#dispatchSubmit` solo cuando el usuario acepta el diálogo de
+   confirmación, que dice a cuántos organismos sale. Tanto la hoja de cada
+   organismo como la de la plantilla tienen además «Guardar borrador»
+   (`paper-sheet#saveNow`: fuerza el autosave y lo confirma), que es solo un
+   refuerzo del autosave. La hoja avisa antes de qué organismos están sin redactar o
+   generados con una plantilla anterior; `incomplete_draft` devuelve `bodyName`
+   para que el error diga cuál falta.
+
+**Estados de cada destinatario** — clasificador único `DraftBatchOverview`
+(no re-derivar en Twig/JS): `sent`, `empty`, `template` (generada y sin tocar),
+`adjusted` (generada y luego editada: `content_fingerprint` ya no coincide),
+`independent` (redactada sin plantilla), más los flags ortogonales `outdated`
+(el `template_fingerprint` guardado no es el de la plantilla actual) y `working`
+(turno del asistente en curso en ese hilo). **Regenerar nunca pisa trabajo
+deliberado sin permiso:** `adjusted`/`independent` devuelven `409 would_overwrite`
+salvo `{overwrite: true}`, que la página solo manda si el usuario marca «Regenerar
+también las que ya ajustaste». Cambiar la plantilla no modifica ninguna versión:
+solo las marca como «plantilla cambiada» (y la pestaña de la versión ofrece
+«Regenerar desde la plantilla»).
+
+**Las conversaciones no se pierden al saltar de pestaña.** Para usuarios con
+sesión el chat persiste en `ai_chat_messages` (`ChatHistoryStore`), y
+`AccessRequestController::draft` pinta el hilo **desde ahí** (con la metadata
+legacy como fallback). Antes leía solo `metadata.draft_chat_history`, de modo que
+al volver a una pestaña el historial aparecía vacío aunque estuviera guardado. Un
+turno en curso sobrevive a la navegación (`ignore_user_abort` + `AssistantTurnStore`):
+al volver se reengancha, y la pestaña lo marca como «asistente trabajando».
+
+Al tocar el prompt de la plantilla: `app:langfuse:sync-prompts` sube el bundled
+como nueva versión `production` (mueve también `staging` en dev).
 
 **Asistente de redacción.** El canvas "Realizar" alberga un único asistente conversacional (`AssistantChatController` → `POST /asistente/request/{id}`, SSE; controlador Stimulus `assistant-chat`). El modelo **decide automáticamente** en cada turno si responder con una pregunta o actuar sobre el canvas:
 - El system prompt codifica una política de tres acciones y pide al modelo que emita la respuesta conversacional, después un marcador literal `===DECISION===` y luego un bloque JSON `{"action":"reply"|"generate"|"rewrite", "draft":{…}}`.

@@ -14,6 +14,9 @@
                    overrides so the public /redactar flow can point the picker
                    at its anonymous mirror endpoints
      max_targets — optional cap on selected destinations (0 = unlimited)
+     quota_modal — when true, hitting max_targets opens the quota modal
+                   (plan upsell with multi-pick) instead of silently replacing
+                   the oldest selection (anonymous single-target behaviour).
      extra_fields_selector — optional CSS selector of inputs merged into the
                    initiate POST (flow, resolutionResult, Turnstile token)
      back_url    — optional href for the "Atrás" button #}
@@ -23,6 +26,7 @@
      data-realizar-picker-destination-facets-url-value="{{ destination_facets_url|default(path('app_solicitudes_realizar_destinations_facets_json')) }}"
      data-realizar-picker-initiate-url-value="{{ initiate_url|default(path('app_solicitudes_realizar_initiate')) }}"
      data-realizar-picker-max-targets-value="{{ max_targets|default(0) }}"
+     data-realizar-picker-quota-modal-value="{{ quota_modal|default(false) ? 'true' : 'false' }}"
      data-realizar-picker-extra-fields-selector-value="{{ extra_fields_selector|default('') }}"
      data-realizar-picker-draft-only-value="{{ (draft_only|default(false)) ? 'true' : 'false' }}">
 

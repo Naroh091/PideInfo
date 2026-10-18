@@ -508,14 +508,17 @@ TXT;
         // ── Optional tool-calling loop (model-driven) ────────────────────────
         // First turn of the conversation, iter=0: force read_request_documents so
         // the model knows the administration's specific denial arguments BEFORE
-        // searching for relevant resolutions. Later turns skip the forced read —
-        // it burned an extra LLM roundtrip per turn re-reading the same documents
-        // (or confirming there are none); the tool stays available in auto mode
-        // and the model re-reads spontaneously when it needs them.
+        // searching for relevant resolutions — except when drafting a request
+        // from scratch, where there is no expediente to read and forcing the
+        // tool only burns a roundtrip confirming "no documents". Later turns skip
+        // the forced read — it burned an extra LLM roundtrip per turn re-reading
+        // the same documents (or confirming there are none); the tool stays
+        // available in auto mode and the model re-reads spontaneously when it
+        // needs them.
         $toolIterations = 0;
         $toolLoopDecision = null; // may hold a valid DECISION_SCHEMA from the loop
         while ($toolIterations < self::MAX_TOOL_ITERATIONS) {
-            $toolChoice = ($toolIterations === 0 && $isFirstAssistantTurn)
+            $toolChoice = ($toolIterations === 0 && $isFirstAssistantTurn && $req->flow !== 'request')
                 ? ['type' => 'function', 'function' => ['name' => 'read_request_documents']]
                 : 'auto';
 
@@ -524,7 +527,13 @@ TXT;
             // prefill can take minutes before the first tool call lands), and
             // without this the UI sits on "Pensando…" the whole time.
             yield ['step', [
-                'message' => $toolIterations === 0 ? 'Analizando el expediente…' : 'Revisando los resultados…',
+                // Drafting a request from scratch has no expediente to read —
+                // don't announce an analysis that will not happen.
+                'message' => match (true) {
+                    $toolIterations > 0 => 'Revisando los resultados…',
+                    $req->flow === 'request' => 'Preparando la redacción…',
+                    default => 'Analizando el expediente…',
+                },
                 'tool'    => null,
             ]];
 
@@ -1027,6 +1036,15 @@ TXT;
             $systemPrompt .= "\n\n**ID de la solicitud (para herramientas):** {$req->entityId}";
         }
 
+        // Current date on EVERY turn (the prompt is rebuilt per turn): without
+        // it the model has no "today" for deadlines, elapsed-time reasoning or
+        // dating the draft. Appended at the very end so prefix-cached prompts
+        // only differ in this tail when the day changes.
+        $systemPrompt .= sprintf(
+            "\n\n**Fecha actual:** %s (Europa/Madrid). Úsala como referencia para «hoy», los plazos y cualquier fecha relativa.",
+            self::todayEs(),
+        );
+
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
 
         foreach ($req->history as $m) {
@@ -1059,6 +1077,24 @@ TXT;
         }
 
         return $messages;
+    }
+
+    /**
+     * Today's date in Spanish ("sábado, 18 de octubre de 2026"), Europe/Madrid.
+     */
+    private static function todayEs(): string
+    {
+        $formatter = new \IntlDateFormatter(
+            'es_ES',
+            \IntlDateFormatter::FULL,
+            \IntlDateFormatter::NONE,
+            'Europe/Madrid',
+        );
+        $formatted = $formatter->format(new \DateTimeImmutable());
+
+        return $formatted !== false
+            ? $formatted
+            : (new \DateTimeImmutable('now', new \DateTimeZone('Europe/Madrid')))->format('Y-m-d');
     }
 
     /**

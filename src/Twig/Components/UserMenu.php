@@ -2,6 +2,9 @@
 
 namespace App\Twig\Components;
 
+use App\Billing\EffectivePlanResolver;
+use App\Billing\Plan;
+use App\Billing\PlanCatalog;
 use App\Entity\User;
 use App\Repository\UserNotificationRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,6 +25,8 @@ final class UserMenu extends AbstractController
     public function __construct(
         private readonly UserNotificationRepository $notificationRepository,
         private readonly Security $security,
+        private readonly EffectivePlanResolver $planResolver,
+        private readonly PlanCatalog $planCatalog,
     ) {
     }
 
@@ -41,5 +46,48 @@ final class UserMenu extends AbstractController
         /** @var User|null $user */
         $user = $this->security->getUser();
         return $user;
+    }
+
+    /**
+     * Display name of the user's paid plan (Profesional, Equipo,
+     * Organización), or null on the free Individual plan / anonymous.
+     * Used for the crown badge and the first dropdown row.
+     */
+    public function getPlanName(): ?string
+    {
+        $plan = $this->effectivePlanCode();
+        if ($plan === null || $plan === Plan::INDIVIDUAL) {
+            return null;
+        }
+
+        return $this->planCatalog->get($plan)->name;
+    }
+
+    /**
+     * Row label linking to the unified plan control page
+     * (plan detail, invoices, team for team/organization plans).
+     * Always set for authenticated users — Individual included, as the
+     * upgrade entry point.
+     */
+    public function getPlanPageLabel(): ?string
+    {
+        /** @var User|null $user */
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        return 'Plan ' . $this->planCatalog->get($this->planResolver->forUser($user))->name;
+    }
+
+    private function effectivePlanCode(): ?string
+    {
+        /** @var User|null $user */
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        return $this->planResolver->forUser($user);
     }
 }

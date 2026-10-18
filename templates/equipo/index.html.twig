@@ -1,20 +1,122 @@
 {% extends 'layouts/app.html.twig' %}
-{% block title %}Mi equipo - PideInfo{% endblock %}
+{% block title %}Plan y equipo - PideInfo{% endblock %}
 {% block content %}
     <header class="page-header">
         <div class="min-w-0">
-            <h1 class="page-title">Mi equipo</h1>
+            <h1 class="page-title">Plan y equipo</h1>
             <p class="page-sub">
-                {% if organization %}
-                    {{ organization.name }} · {{ members|length }} de {{ maxMembers }} miembros según tu plan.
+                {% if planCode == 'individual' %}
+                    Estás en el plan Individual, gratis para siempre.
                 {% else %}
-                    Trabaja tus expedientes con otras personas compartiendo solo lo que decidas.
+                    Estás en el plan {{ planInfo.name }}.
                 {% endif %}
             </p>
         </div>
     </header>
 
+    {# ── Plan detail ── #}
+    <section id="plan" class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+        <p class="text-xs font-bold uppercase tracking-wider text-sky-700 mb-1">Tu plan</p>
+        {% if planCode == 'individual' %}
+            <p class="text-base font-semibold text-slate-900">
+                Plan Individual
+                <span class="font-normal text-slate-500 text-sm">· gratis, para siempre</span>
+            </p>
+            <p class="text-sm text-slate-500 mt-1">1 destinatario por lote · 1 miembro.</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <a href="{{ path('app_planes') }}" class="btn btn-primary">Ver planes</a>
+            </div>
+        {% else %}
+            <p class="text-base font-semibold text-slate-900">
+                Plan {{ planInfo.name }}
+                <span class="font-normal text-slate-500 text-sm">
+                    · {% if subscription and subscription.interval == 'year' %}{{ (planInfo.annualCents / 100)|round }} €/año{% else %}{{ (planInfo.monthlyCents / 100)|round }} €/mes{% endif %}
+                </span>
+            </p>
+            {% if subscription %}
+                <p class="text-sm text-slate-500 mt-1">
+                    {{ {
+                        'trialing': 'En periodo de prueba',
+                        'active': 'Activo',
+                        'past_due': 'En mora: periodo de gracia de 14 días',
+                        'canceled': 'Cancelado: mantienes el plan hasta el fin del periodo pagado',
+                        'incomplete': 'Pendiente de pago',
+                        'unpaid': 'Impagado'
+                    }[subscription.status] ?? subscription.status }}
+                    {% if subscription.currentPeriodEnd %} · hasta el {{ subscription.currentPeriodEnd|date('d/m/Y') }}{% endif %}
+                </p>
+            {% else %}
+                <p class="text-sm text-slate-500 mt-1">Sin suscripción activa.</p>
+            {% endif %}
+            <p class="text-sm text-slate-500 mt-1">
+                {{ planInfo.maxMembers }} {{ planInfo.maxMembers == 1 ? 'miembro' : 'miembros' }}
+                · {% if planInfo.maxBatchRecipients is null %}lotes sin límite comercial{% else %}lotes de hasta {{ planInfo.maxBatchRecipients }} destinatarios{% endif %}.
+            </p>
+            <div class="mt-3 flex flex-wrap gap-2 items-center">
+                {% if canChangePlan %}
+                    <form action="{{ path('app_billing_change') }}" method="post" class="flex flex-wrap gap-2 items-center">
+                        <input type="hidden" name="_token" value="{{ csrf_token('billing-change') }}">
+                        <select name="plan" class="text-sm rounded-full border border-slate-200 px-3 py-2" aria-label="Plan">
+                            <option value="team" {% if planCode == 'team' %}selected{% endif %}>Equipo — 49 €/mes</option>
+                            <option value="organization" {% if planCode == 'organization' %}selected{% endif %}>Organización — desde 99 €/mes</option>
+                        </select>
+                        <select name="interval" class="text-sm rounded-full border border-slate-200 px-3 py-2" aria-label="Periodo">
+                            <option value="month" {% if not subscription or subscription.interval != 'year' %}selected{% endif %}>Mensual</option>
+                            <option value="year" {% if subscription and subscription.interval == 'year' %}selected{% endif %}>Anual (un mes gratis)</option>
+                        </select>
+                        <button type="submit" class="btn btn-primary">Cambiar de plan</button>
+                    </form>
+                {% else %}
+                    <a href="{{ path('app_planes') }}" class="btn btn-secondary">Ampliar plan</a>
+                {% endif %}
+                {% if canManageBilling %}
+                    <form action="{{ path('app_billing_portal') }}" method="post" class="inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('billing-portal') }}">
+                        <button type="submit" class="btn btn-ghost">Gestionar suscripción</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+    </section>
+
+    {# ── Invoices (billing owner only) ── #}
+    {% if canManageBilling %}
+        <section id="facturas" class="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
+            <p class="text-xs font-bold uppercase tracking-wider text-sky-700 mb-1">Facturas</p>
+            {% if invoices is not empty %}
+                <ul class="divide-y divide-slate-100">
+                    {% for invoice in invoices %}
+                        <li class="py-3 flex items-center gap-3 text-sm">
+                            <div class="min-w-0 flex-1">
+                                <p class="font-medium text-slate-900">{{ invoice.number }}</p>
+                                <p class="text-xs text-slate-500">
+                                    {{ invoice.date|date('d/m/Y') }} · {{ invoice.amount|number_format(2, ',', '.') }} {{ invoice.currency }}
+                                    · {{ {
+                                        'paid': 'Pagada',
+                                        'open': 'Pendiente',
+                                        'draft': 'Borrador',
+                                        'void': 'Anulada',
+                                        'uncollectible': 'Incobrable'
+                                    }[invoice.status] ?? invoice.status }}
+                                </p>
+                            </div>
+                            {% if invoice.pdfUrl %}
+                                <a href="{{ invoice.pdfUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Descargar</a>
+                            {% endif %}
+                            {% if invoice.hostedUrl %}
+                                <a href="{{ invoice.hostedUrl }}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Ver</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-sm text-slate-500">Aún no hay facturas emitidas.</p>
+            {% endif %}
+        </section>
+    {% endif %}
+
     {% if organization is null %}
+        {% if planInfo.hasTeam %}
         <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
             <h2 class="text-base font-semibold text-slate-900 mb-2">Crear un equipo</h2>
             <p class="text-sm text-slate-600 leading-relaxed mb-4">
@@ -28,9 +130,44 @@
                 <button type="submit" class="btn btn-primary">Crear equipo</button>
             </form>
         </section>
+        {% else %}
+        <section class="bg-white rounded-2xl border border-slate-200 p-5 max-w-xl">
+            <h2 class="text-base font-semibold text-slate-900 mb-2">Trabaja en equipo</h2>
+            <p class="text-sm text-slate-600 leading-relaxed mb-4">
+                Crear un equipo y compartir expedientes requiere un plan de Equipo u Organización.
+            </p>
+            <a href="{{ path('app_planes') }}" class="btn btn-primary">Ver planes</a>
+        </section>
+        {% endif %}
     {% else %}
-        <section class="bg-white rounded-2xl border border-slate-200 p-5">
-            <h2 class="text-base font-semibold text-slate-900 mb-1">{{ organization.name }}</h2>
+        <section id="equipo" class="bg-white rounded-2xl border border-slate-200 p-5">
+            {% if canManage %}
+                {# Rename inline (OWNER/ADMIN). Alpine: x-show + style="display:none",
+                   the app layout has no x-cloak rule. #}
+                <div x-data="{ editing: false }" class="mb-1">
+                    <div x-show="!editing" class="flex items-center gap-2 flex-wrap">
+                        <h2 class="text-base font-semibold text-slate-900">{{ organization.name }}</h2>
+                        <button type="button" class="btn btn-ghost btn-sm"
+                                @click="editing = true; $nextTick(() => $refs.teamName.select())">
+                            <i data-lucide="pencil" class="w-3.5 h-3.5 mr-1"></i> Cambiar nombre
+                        </button>
+                    </div>
+                    <form x-show="editing" style="display: none;"
+                          action="{{ path('app_equipo_rename') }}" method="post"
+                          class="flex gap-2 flex-wrap items-center"
+                          @keydown.escape="editing = false">
+                        <input type="hidden" name="_token" value="{{ csrf_token('team-rename') }}">
+                        <label for="team-name" class="sr-only">Nombre del equipo</label>
+                        <input type="text" id="team-name" name="name" maxlength="255" required
+                               value="{{ organization.name }}" x-ref="teamName"
+                               class="flex-1 min-w-[14rem] rounded-full border border-slate-200 px-4 py-2 text-sm">
+                        <button type="submit" class="btn btn-primary btn-sm">Guardar nombre</button>
+                        <button type="button" class="btn btn-ghost btn-sm" @click="editing = false">Cancelar</button>
+                    </form>
+                </div>
+            {% else %}
+                <h2 class="text-base font-semibold text-slate-900 mb-1">{{ organization.name }}</h2>
+            {% endif %}
             <p class="text-sm text-slate-500 mb-4">{{ members|length }} de {{ maxMembers }} miembros.</p>
 
             <ul class="divide-y divide-slate-100">

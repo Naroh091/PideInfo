@@ -25,6 +25,7 @@ class UserCrudController extends AbstractCrudController
         #[Autowire('%mail_from_address%')] private string $mailFromAddress,
         #[Autowire('%mail_from_name%')] private string $mailFromName,
         #[Autowire(env: 'bool:USER_NEEDS_MANUAL_ACTIVATION')] private bool $needsManualActivation,
+        private \App\Billing\UserPlanSummary $planSummary,
     ) {
     }
 
@@ -49,6 +50,11 @@ class UserCrudController extends AbstractCrudController
         yield TextField::new('firstName', 'Nombre');
         yield TextField::new('lastName', 'Apellidos');
         yield AssociationField::new('organization', 'Organización');
+        yield TextField::new('planSummary', 'Plan')
+            ->setVirtual(true)
+            ->setSortable(false)
+            ->hideOnForm()
+            ->formatValue(fn (?string $value, User $user): string => $this->planSummary->forUser($user));
         yield ArrayField::new('roles', 'Roles');
         yield BooleanField::new('isVerified', 'Verificado');
         yield BooleanField::new('isActive', 'Activo');

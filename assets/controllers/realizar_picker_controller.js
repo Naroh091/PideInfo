@@ -29,6 +29,11 @@ export default class extends Controller {
         // destination replaces the previous one instead of accumulating — the
         // public /redactar flow mode, creating ONE draft at a time.
         maxTargets: { type: Number, default: 0 },
+        // When true, hitting maxTargets does NOT replace the oldest: the
+        // pending destination stays unselected and the quota modal opens so
+        // the user picks which recipients to keep (plan upsell). Used by the
+        // authenticated pickers, whose cap is the plan's batch limit.
+        quotaModal: { type: Boolean, default: false },
         // CSS selector of inputs whose name/value joins the initiate-POST JSON
         // (e.g. flow, resolutionResult or the public flow's Turnstile token).
         // Read at submit time.
@@ -85,6 +90,13 @@ export default class extends Controller {
                     <div class="destino-sentinel" data-role="sentinel"></div>
                     <button type="button" class="destino-more" data-role="more" hidden>Cargar más</button>
                 </div>
+                <div class="destino-modal-foot" data-role="foot" hidden>
+                    <p class="destino-pick-count" data-role="pick-count"></p>
+                    <div style="display: flex; gap: .75rem;">
+                        <button type="button" class="btn-editorial btn-editorial--secundario" data-role="cancel">Cancelar</button>
+                        <button type="button" class="btn-editorial btn-editorial--primario" data-role="add" disabled>Añadir</button>
+                    </div>
+                </div>
             </div>`;
 
         document.body.appendChild(overlay);
@@ -103,7 +115,16 @@ export default class extends Controller {
             empty: $('empty'),
             sentinel: $('sentinel'),
             more: $('more'),
+            foot: $('foot'),
+            pickCount: $('pick-count'),
         };
+        // Pending multi-selection (key -> raw candidate). Confirmed with
+        // "Añadir"; discarded on any dismiss. Instant-add mode (anonymous
+        // single target) bypasses it and keeps the old click-to-add flow.
+        this._pending = new Map();
+        this._multiMode = this.quotaModalValue || this.maxTargetsValue === 0;
+        this._modal.foot.hidden = !this._multiMode;
+        this._renderPendingCount();
         this._offset = 0;
         this._hasMore = false;
         this._loading = false;
@@ -126,11 +147,19 @@ export default class extends Controller {
         this._modal.provincia.addEventListener('change', () => this._search(true));
         this._modal.more.addEventListener('click', () => this._search(false));
 
-        // Delegated selection.
+        // Delegated selection: toggle in multi mode, instant add in legacy mode.
         this._modal.list.addEventListener('click', (ev) => {
             const li = ev.target.closest('[data-candidate]');
-            if (li) this._selectCandidate(JSON.parse(li.dataset.candidate));
+            if (li) {
+                const c = JSON.parse(li.dataset.candidate);
+                if (this._multiMode) this._togglePending(c, li);
+                else this._selectCandidate(c);
+            }
         });
+
+        // Multi-pick footer.
+        overlay.querySelector('[data-role="cancel"]').addEventListener('click', () => this._closeDestinationModal());
+        overlay.querySelector('[data-role="add"]').addEventListener('click', () => this._confirmPending());
 
         // Carga incremental al hacer scroll.
         if ('IntersectionObserver' in window) {
@@ -155,6 +184,7 @@ export default class extends Controller {
         document.body.style.overflow = '';
         this._modal.overlay.remove();
         this._modal = null;
+        this._pending = new Map();
     }
 
     async _loadFacets() {
@@ -241,6 +271,7 @@ export default class extends Controller {
         li.setAttribute('role', 'button');
         li.tabIndex = 0;
         li.dataset.candidate = JSON.stringify(c);
+        if (this._pending.has(this._pendingKey(c))) li.classList.add('is-selected');
 
         const badgeClass = c.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg';
         const badge = c.channelLabel
@@ -265,12 +296,91 @@ export default class extends Controller {
             ${law ? `<div class="picker-option-row">${law}</div>` : ''}`;
 
         li.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this._selectCandidate(c); }
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                if (this._multiMode) this._togglePending(c, li);
+                else this._selectCandidate(c);
+            }
         });
         return li;
     }
 
-    _selectCandidate(c) {
+    _pendingKey(c) {
+        return `${c.publicBodyId || ''}|${c.regDestinationId || ''}`;
+    }
+
+    _togglePending(c, li) {
+        const key = this._pendingKey(c);
+        if (this._pending.has(key)) {
+            this._pending.delete(key);
+            li?.classList.remove('is-selected');
+            li?.setAttribute('aria-pressed', 'false');
+        } else {
+            this._pending.set(key, c);
+            li?.classList.add('is-selected');
+            li?.setAttribute('aria-pressed', 'true');
+        }
+        this._renderPendingCount();
+    }
+
+    _pendingDisplayName(c) {
+        const base = c.displayLabel || c.name || c.publicBodyId || '';
+        return c.channelLabel ? `${base} · ${c.channelLabel}` : base;
+    }
+
+    _renderPendingCount() {
+        if (!this._modal) return;
+        const addBtn = this._modal.overlay.querySelector('[data-role="add"]');
+        const names = [...this._pending.values()].map((c) => this._pendingDisplayName(c));
+        this._modal.pickCount.textContent = names.length === 0
+            ? 'Marca uno o varios destinos y pulsa Añadir.'
+            : `Añadirás ${names.length}: ${names.join(' · ')}`;
+        if (addBtn) {
+            addBtn.disabled = names.length === 0;
+            addBtn.textContent = names.length > 0 ? `Añadir (${names.length})` : 'Añadir';
+        }
+    }
+
+    /**
+     * Confirms the multi-selection: merges it into the recipients, opening
+     * the quota modal instead when it would exceed the plan limit.
+     */
+    async _confirmPending() {
+        const entries = [...this._pending.values()]
+            .map((c) => this._toEntry(c))
+            .filter((e) => !this.selectedTargets.some((t) => t.publicBodyId === e.publicBodyId
+                && (t.regDestinationId || null) === (e.regDestinationId || null)));
+        this._closeDestinationModal();
+        if (entries.length === 0) return;
+
+        if (this.quotaModalValue && this.maxTargetsValue > 0
+            && this.selectedTargets.length + entries.length > this.maxTargetsValue) {
+            const candidates = [...this.selectedTargets, ...entries];
+            const chosen = await this._openQuotaModal({
+                max: this.maxTargetsValue,
+                requested: candidates.length,
+                candidates,
+                preselected: this.selectedTargets.map((t) => this._targetKey(t)),
+            });
+            if (chosen !== null) {
+                this.selectedTargets = chosen;
+                this._renderTargets();
+                this._updateContinueButton();
+            }
+            return;
+        }
+
+        for (const entry of entries) {
+            if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
+                this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
+            }
+            this.selectedTargets.push(entry);
+        }
+        this._renderTargets();
+        this._updateContinueButton();
+    }
+
+    _toEntry(c) {
         const entry = {
             publicBodyId: c.publicBodyId,
             name: c.name,
@@ -283,15 +393,31 @@ export default class extends Controller {
             entry.regDestinationId = c.regDestinationId;
             entry.unitLabel = c.displayLabel;
         }
+        return entry;
+    }
+
+    _selectCandidate(c) {
+        const entry = this._toEntry(c);
         const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
             && (t.regDestinationId || null) === (entry.regDestinationId || null));
-        if (!dup) {
-            if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
-                this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
-            }
-            this.selectedTargets.push(entry);
+        if (dup) {
+            this._closeDestinationModal();
+            this._renderTargets();
+            this._updateContinueButton();
+            return;
         }
-
+        if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
+            if (this.quotaModalValue) {
+                // Over the plan limit: don't select it — open the quota modal
+                // so the user chooses which recipients to keep.
+                this._closeDestinationModal();
+                this._pickWithinQuota(entry);
+                return;
+            }
+            // Legacy single-target mode (anonymous): the new pick replaces.
+            this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
+        }
+        this.selectedTargets.push(entry);
         this._closeDestinationModal();
         this._renderTargets();
         this._updateContinueButton();
@@ -419,41 +545,113 @@ export default class extends Controller {
             this.continueButtonTarget.disabled = false;
             this.continueButtonTarget.textContent = this.continueButtonTarget.dataset.previousLabel || 'Continuar';
         };
-        const choice = await this._openQuotaModal(err);
-        if (choice === 'single' && targets.length > 0) {
-            try {
-                this.continueButtonTarget.innerHTML = 'Preparando borrador…';
-                const json = await this._postInitiate(targets.slice(0, 1));
-                window.location.href = json.firstDraftUrl;
-                return;
-            } catch (retryErr) {
-                console.error(retryErr);
-            }
+        // Same set the user picked (with display names), so the modal can let
+        // them choose which recipients to keep instead of just the first one.
+        const full = this.selectedTargets.filter((t) => targets.some((u) => u.publicBodyId === t.publicBodyId
+            && (u.regDestinationId || null) === (t.regDestinationId || null)));
+        const candidates = full.length > 0 ? full : targets;
+        const max = Number(err.max || this.maxTargetsValue || 1);
+        const chosen = await this._openQuotaModal({
+            max,
+            requested: targets.length,
+            candidates,
+            preselected: candidates.slice(0, max).map((t) => this._targetKey(t)),
+        });
+        if (chosen === null || chosen.length === 0) {
+            restoreButton();
+            return;
+        }
+        try {
+            this.continueButtonTarget.innerHTML = 'Preparando borrador…';
+            const json = await this._postInitiate(chosen.map((t) => this._toPayload(t)));
+            window.location.href = json.firstDraftUrl;
+            return;
+        } catch (retryErr) {
+            console.error(retryErr);
+            alert((retryErr && retryErr.userMessage) || 'No se ha podido iniciar el borrador. Inténtalo de nuevo.');
         }
         restoreButton();
     }
 
-    _openQuotaModal(err) {
-        const max = Number(err.max || 1);
+    /**
+     * Over the plan limit while picking: the pending destination is NOT
+     * selected — the quota modal opens so the user chooses which recipients
+     * to keep (up to their limit).
+     */
+    async _pickWithinQuota(pending) {
+        const candidates = [...this.selectedTargets, pending];
+        const chosen = await this._openQuotaModal({
+            max: this.maxTargetsValue,
+            requested: candidates.length,
+            candidates,
+            preselected: this.selectedTargets.map((t) => this._targetKey(t)),
+        });
+        if (chosen === null) {
+            return;
+        }
+        this.selectedTargets = chosen;
+        this._renderTargets();
+        this._updateContinueButton();
+    }
+
+    _targetKey(t) {
+        return `${t.publicBodyId || ''}|${t.regDestinationId || ''}`;
+    }
+
+    _toPayload(t) {
+        const target = { publicBodyId: t.publicBodyId };
+        if (t.regDestinationId) target.regDestinationId = t.regDestinationId;
+        return target;
+    }
+
+    _displayName(t) {
+        const base = t.unitLabel || t.name || t.publicBodyId || '';
+        return t.channelLabel ? `${base} · ${t.channelLabel}` : base;
+    }
+
+    /**
+     * Quota modal with multi-pick: rows highlight when selected, a zone lists
+     * the current selection, and Continuar (capped at max) / Cancelar decide.
+     * Resolves the chosen entries (in list order) or null on dismiss.
+     */
+    _openQuotaModal({ max, requested, candidates, preselected }) {
+        const validMax = Number(max) > 0 ? Number(max) : 1;
+        const ids = candidates.map((t) => this._targetKey(t));
+        const selected = new Set((preselected || []).filter((id) => ids.includes(id)).slice(0, validMax));
         const overlay = document.createElement('div');
         overlay.className = 'profile-modal-overlay';
+        const title = validMax === 1 ? 'Un destinatario por solicitud' : 'Elige con cuáles seguir';
+        const sub = validMax === 1
+            ? `Tu plan admite lotes de hasta 1 destinatario.
+               Para enviar a varios organismos de una vez necesitas ampliar tu plan.
+               Si prefieres no hacerlo, puedes seguir haciendo las solicitudes una por una.`
+            : `Tu plan admite lotes de hasta ${validMax} destinatarios. Has elegido ${requested}.
+               Selecciona con cuáles seguir (máximo ${validMax}).`;
         overlay.innerHTML = `
             <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="quota-modal-title">
                 <header class="profile-modal-head">
                     <div>
                         <p class="profile-modal-eyebrow">Límite de tu plan</p>
-                        <h2 class="profile-modal-title" id="quota-modal-title">Un destinatario por solicitud</h2>
-                        <p class="profile-modal-sub">Tu plan admite lotes de hasta ${max} destinatario${max === 1 ? '' : 's'}.
-                        Para enviar a varios organismos de una vez necesitas ampliar tu plan.
-                        Si prefieres no hacerlo, puedes seguir haciendo las solicitudes a distintos órganos una por una.</p>
+                        <h2 class="profile-modal-title" id="quota-modal-title">${title}</h2>
+                        <p class="profile-modal-sub">${sub}</p>
                     </div>
                     <button type="button" class="profile-modal-close" aria-label="Cerrar">
                         <i data-lucide="x" class="w-5 h-5"></i>
                     </button>
                 </header>
+                <div class="quota-pick-list" data-role="pick-list">
+                    ${candidates.map((t, i) => `
+                        <button type="button" class="quota-pick${selected.has(ids[i]) ? ' is-selected' : ''}" data-idx="${i}" aria-pressed="${selected.has(ids[i]) ? 'true' : 'false'}">
+                            <span class="quota-pick-check" aria-hidden="true"><i data-lucide="check" class="w-4 h-4"></i></span>
+                            <span class="quota-pick-name">${this._escape(this._displayName(t))}</span>
+                        </button>`).join('')}
+                </div>
+                <p class="quota-pick-count" data-role="pick-count"></p>
                 <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
-                    <a href="/planes" class="btn-editorial btn-editorial--primario">Ver planes</a>
-                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-single>Seguir con un destinatario</button>
+                    <a href="/planes" target="_blank" rel="noopener" class="btn-editorial btn-editorial--secundario">Ver planes</a>
+                    <span style="flex: 1 1 auto;"></span>
+                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-cancel>Cancelar</button>
+                    <button type="button" class="btn-editorial btn-editorial--primario" data-quota-continue>Continuar</button>
                 </div>
             </div>`;
 
@@ -472,9 +670,42 @@ export default class extends Controller {
             resolveChoice(value);
         };
 
-        overlay.querySelector('.profile-modal-close').addEventListener('click', () => close(false));
-        overlay.querySelector('[data-quota-single]').addEventListener('click', () => close('single'));
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(false); });
+        const list = overlay.querySelector('[data-role="pick-list"]');
+        const count = overlay.querySelector('[data-role="pick-count"]');
+        const continueBtn = overlay.querySelector('[data-quota-continue]');
+        const renderCount = () => {
+            const names = candidates
+                .filter((t, i) => selected.has(ids[i]))
+                .map((t) => this._displayName(t));
+            count.textContent = names.length === 0
+                ? 'No has seleccionado ninguno todavía.'
+                : `Seguirás con ${names.length} de ${validMax}: ${names.join(' · ')}`;
+            continueBtn.disabled = names.length === 0;
+            continueBtn.textContent = names.length > 0 ? `Continuar con ${names.length}` : 'Continuar';
+        };
+        list.addEventListener('click', (ev) => {
+            const row = ev.target.closest('[data-idx]');
+            if (!row) return;
+            const id = ids[Number(row.dataset.idx)];
+            if (selected.has(id)) {
+                selected.delete(id);
+            } else if (selected.size < validMax) {
+                selected.add(id);
+            } else {
+                return;
+            }
+            row.classList.toggle('is-selected', selected.has(id));
+            row.setAttribute('aria-pressed', selected.has(id) ? 'true' : 'false');
+            renderCount();
+        });
+        renderCount();
+
+        overlay.querySelector('.profile-modal-close').addEventListener('click', () => close(null));
+        overlay.querySelector('[data-quota-cancel]').addEventListener('click', () => close(null));
+        overlay.querySelector('[data-quota-continue]').addEventListener('click', () => {
+            close(candidates.filter((t, i) => selected.has(ids[i])));
+        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
 
         return choice;
     }
@@ -492,20 +723,23 @@ export default class extends Controller {
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: JSON.stringify(payload),
         });
-        if (response.status === 422) {
+        // The body can only be read once: parse it here and branch on the
+        // error code, so a 422 that is NOT needs_profile (e.g.
+        // batch_quota_exceeded) keeps its code for the caller instead of
+        // falling through to the generic message with an empty payload.
+        if (!response.ok) {
             const data = await response.json().catch(() => ({}));
-            if (data && data.error === 'needs_profile') {
+            if (response.status === 422 && data && data.error === 'needs_profile') {
                 const e = new Error('needs_profile');
                 e.code = 'needs_profile';
                 e.profileFormUrl = data.profileFormUrl;
                 throw e;
             }
-        }
-        if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
             const e = new Error(data.message || `HTTP ${response.status}`);
-            e.code = data.error || null;
-            e.userMessage = data.message || null;
+            e.code = (data && data.error) || null;
+            e.userMessage = (data && data.message) || null;
+            e.max = (data && data.max) || null;
+            e.upgradeUrl = (data && data.upgradeUrl) || null;
             throw e;
         }
         return response.json();

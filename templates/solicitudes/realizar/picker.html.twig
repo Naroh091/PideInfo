@@ -8,7 +8,8 @@
 {% endblock %}
 
 {% block content %}
-{% include '_partials/agent_required_banner.html.twig' %}
+{# Sin banner del agente: el aviso vive en la tarjeta de inicio
+   (solicitudes/start.html.twig). #}
 
 {# Breadcrumb — same pattern as solicitudes/show.html.twig #}
 <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3"
@@ -27,5 +28,5 @@
     </p>
 </header>
 
-{% include '_partials/organism_picker.html.twig' with {'reg_levels': reg_levels, 'draft_only': false} %}
+{% include '_partials/organism_picker.html.twig' with {'reg_levels': reg_levels, 'draft_only': false, 'max_targets': maxTargets|default(0), 'quota_modal': true} %}
 {% endblock %}

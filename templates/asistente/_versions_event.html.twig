@@ -1,0 +1,24 @@
+{# Hito del timeline de la plantilla común: las versiones por organismo que ya
+   salieron de ella, como chips (no el texto entero) que enlazan a cada una.
+   El servidor lo pinta al cargar (debajo de la hoja); batch-versions lo crea o
+   actualiza y lo baja al final del hilo tras cada generación, con las mismas
+   clases. Variables: batch. Estados de DraftBatchOverview. #}
+{% set generatedRows = batch.rows|filter(r => r.state in ['template', 'adjusted', 'sent'] and (r.request.getMetadataValue('batch_version') is not null)) %}
+{% if generatedRows|length > 0 %}
+    <div class="chat-event chat-event--versions" data-batch-versions-target="timeline">
+        <span class="chat-event-text" data-role="title">Versiones generadas desde la plantilla · {{ generatedRows|length }}/{{ batch.total }}</span>
+        <div class="version-chips" data-role="chips">
+            {% for row in generatedRows %}
+                {% set sib = row.request %}
+                <a class="version-chip version-chip--{{ row.outdated ? 'outdated' : row.state }}"
+                   data-version-chip="{{ sib.id }}"
+                   href="{{ sib.status == 'pending' ? path('app_solicitudes_realizar_draft', {id: sib.id}) : path('app_solicitudes_show', {id: sib.id}) }}"
+                   title="Abrir la versión para {{ sib.publicBody.name }}">
+                    <span class="version-chip-dot" aria-hidden="true"></span>
+                    <span class="version-chip-name">{{ sib.publicBody.name|u.truncate(36, '…') }}</span>
+                    <span class="version-chip-state">{{ row.outdated ? 'plantilla cambiada' : row.label }}</span>
+                </a>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}

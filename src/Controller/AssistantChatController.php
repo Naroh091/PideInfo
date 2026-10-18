@@ -25,7 +25,11 @@ use App\Service\AI\Moderation\ModerationVerdict;
 use App\Service\AI\DoctrinePriorityResolver;
 use App\Service\AI\SimilarResolutionsLoader;
 use App\Service\AI\Llm\ContentPart;
+use App\Service\AccessRequest\Batch\DraftBatchTemplateStore;
 use App\Service\AccessRequest\RequestDraftGenerator;
+use App\Service\AccessRequest\Batch\DraftBatchOverview;
+use App\Service\AI\Chat\Composer\BatchTemplatePromptComposer;
+use App\Util\HtmlToPlainText;
 use App\Service\Anonymous\AnonymousDraftClaimer;
 use App\Service\Complaint\ComplaintDraftGenerator;
 use App\Service\Complaint\ComplaintGenerator;
@@ -180,6 +184,99 @@ final class AssistantChatController extends AbstractController
                 ];
             },
             anonymous: $this->getUser() === null,
+            accessRequest: $accessRequest,
+            clientIp: $request->getClientIp(),
+            turnId: $this->turnIdFrom($request),
+            threadKey: $historyKey,
+        );
+    }
+
+    /**
+     * Chat of the unified template of a multi-recipient batch ("plantilla
+     * común"). `{id}` is the batch's first draft: it only hosts the turn record
+     * (AssistantTurnStore is keyed by AccessRequest) — the conversation lives in
+     * the `batch:{batchId}` thread and the draft in DraftBatchTemplateStore, so
+     * no recipient's own draft or thread is touched here.
+     */
+    #[Route('/asistente/plantilla/{id}', name: 'app_assistant_chat_batch_template', methods: ['POST'])]
+    #[IsGranted('edit', 'accessRequest')]
+    public function batchTemplate(
+        Request $request,
+        AccessRequest $accessRequest,
+        DraftBatchOverview $batchOverview,
+        DraftBatchTemplateStore $templateStore,
+        BatchTemplatePromptComposer $templatePromptComposer,
+    ): Response {
+        $user = $this->getUser();
+        $batchId = $accessRequest->getMetadataValue('draft_batch_id');
+        if (!$user instanceof User || !is_string($batchId) || $batchId === '') {
+            return new JsonResponse(['error' => 'not_a_batch'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $siblings = $batchOverview->ownedSiblings($batchId, $user);
+        if (count($siblings) < 2 || !$siblings[0]->getId()->equals($accessRequest->getId())) {
+            return new JsonResponse(['error' => 'not_a_batch'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $userMessage = trim((string) $request->request->get('message', ''));
+        $files = $request->files->all('attachments');
+        try {
+            $attachments = $this->attachmentParser->parse(is_array($files) ? $files : []);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => 'invalid_attachment', 'message' => $e->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $template = $templateStore->find($batchId, $user);
+        $composedPrompt = $templatePromptComposer->compose($template, $siblings);
+
+        $historyKey = ChatHistoryStore::BATCH_TEMPLATE_KEY;
+        $history = $this->loadHistoryForLlm($accessRequest, $historyKey);
+        $persistedUserText = $this->buildPersistedUserContent($userMessage, $attachments);
+        $previousDraft = ['title' => $template->title, 'expone' => $template->expone, 'solicita' => $template->solicita];
+
+        $priority = [];
+        foreach ($siblings as $sibling) {
+            $priority = [...$priority, ...$this->doctrinePriority->priorityOrganismIdsFor($sibling)];
+        }
+
+        $turn = new AssistantChatTurn(
+            flow: 'request',
+            entityId: $accessRequest->getId()->toRfc4122(),
+            systemPrompt: $composedPrompt->text,
+            userMessage: $userMessage,
+            history: $history,
+            attachments: $attachments,
+            label: 'BatchTemplateStream',
+            promptRef: $composedPrompt,
+            traceName: 'BatchTemplateStream',
+            hasDraft: !$template->isEmpty(),
+            priorityOrganismIds: array_values(array_unique($priority)),
+        );
+
+        return $this->streamTurn(
+            $turn,
+            $userMessage,
+            onDecision: function (string $action, ?array $draft, string $chatReply, array $sources = []) use ($accessRequest, $user, $batchId, $templateStore, $previousDraft, $persistedUserText, $historyKey): ?array {
+                if ($action === 'reply' || $draft === null) {
+                    $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                    $this->entityManager->flush();
+                    return null;
+                }
+
+                $normalized = [
+                    'title' => mb_substr(trim((string) ($draft['title'] ?? '')), 0, 80),
+                    'expone' => mb_substr(HtmlToPlainText::convert((string) ($draft['expone'] ?? '')), 0, 4000),
+                    'solicita' => mb_substr(HtmlToPlainText::convert((string) ($draft['solicita'] ?? '')), 0, 4000),
+                ];
+                $templateStore->save($batchId, $user, $normalized['title'], $normalized['expone'], $normalized['solicita'], $sources);
+                $this->appendChatHistory($accessRequest, $historyKey, $persistedUserText, $action, $chatReply);
+                $this->entityManager->flush();
+
+                return [
+                    'draft' => $normalized,
+                    'previous' => $previousDraft,
+                ];
+            },
             accessRequest: $accessRequest,
             clientIp: $request->getClientIp(),
             turnId: $this->turnIdFrom($request),
@@ -427,7 +524,7 @@ final class AssistantChatController extends AbstractController
      * `turnId` it returns that turn only, so a poller never mistakes a newer turn
      * for its own.
      */
-    #[Route('/asistente/{flow}/{id}/turno', name: 'app_assistant_chat_turn', requirements: ['flow' => 'request|complaint|consult'], methods: ['GET'])]
+    #[Route('/asistente/{flow}/{id}/turno', name: 'app_assistant_chat_turn', requirements: ['flow' => 'request|complaint|consult|batch'], methods: ['GET'])]
     #[IsGranted('view', 'accessRequest')]
     public function turn(Request $request, string $flow, AccessRequest $accessRequest): JsonResponse
     {
@@ -449,7 +546,7 @@ final class AssistantChatController extends AbstractController
      * The browser applied a turn's result (live or recovered): mark it delivered so
      * a reload does not apply it again.
      */
-    #[Route('/asistente/{flow}/{id}/turno/{turnId}/entregado', name: 'app_assistant_chat_turn_delivered', requirements: ['flow' => 'request|complaint|consult', 'turnId' => '[A-Za-z0-9-]{8,64}'], methods: ['POST'])]
+    #[Route('/asistente/{flow}/{id}/turno/{turnId}/entregado', name: 'app_assistant_chat_turn_delivered', requirements: ['flow' => 'request|complaint|consult|batch', 'turnId' => '[A-Za-z0-9-]{8,64}'], methods: ['POST'])]
     #[IsGranted('view', 'accessRequest')]
     public function turnDelivered(Request $request, string $flow, string $turnId, AccessRequest $accessRequest): JsonResponse
     {
@@ -475,6 +572,7 @@ final class AssistantChatController extends AbstractController
                 ? self::CHAT_HISTORY_KEY_COMPLAINT_PREFIX . $mode
                 : null,
             'consult' => $this->getUser() !== null ? self::CHAT_HISTORY_KEY_CONSULT : null,
+            'batch' => $this->getUser() !== null ? ChatHistoryStore::BATCH_TEMPLATE_KEY : null,
             default => null,
         };
     }

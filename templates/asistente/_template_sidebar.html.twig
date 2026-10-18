@@ -1,0 +1,68 @@
+{# Sidebar de la página de la PLANTILLA COMÚN: el estado de la versión de cada
+   organismo (y la generación, vía batch-versions) y el valor que tomará cada
+   parte variable en cada uno. Sustituye al «Informe preliminar», que solo tiene
+   sentido con un destinatario.
+   Variables: batch, placeholderCatalog, placeholderValues. #}
+{% import 'asistente/_markers.html.twig' as markers %}
+{% set overwritable = batch.rows|filter(r => r.state in ['adjusted', 'independent']) %}
+<div class="conv-side">
+<aside class="brief">
+    <section class="panel">
+        <div class="panel-label">
+            <i data-lucide="split" class="w-3.5 h-3.5"></i>
+            Versiones por organismo
+        </div>
+        <p class="batch-panel-sub">
+            Al generar, cada organismo recibe su propia copia de la plantilla adaptada. Después puedes abrirla y ajustarla en su pestaña.
+        </p>
+        <ul class="batch-versions-list">
+            {% for row in batch.rows %}
+                {% set sib = row.request %}
+                <li class="batch-version" data-batch-versions-target="row"
+                    data-id="{{ sib.id }}"
+                    data-name="{{ sib.publicBody.name }}"
+                    data-state="{{ row.state }}"
+                    data-outdated="{{ row.outdated ? 'true' : 'false' }}"
+                    data-generate-url="{{ path('app_solicitudes_batch_version_generate', {batchId: batch.id, id: sib.id}) }}">
+                    <a class="batch-version-name" href="{{ sib.status == 'pending' ? path('app_solicitudes_realizar_draft', {id: sib.id}) : path('app_solicitudes_show', {id: sib.id}) }}">{{ sib.publicBody.name }}</a>
+                    <span class="batch-version-meta">
+                        <span class="batch-version-state batch-version-state--{{ row.state }}" data-role="state">{{ row.label }}</span>
+                        {% if row.outdated %}<span class="batch-flag batch-flag--warn" data-role="outdated">plantilla cambiada</span>{% endif %}
+                        {% if sib.regDestination %}<span class="batch-version-channel">REG</span>{% else %}<span class="batch-version-channel">Portal</span>{% endif %}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+
+        {% if overwritable|length > 0 %}
+            <label class="batch-overwrite">
+                <input type="checkbox" data-batch-versions-target="overwrite">
+                <span>Regenerar también {{ overwritable|length == 1 ? 'la versión' : 'las ' ~ overwritable|length ~ ' versiones' }} que ya ajustaste o redactaste aparte. <strong>Se sobrescribirán sus cambios.</strong></span>
+            </label>
+        {% endif %}
+
+        <p class="batch-panel-result" data-batch-versions-target="summary" hidden></p>
+    </section>
+
+    <section class="panel">
+        <div class="panel-label">
+            <i data-lucide="brackets" class="w-3.5 h-3.5"></i>
+            Partes variables
+        </div>
+        <p class="batch-panel-sub">Esto es lo que valdrá cada marcador en la versión de cada organismo.</p>
+        {% for name, meaning in placeholderCatalog %}
+            <details class="batch-marker"{{ loop.first ? ' open' : '' }}>
+                <summary>{{ markers.badge(name) }} <span>{{ meaning }}</span></summary>
+                <ul>
+                    {% for entry in placeholderValues %}
+                        <li>
+                            <span class="batch-marker-org">{{ entry.request.publicBody.name|u.truncate(40, '…') }}</span>
+                            <span class="batch-marker-value">{{ entry.values[name] ?: '—' }}</span>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        {% endfor %}
+    </section>
+</aside>
+</div>

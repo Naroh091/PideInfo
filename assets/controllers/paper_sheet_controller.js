@@ -397,7 +397,7 @@ export default class extends Controller {
 
     async _save() {
         const payload = this._currentPayload();
-        if (this._payloadEquals(payload, this._lastPayload)) return;
+        if (this._payloadEquals(payload, this._lastPayload)) return true;
 
         try {
             const response = await fetch(this.autosaveUrlValue, {
@@ -413,6 +413,7 @@ export default class extends Controller {
             this._renderStatus();
             this._scheduleStatusTick();
             this.dispatch('saved', { detail: { savedAt: this._lastSavedAt } });
+            return true;
         } catch (err) {
             console.error('autosave failed', err);
             if (this.hasStatusTarget) {
@@ -420,6 +421,7 @@ export default class extends Controller {
                 this.statusTarget.classList.remove('canvas-status-saved');
             }
             setTimeout(() => this._save(), 2000);
+            return false;
         }
     }
 
@@ -497,14 +499,37 @@ export default class extends Controller {
             .join('');
     }
 
-    /** Public: forces an immediate save and resolves when persisted. */
+    /** Public: forces an immediate save; resolves true once persisted. */
     async flush() {
-        if (!this._hasAutosave()) return;
+        if (!this._hasAutosave()) return true;
         if (this._saveTimer) {
             clearTimeout(this._saveTimer);
             this._saveTimer = null;
         }
-        await this._save();
+        return this._save();
+    }
+
+    /**
+     * «Guardar borrador»: explicit save on top of the autosave. Even with no
+     * pending changes it confirms the draft is kept, so the user can leave and
+     * come back to it from /solicitudes.
+     */
+    async saveNow(event) {
+        event?.preventDefault();
+        const button = event?.currentTarget;
+        if (button?.disabled) return;
+        if (button) button.disabled = true;
+        const ok = await this.flush();
+        if (ok) {
+            this.markSaved();
+            if (button) {
+                const label = button.innerHTML;
+                button.textContent = '✓ Borrador guardado';
+                setTimeout(() => { button.innerHTML = label; button.disabled = false; }, 1800);
+                return;
+            }
+        }
+        if (button) button.disabled = false;
     }
 
     /**
@@ -776,18 +801,24 @@ export default class extends Controller {
         const button = form.querySelector('button[type="submit"]');
         if (button?.dataset.dispatchInFlight === '1') return;
 
-        if (!window.confirm('¿Enviar la solicitud al organismo? El agente local empezará a procesarla y no podrás editarla más.')) {
+        const count = parseInt(form.dataset.dispatchCount || '1', 10);
+        const question = count > 1
+            ? `¿Enviar las solicitudes a los ${count} organismos? Revisa antes cada una en su pestaña: el agente de PideInfo empezará a presentarlas y no podrás editarlas más.`
+            : '¿Enviar la solicitud al organismo? El agente de PideInfo empezará a presentarla y no podrás editarla más.';
+        if (!window.confirm(question)) {
             return;
         }
 
-        // Explicit preview confirmation (spec §5): the checkbox `required`
-        // does not stop this fetch submit, so it is validated here
-        // (y el servidor la vuelve a exigir antes de crear tareas).
-        const review = form.querySelector('input[name="confirmReview"]');
-        if (review && !review.checked) {
-            window.alert('Marca la casilla de confirmación: debes revisar los destinatarios antes de enviar.');
-            return;
+        // Explicit confirmation (spec §5): accepting the dialog above IS the
+        // confirmation; the server requires `confirmReview` before creating tasks.
+        let review = form.querySelector('input[name="confirmReview"]');
+        if (!review) {
+            review = document.createElement('input');
+            review.type = 'hidden';
+            review.name = 'confirmReview';
+            form.appendChild(review);
         }
+        review.value = '1';
 
         // If the assistant chat is mid-turn, the server hasn't persisted the
         // generated draft yet — wait for it instead of dispatching empty.
@@ -926,12 +957,17 @@ export default class extends Controller {
             restoreButton();
             // Errores de negocio con mensaje accionable (cupos, solo lectura).
             if (response.status === 422 && json?.error === 'batch_quota_exceeded' && json?.upgradeUrl) {
-                window.alert(`Tu plan admite lotes de hasta ${json.max} destinatario(s). Has pedido ${json.requested}. Amplía tu plan para enviar más de una vez.`);
-                window.location.href = json.upgradeUrl;
+                this._openQuotaModal(json);
                 return;
             }
             if (response.status === 403 && json?.error === 'subscription_read_only') {
                 window.alert('Tu suscripción está en mora: regulariza el pago para volver a enviar. Tus expedientes siguen a salvo.');
+                return;
+            }
+            if (json?.error === 'incomplete_draft') {
+                window.alert(json.bodyName
+                    ? `La solicitud para «${json.bodyName}» está sin redactar (falta el asunto o el texto). Complétala en su pestaña, o genérala desde la plantilla común, y vuelve a enviar.`
+                    : 'Alguna de las solicitudes del envío está sin redactar. Complétala y vuelve a enviar.');
                 return;
             }
             const errMsg = json?.error ? `Error: ${json.error}` : `Error HTTP ${response.status}`;
@@ -941,6 +977,52 @@ export default class extends Controller {
 
         // Fallback: server returned ok without a redirectUrl (shouldn't happen).
         window.location.href = '/';
+    }
+
+    /**
+     * Batch quota exceeded at dispatch: design-system modal (profile-modal
+     * shell + btn-editorial, icon via lucide) inviting to look at the plans
+     * instead of an alert. "Ver planes" navigates to the billing upgrade URL;
+     * closing just dismisses (the submit button was already re-enabled).
+     */
+    _openQuotaModal(err) {
+        const max = Number(err.max || 1);
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+            <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="quota-modal-title">
+                <header class="profile-modal-head">
+                    <div>
+                        <p class="profile-modal-eyebrow">Límite de tu plan</p>
+                        <h2 class="profile-modal-title" id="quota-modal-title">Varias organizaciones a la vez</h2>
+                        <p class="profile-modal-sub">Tu plan admite lotes de hasta ${max} destinatario${max === 1 ? '' : 's'}.
+                        Si quieres hacer solicitudes a la vez a varias organizaciones, échale un vistazo a nuestros planes.</p>
+                    </div>
+                    <button type="button" class="profile-modal-close" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </header>
+                <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
+                    <a href="${err.upgradeUrl}" target="_blank" rel="noopener" class="btn-editorial btn-editorial--primario">Ver planes</a>
+                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-close>Cerrar</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+
+        const close = () => {
+            document.body.style.overflow = '';
+            overlay.remove();
+        };
+
+        overlay.querySelector('.profile-modal-close').addEventListener('click', close);
+        overlay.querySelector('[data-quota-close]').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     }
 
     /**

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Billing\Plan;
 use App\Entity\Organization;
 use App\Entity\User;
+use App\Repository\SubscriptionRepository;
 use App\Repository\UserRepository;
 use App\Service\Team\MemberCapExceededException;
 use App\Service\Team\TeamService;
@@ -31,6 +33,10 @@ class TeamController extends AbstractController
         private readonly \App\Billing\SubscriptionReadOnlyGuard $readOnlyGuard,
         private readonly \App\Service\Team\InvitationService $invitations,
         private readonly \App\Repository\InvitationRepository $invitationRepository,
+        private readonly \App\Billing\EffectivePlanResolver $plans,
+        private readonly \App\Billing\PlanCatalog $catalog,
+        private readonly SubscriptionRepository $subscriptions,
+        private readonly \App\Billing\CustomerInvoices $invoices,
     ) {
     }
 
@@ -41,12 +47,39 @@ class TeamController extends AbstractController
         $user = $this->getUser();
         $organization = $user->getOrganization();
 
+        // Unified plan + team control page. The plan shown is the user's
+        // effective plan; the subscription behind it is the billable one
+        // (personal, else the organization's), so its titular sees what they
+        // pay, their invoices, and can open the Stripe portal.
+        $planCode = $this->plans->forUser($user);
+        $planInfo = $this->catalog->get($planCode);
+        $subscription = $this->subscriptions->findForUser($user)
+            ?? ($organization !== null ? $this->subscriptions->findForOrganization($organization) : null);
+        $isBillingOwner = $subscription !== null && $this->isBillingOwner($user, $subscription);
+        $canManageBilling = $isBillingOwner && $subscription?->getStripeCustomerId() !== null;
+        $invoices = $canManageBilling && $subscription !== null
+            ? $this->invoices->forCustomer($subscription->getStripeCustomerId())
+            : [];
+
+        // Inline plan change is offered exactly where app_billing_change
+        // accepts it: team <-> organization on an organization subscription.
+        $canChangePlan = $isBillingOwner
+            && $subscription?->getOrganization() !== null
+            && $subscription->getStripeSubscriptionId() !== null
+            && \in_array($planCode, [Plan::TEAM, Plan::ORGANIZATION], true);
+
         return $this->render('equipo/index.html.twig', [
             'organization' => $organization,
             'members' => $organization ? $this->users->findBy(['organization' => $organization], ['createdAt' => 'ASC']) : [],
             'maxMembers' => $organization ? $this->teams->maxMembersFor($organization) : 0,
             'canManage' => $organization && $user->canManageOrganization(),
             'invitations' => $organization ? $this->invitationRepository->findPendingForOrganization($organization) : [],
+            'planCode' => $planCode,
+            'planInfo' => $planInfo,
+            'subscription' => $subscription,
+            'canManageBilling' => $canManageBilling,
+            'invoices' => $invoices,
+            'canChangePlan' => $canChangePlan,
         ]);
     }
 
@@ -62,6 +95,9 @@ class TeamController extends AbstractController
             $this->addFlash('warning', 'Ya perteneces a un equipo.');
             return $this->redirectToRoute('app_equipo_index');
         }
+        if (!$this->catalog->get($this->plans->forUser($user))->hasTeam) {
+            throw $this->createAccessDeniedException('Crear un equipo requiere un plan de Equipo u Organización.');
+        }
 
         $name = trim((string) $request->request->get('name', ''));
         if ($name === '') {
@@ -76,6 +112,45 @@ class TeamController extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', sprintf('Equipo «%s» creado. Eres su titular.', $organization->getName()));
+
+        return $this->redirectToRoute('app_equipo_index');
+    }
+
+    /**
+     * Rename the team/organization. OWNER or ADMIN only, same gate as managing
+     * members ({@see TeamService::assertCanManage()}).
+     */
+    #[Route('/nombre', name: 'app_equipo_rename', methods: ['POST'])]
+    public function rename(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $organization = $user->getOrganization();
+        if ($organization === null) {
+            throw $this->createAccessDeniedException('No perteneces a ningún equipo.');
+        }
+        if (!$this->isCsrfTokenValid('team-rename', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token.');
+        }
+        try {
+            $this->teams->assertCanManage($user, $organization);
+        } catch (\LogicException $e) {
+            throw $this->createAccessDeniedException($e->getMessage());
+        }
+
+        $name = trim((string) $request->request->get('name', ''));
+        if ($name === '') {
+            $this->addFlash('error', 'El equipo necesita un nombre.');
+            return $this->redirectToRoute('app_equipo_index');
+        }
+        $name = mb_substr($name, 0, 255);
+        if ($name === $organization->getName()) {
+            return $this->redirectToRoute('app_equipo_index');
+        }
+
+        $organization->setName($name);
+        $this->entityManager->flush();
+        $this->addFlash('success', sprintf('El equipo ahora se llama «%s».', $name));
 
         return $this->redirectToRoute('app_equipo_index');
     }
@@ -333,6 +408,23 @@ class TeamController extends AbstractController
         $this->addFlash('success', 'Invitación revocada.');
 
         return $this->redirectToRoute('app_equipo_index');
+    }
+
+    /**
+     * UI gating for the billing-portal button (mirrors BillingController;
+     * the portal endpoint itself re-enforces ownership server-side).
+     */
+    private function isBillingOwner(User $user, \App\Entity\Subscription $subscription): bool
+    {
+        if ($subscription->getUser() !== null) {
+            return $subscription->getUser()->getId()->equals($user->getId());
+        }
+
+        $orgId = $subscription->getOrganization()?->getId();
+
+        return $orgId !== null
+            && $user->isOrganizationOwner()
+            && $user->getOrganization()?->getId()->equals($orgId) === true;
     }
 
     private function countOwners(Organization $organization): int

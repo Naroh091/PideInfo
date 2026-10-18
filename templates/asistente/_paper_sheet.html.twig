@@ -3,7 +3,8 @@
      - directly in the conversation when a draft already exists (prefill=true);
      - inside a <template> for assistant-chat to clone on the fly.
    Variables: flow ('request'|'complaint'), prefill (bool) and per-flow ones:
-     request  → request, isRegDraft, batchId, isMultiOrganism, siblings
+     request  → request, isRegDraft, batchId, isMultiOrganism, siblings,
+                batch (opcional: lote con plantilla común, ver _batch_nav)
      complaint→ request, mode, isAlegation, currentDraft, currentBodyHtml #}
 {% set prefill = prefill|default(false) %}
 
@@ -92,21 +93,39 @@
                         {# Submit goes through paper-sheet#dispatchSubmit so we
                            (a) confirm, (b) block while assistant-chat is mid-stream,
                            (c) force-flush any pending autosave before POSTing. #}
+                        {% if app.user %}
+                            {# Explicit save on top of the autosave: reassures the user
+                               the draft is kept and they can come back to it later. #}
+                            <button type="button" class="btn btn-secondary"
+                                    data-action="paper-sheet#saveNow">
+                                <i data-lucide="save" class="w-4 h-4 mr-2"></i> Guardar borrador
+                            </button>
+                        {% endif %}
                         <form method="post"
                               action="{{ path('app_solicitudes_realizar_dispatch', {batchId: batchId}) }}"
-                              data-action="submit->paper-sheet#dispatchSubmit">
-                            {# Explicit preview confirmation (spec §5):
-                               the server requires it (confirmReview) before creating tasks. #}
-                            <label class="flex items-start gap-2 mt-3 text-sm text-slate-600 leading-relaxed">
-                                <input type="checkbox" name="confirmReview" value="1" required class="mt-1">
-                                <span>
-                                    {% if isMultiOrganism %}
-                                        He revisado los {{ siblings|length }} destinatarios y confirmo el envío
-                                    {% else %}
-                                        He revisado el destinatario y confirmo el envío
-                                    {% endif %}
-                                </span>
-                            </label>
+                              data-action="submit->paper-sheet#dispatchSubmit"
+                              data-dispatch-count="{{ siblings|length }}">
+                            {# Explicit confirmation (spec §5): the server requires
+                               confirmReview before creating tasks. There is no checkbox:
+                               paper-sheet#dispatchSubmit adds it only after the user
+                               accepts the confirmation dialog, which names the recipients. #}
+                            {# Lote con plantilla común: el envío sale para TODOS los organismos
+                               desde cualquier pestaña, así que avisamos de lo que falta antes. #}
+                            {% set batch = batch|default(null) %}
+                            {% if batch %}
+                                {% set pendingRows = batch.rows|filter(r => r.state != 'sent' and not r.ready) %}
+                                {% set outdatedRows = batch.rows|filter(r => r.outdated) %}
+                                {% if pendingRows|length > 0 or outdatedRows|length > 0 %}
+                                    <div class="batch-send-check">
+                                        {% if pendingRows|length > 0 %}
+                                            <p><i data-lucide="circle-dashed" class="w-3.5 h-3.5"></i> Sin redactar todavía: {% for r in pendingRows %}<a href="{{ path('app_solicitudes_realizar_draft', {id: r.request.id}) }}">{{ r.request.publicBody.name }}</a>{{ not loop.last ? ', ' }}{% endfor %}. El envío no saldrá hasta que todas tengan texto.</p>
+                                        {% endif %}
+                                        {% if outdatedRows|length > 0 %}
+                                            <p><i data-lucide="triangle-alert" class="w-3.5 h-3.5"></i> Generadas con una plantilla anterior: {% for r in outdatedRows %}<a href="{{ path('app_solicitudes_realizar_draft', {id: r.request.id}) }}">{{ r.request.publicBody.name }}</a>{{ not loop.last ? ', ' }}{% endfor %}. Se enviarán tal como están.</p>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endif %}
                             {% if isMultiOrganism and siblings|length > 5 %}
                                 <p class="text-xs text-slate-500 leading-relaxed mt-2">
                                     Consejo: para lotes grandes, envía primero a un destinatario como piloto

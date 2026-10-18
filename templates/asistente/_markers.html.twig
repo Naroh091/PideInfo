@@ -1,0 +1,3 @@
+{# Badge de un marcador de la plantilla común ([[ORGANISMO]]…). Mismas clases
+   que pinta batch-versions en la leyenda; colores en app.css (.marker-badge). #}
+{% macro badge(name) %}<span class="marker-badge marker-badge--{{ name|lower|replace({'_': '-'}) }}">[[{{ name }}]]</span>{% endmacro %}

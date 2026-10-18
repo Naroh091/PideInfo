@@ -8,7 +8,14 @@
    editor clásico (canvas + widget flotante) fue retirado.
 
    Contrato de variables:
-     flow == 'request'  → request, siblings, batchId, chatHistory
+     flow == 'request'  → request, siblings, batchId, chatHistory, batch
+                          (DraftBatchOverview::navigation(), null con un
+                          solo destinatario)
+     templateMode (bool) → plantilla común de un lote (DraftBatchController):
+                          request = primera solicitud del lote (solo aloja el
+                          registro de turnos), batch, placeholderCatalog,
+                          placeholderValues; la hoja y el chat son los de la
+                          plantilla, no los de esa solicitud.
      flow == 'complaint'→ request, mode, currentDraft, currentBodyHtml,
                           chatHistory, alegacionesDoc, existingDrafts
      anonymous (bool, opcional) → borrador sin dueño del flujo público
@@ -18,6 +25,8 @@
 
 {% set anonymous = anonymous|default(false) %}
 {% set isRequest = flow == 'request' %}
+{% set templateMode = templateMode|default(false) %}
+{% set batch = batch|default(null) %}
 
 {# Endpoints que consumen la hoja de papel y el informe: los autenticados por
    defecto, o los espejos públicos de AnonymousDraftController. Un valor null
@@ -38,14 +47,19 @@
 {% if isRequest %}
     {% set batchId = batchId|default(null) %}
     {% set isMultiOrganism = (siblings|length) > 1 %}
-    {% set isRegDraft = request.regDestination is not null %}
+    {% set isRegDraft = templateMode or request.regDestination is not null %}
     {% set isAlegation = false %}
     {% set isAmpliation = false %}
-    {% set hasDraft = request.title is not empty
-        or request.description is not empty
-        or request.expone is not empty
-        or request.solicita is not empty %}
-    {% set pageTitle = 'Redactar solicitud · PideInfo' %}
+    {% if templateMode %}
+        {% set hasDraft = not batch.template.isEmpty() %}
+        {% set pageTitle = 'Plantilla común · PideInfo' %}
+    {% else %}
+        {% set hasDraft = request.title is not empty
+            or request.description is not empty
+            or request.expone is not empty
+            or request.solicita is not empty %}
+        {% set pageTitle = 'Redactar solicitud · PideInfo' %}
+    {% endif %}
 {% else %}
     {% set isAlegation = mode == 'alegation_response' %}
     {% set isAmpliation = mode == 'ampliation' %}
@@ -66,23 +80,27 @@
 
 
 {% block content %}
-<div data-controller="assistant-chat"
-     {% if isRequest %}
+<div data-controller="assistant-chat{{ batch ? ' batch-versions' : '' }}"
+     {% if templateMode %}
+         data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_batch_template', {id: request.id}) }}"
+         data-assistant-chat-is-reg-value="true"
+         data-assistant-chat-draft-noun-value="Plantilla"
+     {% elseif isRequest %}
          data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_request', {id: request.id}) }}"
          data-assistant-chat-is-reg-value="{{ isRegDraft ? 'true' : 'false' }}"
      {% else %}
          data-assistant-chat-endpoint-url-value="{{ path('app_assistant_chat_complaint', {id: request.id}) }}"
      {% endif %}
      data-assistant-chat-flow-value="{{ flow }}"
-     data-assistant-chat-turn-url-value="{{ path('app_assistant_chat_turn', {flow: isRequest ? 'request' : 'complaint', id: request.id}) }}"
+     data-assistant-chat-turn-url-value="{{ path('app_assistant_chat_turn', {flow: templateMode ? 'batch' : (isRequest ? 'request' : 'complaint'), id: request.id}) }}"
      data-assistant-chat-anonymous-value="{{ anonymous ? 'true' : 'false' }}"
      {% if anonymous %}data-assistant-chat-register-url-value="{{ path('app_register') }}"{% endif %}
      data-assistant-chat-has-draft-value="{{ hasDraft ? 'true' : 'false' }}"
      data-assistant-chat-created-at-value="{{ request.createdAt|date('c') }}"
-     data-assistant-chat-updated-at-value="{{ request.updatedAt|date('c') }}"
-     data-action="paper-sheet:saved->assistant-chat#onDraftSaved">
+     data-assistant-chat-updated-at-value="{{ templateMode and batch.template.updatedAt ? batch.template.updatedAt|date('c') : request.updatedAt|date('c') }}"
+     data-action="paper-sheet:saved->assistant-chat#onDraftSaved{{ batch ? ' paper-sheet:saved->batch-versions#onTemplateSaved' : '' }}">
 
-    {% if not anonymous %}
+    {% if not anonymous and not isRequest %}
         {% include '_partials/agent_required_banner.html.twig' %}
     {% endif %}
 
@@ -93,6 +111,10 @@
         <span class="text-slate-300">/</span>
         {% if isRequest %}
             <a href="{{ path('app_solicitudes_submit_form') }}" class="hover:text-slate-800 transition-colors">REALIZAR</a>
+            {% if templateMode %}
+                <span class="text-slate-300">/</span>
+                <span class="text-slate-800 font-medium">PLANTILLA COMÚN</span>
+            {% endif %}
         {% else %}
             <a href="{{ path('app_solicitudes_show', {id: request.id}) }}" class="hover:text-slate-800 transition-colors truncate max-w-[14rem]">
                 {{ request.title|u.truncate(28) }}
@@ -106,7 +128,9 @@
     <header class="draft-band">
         <div class="draft-band-row">
             <h1 class="draft-band-title">
-                {% if isRequest %}
+                {% if templateMode %}
+                    Redacta la plantilla común para <em>{{ batch.total }} organismos</em>
+                {% elseif isRequest %}
                     Redacta tu solicitud para
                 {% elseif isAlegation %}
                     Responde a las alegaciones de
@@ -115,7 +139,7 @@
                 {% else %}
                     Reclama frente a
                 {% endif %}
-                <em>{{ request.publicBody.name }}</em>
+                {% if not templateMode %}<em>{{ request.publicBody.name }}</em>{% endif %}
             </h1>
             {% if anonymous %}
                 <a href="{{ path('app_register') }}" class="ghost-link" title="Con una cuenta guardamos este borrador y te avisamos de los plazos">
@@ -133,7 +157,9 @@
         </div>
     </header>
 
-    {% if isRequest and isMultiOrganism %}
+    {% if isRequest and batch %}
+        {% include 'asistente/_batch_nav.html.twig' %}
+    {% elseif isRequest and isMultiOrganism %}
         <nav class="draft-tabs" aria-label="Otros borradores del envío">
             {% for sib in siblings %}
                 <a href="{{ path('app_solicitudes_realizar_draft', {id: sib.id}) }}"
@@ -169,7 +195,10 @@
             <div class="conv-history" data-assistant-chat-target="history">
                 {% include 'asistente/_history.html.twig' %}
 
-                {% if hasDraft %}
+                {% if hasDraft and templateMode %}
+                    {% include 'asistente/_template_sheet.html.twig' with {prefill: true} %}
+                    {% include 'asistente/_versions_event.html.twig' %}
+                {% elseif hasDraft %}
                     {% include 'asistente/_paper_sheet.html.twig' with {prefill: true, draftSources: request.getMetadataValue('cited_sources')} %}
                 {% endif %}
             </div>
@@ -177,7 +206,11 @@
             {% include 'asistente/_composer.html.twig' %}
         </div>
 
-        {% include 'asistente/_informe_sidebar.html.twig' %}
+        {% if templateMode %}
+            {% include 'asistente/_template_sidebar.html.twig' %}
+        {% else %}
+            {% include 'asistente/_informe_sidebar.html.twig' %}
+        {% endif %}
     </div>
 
     {# ── Inputs extra que viajan en cada turno (reclamación) ── #}
@@ -191,7 +224,11 @@
         {% include 'asistente/_intro_choice.html.twig' %}
     </template>
     <template data-assistant-chat-target="sheetTemplate">
-        {% include 'asistente/_paper_sheet.html.twig' with {prefill: false} %}
+        {% if templateMode %}
+            {% include 'asistente/_template_sheet.html.twig' with {prefill: false} %}
+        {% else %}
+            {% include 'asistente/_paper_sheet.html.twig' with {prefill: false} %}
+        {% endif %}
     </template>
 </div>
 
