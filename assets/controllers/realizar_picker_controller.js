@@ -90,6 +90,13 @@ export default class extends Controller {
                     <div class="destino-sentinel" data-role="sentinel"></div>
                     <button type="button" class="destino-more" data-role="more" hidden>Cargar más</button>
                 </div>
+                <div class="destino-modal-foot" data-role="foot" hidden>
+                    <p class="destino-pick-count" data-role="pick-count"></p>
+                    <div style="display: flex; gap: .75rem;">
+                        <button type="button" class="btn-editorial btn-editorial--secundario" data-role="cancel">Cancelar</button>
+                        <button type="button" class="btn-editorial btn-editorial--primario" data-role="add" disabled>Añadir</button>
+                    </div>
+                </div>
             </div>`;
 
         document.body.appendChild(overlay);
@@ -108,7 +115,16 @@ export default class extends Controller {
             empty: $('empty'),
             sentinel: $('sentinel'),
             more: $('more'),
+            foot: $('foot'),
+            pickCount: $('pick-count'),
         };
+        // Pending multi-selection (key -> raw candidate). Confirmed with
+        // "Añadir"; discarded on any dismiss. Instant-add mode (anonymous
+        // single target) bypasses it and keeps the old click-to-add flow.
+        this._pending = new Map();
+        this._multiMode = this.quotaModalValue || this.maxTargetsValue === 0;
+        this._modal.foot.hidden = !this._multiMode;
+        this._renderPendingCount();
         this._offset = 0;
         this._hasMore = false;
         this._loading = false;
@@ -131,11 +147,19 @@ export default class extends Controller {
         this._modal.provincia.addEventListener('change', () => this._search(true));
         this._modal.more.addEventListener('click', () => this._search(false));
 
-        // Delegated selection.
+        // Delegated selection: toggle in multi mode, instant add in legacy mode.
         this._modal.list.addEventListener('click', (ev) => {
             const li = ev.target.closest('[data-candidate]');
-            if (li) this._selectCandidate(JSON.parse(li.dataset.candidate));
+            if (li) {
+                const c = JSON.parse(li.dataset.candidate);
+                if (this._multiMode) this._togglePending(c, li);
+                else this._selectCandidate(c);
+            }
         });
+
+        // Multi-pick footer.
+        overlay.querySelector('[data-role="cancel"]').addEventListener('click', () => this._closeDestinationModal());
+        overlay.querySelector('[data-role="add"]').addEventListener('click', () => this._confirmPending());
 
         // Carga incremental al hacer scroll.
         if ('IntersectionObserver' in window) {
@@ -160,6 +184,7 @@ export default class extends Controller {
         document.body.style.overflow = '';
         this._modal.overlay.remove();
         this._modal = null;
+        this._pending = new Map();
     }
 
     async _loadFacets() {
@@ -246,6 +271,7 @@ export default class extends Controller {
         li.setAttribute('role', 'button');
         li.tabIndex = 0;
         li.dataset.candidate = JSON.stringify(c);
+        if (this._pending.has(this._pendingKey(c))) li.classList.add('is-selected');
 
         const badgeClass = c.channel === 'submit_request_transparencia' ? 'channel-badge-portal' : 'channel-badge-reg';
         const badge = c.channelLabel
@@ -270,12 +296,91 @@ export default class extends Controller {
             ${law ? `<div class="picker-option-row">${law}</div>` : ''}`;
 
         li.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); this._selectCandidate(c); }
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                if (this._multiMode) this._togglePending(c, li);
+                else this._selectCandidate(c);
+            }
         });
         return li;
     }
 
-    _selectCandidate(c) {
+    _pendingKey(c) {
+        return `${c.publicBodyId || ''}|${c.regDestinationId || ''}`;
+    }
+
+    _togglePending(c, li) {
+        const key = this._pendingKey(c);
+        if (this._pending.has(key)) {
+            this._pending.delete(key);
+            li?.classList.remove('is-selected');
+            li?.setAttribute('aria-pressed', 'false');
+        } else {
+            this._pending.set(key, c);
+            li?.classList.add('is-selected');
+            li?.setAttribute('aria-pressed', 'true');
+        }
+        this._renderPendingCount();
+    }
+
+    _pendingDisplayName(c) {
+        const base = c.displayLabel || c.name || c.publicBodyId || '';
+        return c.channelLabel ? `${base} · ${c.channelLabel}` : base;
+    }
+
+    _renderPendingCount() {
+        if (!this._modal) return;
+        const addBtn = this._modal.overlay.querySelector('[data-role="add"]');
+        const names = [...this._pending.values()].map((c) => this._pendingDisplayName(c));
+        this._modal.pickCount.textContent = names.length === 0
+            ? 'Marca uno o varios destinos y pulsa Añadir.'
+            : `Añadirás ${names.length}: ${names.join(' · ')}`;
+        if (addBtn) {
+            addBtn.disabled = names.length === 0;
+            addBtn.textContent = names.length > 0 ? `Añadir (${names.length})` : 'Añadir';
+        }
+    }
+
+    /**
+     * Confirms the multi-selection: merges it into the recipients, opening
+     * the quota modal instead when it would exceed the plan limit.
+     */
+    async _confirmPending() {
+        const entries = [...this._pending.values()]
+            .map((c) => this._toEntry(c))
+            .filter((e) => !this.selectedTargets.some((t) => t.publicBodyId === e.publicBodyId
+                && (t.regDestinationId || null) === (e.regDestinationId || null)));
+        this._closeDestinationModal();
+        if (entries.length === 0) return;
+
+        if (this.quotaModalValue && this.maxTargetsValue > 0
+            && this.selectedTargets.length + entries.length > this.maxTargetsValue) {
+            const candidates = [...this.selectedTargets, ...entries];
+            const chosen = await this._openQuotaModal({
+                max: this.maxTargetsValue,
+                requested: candidates.length,
+                candidates,
+                preselected: this.selectedTargets.map((t) => this._targetKey(t)),
+            });
+            if (chosen !== null) {
+                this.selectedTargets = chosen;
+                this._renderTargets();
+                this._updateContinueButton();
+            }
+            return;
+        }
+
+        for (const entry of entries) {
+            if (this.maxTargetsValue > 0 && this.selectedTargets.length >= this.maxTargetsValue) {
+                this.selectedTargets.splice(0, this.selectedTargets.length - this.maxTargetsValue + 1);
+            }
+            this.selectedTargets.push(entry);
+        }
+        this._renderTargets();
+        this._updateContinueButton();
+    }
+
+    _toEntry(c) {
         const entry = {
             publicBodyId: c.publicBodyId,
             name: c.name,
@@ -288,6 +393,11 @@ export default class extends Controller {
             entry.regDestinationId = c.regDestinationId;
             entry.unitLabel = c.displayLabel;
         }
+        return entry;
+    }
+
+    _selectCandidate(c) {
+        const entry = this._toEntry(c);
         const dup = this.selectedTargets.some((t) => t.publicBodyId === entry.publicBodyId
             && (t.regDestinationId || null) === (entry.regDestinationId || null));
         if (dup) {

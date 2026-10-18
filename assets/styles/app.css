@@ -4213,6 +4213,34 @@ trix-toolbar .trix-button.trix-active { background: #e2e8f0; }
     color: rgb(100 116 139);
     margin: .5rem 0 0;
 }
+
+/* ── Search modal footer (multi-pick): selected zone + Continuar/Cancelar. ──
+   Selected search rows share the quota highlight language. */
+.destino-option.is-selected {
+    background: rgb(224 242 254);
+    border-color: var(--color-primary-500, #0ea5e9);
+}
+.destino-option.is-selected:hover {
+    background: rgb(224 242 254);
+    border-color: var(--color-primary-500, #0ea5e9);
+}
+.destino-modal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .9rem 1.6rem 1.3rem;
+    border-top: 1px solid rgb(241 245 249);
+}
+.destino-pick-count {
+    font-family: 'DM Sans', sans-serif;
+    font-size: .85rem;
+    color: rgb(100 116 139);
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .btn-editorial:disabled {
     opacity: .45;
     cursor: not-allowed;
