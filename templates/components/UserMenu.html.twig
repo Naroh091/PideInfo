@@ -1,6 +1,7 @@
 <div {{ attributes.defaults({'data-action': 'notification_created@window->live#$render documents:processed@window->live#$render'}) }}>
     {% set unread = this.unreadCount %}
     {% set user = this.user %}
+    {% set planName = this.planName %}
 
     <div class="relative" x-data="{ open: false }">
         <button @click="open = !open"
@@ -13,6 +14,11 @@
                 {% if unread > 0 %}
                     <span class="user-avatar-dot" aria-hidden="true"></span>
                     <span class="sr-only">{{ unread }} sin leer</span>
+                {% endif %}
+                {% if planName %}
+                    <span class="user-avatar-crown" title="Plan {{ planName }}" aria-hidden="true">
+                        <i data-lucide="crown" class="w-3 h-3"></i>
+                    </span>
                 {% endif %}
             </span>
             <i data-lucide="chevron-down" class="w-4 h-4"></i>
@@ -28,6 +34,14 @@
              x-transition:leave-end="transform opacity-0 scale-95"
              class="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-slate-100 py-2 z-50"
              style="display: none;">
+
+            {# Paid plan, first and non-actionable: crown + plan name. #}
+            {% if planName %}
+                <div class="px-4 py-2 border-b border-slate-100 flex items-center gap-2 cursor-default" aria-current="true">
+                    <i data-lucide="crown" class="w-4 h-4 text-amber-500"></i>
+                    <p class="text-sm font-semibold text-slate-900">Plan {{ planName }}</p>
+                </div>
+            {% endif %}
 
             {# User identity #}
             <div class="px-4 py-2 border-b border-slate-100">
@@ -89,6 +103,17 @@
         border-radius: 999px;
         background: linear-gradient(135deg, var(--color-primary-400, #38bdf8), var(--color-primary-600, #0284c7));
         color: white;
+    }
+    .user-avatar-crown {
+        position: absolute;
+        bottom: -4px; right: -4px;
+        width: 1rem; height: 1rem;
+        border-radius: 999px;
+        background: rgb(251 191 36);
+        color: rgb(120 53 15);
+        border: 2px solid white;
+        display: inline-flex;
+        align-items: center; justify-content: center;
     }
     .user-avatar-dot {
         position: absolute;

@@ -2,6 +2,9 @@
 
 namespace App\Twig\Components;
 
+use App\Billing\EffectivePlanResolver;
+use App\Billing\Plan;
+use App\Billing\PlanCatalog;
 use App\Entity\User;
 use App\Repository\UserNotificationRepository;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,6 +25,8 @@ final class UserMenu extends AbstractController
     public function __construct(
         private readonly UserNotificationRepository $notificationRepository,
         private readonly Security $security,
+        private readonly EffectivePlanResolver $planResolver,
+        private readonly PlanCatalog $planCatalog,
     ) {
     }
 
@@ -41,5 +46,26 @@ final class UserMenu extends AbstractController
         /** @var User|null $user */
         $user = $this->security->getUser();
         return $user;
+    }
+
+    /**
+     * Display name of the user's paid plan (Profesional, Equipo,
+     * Organización), or null on the free Individual plan / anonymous.
+     * Used for the crown badge and the first dropdown row.
+     */
+    public function getPlanName(): ?string
+    {
+        /** @var User|null $user */
+        $user = $this->security->getUser();
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        $plan = $this->planResolver->forUser($user);
+        if ($plan === Plan::INDIVIDUAL) {
+            return null;
+        }
+
+        return $this->planCatalog->get($plan)->name;
     }
 }
