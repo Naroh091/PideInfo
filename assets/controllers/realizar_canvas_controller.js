@@ -492,13 +492,6 @@ export default class extends Controller {
         if (!response.ok) {
             console.error('dispatch error', response.status, json);
             restoreButton();
-            // Errores de negocio con mensaje accionable (cupos): invitar a
-            // mirar los planes en vez del genérico "No se ha podido enviar".
-            if (response.status === 422 && json?.error === 'batch_quota_exceeded' && json?.upgradeUrl) {
-                window.alert('Si quieres hacer solicitudes a la vez a varias organizaciones, échale un vistazo a nuestros planes.');
-                window.location.href = json.upgradeUrl;
-                return;
-            }
             const errMsg = json?.error ? `Error: ${json.error}` : `Error HTTP ${response.status}`;
             window.alert(`No se ha podido enviar la solicitud. ${errMsg}`);
             return;

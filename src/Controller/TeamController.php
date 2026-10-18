@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\Organization;
 use App\Entity\User;
+use App\Repository\SubscriptionRepository;
 use App\Repository\UserRepository;
 use App\Service\Team\MemberCapExceededException;
 use App\Service\Team\TeamService;
@@ -31,6 +32,9 @@ class TeamController extends AbstractController
         private readonly \App\Billing\SubscriptionReadOnlyGuard $readOnlyGuard,
         private readonly \App\Service\Team\InvitationService $invitations,
         private readonly \App\Repository\InvitationRepository $invitationRepository,
+        private readonly \App\Billing\EffectivePlanResolver $plans,
+        private readonly \App\Billing\PlanCatalog $catalog,
+        private readonly SubscriptionRepository $subscriptions,
     ) {
     }
 
@@ -41,12 +45,31 @@ class TeamController extends AbstractController
         $user = $this->getUser();
         $organization = $user->getOrganization();
 
+        // Subscription shown on the page: the organization's effective plan
+        // (what caps members) plus the billable subscription behind it, so the
+        // titular sees what they're paying and can open the Stripe portal.
+        $planInfo = null;
+        $subscription = null;
+        $isBillingOwner = false;
+        if ($organization !== null) {
+            $orgPlan = $this->plans->forOrganization($organization);
+            if ($orgPlan !== \App\Billing\Plan::INDIVIDUAL) {
+                $planInfo = $this->catalog->get($orgPlan);
+            }
+            $subscription = $this->subscriptions->findForUser($user)
+                ?? $this->subscriptions->findForOrganization($organization);
+            $isBillingOwner = $subscription !== null && $this->isBillingOwner($user, $subscription);
+        }
+
         return $this->render('equipo/index.html.twig', [
             'organization' => $organization,
             'members' => $organization ? $this->users->findBy(['organization' => $organization], ['createdAt' => 'ASC']) : [],
             'maxMembers' => $organization ? $this->teams->maxMembersFor($organization) : 0,
             'canManage' => $organization && $user->canManageOrganization(),
             'invitations' => $organization ? $this->invitationRepository->findPendingForOrganization($organization) : [],
+            'planInfo' => $planInfo,
+            'subscription' => $subscription,
+            'canManageBilling' => $isBillingOwner && $subscription?->getStripeCustomerId() !== null,
         ]);
     }
 
@@ -333,6 +356,23 @@ class TeamController extends AbstractController
         $this->addFlash('success', 'Invitación revocada.');
 
         return $this->redirectToRoute('app_equipo_index');
+    }
+
+    /**
+     * UI gating for the billing-portal button (mirrors BillingController;
+     * the portal endpoint itself re-enforces ownership server-side).
+     */
+    private function isBillingOwner(User $user, \App\Entity\Subscription $subscription): bool
+    {
+        if ($subscription->getUser() !== null) {
+            return $subscription->getUser()->getId()->equals($user->getId());
+        }
+
+        $orgId = $subscription->getOrganization()?->getId();
+
+        return $orgId !== null
+            && $user->isOrganizationOwner()
+            && $user->getOrganization()?->getId()->equals($orgId) === true;
     }
 
     private function countOwners(Organization $organization): int

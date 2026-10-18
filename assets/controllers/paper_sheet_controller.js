@@ -926,8 +926,7 @@ export default class extends Controller {
             restoreButton();
             // Errores de negocio con mensaje accionable (cupos, solo lectura).
             if (response.status === 422 && json?.error === 'batch_quota_exceeded' && json?.upgradeUrl) {
-                window.alert(`Tu plan admite lotes de hasta ${json.max} destinatario(s). Has pedido ${json.requested}. Amplía tu plan para enviar más de una vez.`);
-                window.location.href = json.upgradeUrl;
+                this._openQuotaModal(json);
                 return;
             }
             if (response.status === 403 && json?.error === 'subscription_read_only') {
@@ -941,6 +940,52 @@ export default class extends Controller {
 
         // Fallback: server returned ok without a redirectUrl (shouldn't happen).
         window.location.href = '/';
+    }
+
+    /**
+     * Batch quota exceeded at dispatch: design-system modal (profile-modal
+     * shell + btn-editorial, icon via lucide) inviting to look at the plans
+     * instead of an alert. "Ver planes" navigates to the billing upgrade URL;
+     * closing just dismisses (the submit button was already re-enabled).
+     */
+    _openQuotaModal(err) {
+        const max = Number(err.max || 1);
+        const overlay = document.createElement('div');
+        overlay.className = 'profile-modal-overlay';
+        overlay.innerHTML = `
+            <div class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="quota-modal-title">
+                <header class="profile-modal-head">
+                    <div>
+                        <p class="profile-modal-eyebrow">Límite de tu plan</p>
+                        <h2 class="profile-modal-title" id="quota-modal-title">Varias organizaciones a la vez</h2>
+                        <p class="profile-modal-sub">Tu plan admite lotes de hasta ${max} destinatario${max === 1 ? '' : 's'}.
+                        Si quieres hacer solicitudes a la vez a varias organizaciones, échale un vistazo a nuestros planes.</p>
+                    </div>
+                    <button type="button" class="profile-modal-close" aria-label="Cerrar">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </header>
+                <div class="profile-modal-body" style="display: flex; gap: .75rem; flex-wrap: wrap;">
+                    <a href="${err.upgradeUrl}" class="btn-editorial btn-editorial--primario">Ver planes</a>
+                    <button type="button" class="btn-editorial btn-editorial--secundario" data-quota-close>Cerrar</button>
+                </div>
+            </div>`;
+
+        document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+
+        const close = () => {
+            document.body.style.overflow = '';
+            overlay.remove();
+        };
+
+        overlay.querySelector('.profile-modal-close').addEventListener('click', close);
+        overlay.querySelector('[data-quota-close]').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     }
 
     /**

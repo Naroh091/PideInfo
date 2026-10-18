@@ -2,6 +2,7 @@
     {% set unread = this.unreadCount %}
     {% set user = this.user %}
     {% set planName = this.planName %}
+    {% set manageTeamLabel = this.manageTeamLabel %}
 
     <div class="relative" x-data="{ open: false }">
         <button @click="open = !open"
@@ -41,6 +42,12 @@
                     <i data-lucide="crown" class="w-4 h-4 text-amber-500"></i>
                     <p class="text-sm font-semibold text-slate-900">Plan {{ planName }}</p>
                 </div>
+            {% endif %}
+            {% if manageTeamLabel %}
+                <a href="{{ path('app_equipo_index') }}" class="user-menu-item">
+                    <i data-lucide="users" class="w-4 h-4"></i>
+                    <span>{{ manageTeamLabel }}</span>
+                </a>
             {% endif %}
 
             {# User identity #}

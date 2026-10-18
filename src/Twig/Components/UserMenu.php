@@ -55,17 +55,37 @@ final class UserMenu extends AbstractController
      */
     public function getPlanName(): ?string
     {
+        $plan = $this->effectivePlanCode();
+        if ($plan === null || $plan === Plan::INDIVIDUAL) {
+            return null;
+        }
+
+        return $this->planCatalog->get($plan)->name;
+    }
+
+    /**
+     * Team/organization management entry ("Gestionar equipo" /
+     * "Gestionar organización") for team and organization plans, null
+     * otherwise. Points at the team page, where the org's titular (the user
+     * who created it) administers members.
+     */
+    public function getManageTeamLabel(): ?string
+    {
+        return match ($this->effectivePlanCode()) {
+            Plan::TEAM => 'Gestionar equipo',
+            Plan::ORGANIZATION => 'Gestionar organización',
+            default => null,
+        };
+    }
+
+    private function effectivePlanCode(): ?string
+    {
         /** @var User|null $user */
         $user = $this->security->getUser();
         if (!$user instanceof User) {
             return null;
         }
 
-        $plan = $this->planResolver->forUser($user);
-        if ($plan === Plan::INDIVIDUAL) {
-            return null;
-        }
-
-        return $this->planCatalog->get($plan)->name;
+        return $this->planResolver->forUser($user);
     }
 }

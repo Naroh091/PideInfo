@@ -60,6 +60,31 @@ final class UserMenuTest extends TestCase
         self::assertNull($menu->getPlanName());
     }
 
+    public function testTeamPlanShowsManageTeam(): void
+    {
+        $user = (new User())->setOrganization((new Organization())->setName('Org'));
+        $menu = $this->menu($user, null, new SubscriptionStatus(Plan::TEAM, 'active', null, null));
+
+        self::assertSame('Gestionar equipo', $menu->getManageTeamLabel());
+    }
+
+    public function testOrganizationPlanShowsManageOrganization(): void
+    {
+        $user = (new User())->setOrganization((new Organization())->setName('Org'));
+        $menu = $this->menu($user, null, new SubscriptionStatus(Plan::ORGANIZATION, 'active', null, null));
+
+        self::assertSame('Gestionar organización', $menu->getManageTeamLabel());
+    }
+
+    public function testProfessionalAndIndividualShowNoManageEntry(): void
+    {
+        $pro = $this->menu(new User(), new SubscriptionStatus(Plan::PROFESSIONAL, 'active', null, null), null);
+        $free = $this->menu(new User(), null, null);
+
+        self::assertNull($pro->getManageTeamLabel());
+        self::assertNull($free->getManageTeamLabel());
+    }
+
     private function menu(?User $user, ?SubscriptionStatus $personal, ?SubscriptionStatus $organization): UserMenu
     {
         $security = $this->createMock(Security::class);

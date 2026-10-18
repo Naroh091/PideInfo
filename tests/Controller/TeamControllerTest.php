@@ -100,6 +100,52 @@ final class TeamControllerTest extends WebTestCase
         }
     }
 
+    public function testTeamPageShowsSubscriptionAndPortalForBillingOwner(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $org = $this->makeOrg($em);
+        $owner = $this->makeUser($em, 'owner-billing@example.com', $org, User::ORG_ROLE_OWNER);
+        $sub = (new Subscription())
+            ->setOrganization($org)
+            ->setPlan('team')
+            ->setInterval(Subscription::INTERVAL_MONTH)
+            ->setStatus(Subscription::STATUS_ACTIVE)
+            ->setStripeCustomerId('cus_test_123');
+        $em->persist($sub);
+        $em->flush();
+
+        try {
+            $client->loginUser($owner);
+            $client->request('GET', '/equipo');
+            self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('section', 'Plan Equipo');
+            self::assertSelectorTextContains('section', '49 €/mes');
+            self::assertSelectorTextContains('section', 'Activa');
+            self::assertSelectorExists('form[action="/facturacion/portal"]');
+        } finally {
+            $em->remove($em->getRepository(Subscription::class)->find($sub->getId()));
+            $em->flush();
+        }
+    }
+
+    public function testTeamPageWithoutSubscriptionShowsIndividualFallback(): void
+    {
+        $client = static::createClient();
+        $em = static::getContainer()->get('doctrine')->getManager();
+
+        $org = $this->makeOrg($em);
+        $member = $this->makeUser($em, 'plain-nosub@example.com', $org, User::ORG_ROLE_MEMBER);
+        $em->flush();
+
+        $client->loginUser($member);
+        $client->request('GET', '/equipo');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('section', 'Sin suscripción activa');
+        self::assertSelectorNotExists('form[action="/facturacion/portal"]');
+    }
+
     private function postWithSession($client, string $uri, string $tokenId, array $params): void
     {
         $container = static::getContainer();
