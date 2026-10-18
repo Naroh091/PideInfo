@@ -82,7 +82,7 @@
      data-assistant-chat-updated-at-value="{{ request.updatedAt|date('c') }}"
      data-action="paper-sheet:saved->assistant-chat#onDraftSaved">
 
-    {% if not anonymous %}
+    {% if not anonymous and not isRequest %}
         {% include '_partials/agent_required_banner.html.twig' %}
     {% endif %}
 

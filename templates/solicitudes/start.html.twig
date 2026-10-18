@@ -95,7 +95,8 @@
 {% endblock %}
 
 {% block content %}
-{% include '_partials/agent_required_banner.html.twig' %}
+{# Sin banner del agente: la tarjeta "Redactar y enviar" ya avisa con su
+   insignia de que requiere el Agente de PideInfo. #}
 
 <nav class="flex items-center gap-2 text-xs text-slate-500 mb-3" style="font-family:'Inter',sans-serif;letter-spacing:.04em;">
     <a href="{{ path('app_solicitudes_index') }}" class="hover:text-slate-800 transition-colors">SOLICITUDES</a>

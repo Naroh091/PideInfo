@@ -121,6 +121,12 @@
                                     Enviar al organismo
                                 {% endif %}
                             </button>
+                            {% if app.user and not app.user.agentConnected %}
+                                <p class="draft-agent-note">
+                                    Requiere el agente de PideInfo, que hará la presentación por ti.
+                                    <a href="{{ path('app_agente') }}">Más información ›</a>
+                                </p>
+                            {% endif %}
                         </form>
                     {% elseif sendUrl|default(null) %}
                         <a href="{{ sendUrl }}" class="btn btn-primary"

@@ -2791,6 +2791,22 @@ body {
 }
 .draft-cta-row .btn { min-width: 10rem; justify-content: center; }
 
+/* Nota junto al envío: el agente hace la presentación por ti. */
+.draft-agent-note {
+  font-family: 'DM Sans', sans-serif;
+  font-size: .8rem;
+  color: rgb(100 116 139);
+  margin: .6rem 0 0;
+  line-height: 1.5;
+}
+.draft-agent-note a {
+  color: var(--color-primary-700, #0369a1);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.draft-agent-note a:hover { text-decoration: underline; }
+
 /* Cuerpo Trix (reclamaciones: HTML estructurado, tipografía editorial) */
 .draft-body {
   margin-top: .25rem;
