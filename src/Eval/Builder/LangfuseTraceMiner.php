@@ -40,9 +40,11 @@ final class LangfuseTraceMiner
         // query → [reference => judgedRelevant]
         $byQuery = [];
         $seen = 0;
+        $cursor = null;
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            $result = $this->client->listObservations(self::OBSERVATION_NAME, $page, $pageSize);
+            // v2 paginates by cursor; an absent cursor means no more rows.
+            $result = $this->client->listObservations(self::OBSERVATION_NAME, $cursor, $pageSize);
             $observations = $result['data'];
             if ($observations === []) {
                 break;
@@ -69,6 +71,11 @@ final class LangfuseTraceMiner
                 $byQuery[$key]['query'] = trim($query);
                 // A reference judged relevant once stays relevant (verdicts repeat across runs).
                 $byQuery[$key]['refs'][$reference] = ($byQuery[$key]['refs'][$reference] ?? false) || $relevant;
+            }
+
+            $cursor = $result['meta']['cursor'] ?? null;
+            if (!\is_string($cursor) || $cursor === '') {
+                break;
             }
         }
 
