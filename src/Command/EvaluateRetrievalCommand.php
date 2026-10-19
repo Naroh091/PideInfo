@@ -189,13 +189,16 @@ class EvaluateRetrievalCommand extends Command
                         ['relevant' => $case->relevant],
                         ['source' => $case->source] + $case->meta,
                     );
-                    $traceId = $this->langfuse->createTrace(
+                    $traceId = $this->langfuse->createExperimentTrace(
+                        $runName,
+                        $datasetName,
+                        $case->id,
                         'retrieval-eval',
                         ['query' => $case->query, 'outcomes' => $case->outcomes],
                         ['ranked' => $entry['ranked']],
+                        ['relevant' => $case->relevant],
                         ['runName' => $runName, 'source' => $case->source],
                     );
-                    $this->langfuse->createDatasetRunItem($runName, $case->id, $traceId, ['source' => $case->source]);
                     foreach ($entry['metrics'] as $name => $value) {
                         $this->langfuse->createScore($traceId, $name, (float) $value);
                     }

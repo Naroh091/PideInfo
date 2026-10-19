@@ -57,7 +57,11 @@ final class TracerFactory
             $transport = (new OtlpHttpTransportFactory())->create(
                 endpoint: $endpoint,
                 contentType: 'application/x-protobuf',
-                headers: ['Authorization' => $auth],
+                // Pin the v4 data model: spans land directly in events_full
+                // instead of the dual-write staging pipeline (~15 min delay).
+                // Producers set langfuse.user.id / langfuse.session.id on the
+                // root spans, so nothing depends on server-side propagation.
+                headers: ['Authorization' => $auth, 'x-langfuse-ingestion-version' => '4'],
                 timeout: max(1.0, $this->timeoutMillis / 1000.0),
             );
 
