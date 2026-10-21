@@ -21,7 +21,7 @@ jobs:
       - name: Generate Dockerfile
         run: |
           cat > Dockerfile << 'EOF'
-          FROM ghcr.io/malditaes/php8.2-base:v1.0.5 AS app-runtime
+          FROM ghcr.io/malditaes/php8.2-base:v1.0.6 AS app-runtime
 
           # Install Caddy, Supervisor, qpdf, and PHP calendar extension
           RUN apt-get update && apt-get install -y \
