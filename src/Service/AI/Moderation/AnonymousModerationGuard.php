@@ -71,10 +71,11 @@ class AnonymousModerationGuard
                 systemPrompt: $prompt,
                 jsonSchema: self::VERDICT_SCHEMA,
                 schemaName: 'moderation_verdict',
-                maxOutputTokens: 256,
+                maxOutputTokens: 1024,
                 maxRetries: 1,
                 requiredJsonKeys: ['allowed', 'category'],
                 label: 'anon.moderation.' . $stage->value,
+                disableThinking: true,
             ));
         } catch (\Throwable $e) {
             $this->logger->warning('Anonymous moderation call failed; failing {mode}', [

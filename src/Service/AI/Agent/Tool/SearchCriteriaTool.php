@@ -152,10 +152,11 @@ final class SearchCriteriaTool
                 systemPrompt: $prompt,
                 jsonSchema: self::VERDICT_SCHEMA,
                 schemaName: 'criterion_verdict',
-                maxOutputTokens: 512,
+                maxOutputTokens: 3072,
                 maxRetries: 1,
                 requiredJsonKeys: ['relevant', 'argument'],
                 label: 'agent.criterion.deep-review',
+                thinkingTokenBudget: 384,
             ));
         } catch (\Throwable) {
             return ['relevant' => false, 'argument' => ''];
