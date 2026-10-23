@@ -228,10 +228,11 @@ final class SearchResolutionsTool
                 systemPrompt: $prompt,
                 jsonSchema: self::SCREEN_SCHEMA,
                 schemaName: 'resolution_screen_batch',
-                maxOutputTokens: 256,
+                maxOutputTokens: 1024,
                 maxRetries: 1,
                 requiredJsonKeys: ['promising'],
                 label: 'agent.resolution.screen-batch',
+                disableThinking: true,
             ));
         } catch (\Throwable) {
             // On failure, give every candidate the benefit of the doubt in
@@ -288,10 +289,11 @@ final class SearchResolutionsTool
                 systemPrompt: $prompt,
                 jsonSchema: self::VERDICT_SCHEMA,
                 schemaName: 'resolution_verdict',
-                maxOutputTokens: 512,
+                maxOutputTokens: 4096,
                 maxRetries: 1,
                 requiredJsonKeys: ['relevant', 'argument'],
                 label: 'agent.resolution.deep-review',
+                thinkingTokenBudget: 384,
             ));
         } catch (\Throwable) {
             return ['relevant' => false, 'argument' => ''];

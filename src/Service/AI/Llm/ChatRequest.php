@@ -52,6 +52,16 @@ final readonly class ChatRequest
          * no tiene efecto.
          */
         public bool $preferTeacher = false,
+        /**
+         * Desactiva el reasoning del modelo (Qwen3 thinking) para tareas JSON
+         * cerradas: se envía extra_body.chat_template_kwargs.enable_thinking=false.
+         */
+        public bool $disableThinking = false,
+        /**
+         * Presupuesto explícito de thinking (tokens). Se envía como
+         * top-level thinking_token_budget cuando no es null.
+         */
+        public ?int $thinkingTokenBudget = null,
     ) {
         $this->systemPrompt = $systemPrompt instanceof CompiledPrompt ? $systemPrompt->text : $systemPrompt;
         $this->promptRef = $promptRef ?? ($systemPrompt instanceof CompiledPrompt ? $systemPrompt : null);

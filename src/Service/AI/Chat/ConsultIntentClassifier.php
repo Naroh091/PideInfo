@@ -76,9 +76,10 @@ TXT;
                 userText: $userText,
                 temperature: 0.0,
                 jsonSchema: self::SCHEMA,
-                maxOutputTokens: 60,
+                maxOutputTokens: 512,
                 label: 'consult-intent',
                 traceName: 'ConsultIntentClassifier',
+                disableThinking: true,
             ));
         } catch (\Throwable) {
             // Never block the turn on the classifier: fall back to the general flow.

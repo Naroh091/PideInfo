@@ -439,10 +439,11 @@ final class ReadRequestDocumentsTool
             userText: $userText,
             jsonSchema: self::batchSchema(),
             schemaName: 'document_extraction_batch',
-            maxOutputTokens: min(1024 * $n, 8192),
+            maxOutputTokens: min(2048 * $n, 16384),
             maxRetries: 1,
             requiredJsonKeys: ['extractions'],
             label: 'agent.document.extract',
+            disableThinking: true,
         );
     }
 
@@ -578,10 +579,11 @@ final class ReadRequestDocumentsTool
                 userText: $userText,
                 jsonSchema: self::EXTRACTION_SCHEMA,
                 schemaName: 'document_extraction',
-                maxOutputTokens: 1024,
+                maxOutputTokens: 3072,
                 maxRetries: 1,
                 requiredJsonKeys: ['useful_for_drafting'],
                 label: 'agent.document.extract',
+                disableThinking: true,
             ));
 
             return array_merge(['filename' => $filename], $result);

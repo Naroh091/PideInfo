@@ -105,7 +105,7 @@ final class CustomModelClient
         $this->throttle();
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
-        return $this->dispatch($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+        return $this->dispatch($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat, $req->disableThinking, $req->thinkingTokenBudget);
     }
 
     /**
@@ -123,7 +123,7 @@ final class CustomModelClient
         $this->throttle();
         ['messages' => $messages, 'responseFormat' => $responseFormat] = $this->buildDispatchInput($req);
 
-        return yield from $this->dispatchStream($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat);
+        return yield from $this->dispatchStream($messages, $req->maxOutputTokens, $req->maxRetries, $responseFormat, $req->disableThinking, $req->thinkingTokenBudget);
     }
 
     /**
@@ -175,6 +175,9 @@ final class CustomModelClient
             }
             if ($responseFormat !== null) {
                 $body['response_format'] = $responseFormat;
+            }
+            foreach ($this->thinkingParams($req->disableThinking, $req->thinkingTokenBudget) as $k => $v) {
+                $body[$k] = $v;
             }
             $responses[$i] = $http->request('POST', $url, ['headers' => $headers, 'json' => $body]);
         }
@@ -259,6 +262,9 @@ final class CustomModelClient
         $results = [];
         foreach ($requests as $i => $req) {
             if (strlen(trim($contents[$i])) < 5) {
+                if (($finishReasons[$i] ?? null) === 'length') {
+                    throw new \RuntimeException(sprintf('Empty response from custom model (concurrent slot %d, finish_reason=length, likely reasoning budget exhausted).', $i));
+                }
                 throw new \RuntimeException(sprintf('Empty response from custom model (concurrent slot %d).', $i));
             }
             $results[$i] = new ChatResult($contents[$i], $promptTokens[$i], $completionTokens[$i], $modelIds[$i], $finishReasons[$i]);
@@ -329,6 +335,22 @@ final class CustomModelClient
         }
 
         return ['messages' => $messages, 'responseFormat' => $responseFormat];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function thinkingParams(bool $disableThinking, ?int $thinkingTokenBudget): array
+    {
+        $params = [];
+        if ($disableThinking) {
+            $params['extra_body'] = ['chat_template_kwargs' => ['enable_thinking' => false]];
+        }
+        if ($thinkingTokenBudget !== null) {
+            $params['thinking_token_budget'] = $thinkingTokenBudget;
+        }
+
+        return $params;
     }
 
     /**
@@ -523,7 +545,7 @@ final class CustomModelClient
      * @param array<int, array<string, mixed>> $messages
      * @param array<string, mixed>|null $responseFormat
      */
-    private function dispatch(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat): ChatResult
+    private function dispatch(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat, bool $disableThinking = false, ?int $thinkingTokenBudget = null): ChatResult
     {
         $params = [
             'model' => $this->model,
@@ -538,6 +560,10 @@ final class CustomModelClient
 
         if ($responseFormat !== null) {
             $params['response_format'] = $responseFormat;
+        }
+
+        foreach ($this->thinkingParams($disableThinking, $thinkingTokenBudget) as $k => $v) {
+            $params[$k] = $v;
         }
 
         $lastError = null;
@@ -599,7 +625,16 @@ final class CustomModelClient
             }
 
             if (strlen(trim($content)) < 5) {
-                $lastError = new \RuntimeException('Empty response from custom model.');
+                if ($finishReason === 'length') {
+                    $this->logger->warning('Custom model returned empty content with finish_reason=length (likely reasoning budget exhausted)', [
+                        'attempt' => $attempt + 1,
+                        'max_tokens' => $maxTokens,
+                        'model' => $modelId ?? $this->model,
+                    ]);
+                    $lastError = new \RuntimeException('Empty response from custom model (finish_reason=length, likely reasoning budget exhausted).');
+                } else {
+                    $lastError = new \RuntimeException('Empty response from custom model.');
+                }
                 continue;
             }
 
@@ -614,7 +649,7 @@ final class CustomModelClient
      * @param array<string, mixed>|null $responseFormat
      * @return \Generator<int, string, void, ChatResult>
      */
-    private function dispatchStream(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat): \Generator
+    private function dispatchStream(array $messages, int $maxTokens, int $maxRetries, ?array $responseFormat, bool $disableThinking = false, ?int $thinkingTokenBudget = null): \Generator
     {
         $params = [
             'model' => $this->model,
@@ -629,6 +664,10 @@ final class CustomModelClient
 
         if ($responseFormat !== null) {
             $params['response_format'] = $responseFormat;
+        }
+
+        foreach ($this->thinkingParams($disableThinking, $thinkingTokenBudget) as $k => $v) {
+            $params[$k] = $v;
         }
 
         $lastError = null;
@@ -702,7 +741,16 @@ final class CustomModelClient
             }
 
             if (strlen(trim($content)) < 5) {
-                $lastError = new \RuntimeException('Empty response from custom model.');
+                if ($finishReason === 'length') {
+                    $this->logger->warning('Custom model stream returned empty content with finish_reason=length (likely reasoning budget exhausted)', [
+                        'attempt' => $attempt + 1,
+                        'max_tokens' => $maxTokens,
+                        'model' => $modelId ?? $this->model,
+                    ]);
+                    $lastError = new \RuntimeException('Empty response from custom model (finish_reason=length, likely reasoning budget exhausted).');
+                } else {
+                    $lastError = new \RuntimeException('Empty response from custom model.');
+                }
                 if ($yielded) {
                     throw $lastError;
                 }
