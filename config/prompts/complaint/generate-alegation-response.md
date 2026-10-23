@@ -5,20 +5,13 @@ El ciudadano presentó una reclamación y la Administración ha respondido con a
 
 ## ESTRUCTURA DEL ESCRITO
 
-### 1. ENCABEZAMIENTO
-Escrito dirigido al {{transparency_council}} en respuesta a las alegaciones formuladas por {{public_body_name}} / organismo que las haya emitido. 
+El escrito tendrá EXACTAMENTE dos secciones, con `<h1>` propio cada una, en este orden: `EXPONE` y `SOLICITA`. No añadas ninguna otra sección principal.
 
-### 2. ANTECEDENTES
-Redacta los antecedentes en PROSA NARRATIVA (párrafos, no listas con viñetas): la solicitud original y el proceso de reclamación. Sé conciso; si cubre varios hechos diferenciados, sepáralos en `<p>` distintos en lugar de un único bloque.
+### 1. EXPONE — máximo 2000 caracteres de texto visible (sin contar etiquetas HTML)
+Redacta en PROSA NARRATIVA (párrafos `<p>`, no listas con viñetas): primero los antecedentes (solicitud original, reclamación presentada y alegaciones trasladadas por {{public_body_name}}) y a continuación la refutación SINTÉTICA punto por punto (PRIMERO, SEGUNDO…: resume lo alegado y rebátelo con fundamento jurídico, apoyándote en criterios y resoluciones cuando sean pertinentes). El conjunto de EXPONE no superará 2000 caracteres visibles.
 
-### 3. RESPUESTA A LAS ALEGACIONES
-Para CADA punto de alegación de la Administración:
-- Cita el argumento de la Administración
-- Rebátelo con fundamento jurídico
-- Apoya con criterios interpretativos y resoluciones favorables
-
-### 4. CONCLUSIONES Y SOLICITUD
-Solicita al {{transparency_council}} que desestime las alegaciones y estime la reclamación.
+### 2. SOLICITA — máximo 2000 caracteres de texto visible (sin contar etiquetas HTML)
+Petición formal al {{transparency_council}}: que desestime las alegaciones de {{public_body_name}} y estime la reclamación, ordenando el acceso a la información solicitada.
 
 ---
 
@@ -67,5 +60,7 @@ Solicita al {{transparency_council}} que desestime las alegaciones y estime la r
 11. CITA OBLIGATORIA CON REFERENCIA EXACTA: TODA resolución o criterio que uses en la argumentación debe aparecer con su referencia exacta (p. ej. «R/0123/2023», «Criterio CI/006/2015») más el órgano emisor. Está PROHIBIDO parafrasear doctrina sin su referencia: si un argumento se apoya en una resolución o criterio proporcionado, el lector debe poder identificar cuál es por su referencia exacta. Cuando cites un criterio interpretativo, usa SIEMPRE la fórmula literal «Criterio <identificador>» (por ejemplo «Criterio CI/004/2015»). Ejemplo: mal — «la doctrina del Consejo considera restrictiva esta causa»; bien — «como estableció el Consejo de Transparencia y Buen Gobierno en su Resolución R/0123/2023, esta causa es de interpretación restrictiva».
 12. TEN EN CUENTA que la solicitud puede estar registrada como dirigida a un organismo pero que las alegaciones se hayan emitido por otro. Tenlo en cuenta a la hora de redactar.
 13. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información. Usa `<strong>` para resaltar fechas y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Respuesta a las Alegaciones para los títulos temáticos de cada punto (regla 7). Las fechas y el número de registro van SIEMPRE en `<strong>`: mal — `<p>El plazo venció el 25 de mayo</p>`; bien — `<p>El plazo venció el <strong>25/05/2026</strong></p>`. Usa `<em>` para énfasis puntual dentro de una frase y `<a>` solo para URLs que aparezcan en el contexto proporcionado. Si refutas varios puntos de alegación, usa una lista `<ol>` o `<ul>` con un `<li>` por punto en lugar de encadenarlos en un único párrafo.
+14. NO REITERATIVO: Cada argumento jurídico se expone UNA SOLA VEZ en todo el escrito. Prohibido repetir la misma idea en varios párrafos o secciones con distintas palabras. Cada frase debe aportar un hecho o un fundamento nuevo; si ya se dijo, no se reformula.
+15. TOPE GLOBAL DE CITAS: En todo el escrito, máximo 2 criterios interpretativos y máximo 3 resoluciones. Elige las más pertinentes para el caso; si hay más candidatas, descarta las menos decisivas. No cites más aunque las hayas encontrado.
 
 Responde ÚNICAMENTE con el HTML del escrito, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.

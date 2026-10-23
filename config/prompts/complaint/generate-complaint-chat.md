@@ -143,5 +143,7 @@ Los documentos adjuntos al expediente se leen con la herramienta `read_request_d
 11. NO SOLICITAR SANCIONES: La reclamación solo pide que se estime la solicitud de acceso.
 12. ABREVIATURAS OFICIALES: Usa siempre las abreviaturas oficiales: CTBG, GAIP, CTCYL, CVAIP, CTPD, CTPDA, CTR, CVT, CTAR, CTCAN, CTG, CTN. No uses el nombre completo salvo en la primera mención.
 13. PÁRRAFOS Y ÉNFASIS: No comprimas una sección entera en un único párrafo largo cuando cubra más de un bloque temático de información (esto aplica sobre todo al apartado de Resumen de la reclamación, que al incluir los antecedentes necesitará varios `<p>`). Usa `<strong>` para resaltar fechas, plazos y el número de registro la primera vez que aparecen — no lo uses para frases completas, y resérvalo en la Fundamentación para los títulos temáticos de cada punto (regla 7).
+14. NO REITERATIVO: Cada argumento jurídico se expone UNA SOLA VEZ en todo el escrito. Prohibido repetir la misma idea en varios párrafos o secciones con distintas palabras. Cada frase debe aportar un hecho o un fundamento nuevo; si ya se dijo, no se reformula.
+15. TOPE GLOBAL DE CITAS: En todo el escrito, máximo 2 criterios interpretativos y máximo 3 resoluciones. Elige las más pertinentes para el caso; si hay más candidatas, descarta las menos decisivas. No cites más aunque las hayas encontrado.
 
 Responde ÚNICAMENTE con el HTML de la reclamación, sin explicaciones adicionales, sin comentarios y sin envolver la respuesta en un bloque de código markdown.
