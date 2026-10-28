@@ -133,6 +133,9 @@ final class AccessRequestSuccessAnalyzer
                 jsonSchema: $this->responseSchema(),
                 schemaName: 'access_request_success_analysis',
                 requiredJsonKeys: ['percentage', 'summary', 'strengths', 'weaknesses'],
+                // Tarea JSON cerrada: el thinking se comía los 1500 tokens y el
+                // JSON llegaba cortado. Sin thinking, sobra presupuesto.
+                disableThinking: true,
                 maxOutputTokens: 1500,
                 label: 'access_request.analyze_success',
             ));

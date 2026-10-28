@@ -125,8 +125,10 @@ final class SuccessAnalyzer
                 temperature: 1.0,
                 jsonSchema: $schema,
                 schemaName: 'success_analysis',
-                maxOutputTokens: 2048,
                 requiredJsonKeys: ['percentage', 'summary', 'strengths', 'weaknesses'],
+                // Igual que AccessRequestSuccessAnalyzer: JSON cerrado, sin thinking.
+                disableThinking: true,
+                maxOutputTokens: 2048,
                 label: 'complaint.analyze_success',
             ));
 
