@@ -136,7 +136,11 @@ final class ActivitySummarizer
                 temperature: 1.0,
                 jsonSchema: $this->buildResponseSchema(),
                 schemaName: 'activity_summary',
+                // Sin tope de reasoning, qwen-next-flash se comía los 2048 tokens
+                // pensando y devolvía el JSON cortado (finish_reason=length). El
+                // presupuesto de thinking deja el resto para la respuesta.
                 maxOutputTokens: 2048,
+                thinkingTokenBudget: 384,
                 requiredJsonKeys: ['summary', 'items', 'references'],
                 label: 'activity.summary_24h',
             ));
